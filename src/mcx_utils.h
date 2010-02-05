@@ -66,6 +66,7 @@ typedef struct MCXConfig{
 	char issave2pt;     /*1 to save the 2-point distribution, 0 do not save*/
 	char isgpuinfo;     /*1 to print gpu info when attach, 0 do not print*/
 	char iscpu;         /*1 use CPU for simulation, 0 use GPU*/
+	char isverbose;     /*1 print debug info, 0 do not*/
         float minenergy;    /*minimum energy to propagate photon*/
         FILE *flog;         /*stream handle to print log information*/
         char rootpath[MAX_PATH_LENGTH];

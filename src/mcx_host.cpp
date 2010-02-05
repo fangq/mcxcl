@@ -27,10 +27,13 @@ cl_platform_id mcx_set_gpu(int printinfo){
         cl_platform_id* platforms = new cl_platform_id[numPlatforms];
         mcx_assess(clGetPlatformIDs(numPlatforms, platforms, NULL));
         for (unsigned i = 0; i < numPlatforms; ++i) {
-            char pbuf[100];
-            mcx_assess(clGetPlatformInfo(platforms[i],
-                          CL_PLATFORM_VENDOR,sizeof(pbuf),pbuf,NULL));
             platform = platforms[i];
+	    if(printinfo){
+                char pbuf[100];
+                mcx_assess(clGetPlatformInfo(platforms[i],
+                          CL_PLATFORM_NAME,sizeof(pbuf),pbuf,NULL));
+		printf("Platform [%d] Name %s\n",i,pbuf);
+	    }
         }
         delete[] platforms;
     }
@@ -38,55 +41,55 @@ cl_platform_id mcx_set_gpu(int printinfo){
 #endif
 }
 
-void print_cl_errstring(cl_int err) {
+char *print_cl_errstring(cl_int err) {
     switch (err) {
-        case CL_SUCCESS:                            printf("Success!");break;
-        case CL_DEVICE_NOT_FOUND:                   printf("Device not found.\n");break;
-        case CL_DEVICE_NOT_AVAILABLE:               printf("Device not available\n");break;
-        case CL_COMPILER_NOT_AVAILABLE:             printf("Compiler not available\n");break;
-        case CL_MEM_OBJECT_ALLOCATION_FAILURE:      printf("Memory object allocation failure\n");break;
-        case CL_OUT_OF_RESOURCES:                   printf("Out of resources\n");break;
-        case CL_OUT_OF_HOST_MEMORY:                 printf("Out of host memory\n");break;
-        case CL_PROFILING_INFO_NOT_AVAILABLE:       printf("Profiling information not available\n");break;
-        case CL_MEM_COPY_OVERLAP:                   printf("Memory copy overlap\n");break;
-        case CL_IMAGE_FORMAT_MISMATCH:              printf("Image format mismatch\n");break;
-        case CL_IMAGE_FORMAT_NOT_SUPPORTED:         printf("Image format not supported\n");break;
-        case CL_BUILD_PROGRAM_FAILURE:              printf("Program build failure\n");break;
-        case CL_MAP_FAILURE:                        printf("Map failure\n");break;
-        case CL_INVALID_VALUE:                      printf("Invalid value\n");break;
-        case CL_INVALID_DEVICE_TYPE:                printf("Invalid device type\n");break;
-        case CL_INVALID_PLATFORM:                   printf("Invalid platform\n");break;
-        case CL_INVALID_DEVICE:                     printf("Invalid device\n");break;
-        case CL_INVALID_CONTEXT:                    printf("Invalid context\n");break;
-        case CL_INVALID_QUEUE_PROPERTIES:           printf("Invalid queue properties\n");break;
-        case CL_INVALID_COMMAND_QUEUE:              printf("Invalid command queue\n");break;
-        case CL_INVALID_HOST_PTR:                   printf("Invalid host pointer\n");break;
-        case CL_INVALID_MEM_OBJECT:                 printf("Invalid memory object\n");break;
-        case CL_INVALID_IMAGE_FORMAT_DESCRIPTOR:    printf("Invalid image format descriptor\n");break;
-        case CL_INVALID_IMAGE_SIZE:                 printf("Invalid image size\n");break;
-        case CL_INVALID_SAMPLER:                    printf("Invalid sampler\n");break;
-        case CL_INVALID_BINARY:                     printf("Invalid binary\n");break;
-        case CL_INVALID_BUILD_OPTIONS:              printf("Invalid build options\n");break;
-        case CL_INVALID_PROGRAM:                    printf("Invalid program\n");break;
-        case CL_INVALID_PROGRAM_EXECUTABLE:         printf("Invalid program executable\n");break;
-        case CL_INVALID_KERNEL_NAME:                printf("Invalid kernel name\n");break;
-        case CL_INVALID_KERNEL_DEFINITION:          printf("Invalid kernel definition\n");break;
-        case CL_INVALID_KERNEL:                     printf("Invalid kernel\n");break;
-        case CL_INVALID_ARG_INDEX:                  printf("Invalid argument index\n");break;
-        case CL_INVALID_ARG_VALUE:                  printf("Invalid argument value\n");break;
-        case CL_INVALID_ARG_SIZE:                   printf("Invalid argument size\n");break;
-        case CL_INVALID_KERNEL_ARGS:                printf("Invalid kernel arguments\n");break;
-        case CL_INVALID_WORK_DIMENSION:             printf("Invalid work dimension\n");break;
-        case CL_INVALID_WORK_GROUP_SIZE:            printf("Invalid work group size\n");break;
-        case CL_INVALID_WORK_ITEM_SIZE:             printf("Invalid work item size\n");break;
-        case CL_INVALID_GLOBAL_OFFSET:              printf("Invalid global offset\n");break;
-        case CL_INVALID_EVENT_WAIT_LIST:            printf("Invalid event wait list\n");break;
-        case CL_INVALID_EVENT:                      printf("Invalid event\n");break;
-        case CL_INVALID_OPERATION:                  printf("Invalid operation\n");break;
-        case CL_INVALID_GL_OBJECT:                  printf("Invalid OpenGL object\n");break;
-        case CL_INVALID_BUFFER_SIZE:                printf("Invalid buffer size\n");break;
-        case CL_INVALID_MIP_LEVEL:                  printf("Invalid mip-map level\n");break;
-        default: printf("Unknown");break;
+        case CL_SUCCESS:                          return strdup("Success!");
+        case CL_DEVICE_NOT_FOUND:                 return strdup("Device not found.");
+        case CL_DEVICE_NOT_AVAILABLE:             return strdup("Device not available");
+        case CL_COMPILER_NOT_AVAILABLE:           return strdup("Compiler not available");
+        case CL_MEM_OBJECT_ALLOCATION_FAILURE:    return strdup("Memory object allocation failure");
+        case CL_OUT_OF_RESOURCES:                 return strdup("Out of resources");
+        case CL_OUT_OF_HOST_MEMORY:               return strdup("Out of host memory");
+        case CL_PROFILING_INFO_NOT_AVAILABLE:     return strdup("Profiling information not available");
+        case CL_MEM_COPY_OVERLAP:                 return strdup("Memory copy overlap");
+        case CL_IMAGE_FORMAT_MISMATCH:            return strdup("Image format mismatch");
+        case CL_IMAGE_FORMAT_NOT_SUPPORTED:       return strdup("Image format not supported");
+        case CL_BUILD_PROGRAM_FAILURE:            return strdup("Program build failure");
+        case CL_MAP_FAILURE:                      return strdup("Map failure");
+        case CL_INVALID_VALUE:                    return strdup("Invalid value");
+        case CL_INVALID_DEVICE_TYPE:              return strdup("Invalid device type");
+        case CL_INVALID_PLATFORM:                 return strdup("Invalid platform");
+        case CL_INVALID_DEVICE:                   return strdup("Invalid device");
+        case CL_INVALID_CONTEXT:                  return strdup("Invalid context");
+        case CL_INVALID_QUEUE_PROPERTIES:         return strdup("Invalid queue properties");
+        case CL_INVALID_COMMAND_QUEUE:            return strdup("Invalid command queue");
+        case CL_INVALID_HOST_PTR:                 return strdup("Invalid host pointer");
+        case CL_INVALID_MEM_OBJECT:               return strdup("Invalid memory object");
+        case CL_INVALID_IMAGE_FORMAT_DESCRIPTOR:  return strdup("Invalid image format descriptor");
+        case CL_INVALID_IMAGE_SIZE:               return strdup("Invalid image size");
+        case CL_INVALID_SAMPLER:                  return strdup("Invalid sampler");
+        case CL_INVALID_BINARY:                   return strdup("Invalid binary");
+        case CL_INVALID_BUILD_OPTIONS:            return strdup("Invalid build options");
+        case CL_INVALID_PROGRAM:                  return strdup("Invalid program");
+        case CL_INVALID_PROGRAM_EXECUTABLE:       return strdup("Invalid program executable");
+        case CL_INVALID_KERNEL_NAME:              return strdup("Invalid kernel name");
+        case CL_INVALID_KERNEL_DEFINITION:        return strdup("Invalid kernel definition");
+        case CL_INVALID_KERNEL:                   return strdup("Invalid kernel");
+        case CL_INVALID_ARG_INDEX:                return strdup("Invalid argument index");
+        case CL_INVALID_ARG_VALUE:                return strdup("Invalid argument value");
+        case CL_INVALID_ARG_SIZE:                 return strdup("Invalid argument size");
+        case CL_INVALID_KERNEL_ARGS:              return strdup("Invalid kernel arguments");
+        case CL_INVALID_WORK_DIMENSION:           return strdup("Invalid work dimension");
+        case CL_INVALID_WORK_GROUP_SIZE:          return strdup("Invalid work group size");
+        case CL_INVALID_WORK_ITEM_SIZE:           return strdup("Invalid work item size");
+        case CL_INVALID_GLOBAL_OFFSET:            return strdup("Invalid global offset");
+        case CL_INVALID_EVENT_WAIT_LIST:          return strdup("Invalid event wait list");
+        case CL_INVALID_EVENT:                    return strdup("Invalid event");
+        case CL_INVALID_OPERATION:                return strdup("Invalid operation");
+        case CL_INVALID_GL_OBJECT:                return strdup("Invalid OpenGL object");
+        case CL_INVALID_BUFFER_SIZE:              return strdup("Invalid buffer size");
+        case CL_INVALID_MIP_LEVEL:                return strdup("Invalid mip-map level");
+        default:                                  return strdup("Unknown");
     }
 }
 
@@ -96,8 +99,7 @@ void print_cl_errstring(cl_int err) {
 */
 void mcx_assess(int cuerr){
      if(cuerr!=CL_SUCCESS){
-         print_cl_errstring(cuerr);
-         mcx_error(-(int)cuerr,"opencl error");
+         mcx_error(-(int)cuerr,print_cl_errstring(cuerr));
      }
 }
 
@@ -108,9 +110,9 @@ void mcx_run_simulation(Config *cfg){
 
      cl_int i,j,iter;
      cl_float  minstep=MIN(MIN(cfg->steps.x,cfg->steps.y),cfg->steps.z);
-     cl_float4 p0={cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f};
-     cl_float4 c0={cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f};
-     cl_float4 maxidx={cfg->dim.x,cfg->dim.y,cfg->dim.z};
+     cl_float4 p0={{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}};
+     cl_float4 c0={{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f}};
+     cl_float4 maxidx={{cfg->dim.x,cfg->dim.y,cfg->dim.z}};
      cl_float t,twindow0,twindow1;
      cl_float energyloss=0.f,energyabsorbed=0.f,savefreq,bubbler2;
      cl_float *energy;
@@ -124,7 +126,6 @@ void mcx_run_simulation(Config *cfg){
      //uint4 threaddim;
      cl_float Vvox,scale,absorp,eabsorp;
 
-    cl_device_id device_id;             // compute device id 
     cl_context context;                 // compute context
     cl_command_queue commands;          // compute command queue
     cl_program program;                 // compute program
@@ -240,8 +241,10 @@ void mcx_run_simulation(Config *cfg){
 //        srand(time(0));
 	
      for (i=0; i<cfg->nthread; i++) {
-	   Ppos[i]=p0;  // initial position
-           Pdir[i]=c0;
+           memcpy(Ppos+i,&p0,sizeof(p0));
+           memcpy(Pdir+i,&c0,sizeof(c0));
+	   //Ppos[i]=p0;  // initial position
+           //Pdir[i]=c0;
            Plen[i].x=0.f;Plen[i].y=0.f;Plen[i].z=minstep*R_C0;Plen[i].w=0.f;
      }
      for (i=0; i<cfg->nthread*RAND_SEED_LEN; i++) {
@@ -249,9 +252,9 @@ void mcx_run_simulation(Config *cfg){
      }
      fprintf(cfg->flog,"\
 ###############################################################################\n\
-#                  Monte Carlo Extreme (MCX) -- CUDA                          #\n\
+#                 Monte Carlo Extreme (MCX) -- OpenCL                         #\n\
 ###############################################################################\n\
-$MCX $Rev:: 155 $ Last Commit:$Date:: 2009-12-19 18:57:32#$ by $Author:: fangq$\n\
+$MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\n\
 ###############################################################################\n");
 
      tic=StartTimer();
@@ -280,7 +283,19 @@ $MCX $Rev:: 155 $ Last Commit:$Date:: 2009-12-19 18:57:32#$ by $Author:: fangq$\
      */
 
     mcx_assess((program=clCreateProgramWithSource(context, 1, (const char **)&(cfg->clsource), NULL, &status),status));
-    mcx_assess(clBuildProgram(program, 0, NULL, NULL, NULL, NULL));
+    if(cfg->iscpu && cfg->isverbose){ 
+       status=clBuildProgram(program, 0, NULL, "-D __DEVICE_EMULATION__", NULL, NULL);
+    }else{
+       status=clBuildProgram(program, 0, NULL, NULL, NULL, NULL);    
+    }
+    if(status!=CL_SUCCESS){
+	size_t len;
+	char msg[2048];
+	// get the details on the error, and store it in buffer
+	clGetProgramBuildInfo(program,devices[0],CL_PROGRAM_BUILD_LOG,sizeof(msg),msg,&len); 
+	fprintf(cfg->flog,"Kernel build error:\n%s\n", msg);
+	mcx_error(-(int)status,(char*)("Error: Failed to build program executable!"));
+    }
     mcx_assess((kernel = clCreateKernel(program, "mcx_main_loop", &status),status));
     mcx_assess(clGetKernelWorkGroupInfo(kernel,devices[0],CL_KERNEL_WORK_GROUP_SIZE,
                sizeof(size_t),&kernelWorkGroupSize,0));

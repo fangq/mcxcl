@@ -21,13 +21,13 @@
 #include "mcx_utils.h"
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B',
-                 'd','r','S','p','e','U','R','l','L','I','o','c','k','\0'};
+                 'd','r','S','p','e','U','R','l','L','I','o','c','k','v','\0'};
 char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--thread","--blocksize","--session","--array",
                  "--gategroup","--reflect","--reflect3","--savedet",
                  "--repeat","--save2pt","--printlen","--minenergy",
                  "--normalize","--skipradius","--log","--listgpu",
-                 "--printgpu","--root","--cpu","--kernel",""};
+                 "--printgpu","--root","--cpu","--kernel","--verbose",""};
 
 void mcx_savedata(float *dat,int len,Config *cfg){
      FILE *fp;
@@ -115,6 +115,7 @@ void mcx_initcfg(Config *cfg){
      cfg->sradius=0.f;
      cfg->rootpath[0]='\0';
      cfg->iscpu=0;
+     cfg->isverbose=0;
      cfg->clsource='\0';
      strcpy(cfg->kernelfile,"mcx_core.cl");
 }
@@ -433,6 +434,8 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		                break;
 		     case 'c':  cfg->iscpu=1;
 		                break;
+		     case 'v':  cfg->isverbose=1;
+		                break;
 		     case 'o':
 		     	        i=mcx_readarg(argc,argv,i,cfg->rootpath,"string");
 		     	        break;
@@ -459,9 +462,11 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 	  }
 	  fseek(fp,0,SEEK_END);
 	  srclen=ftell(fp);
-	  cfg->clsource=(char *)malloc(srclen);
+	  printf("file len %d\n",srclen);
+	  cfg->clsource=(char *)malloc(srclen+1);
 	  fseek(fp,0,SEEK_SET);
 	  fread(cfg->clsource,1,srclen,fp);
+	  cfg->clsource[srclen]='\0';
 	  fclose(fp);
      }
      if(cfg->isgpuinfo!=2){ /*print gpu info only*/
@@ -476,7 +481,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 void mcx_usage(char *exename){
      printf("\
 ######################################################################################\n\
-#                       Monte Carlo eXtreme (MCX) -- CUDA                            #\n\
+#                      Monte Carlo eXtreme (MCX) -- OpenCL                           #\n\
 #              Author: Qianqian Fang <fangq at nmr.mgh.harvard.edu>                  #\n\
 #                                                                                    #\n\
 #      Martinos Center for Biomedical Imaging, Massachusetts General Hospital        #\n\

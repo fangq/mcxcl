@@ -8,7 +8,7 @@
 //        Migration in 3D Turbid Media Accelerated by Graphics Processing 
 //        Units," Optics Express, vol. 17, issue 22, pp. 20178-20190 (2009)
 //
-//  mcx_core.cu: GPU kernels and CUDA host code
+//  mcx_core.cl: OpenCL kernels
 //
 //  License: GNU General Public License v3, see LICENSE.txt for details
 //
@@ -151,11 +151,12 @@ typedef struct PhotonData {
 /*
    this is the core Monte Carlo simulation kernel, please see Fig. 1 in Fang2009
 */
-__kernel void mcx_main_loop(const int nphoton,int ophoton,__global const uchar media[],
-     __global float field[], __global float genergy[],float4 vsize,float minstep, 
+__kernel void mcx_main_loop(const int nphoton,const int ophoton,__global const uchar media[],
+     __global float field[], __global float genergy[],const float4 vsize,const float minstep, 
      float twin0,float twin1, float tmax, uint4 dimlen, uchar isrowmajor, uchar save2pt, float Rtstep,
-     float4 p0,float4 c0,float4 maxidx,uint4 cp0,uint4 cp1,uint2 cachebox,uchar doreflect,uchar doreflect3, 
-     float minenergy, float sradius2, __global uint n_seed[],__global float4 n_pos[],
+     const float4 p0,const float4 c0,const float4 maxidx,const uint4 cp0,const uint4 cp1,
+     const uint2 cachebox,const uchar doreflect,const uchar doreflect3, 
+     const float minenergy, const float sradius2, __global uint n_seed[],__global float4 n_pos[],
      __global float4 n_dir[],__global float4 n_len[],__constant float4 gproperty[]){
 
      int idx= get_local_size(0) * get_group_id(0)+ get_local_id(0);
@@ -232,6 +233,7 @@ __kernel void mcx_main_loop(const int nphoton,int ophoton,__global const uchar m
 
                            // when ran=1, CUDA will give me 1.000002 for tmp0 which produces nan later
                            if(tmp0>1.f) tmp0=1.f;
+                           if(tmp0<-1.f) tmp0=-1.f;
 
 		           theta=acos(tmp0);
 		           stheta=sin(theta);
