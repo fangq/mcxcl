@@ -137,6 +137,7 @@ void mcx_run_simulation(Config *cfg){
     cl_device_id* devices;
     size_t kernelWorkGroupSize;
     size_t maxWorkGroupSize;
+    cl_mem gmedia,gfield,gPpos,gPdir,gPlen,gPseed,genergy,gproperty;
 
      cl_uint mcgrid, mcblock;
      
@@ -197,25 +198,6 @@ void mcx_run_simulation(Config *cfg){
      Pseed=(cl_uint*)malloc(sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN);
      energy=(cl_float*)calloc(sizeof(cl_float),cfg->nthread*2);
 
-     cl_mem gmedia;
-     mcx_assess((gmedia=clCreateBuffer(context,RO_MEM, sizeof(cl_uchar)*(dimxyz),media,&status),status));
-     cl_mem gfield;
-     mcx_assess((gfield=clCreateBuffer(context,RW_MEM, sizeof(cl_float)*(dimxyz)*cfg->maxgate,field,&status),status));
-
-     //cudaBindTexture(0, texmedia, gmedia);
-
-     cl_mem gPpos;
-     mcx_assess((gPpos=clCreateBuffer(context,RW_MEM, sizeof(cl_float4)*cfg->nthread,Ppos,&status),status));
-     cl_mem gPdir;
-     mcx_assess((gPdir=clCreateBuffer(context,RW_MEM, sizeof(cl_float4)*cfg->nthread,Pdir,&status),status));
-     cl_mem gPlen;
-     mcx_assess((gPlen=clCreateBuffer(context,RW_MEM, sizeof(cl_float4)*cfg->nthread,Plen,&status),status));
-     cl_mem gPseed;
-     mcx_assess((gPseed=clCreateBuffer(context,RW_MEM, sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,Pseed,&status),status));
-
-     cl_mem genergy;
-     mcx_assess((genergy=clCreateBuffer(context,RW_MEM, sizeof(float)*cfg->nthread*2,energy,&status),status));
-     
      if(cfg->isrowmajor){ // if the volume is stored in C array order
 	     cachebox.x=(cp1.z-cp0.z+1);
 	     cachebox.y=(cp1.y-cp0.y+1)*(cp1.z-cp0.z+1);
@@ -250,6 +232,16 @@ void mcx_run_simulation(Config *cfg){
      for (i=0; i<cfg->nthread*RAND_SEED_LEN; i++) {
 	   Pseed[i]=rand();
      }
+     
+     mcx_assess((gmedia=clCreateBuffer(context,RO_MEM, sizeof(cl_uchar)*(dimxyz),media,&status),status));
+     mcx_assess((gfield=clCreateBuffer(context,RW_MEM, sizeof(cl_float)*(dimxyz)*cfg->maxgate,field,&status),status));
+     mcx_assess((gPpos=clCreateBuffer(context,RW_MEM, sizeof(cl_float4)*cfg->nthread,Ppos,&status),status));
+     mcx_assess((gPdir=clCreateBuffer(context,RW_MEM, sizeof(cl_float4)*cfg->nthread,Pdir,&status),status));
+     mcx_assess((gPlen=clCreateBuffer(context,RW_MEM, sizeof(cl_float4)*cfg->nthread,Plen,&status),status));
+     mcx_assess((gPseed=clCreateBuffer(context,RW_MEM, sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,Pseed,&status),status));
+     mcx_assess((genergy=clCreateBuffer(context,RW_MEM, sizeof(float)*cfg->nthread*2,energy,&status),status));
+     mcx_assess((gproperty=clCreateBuffer(context,RO_MEM, cfg->medianum*sizeof(Medium),cfg->prop,&status),status));
+
      fprintf(cfg->flog,"\
 ###############################################################################\n\
 #                 Monte Carlo Extreme (MCX) -- OpenCL                         #\n\
@@ -265,8 +257,6 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
      fflush(cfg->flog);
      fieldlen=dimxyz*cfg->maxgate;
 
-     cl_mem gproperty;
-     mcx_assess((gproperty=clCreateBuffer(context,RO_MEM, cfg->medianum*sizeof(Medium),cfg->prop,&status),status));
      fprintf(cfg->flog,"init complete : %d ms\n",GetTimeMillis()-tic);
 
      /*
@@ -282,9 +272,9 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 	 The calculation of the energy conservation will only reflect the last simulation.
      */
 
-    mcx_assess((program=clCreateProgramWithSource(context, 1, (const char **)&(cfg->clsource), NULL, &status),status));
+    mcx_assess((program=clCreateProgramWithSource(context, 1,(const char **)&(cfg->clsource), NULL, &status),status));
     if(cfg->iscpu && cfg->isverbose){ 
-       status=clBuildProgram(program, 0, NULL, "-D __DEVICE_EMULATION__", NULL, NULL);
+       status=clBuildProgram(program, 0, NULL, "-D __DEVICE_EMULATION__ -cl-fast-relaxed-math", NULL, NULL);
     }else{
        status=clBuildProgram(program, 0, NULL, NULL, NULL, NULL);    
     }
@@ -327,10 +317,10 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
     mcx_assess(clSetKernelArg(kernel,22, sizeof(cl_float), (void*)&(cfg->minenergy)));
     mcx_assess(clSetKernelArg(kernel,23, sizeof(cl_float), (void*)&(bubbler2)));
     mcx_assess(clSetKernelArg(kernel,24, sizeof(cl_mem),   (void*)&(gPseed)));
-    mcx_assess(clSetKernelArg(kernel,25, sizeof(cl_mem), (void*)&(gPpos)));
-    mcx_assess(clSetKernelArg(kernel,26, sizeof(cl_mem), (void*)&(gPdir)));
-    mcx_assess(clSetKernelArg(kernel,27, sizeof(cl_mem), (void*)&(gPlen)));
-    mcx_assess(clSetKernelArg(kernel,28, sizeof(cl_mem), (void*)&(gproperty)));
+    mcx_assess(clSetKernelArg(kernel,25, sizeof(cl_mem), (void*)&gPpos));
+    mcx_assess(clSetKernelArg(kernel,26, sizeof(cl_mem), (void*)&gPdir));
+    mcx_assess(clSetKernelArg(kernel,27, sizeof(cl_mem), (void*)&gPlen));
+    mcx_assess(clSetKernelArg(kernel,28, sizeof(cl_mem), (void*)&gproperty));
 
      //simulate for all time-gates in maxgate groups per run
      for(t=cfg->tstart;t<cfg->tend;t+=cfg->tstep*cfg->maxgate){

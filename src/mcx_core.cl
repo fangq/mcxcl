@@ -189,6 +189,8 @@ __kernel void mcx_main_loop(const int nphoton,const int ophoton,__global const u
      float len,cphi,sphi,theta,stheta,ctheta,tmp0,tmp1;
      float accumweight=0.f;
 
+     GPUDEBUG(("(%f %f %f %d)\n",n_pos[0].x,n_pos[0].y,n_pos[0].z,n_seed[0]));
+
      gpu_rng_init(t,tnew,n_seed,idx);
 
      // assuming the initial position is within the domain (mcx_config is supposed to ensure)
