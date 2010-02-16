@@ -17,6 +17,30 @@
 #include "tictoc.h"
 
 #ifndef USE_OS_TIMER
+
+#ifdef OPENCL
+
+#include <CL/cl.h>
+/* use OpenCL timer */
+static cl_ulong timerStart, timerStop;
+cl_event kernelevent;
+
+unsigned int GetTimeMillis () {
+  float elapsedTime;
+  clGetEventProfilingInfo(kernelevent, CL_PROFILING_COMMAND_START,
+                        sizeof(cl_ulong), &timerStart, NULL);
+  clGetEventProfilingInfo(kernelevent, CL_PROFILING_COMMAND_END,
+                        sizeof(cl_ulong), &timerStop, NULL);
+  elapsedTime=(timerStop - timerStart)*1e-6;
+  return (unsigned int)(elapsedTime);
+}
+
+unsigned int StartTimer () {
+  return 0;
+}
+
+#else
+
 #include <cuda.h>
 #include <driver_types.h>
 #include <cuda_runtime_api.h>
@@ -38,6 +62,8 @@ unsigned int StartTimer () {
   cudaEventRecord(timerStart,0);
   return 0;
 }
+
+#endif
 
 #else
 

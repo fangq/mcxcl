@@ -10,6 +10,8 @@
 #define WO_MEM             (CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR)
 #define RW_MEM             (CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR)
 
+extern cl_event kernelevent;
+
 /*
   query GPU info and set active GPU
 */
@@ -340,7 +342,7 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 
            // launch kernel
            mcx_assess(clEnqueueNDRangeKernel(commands,kernel,1,NULL,(size_t*)(&(cfg->nthread)), 
-	          (size_t*)(&(mcblock)), 0, NULL, NULL));
+	          (size_t*)(&(mcblock)), 0, NULL, &kernelevent));
 
 	   //handling the 2pt distributions
            if(cfg->issave2pt){

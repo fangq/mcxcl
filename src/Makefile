@@ -12,7 +12,7 @@ INCLUDEDIRS=-I/home/fangq/Download/ati-stream-sdk-v2.0-lnx32/include
 LINKOPT=-g -m32 -lpthread -ldl -L/usr/X11R6/lib -lOpenCL -lSDKUtil -L/home/fangq/Download/ati-stream-sdk-v2.0-lnx32/lib/x86
 
 CUCCOPT=-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
-CPPOPT=-g -Wall -DOPENCL -DUSE_OS_TIMER
+CPPOPT=-g -Wall -DOPENCL
 
 OBJSUFFIX=.o
 EXESUFFIX=
