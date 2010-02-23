@@ -2,13 +2,21 @@
 #define _MCEXTREME_UTILITIES_H
 
 #include <stdio.h>
-#ifndef OPENCL
+#ifndef MCX_OPENCL
   #include <vector_types.h>
 #else
   #include <CL/cl.h>
-
-  typedef cl_float4 float4;
-  typedef cl_uint4  uint4;
+ #ifdef CL_PLATFORM_NVIDIA
+  typedef struct vec_float4{
+       float x,y,z,w;
+  }float4;
+  typedef struct vec_uint4{
+       unsigned int x,y,z,w;
+  }uint4;
+  typedef struct vec_uint2{
+       unsigned int x,y;
+  }uint2;
+ #endif
 #endif
 
 #define MAX_PROP            256
@@ -78,19 +86,19 @@ typedef struct MCXConfig{
 extern "C" {
 #endif
 void mcx_savedata(float *dat,int len,Config *cfg);
-void mcx_error(int id,char *msg);
+void mcx_error(int id,const char *msg);
 void mcx_loadconfig(FILE *in, Config *cfg);
 void mcx_saveconfig(FILE *in, Config *cfg);
-void mcx_readconfig(char *fname, Config *cfg);
-void mcx_writeconfig(char *fname, Config *cfg);
+void mcx_readconfig(const char *fname, Config *cfg);
+void mcx_writeconfig(const char *fname, Config *cfg);
 void mcx_initcfg(Config *cfg);
 void mcx_clearcfg(Config *cfg);
 void mcx_parsecmd(int argc, char* argv[], Config *cfg);
 void mcx_usage(char *exename);
 void mcx_loadvolume(char *filename,Config *cfg);
 void mcx_normalize(float field[], float scale, int fieldlen);
-int  mcx_readarg(int argc, char *argv[], int id, void *output,char *type);
-void mcx_printlog(Config *cfg, char *str);
+int  mcx_readarg(int argc, char *argv[], int id, void *output,const char *type);
+void mcx_printlog(Config *cfg, const char *str);
 int  mcx_remap(char *opt);
 #ifdef	__cplusplus
 }

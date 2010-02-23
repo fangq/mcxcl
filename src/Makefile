@@ -5,14 +5,15 @@
 #################################################################
 
 CUDACC=g++
-CCC=gcc
+CCC=g++
 BINARY=mcxcl
 OUTPUT_DIR=../bin
-INCLUDEDIRS=-I/home/fangq/Download/ati-stream-sdk-v2.0-lnx32/include
-LINKOPT=-g -m32 -lpthread -ldl -L/usr/X11R6/lib -lOpenCL -lSDKUtil -L/home/fangq/Download/ati-stream-sdk-v2.0-lnx32/lib/x86
+INCLUDEDIRS=#-I/home/fangq/Download/ati-stream-sdk-v2.0-lnx32/include
+#LINKOPT=-g -m32 -lpthread -ldl -L/usr/X11R6/lib -lOpenCL -lSDKUtil -L/home/fangq/Download/ati-stream-sdk-v2.0-lnx32/lib/x86
+LINKOPT=-g -lOpenCL
 
-CUCCOPT=-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
-CPPOPT=-g -Wall -DOPENCL
+CUCCOPT=#-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
+CPPOPT=-g -Wall -DMCX_OPENCL
 
 OBJSUFFIX=.o
 EXESUFFIX=
@@ -31,7 +32,8 @@ ifeq ($(findstring Msys,$(PLATFORM)), Msys)
 else
   ifeq ($(findstring x86_64,$(ARCH)), x86_64)
      ifeq "$(wildcard /usr/local/cuda/lib64)" "/usr/local/cuda/lib64"
-        LINKOPT=-L/usr/local/cuda/lib64 -lcudart 
+        #LINKOPT=-L/usr/local/cuda/lib64 -lcudart 
+        #LINKOPT=-g -lOpenCL
      endif
   endif
 endif

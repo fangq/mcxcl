@@ -1,7 +1,8 @@
+#include <string.h>
+#include <stdlib.h>
 #include "mcx_host.hpp"
 #include "tictoc.h"
 #include "mcx_const.h"
-#include <string.h>
 
 #define MIN(a,b)           ((a)<(b)?(a):(b))
 #define MCX_RNG_NAME       "Logistic-Lattice"
@@ -39,6 +40,7 @@ cl_platform_id mcx_set_gpu(int printinfo){
         }
         delete[] platforms;
     }
+    if(printinfo==2) exit(0);
     return platform;
 #endif
 }
@@ -112,9 +114,9 @@ void mcx_run_simulation(Config *cfg){
 
      cl_int i,j,iter;
      cl_float  minstep=MIN(MIN(cfg->steps.x,cfg->steps.y),cfg->steps.z);
-     cl_float4 p0={{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}};
-     cl_float4 c0={{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f}};
-     cl_float4 maxidx={{cfg->dim.x,cfg->dim.y,cfg->dim.z}};
+     cl_float4 p0={cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f};
+     cl_float4 c0={cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f};
+     cl_float4 maxidx={cfg->dim.x,cfg->dim.y,cfg->dim.z};
      cl_float t,twindow0,twindow1;
      cl_float energyloss=0.f,energyabsorbed=0.f,savefreq,bubbler2;
      cl_float *energy;
@@ -122,9 +124,9 @@ void mcx_run_simulation(Config *cfg){
 
      cl_int photoncount=0,printnum;
      cl_int tic,fieldlen;
-     cl_uint4 cp0=cfg->crop0,cp1=cfg->crop1;
-     cl_uint2 cachebox;
-     cl_uint4 dimlen;
+     uint4 cp0=cfg->crop0,cp1=cfg->crop1;
+     uint2 cachebox;
+     uint4 dimlen;
      //uint4 threaddim;
      cl_float Vvox,scale,absorp,eabsorp;
 
@@ -155,9 +157,9 @@ void mcx_run_simulation(Config *cfg){
      threadphoton=cfg->nphoton/cfg->nthread/cfg->respin;
      oddphotons=cfg->nphoton-threadphoton*cfg->nthread*cfg->respin;
 
-     cl_float4 *Ppos;
-     cl_float4 *Pdir;
-     cl_float4 *Plen;
+     float4 *Ppos;
+     float4 *Pdir;
+     float4 *Plen;
      cl_uint   *Pseed;
     
     if(cfg->iscpu){
@@ -194,9 +196,9 @@ void mcx_run_simulation(Config *cfg){
      mcgrid=cfg->nthread/cfg->nblocksize;
      mcblock=cfg->nblocksize;
 
-     Ppos=(cl_float4*)malloc(sizeof(cl_float4)*cfg->nthread);
-     Pdir=(cl_float4*)malloc(sizeof(cl_float4)*cfg->nthread);
-     Plen=(cl_float4*)malloc(sizeof(cl_float4)*cfg->nthread);
+     Ppos=(float4*)malloc(sizeof(cl_float4)*cfg->nthread);
+     Pdir=(float4*)malloc(sizeof(cl_float4)*cfg->nthread);
+     Plen=(float4*)malloc(sizeof(cl_float4)*cfg->nthread);
      Pseed=(cl_uint*)malloc(sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN);
      energy=(cl_float*)calloc(sizeof(cl_float),cfg->nthread*2);
 
@@ -291,7 +293,6 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
     mcx_assess((kernel = clCreateKernel(program, "mcx_main_loop", &status),status));
     mcx_assess(clGetKernelWorkGroupInfo(kernel,devices[0],CL_KERNEL_WORK_GROUP_SIZE,
                sizeof(size_t),&kernelWorkGroupSize,0));
-
     oddphotons=0;
     savefreq=1.f/cfg->tstep;
     bubbler2=cfg->sradius*cfg->sradius;

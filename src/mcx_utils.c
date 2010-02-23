@@ -22,7 +22,7 @@
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B',
                  'd','r','S','p','e','U','R','l','L','I','o','c','k','v','\0'};
-char *fullopt[]={"--help","--interactive","--input","--photon","--move",
+const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--thread","--blocksize","--session","--array",
                  "--gategroup","--reflect","--reflect3","--savedet",
                  "--repeat","--save2pt","--printlen","--minenergy",
@@ -38,7 +38,7 @@ void mcx_savedata(float *dat,int len,Config *cfg){
      fclose(fp);
 }
 
-void mcx_printlog(Config *cfg, char *str){
+void mcx_printlog(Config *cfg, const char *str){
      if(cfg->flog>0){ /*stdout is 1*/
          fprintf(cfg->flog,"%s\n",str);
      }
@@ -51,12 +51,12 @@ void mcx_normalize(float field[], float scale, int fieldlen){
      }
 }
 
-void mcx_error(int id,char *msg){
+void mcx_error(int id,const char *msg){
      fprintf(stdout,"MCX ERROR(%d):%s\n",id,msg);
      exit(id);
 }
 
-void mcx_readconfig(char *fname, Config *cfg){
+void mcx_readconfig(const char *fname, Config *cfg){
      if(fname[0]==0){
      	mcx_loadconfig(stdin,cfg);
         if(cfg->session[0]=='\0'){
@@ -74,7 +74,7 @@ void mcx_readconfig(char *fname, Config *cfg){
      }
 }
 
-void mcx_writeconfig(char *fname, Config *cfg){
+void mcx_writeconfig(const char *fname, Config *cfg){
      if(fname[0]==0)
      	mcx_saveconfig(stdout,cfg);
      else{
@@ -303,7 +303,7 @@ void mcx_loadvolume(char *filename,Config *cfg){
      }
 }
 
-int mcx_readarg(int argc, char *argv[], int id, void *output,char *type){
+int mcx_readarg(int argc, char *argv[], int id, void *output,const char *type){
      /*
          when a binary option is given without a following number (0~1), 
          we assume it is 1
@@ -454,11 +454,11 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		fprintf(cfg->flog,"unable to save to log file, will print from stdout\n");
           }
      }
-     if(cfg->clsource==NULL){
+     if(cfg->clsource==NULL && cfg->isgpuinfo!=2){
      	  FILE *fp=fopen(cfg->kernelfile,"rb");
 	  int srclen;
 	  if(fp==NULL){
-	  	mcx_error(-10,"specified OpenCL kernel file does not exist!");
+	  	mcx_error(-10,"the specified OpenCL kernel file does not exist!");
 	  }
 	  fseek(fp,0,SEEK_END);
 	  srclen=ftell(fp);

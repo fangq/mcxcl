@@ -1,2 +1,2 @@
 #!/bin/sh
-../../bin/mcx -L
+../../bin/mcxcl -L

@@ -18,7 +18,7 @@
 
 #ifndef USE_OS_TIMER
 
-#ifdef OPENCL
+#ifdef MCX_OPENCL
 
 #include <CL/cl.h>
 /* use OpenCL timer */
