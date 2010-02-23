@@ -273,8 +273,10 @@ __kernel void mcx_main_loop(const int nphoton,const int ophoton,__global const u
 	  if(len>nlen.x){  //scattering ends in this voxel: mus*minstep > s 
                tmp0=nlen.x/prop.y;
 	       energyabsorbed+=npos.w;
-   	       npos=(float4)(npos.x+ndir.x*tmp0,npos.y+ndir.y*tmp0,npos.z+ndir.z*tmp0,
-                           npos.w*exp(-prop.x*tmp0));
+	       npos.xyz+=ndir.xyz*tmp0;
+               npos.w=npos.w*exp(-prop.x*tmp0);
+   	       //npos=(float4)(npos.x+ndir.x*tmp0,npos.y+ndir.y*tmp0,npos.z+ndir.z*tmp0,
+               //            npos.w*exp(-prop.x*tmp0));
 	       energyabsorbed-=npos.w;
 	       nlen.x=SAME_VOXEL;
 	       nlen.y+=tmp0*prop.z*R_C0;  // accumulative time
@@ -284,7 +286,9 @@ __kernel void mcx_main_loop(const int nphoton,const int ophoton,__global const u
                if(mediaid!=medid){
                   atten=exp(-prop.x*minstep);
                }
-   	       npos=(float4)(npos.x+ndir.x,npos.y+ndir.y,npos.z+ndir.z,npos.w*atten);
+               npos.xyz+=ndir.xyz;
+               npos.w*=atten;
+   	       //npos=(float4)(npos.x+ndir.x,npos.y+ndir.y,npos.z+ndir.z,npos.w*atten);
                medid=mediaid;
 	       energyabsorbed-=npos.w;
 	       nlen.x-=len;     //remaining probability: sum(s_i*mus_i)
