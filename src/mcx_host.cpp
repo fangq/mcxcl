@@ -183,7 +183,7 @@ void mcx_run_simulation(Config *cfg){
 
     {
         /* The block is to move the declaration of prop closer to its use */
-        cl_command_queue_properties prop = 0;
+        cl_command_queue_properties prop = CL_QUEUE_PROFILING_ENABLE;
         mcx_assess((commands=clCreateCommandQueue(context,devices[0],prop,&status),status));
     }
     mcx_assess(clGetDeviceInfo(devices[0],CL_DEVICE_MAX_WORK_GROUP_SIZE,
