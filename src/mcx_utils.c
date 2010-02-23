@@ -462,7 +462,6 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 	  }
 	  fseek(fp,0,SEEK_END);
 	  srclen=ftell(fp);
-	  printf("file len %d\n",srclen);
 	  cfg->clsource=(char *)malloc(srclen+1);
 	  fseek(fp,0,SEEK_SET);
 	  fread(cfg->clsource,1,srclen,fp);

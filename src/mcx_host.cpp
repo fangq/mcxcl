@@ -223,8 +223,8 @@ void mcx_run_simulation(Config *cfg){
 
      if(cfg->seed>0)
      	srand(cfg->seed);
-//     else
-//        srand(time(0));
+     else
+        srand(time(0));
 	
      for (i=0; i<cfg->nthread; i++) {
            memcpy(Ppos+i,&p0,sizeof(p0));
@@ -343,7 +343,7 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 
            // launch kernel
            mcx_assess(clEnqueueNDRangeKernel(commands,kernel,1,NULL,(size_t*)(&(cfg->nthread)), 
-	          (size_t*)(&(mcblock)), 0, NULL, &kernelevent));
+	          (size_t*)(&(cfg->nblocksize)), 0, NULL, &kernelevent));
 
 	   //handling the 2pt distributions
            if(cfg->issave2pt){
