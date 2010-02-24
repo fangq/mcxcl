@@ -6,7 +6,7 @@
   #include <vector_types.h>
 #else
   #include <CL/cl.h>
- #ifdef CL_PLATFORM_NVIDIA
+/* #ifdef CL_PLATFORM_NVIDIA*/
   typedef struct vec_float4{
        float x,y,z,w;
   }float4;
@@ -16,7 +16,7 @@
   typedef struct vec_uint2{
        unsigned int x,y;
   }uint2;
- #endif
+/* #endif*/
 #endif
 
 #define MAX_PROP            256
