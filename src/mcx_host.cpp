@@ -115,9 +115,9 @@ void mcx_run_simulation(Config *cfg){
 
      cl_int i,j,iter;
      cl_float  minstep=MIN(MIN(cfg->steps.x,cfg->steps.y),cfg->steps.z);
-     cl_float4 p0={{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}};
-     cl_float4 c0={{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f}};
-     cl_float4 maxidx={{cfg->dim.x,cfg->dim.y,cfg->dim.z}};
+     cl_float4 p0={cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f};
+     cl_float4 c0={cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f};
+     cl_float4 maxidx={cfg->dim.x,cfg->dim.y,cfg->dim.z};
      cl_float t,twindow0,twindow1;
      cl_float energyloss=0.f,energyabsorbed=0.f,savefreq,bubbler2;
      cl_float *energy;
@@ -144,7 +144,7 @@ void mcx_run_simulation(Config *cfg){
     size_t maxWorkGroupSize;
     cl_mem gmedia,gfield,gPpos,gPdir,gPlen,gPseed,genergy,gproperty;
 
-     cl_uint mcgrid, mcblock;
+     size_t mcgrid[2], mcblock[2];
      
      int dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z;
      
@@ -194,8 +194,10 @@ void mcx_run_simulation(Config *cfg){
 
      if(cfg->nthread%cfg->nblocksize)
      	cfg->nthread=(cfg->nthread/cfg->nblocksize)*cfg->nblocksize;
-     mcgrid=cfg->nthread/cfg->nblocksize;
-     mcblock=cfg->nblocksize;
+     mcgrid[0]=cfg->nthread;
+     mcgrid[1]=1;
+     mcblock[0]=cfg->nblocksize;
+     mcblock[1]=1;
 
      Ppos=(float4*)malloc(sizeof(cl_float4)*cfg->nthread);
      Pdir=(float4*)malloc(sizeof(cl_float4)*cfg->nthread);
@@ -281,7 +283,7 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
     if(cfg->iscpu && cfg->isverbose){ 
        status=clBuildProgram(program, 0, NULL, "-D __DEVICE_EMULATION__ -cl-fast-relaxed-math", NULL, NULL);
     }else{
-       status=clBuildProgram(program, 0, NULL, NULL, NULL, NULL);    
+       status=clBuildProgram(program, 0, NULL, "-cl-fast-relaxed-math", NULL, NULL);    
     }
     if(status!=CL_SUCCESS){
 	size_t len;
@@ -341,10 +343,10 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 
            mcx_assess(clSetKernelArg(kernel, 7, sizeof(cl_float), (void*)&(twindow0)));
            mcx_assess(clSetKernelArg(kernel, 8, sizeof(cl_float), (void*)&(twindow1)));
-
+printf("here is the kernel dim [%d %d]\n",cfg->nthread,cfg->nblocksize);
            // launch kernel
-           mcx_assess(clEnqueueNDRangeKernel(commands,kernel,1,NULL,(size_t*)(&(cfg->nthread)), 
-	          (size_t*)(&(cfg->nblocksize)), 0, NULL, &kernelevent));
+           mcx_assess(clEnqueueNDRangeKernel(commands,kernel,1,NULL,mcgrid,
+	          mcblock, 0, NULL, &kernelevent));
 
 	   //handling the 2pt distributions
            if(cfg->issave2pt){
@@ -471,10 +473,11 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
     clReleaseMemObject(gproperty);
 
     free(devices);
-    clReleaseProgram(program);
     clReleaseKernel(kernel);
+    clReleaseProgram(program);
     clReleaseCommandQueue(commands);
     clReleaseContext(context);
+    clReleaseEvent(kernelevent);
 
      free(Ppos);
      free(Pdir);
