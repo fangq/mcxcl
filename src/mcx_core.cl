@@ -151,14 +151,14 @@ typedef struct PhotonData {
 /*
    this is the core Monte Carlo simulation kernel, please see Fig. 1 in Fang2009
 */
-__kernel void mcx_main_loop(__local const int nphoton,__local const int ophoton,__global const uchar media[],
-     __global float field[], __global float genergy[],__local const float4 vsize,__local const float minstep, 
-     __local float twin0,__local float twin1, __local float tmax, __local uint4 dimlen, 
-     __local uchar isrowmajor, __local uchar save2pt, __local float Rtstep,
-     __local const float4 p0,__local const float4 c0,__local const float4 maxidx,
-     __local const uint4 cp0,__local const uint4 cp1,__local const uint2 cachebox,
-     __local const uchar doreflect,__local const uchar doreflect3, 
-     __local const float minenergy, __local const float sradius2, __global uint n_seed[],__global float4 n_pos[],
+__kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const uchar media[],
+     __global float field[], __global float genergy[], const float4 vsize, const float minstep, 
+     float twin0, float twin1,  float tmax,  uint4 dimlen, 
+     uchar isrowmajor,  uchar save2pt,  float Rtstep,
+     const float4 p0, const float4 c0, const float4 maxidx,
+     const uint4 cp0, const uint4 cp1, const uint2 cachebox,
+     const uchar doreflect, const uchar doreflect3, 
+     const float minenergy,  const float sradius2, __global uint n_seed[],__global float4 n_pos[],
      __global float4 n_dir[],__global float4 n_len[],__constant float4 gproperty[]){
 
      int idx= get_local_size(0) * get_group_id(0)+ get_local_id(0);
