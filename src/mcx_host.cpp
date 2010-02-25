@@ -144,7 +144,7 @@ void mcx_run_simulation(Config *cfg){
     size_t maxWorkGroupSize;
     cl_mem gmedia,gfield,gPpos,gPdir,gPlen,gPseed,genergy,gproperty;
 
-     size_t mcgrid[2], mcblock[2];
+     size_t mcgrid[1], mcblock[1];
      
      int dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z;
      
@@ -195,9 +195,7 @@ void mcx_run_simulation(Config *cfg){
      if(cfg->nthread%cfg->nblocksize)
      	cfg->nthread=(cfg->nthread/cfg->nblocksize)*cfg->nblocksize;
      mcgrid[0]=cfg->nthread;
-     mcgrid[1]=1;
      mcblock[0]=cfg->nblocksize;
-     mcblock[1]=1;
 
      Ppos=(float4*)malloc(sizeof(cl_float4)*cfg->nthread);
      Pdir=(float4*)malloc(sizeof(cl_float4)*cfg->nthread);
@@ -293,9 +291,13 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 	fprintf(cfg->flog,"Kernel build error:\n%s\n", msg);
 	mcx_error(-(int)status,(char*)("Error: Failed to build program executable!"));
     }
+    fprintf(cfg->flog,"build program complete : %d ms\n",GetTimeMillis()-tic);
+
     mcx_assess((kernel = clCreateKernel(program, "mcx_main_loop", &status),status));
     mcx_assess(clGetKernelWorkGroupInfo(kernel,devices[0],CL_KERNEL_WORK_GROUP_SIZE,
                sizeof(size_t),&kernelWorkGroupSize,0));
+    fprintf(cfg->flog,"create kernel complete : %d ms\n",GetTimeMillis()-tic);
+
     oddphotons=0;
     savefreq=1.f/cfg->tstep;
     bubbler2=cfg->sradius*cfg->sradius;
@@ -328,6 +330,8 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
     mcx_assess(clSetKernelArg(kernel,27, sizeof(cl_mem), (void*)&gPlen));
     mcx_assess(clSetKernelArg(kernel,28, sizeof(cl_mem), (void*)&gproperty));
 
+    fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
+
      //simulate for all time-gates in maxgate groups per run
      for(t=cfg->tstart;t<cfg->tend;t+=cfg->tstep*cfg->maxgate){
        twindow0=t;
@@ -343,10 +347,13 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 
            mcx_assess(clSetKernelArg(kernel, 7, sizeof(cl_float), (void*)&(twindow0)));
            mcx_assess(clSetKernelArg(kernel, 8, sizeof(cl_float), (void*)&(twindow1)));
-printf("here is the kernel dim [%d %d]\n",cfg->nthread,cfg->nblocksize);
            // launch kernel
-           mcx_assess(clEnqueueNDRangeKernel(commands,kernel,1,NULL,mcgrid,
-	          mcblock, 0, NULL, &kernelevent));
+           mcx_assess(clEnqueueNDRangeKernel(commands,kernel,1,NULL,mcgrid,mcblock, 0, NULL, 
+#ifndef USE_OS_TIMER
+                  &kernelevent));
+#else
+                  NULL));
+#endif
 
 	   //handling the 2pt distributions
            if(cfg->issave2pt){
@@ -477,8 +484,9 @@ printf("here is the kernel dim [%d %d]\n",cfg->nthread,cfg->nblocksize);
     clReleaseProgram(program);
     clReleaseCommandQueue(commands);
     clReleaseContext(context);
+#ifndef USE_OS_TIMER
     clReleaseEvent(kernelevent);
-
+#endif
      free(Ppos);
      free(Pdir);
      free(Plen);
