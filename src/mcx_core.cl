@@ -152,16 +152,15 @@ typedef struct PhotonData {
    this is the core Monte Carlo simulation kernel, please see Fig. 1 in Fang2009
 */
 __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const uchar media[],
-     __global float field[], __global float genergy[], const float4 vsize, const float minstep, 
+     __global float field[], __global float genergy[], const float minstep, 
      float twin0, float twin1,  float tmax,  uint4 dimlen, 
      uchar isrowmajor,  uchar save2pt,  float Rtstep,
      const float4 p0, const float4 c0, const float4 maxidx,
-     const uint4 cp0, const uint4 cp1, const uint2 cachebox,
      const uchar doreflect, const uchar doreflect3, 
      const float minenergy,  const float sradius2, __global uint n_seed[],__global float4 n_pos[],
      __global float4 n_dir[],__global float4 n_len[],__constant float4 gproperty[]){
 
-     int idx= get_local_size(0) * get_group_id(0)+ get_local_id(0);
+     int idx= get_global_id(0);
 
      float4 npos=n_pos[idx];  //{x,y,z}: x,y,z coordinates,{w}:packet weight
      float4 ndir=n_dir[idx];  //{x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event

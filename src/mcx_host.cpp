@@ -279,9 +279,9 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 
     mcx_assess((program=clCreateProgramWithSource(context, 1,(const char **)&(cfg->clsource), NULL, &status),status));
     if(cfg->iscpu && cfg->isverbose){ 
-       status=clBuildProgram(program, 0, NULL, "-D __DEVICE_EMULATION__ -cl-fast-relaxed-math", NULL, NULL);
+       status=clBuildProgram(program, 0, NULL, "-D __DEVICE_EMULATION__ -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
     }else{
-       status=clBuildProgram(program, 0, NULL, "-cl-fast-relaxed-math", NULL, NULL);    
+       status=clBuildProgram(program, 0, NULL, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
     }
     if(status!=CL_SUCCESS){
 	size_t len;
@@ -307,24 +307,20 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
     mcx_assess(clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&gmedia));
     mcx_assess(clSetKernelArg(kernel, 3, sizeof(cl_mem), (void*)&gfield));
     mcx_assess(clSetKernelArg(kernel, 4, sizeof(cl_mem), (void*)&genergy));
-    mcx_assess(clSetKernelArg(kernel, 5, sizeof(cl_float4), (void*)&(cfg->steps)));
-    mcx_assess(clSetKernelArg(kernel, 6, sizeof(cl_float), (void*)&(minstep)));
-    mcx_assess(clSetKernelArg(kernel, 9, sizeof(cl_float), (void*)&(cfg->tend)));
-    mcx_assess(clSetKernelArg(kernel,10, sizeof(cl_uint4), (void*)&(dimlen)));
-    mcx_assess(clSetKernelArg(kernel,11, sizeof(cl_uchar), (void*)&(cfg->isrowmajor)));
-    mcx_assess(clSetKernelArg(kernel,12, sizeof(cl_uchar), (void*)&(cfg->issave2pt)));
-    mcx_assess(clSetKernelArg(kernel,13, sizeof(cl_float), (void*)&(savefreq)));
-    mcx_assess(clSetKernelArg(kernel,14, sizeof(cl_float4), (void*)&(p0)));
-    mcx_assess(clSetKernelArg(kernel,15, sizeof(cl_float4), (void*)&(c0)));
-    mcx_assess(clSetKernelArg(kernel,16, sizeof(cl_float4), (void*)&(maxidx)));
-    mcx_assess(clSetKernelArg(kernel,17, sizeof(cl_uint4), (void*)&(cp0)));
-    mcx_assess(clSetKernelArg(kernel,18, sizeof(cl_uint4), (void*)&(cp1)));
-    mcx_assess(clSetKernelArg(kernel,19, sizeof(cl_uint2), (void*)&(cachebox)));
-    mcx_assess(clSetKernelArg(kernel,20, sizeof(cl_uchar), (void*)&(cfg->isreflect)));
-    mcx_assess(clSetKernelArg(kernel,21, sizeof(cl_uchar), (void*)&(cfg->isref3)));
-    mcx_assess(clSetKernelArg(kernel,22, sizeof(cl_float), (void*)&(cfg->minenergy)));
-    mcx_assess(clSetKernelArg(kernel,23, sizeof(cl_float), (void*)&(bubbler2)));
-    mcx_assess(clSetKernelArg(kernel,24, sizeof(cl_mem),   (void*)&(gPseed)));
+    mcx_assess(clSetKernelArg(kernel, 5, sizeof(cl_float), (void*)&(minstep)));
+    mcx_assess(clSetKernelArg(kernel, 8, sizeof(cl_float), (void*)&(cfg->tend)));
+    mcx_assess(clSetKernelArg(kernel, 9, sizeof(cl_uint4), (void*)&(dimlen)));
+    mcx_assess(clSetKernelArg(kernel,10, sizeof(cl_uchar), (void*)&(cfg->isrowmajor)));
+    mcx_assess(clSetKernelArg(kernel,11, sizeof(cl_uchar), (void*)&(cfg->issave2pt)));
+    mcx_assess(clSetKernelArg(kernel,12, sizeof(cl_float), (void*)&(savefreq)));
+    mcx_assess(clSetKernelArg(kernel,13, sizeof(cl_float4), (void*)&(p0)));
+    mcx_assess(clSetKernelArg(kernel,14, sizeof(cl_float4), (void*)&(c0)));
+    mcx_assess(clSetKernelArg(kernel,15, sizeof(cl_float4), (void*)&(maxidx)));
+    mcx_assess(clSetKernelArg(kernel,16, sizeof(cl_uchar), (void*)&(cfg->isreflect)));
+    mcx_assess(clSetKernelArg(kernel,17, sizeof(cl_uchar), (void*)&(cfg->isref3)));
+    mcx_assess(clSetKernelArg(kernel,18, sizeof(cl_float), (void*)&(cfg->minenergy)));
+    mcx_assess(clSetKernelArg(kernel,19, sizeof(cl_float), (void*)&(bubbler2)));
+    mcx_assess(clSetKernelArg(kernel,20, sizeof(cl_mem),   (void*)&(gPseed)));
     mcx_assess(clSetKernelArg(kernel,25, sizeof(cl_mem), (void*)&gPpos));
     mcx_assess(clSetKernelArg(kernel,26, sizeof(cl_mem), (void*)&gPdir));
     mcx_assess(clSetKernelArg(kernel,27, sizeof(cl_mem), (void*)&gPlen));
@@ -345,8 +341,8 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 
            fprintf(cfg->flog,"simulation run#%2d ... \t",iter+1); fflush(cfg->flog);
 
-           mcx_assess(clSetKernelArg(kernel, 7, sizeof(cl_float), (void*)&(twindow0)));
-           mcx_assess(clSetKernelArg(kernel, 8, sizeof(cl_float), (void*)&(twindow1)));
+           mcx_assess(clSetKernelArg(kernel, 6, sizeof(cl_float), (void*)&(twindow0)));
+           mcx_assess(clSetKernelArg(kernel, 7, sizeof(cl_float), (void*)&(twindow1)));
            // launch kernel
            mcx_assess(clEnqueueNDRangeKernel(commands,kernel,1,NULL,mcgrid,mcblock, 0, NULL, 
 #ifndef USE_OS_TIMER
