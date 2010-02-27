@@ -9,4 +9,4 @@ fi
 time ../../bin/mcxcl -t 1024 -T 128 -g 10 -m 100000 -f qtest.inp -s qtest -r 1 -a 0 -b 0 -k ../../src/mcx_core.cl
 
 # use CPU backend, set CPU_MAX_COMPUTE_UNITS=n to specify number of CPU cores
-#time ../../bin/mcxcl -t 2048 -T 256 -g 10 -m 100000 -f qtest.inp -s qtest -r 1 -a 0 -b 0 -k ../../src/mcx_core.cl -c
+#time ../../bin/mcxcl -t 2048 -T 256 -g 10 -m 1000000 -f qtest.inp -s qtest -r 1 -a 0 -b 0 -k ../../src/mcx_core.cl 

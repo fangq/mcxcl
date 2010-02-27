@@ -321,10 +321,10 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
     mcx_assess(clSetKernelArg(kernel,18, sizeof(cl_float), (void*)&(cfg->minenergy)));
     mcx_assess(clSetKernelArg(kernel,19, sizeof(cl_float), (void*)&(bubbler2)));
     mcx_assess(clSetKernelArg(kernel,20, sizeof(cl_mem),   (void*)&(gPseed)));
-    mcx_assess(clSetKernelArg(kernel,25, sizeof(cl_mem), (void*)&gPpos));
-    mcx_assess(clSetKernelArg(kernel,26, sizeof(cl_mem), (void*)&gPdir));
-    mcx_assess(clSetKernelArg(kernel,27, sizeof(cl_mem), (void*)&gPlen));
-    mcx_assess(clSetKernelArg(kernel,28, sizeof(cl_mem), (void*)&gproperty));
+    mcx_assess(clSetKernelArg(kernel,21, sizeof(cl_mem), (void*)&gPpos));
+    mcx_assess(clSetKernelArg(kernel,22, sizeof(cl_mem), (void*)&gPdir));
+    mcx_assess(clSetKernelArg(kernel,23, sizeof(cl_mem), (void*)&gPlen));
+    mcx_assess(clSetKernelArg(kernel,24, sizeof(cl_mem), (void*)&gproperty));
 
     fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
 
