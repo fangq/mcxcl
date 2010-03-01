@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <unistd.h>
 #include "mcx_host.hpp"
 #include "tictoc.h"
 #include "mcx_const.h"
@@ -11,6 +12,7 @@
 #define RO_MEM             (CL_MEM_READ_ONLY  | CL_MEM_COPY_HOST_PTR)
 #define WO_MEM             (CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR)
 #define RW_MEM             (CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR)
+#define RW_PTR             (CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR)
 
 extern cl_event kernelevent;
 
@@ -121,7 +123,7 @@ void mcx_run_simulation(Config *cfg){
      cl_float t,twindow0,twindow1;
      cl_float energyloss=0.f,energyabsorbed=0.f,savefreq,bubbler2;
      cl_float *energy;
-     cl_int threadphoton, oddphotons;
+     cl_int threadphoton, oddphotons, stopsign=0;
 
      cl_int photoncount=0,printnum;
      cl_int tic,fieldlen;
@@ -142,7 +144,7 @@ void mcx_run_simulation(Config *cfg){
     cl_device_id* devices;
     size_t kernelWorkGroupSize;
     size_t maxWorkGroupSize;
-    cl_mem gmedia,gfield,gPpos,gPdir,gPlen,gPseed,genergy,gproperty;
+    cl_mem gmedia,gfield,gPpos,gPdir,gPlen,gPseed,genergy,gproperty,gstopsign;
 
      size_t mcgrid[1], mcblock[1];
      
@@ -246,6 +248,7 @@ void mcx_run_simulation(Config *cfg){
      mcx_assess((gPseed=clCreateBuffer(context,RW_MEM, sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,Pseed,&status),status));
      mcx_assess((genergy=clCreateBuffer(context,RW_MEM, sizeof(float)*cfg->nthread*2,energy,&status),status));
      mcx_assess((gproperty=clCreateBuffer(context,RO_MEM, cfg->medianum*sizeof(Medium),cfg->prop,&status),status));
+     mcx_assess((gstopsign=clCreateBuffer(context,RW_PTR, sizeof(cl_uint),&stopsign,&status),status));
 
      fprintf(cfg->flog,"\
 ###############################################################################\n\
@@ -279,9 +282,9 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 
     mcx_assess((program=clCreateProgramWithSource(context, 1,(const char **)&(cfg->clsource), NULL, &status),status));
     if(cfg->iscpu && cfg->isverbose){ 
-       status=clBuildProgram(program, 0, NULL, "-D __DEVICE_EMULATION__ -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
+       status=clBuildProgram(program, 0, NULL, "-D __DEVICE_EMULATION__ -D MCX_CPU_ONLY -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
     }else{
-       status=clBuildProgram(program, 0, NULL, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
+       status=clBuildProgram(program, 0, NULL, "-D MCX_CPU_ONLY -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
     }
     if(status!=CL_SUCCESS){
 	size_t len;
@@ -325,6 +328,7 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
     mcx_assess(clSetKernelArg(kernel,22, sizeof(cl_mem), (void*)&gPdir));
     mcx_assess(clSetKernelArg(kernel,23, sizeof(cl_mem), (void*)&gPlen));
     mcx_assess(clSetKernelArg(kernel,24, sizeof(cl_mem), (void*)&gproperty));
+    mcx_assess(clSetKernelArg(kernel,25, sizeof(cl_mem), (void*)&gstopsign));
 
     fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
 
@@ -353,6 +357,8 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 
 	   //handling the 2pt distributions
            if(cfg->issave2pt){
+		//sleep(1);
+		//stopsign=1;
                mcx_assess(clEnqueueReadBuffer(commands,gfield,CL_TRUE,0,sizeof(cl_float),
                                                 field, 0, NULL, NULL));
                fprintf(cfg->flog,"kernel complete:  \t%d ms\nretrieving fields ... \t",GetTimeMillis()-tic);
@@ -474,6 +480,7 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
     clReleaseMemObject(gPseed);
     clReleaseMemObject(genergy);
     clReleaseMemObject(gproperty);
+    clReleaseMemObject(gstopsign);
 
     free(devices);
     clReleaseKernel(kernel);

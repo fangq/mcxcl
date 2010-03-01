@@ -158,7 +158,7 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
      const float4 p0, const float4 c0, const float4 maxidx,
      const uchar doreflect, const uchar doreflect3, 
      const float minenergy,  const float sradius2, __global uint n_seed[],__global float4 n_pos[],
-     __global float4 n_dir[],__global float4 n_len[],__constant float4 gproperty[]){
+     __global float4 n_dir[],__global float4 n_len[],__constant float4 gproperty[],__global uint stopsign[1]){
 
      int idx= get_global_id(0);
 
@@ -417,6 +417,9 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
                   n1=prop.z;
                   //ndir.w++;
               }else{  // launch a new photon
+#ifdef MCX_CPU_ONLY
+		  if(stopsign[0]) break;
+#endif
                   energyloss+=npos.w;  // sum all the remaining energy
 	          npos=p0;
 	          ndir=c0;
