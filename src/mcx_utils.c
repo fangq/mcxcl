@@ -20,11 +20,11 @@
 #include <math.h>
 #include "mcx_utils.h"
 
-char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B',
+char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D',
                  'd','r','S','p','e','U','R','l','L','I','o','c','k','v','\0'};
 const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--thread","--blocksize","--session","--array",
-                 "--gategroup","--reflect","--reflect3","--savedet",
+                 "--gategroup","--reflect","--reflect3","--device","--savedet",
                  "--repeat","--save2pt","--printlen","--minenergy",
                  "--normalize","--skipradius","--log","--listgpu",
                  "--printgpu","--root","--cpu","--kernel","--verbose",""};
@@ -117,6 +117,8 @@ void mcx_initcfg(Config *cfg){
      cfg->iscpu=0;
      cfg->isverbose=0;
      cfg->clsource='\0';
+     memset(cfg->deviceid,0,MAX_DEVICE);
+     cfg->deviceid[0]=1; /*for now, only use the first device by default*/
      strcpy(cfg->kernelfile,"mcx_core.cl");
 }
 
@@ -442,6 +444,9 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     case 'k': 
 		     	        i=mcx_readarg(argc,argv,i,cfg->kernelfile,"string");
 				break;
+                     case 'D':
+                                i=mcx_readarg(argc,argv,i,cfg->deviceid,"string");
+                                break;
 		}
 	    }
 	    i++;
@@ -514,6 +519,7 @@ where possible parameters include (the first item in [] is the default value)\n\
  -I             (--printgpu)	print GPU information and run program\n\
  -c             (--cpu) 	use CPU as the platform for OpenCL backend\n\
  -k[mcx_core.cl](--kernel)      specify OpenCL kernel source\n\
+ -D [1|int]     (--device)      specify the id of the OpenCL device (the first one is 1)\n\
 example:\n\
        %s -t 1024 -T 256 -m 1000000 -f input.inp -s test -r 2 -a 0 -g 10 -U 0\n",exename,exename);
 }

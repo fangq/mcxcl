@@ -144,6 +144,7 @@ void mcx_run_simulation(Config *cfg){
     cl_device_id* devices;
     size_t kernelWorkGroupSize;
     size_t maxWorkGroupSize;
+    int    devid=0;
     cl_mem gmedia,gfield,gPpos,gPdir,gPlen,gPseed,genergy,gproperty,gstopsign;
 
      size_t mcgrid[1], mcblock[1];
@@ -184,14 +185,22 @@ void mcx_run_simulation(Config *cfg){
     if(devices == NULL){
         mcx_assess(-1);
     }
+    if(sscanf(cfg->deviceid,"%d",&devid)==1){
+        devid--; // device id starting from 1
+    }
+    if(devid<0||devid>=(int)(deviceListSize/sizeof(cl_device_id))){
+	fprintf(cfg->flog,"WARNING: maximum device count is %d, specified %d. fall back to default - device 0\n",
+            (int)(deviceListSize/sizeof(cl_device_id)),devid+1);
+        devid=0; // if out of bound, fall back to the default
+    }
     mcx_assess(clGetContextInfo(context,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL));
 
     {
         /* The block is to move the declaration of prop closer to its use */
         cl_command_queue_properties prop = CL_QUEUE_PROFILING_ENABLE;
-        mcx_assess((commands=clCreateCommandQueue(context,devices[0],prop,&status),status));
+        mcx_assess((commands=clCreateCommandQueue(context,devices[devid],prop,&status),status));
     }
-    mcx_assess(clGetDeviceInfo(devices[0],CL_DEVICE_MAX_WORK_GROUP_SIZE,
+    mcx_assess(clGetDeviceInfo(devices[devid],CL_DEVICE_MAX_WORK_GROUP_SIZE,
                   sizeof(size_t),(void*)&maxWorkGroupSize,NULL));
 
      if(cfg->nthread%cfg->nblocksize)
@@ -290,14 +299,14 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 	size_t len;
 	char msg[2048];
 	// get the details on the error, and store it in buffer
-	clGetProgramBuildInfo(program,devices[0],CL_PROGRAM_BUILD_LOG,sizeof(msg),msg,&len); 
+	clGetProgramBuildInfo(program,devices[devid],CL_PROGRAM_BUILD_LOG,sizeof(msg),msg,&len); 
 	fprintf(cfg->flog,"Kernel build error:\n%s\n", msg);
 	mcx_error(-(int)status,(char*)("Error: Failed to build program executable!"));
     }
     fprintf(cfg->flog,"build program complete : %d ms\n",GetTimeMillis()-tic);
 
     mcx_assess((kernel = clCreateKernel(program, "mcx_main_loop", &status),status));
-    mcx_assess(clGetKernelWorkGroupInfo(kernel,devices[0],CL_KERNEL_WORK_GROUP_SIZE,
+    mcx_assess(clGetKernelWorkGroupInfo(kernel,devices[devid],CL_KERNEL_WORK_GROUP_SIZE,
                sizeof(size_t),&kernelWorkGroupSize,0));
     fprintf(cfg->flog,"create kernel complete : %d ms\n",GetTimeMillis()-tic);
 

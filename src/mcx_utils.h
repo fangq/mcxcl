@@ -23,6 +23,7 @@
 #define MAX_DETECTORS       256
 #define MAX_PATH_LENGTH     1024
 #define MAX_SESSION_LENGTH  256
+#define MAX_DEVICE          256
 
 typedef struct MCXMedium{
 	float mua;
@@ -80,6 +81,7 @@ typedef struct MCXConfig{
         char rootpath[MAX_PATH_LENGTH];
         char kernelfile[MAX_SESSION_LENGTH];
 	char *clsource;
+        char deviceid[MAX_DEVICE];
 } Config;
 
 #ifdef	__cplusplus
