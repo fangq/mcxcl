@@ -323,6 +323,21 @@ int mcx_readarg(int argc, char *argv[], int id, void *output,const char *type){
              *((float*)output)=atof(argv[id+1]);
 	 else if(strcmp(type,"string")==0)
 	     strcpy((char *)output,argv[id+1]);
+	 else if(strcmp(type,"bytenumlist")==0){
+	     char *nexttok,*numlist=(char *)output;
+	     int len=0,i;
+	     nexttok=strtok(argv[id+1]," ,;");
+	     while(nexttok){
+    		 numlist[len++]=(char)(atoi(nexttok)); /*device id<256*/
+		 for(i=0;i<len-1;i++) /* remove duplicaetd ids */
+		    if(numlist[i]==numlist[len-1]){
+		       numlist[--len]='\0';
+		       break;
+		    }
+		 nexttok=strtok(NULL," ,;");
+		 /*if(len>=MAX_DEVICE) break;*/
+	     }
+	 }
      }else{
      	 mcx_error(-1,"incomplete input");
      }
@@ -445,7 +460,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     	        i=mcx_readarg(argc,argv,i,cfg->kernelfile,"string");
 				break;
                      case 'D':
-                                i=mcx_readarg(argc,argv,i,cfg->deviceid,"string");
+			        i=mcx_readarg(argc,argv,i,cfg->deviceid,"bytenumlist");
                                 break;
 		}
 	    }

@@ -185,8 +185,8 @@ void mcx_run_simulation(Config *cfg){
     if(devices == NULL){
         mcx_assess(-1);
     }
-    if(sscanf(cfg->deviceid,"%d",&devid)==1){
-        devid--; // device id starting from 1
+    if(cfg->deviceid[0]>0){       // will support a list of devices soon
+        devid=cfg->deviceid[0]-1; // device id starts from 1
     }
     if(devid<0||devid>=(int)(deviceListSize/sizeof(cl_device_id))){
 	fprintf(cfg->flog,"WARNING: maximum device count is %d, specified %d. fall back to default - device 0\n",
