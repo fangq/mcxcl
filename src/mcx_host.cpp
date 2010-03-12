@@ -154,9 +154,9 @@ void mcx_run_simulation(Config *cfg){
      cl_uchar  *media=(cl_uchar *)(cfg->vol);
      cl_float  *field;
      if(cfg->respin>1){
-         field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate*2);
+         field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate*2); //the second half will be used to accumulate
      }else{
-         field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate); //the second half will be used to accumulate
+         field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate);
      }
      threadphoton=cfg->nphoton/cfg->nthread/cfg->respin;
      oddphotons=cfg->nphoton-threadphoton*cfg->nthread*cfg->respin;
@@ -366,8 +366,6 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 
 	   //handling the 2pt distributions
            if(cfg->issave2pt){
-		//sleep(1);
-		//stopsign=1;
                mcx_assess(clEnqueueReadBuffer(commands,gfield,CL_TRUE,0,sizeof(cl_float),
                                                 field, 0, NULL, NULL));
                fprintf(cfg->flog,"kernel complete:  \t%d ms\nretrieving fields ... \t",GetTimeMillis()-tic);
@@ -413,12 +411,13 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
                    fprintf(cfg->flog,"saving data complete : %d ms\n",GetTimeMillis()-tic);
                    fflush(cfg->flog);
                }
+               mcx_assess(clFinish(commands));
            }
 	   //initialize the next simulation
 	   if(twindow1<cfg->tend && iter+1<cfg->respin){
-//                  cudaMemset(gfield,0,sizeof(float)*fieldlen); // cost about 1 ms
-//                  mcx_assess(clEnqueueWriteBuffer(commands,gfield,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
-//	                                        field, 0, NULL, NULL));
+                  memset(field,0,sizeof(cl_float)*dimxyz*cfg->maxgate);
+                  mcx_assess(clEnqueueWriteBuffer(commands,gfield,CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,
+                                                field, 0, NULL, NULL));
                   mcx_assess(clEnqueueWriteBuffer(commands,gPpos,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
 	                                        Ppos, 0, NULL, NULL));
                   mcx_assess(clEnqueueWriteBuffer(commands,gPdir,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
@@ -434,7 +433,11 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 	   }
        }
        if(twindow1<cfg->tend){
-//            cudaMemset(genergy,0,sizeof(float)*cfg->nthread*2);
+	    cl_float *tmpenergy=(cl_float*)calloc(sizeof(cl_float),cfg->nthread*2);
+            mcx_assess(clEnqueueWriteBuffer(commands,genergy,CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
+                                        tmpenergy, 0, NULL, NULL));
+	    free(tmpenergy);
+            //cudaMemset(genergy,0,sizeof(float)*cfg->nthread*2);
        }
      }
      mcx_assess(clFinish(commands));
