@@ -24,24 +24,57 @@ cl_platform_id mcx_set_gpu(int printinfo){
 #if __DEVICE_EMULATION__
     return 1;
 #else
-    cl_uint numPlatforms;
+    unsigned int i,j,k,devnum;
+    cl_uint numPlatforms,devparam;
+    cl_ulong devmem;
     cl_platform_id platform = NULL;
+    cl_device_type devtype[]={CL_DEVICE_TYPE_CPU,CL_DEVICE_TYPE_GPU};
+    cl_context context;                 // compute context
+    const char *devname[]={"CPU","GPU"};
+    char pbuf[100];
+    cl_context_properties cps[3]={CL_CONTEXT_PLATFORM, NULL, 0};
+    cl_int status = 0;
+    size_t deviceListSize;
 
     clGetPlatformIDs(0, NULL, &numPlatforms);
 
     if (numPlatforms>0) {
-        cl_platform_id* platforms = new cl_platform_id[numPlatforms];
+        cl_platform_id* platforms =(cl_platform_id*)malloc(sizeof(cl_platform_id)*numPlatforms);
         mcx_assess(clGetPlatformIDs(numPlatforms, platforms, NULL));
-        for (unsigned i = 0; i < numPlatforms; ++i) {
+        for (i = 0; i < numPlatforms; ++i) {
             platform = platforms[i];
 	    if(printinfo){
-                char pbuf[100];
                 mcx_assess(clGetPlatformInfo(platforms[i],
                           CL_PLATFORM_NAME,sizeof(pbuf),pbuf,NULL));
-		printf("Platform [%d] Name %s\n",i,pbuf);
+	        printf("Platform [%d] Name %s\n",i,pbuf);
+                cps[1]=(cl_context_properties)platform;
+        	for(j=0; j<2; j++){
+		    cl_device_id * devices;
+		    context=clCreateContextFromType(cps,devtype[j],NULL,NULL,&status);
+		    if(status!=CL_SUCCESS){
+		            clReleaseContext(context);
+			    continue;
+		    }
+		    mcx_assess(clGetContextInfo(context, CL_CONTEXT_DEVICES,0,NULL,&deviceListSize));
+                    devices = (cl_device_id*)malloc(deviceListSize);
+                    mcx_assess(clGetContextInfo(context,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL));
+		    devnum=deviceListSize/sizeof(cl_device_id);
+                    for(k=0;k<devnum;k++){
+                	mcx_assess(clGetDeviceInfo(devices[k],CL_DEVICE_NAME,100,(void*)&pbuf,NULL));
+                	printf("============ %s device [%d of %d]: %s  ============\n",devname[j],k+1,devnum,pbuf);
+			mcx_assess(clGetDeviceInfo(devices[k],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_int),(void*)&devparam,NULL));
+                	mcx_assess(clGetDeviceInfo(devices[k],CL_DEVICE_GLOBAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL));
+                	printf(" Compute units :\t%d core(s)\n",(int)devparam);
+                	printf(" Global memory :\t%ld B\n",(unsigned long)devmem);
+                	mcx_assess(clGetDeviceInfo(devices[k],CL_DEVICE_LOCAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL));
+                	printf(" Local memory  :\t%ld B\n",(unsigned long)devmem);
+                    }
+                    free(devices);
+                    clReleaseContext(context);
+        	}
 	    }
         }
-        delete[] platforms;
+        free(platforms);
     }
     if(printinfo==2) exit(0);
     return platform;
