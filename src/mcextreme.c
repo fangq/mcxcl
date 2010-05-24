@@ -10,7 +10,7 @@
 **
 **  MCX Web    : http://mcx.sourceforge.net
 **
-**  License    : GNU General Public License version 3 (GPLv3), see LICENSE.txt
+**  Unpublished work, see LICENSE.txt
 **
 *******************************************************************************/
 
