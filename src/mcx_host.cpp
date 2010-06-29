@@ -343,7 +343,7 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
     if(cfg->iscpu && cfg->isverbose){ 
        status=clBuildProgram(program, 0, NULL, "-D __DEVICE_EMULATION__ -D MCX_CPU_ONLY -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
     }else{
-       status=clBuildProgram(program, 0, NULL, "-D MCX_CPU_ONLY -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
+       status=clBuildProgram(program, 0, NULL, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
     }
     if(status!=CL_SUCCESS){
 	size_t len;
