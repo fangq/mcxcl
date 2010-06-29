@@ -1,6 +1,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Monte Carlo eXtreme (MCX)  - GPU accelerated Monte Carlo 3D photon migration
+//      -- OpenCL edition
 //  Author: Qianqian Fang <fangq at nmr.mgh.harvard.edu>
 //
 //  Reference (Fang2009):
@@ -8,7 +9,7 @@
 //        Migration in 3D Turbid Media Accelerated by Graphics Processing 
 //        Units," Optics Express, vol. 17, issue 22, pp. 20178-20190 (2009)
 //
-//  mcx_core.cl: OpenCL kernels
+//  mcx_core_lite.cl: OpenCL kernel lite version, without boundary reflection
 //
 //  License: GNU General Public License v3, see LICENSE.txt for details
 //

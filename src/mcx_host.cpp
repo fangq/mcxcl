@@ -167,9 +167,9 @@ void mcx_run_simulation(Config *cfg){
 
      cl_int i,j,iter;
      cl_float  minstep=MIN(MIN(cfg->steps.x,cfg->steps.y),cfg->steps.z);
-     cl_float4 p0={cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f};
-     cl_float4 c0={cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f};
-     cl_float4 maxidx={cfg->dim.x,cfg->dim.y,cfg->dim.z};
+     cl_float4 p0={{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}};
+     cl_float4 c0={{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f}};
+     cl_float4 maxidx={{cfg->dim.x,cfg->dim.y,cfg->dim.z}};
      cl_float t,twindow0,twindow1;
      cl_float energyloss=0.f,energyabsorbed=0.f,savefreq,bubbler2;
      cl_float *energy;
