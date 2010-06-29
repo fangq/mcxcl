@@ -159,7 +159,7 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
      const float4 p0, const float4 c0, const float4 maxidx,
      const uchar doreflect, const uchar doreflect3, 
      const float minenergy,  const float sradius2, __global uint n_seed[],__global float4 n_pos[],
-     __global float4 n_dir[],__global float4 n_len[],__constant float4 gproperty[]){
+     __global float4 n_dir[],__global float4 n_len[],__constant float4 gproperty[],__global uint stopsign[1]){
 
      int idx= get_global_id(0);
 
