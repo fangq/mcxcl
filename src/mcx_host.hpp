@@ -8,8 +8,8 @@
 extern "C" {
 #endif
 
-void mcx_run_simulation(Config *cfg);
-cl_platform_id mcx_set_gpu(int printinfo);
+void mcx_run_simulation(Config *cfg,int threadid);
+cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev);
 void mcx_assess(int cuerr);
 
 #ifdef  __cplusplus

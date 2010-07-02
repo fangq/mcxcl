@@ -18,6 +18,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <ctype.h>
 #include <unistd.h>
 #include "mcx_host.hpp"
 #include "tictoc.h"
@@ -36,7 +37,7 @@ extern cl_event kernelevent;
 /*
   query GPU info and set active GPU
 */
-cl_platform_id mcx_set_gpu(int printinfo){
+cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
 
 #if __DEVICE_EMULATION__
     return 1;
@@ -54,16 +55,17 @@ cl_platform_id mcx_set_gpu(int printinfo){
     size_t deviceListSize;
 
     clGetPlatformIDs(0, NULL, &numPlatforms);
+    if(activedev) *activedev=0;
 
     if (numPlatforms>0) {
         cl_platform_id* platforms =(cl_platform_id*)malloc(sizeof(cl_platform_id)*numPlatforms);
         mcx_assess(clGetPlatformIDs(numPlatforms, platforms, NULL));
         for (i = 0; i < numPlatforms; ++i) {
             platform = platforms[i];
-	    if(printinfo){
+	    if(1){
                 mcx_assess(clGetPlatformInfo(platforms[i],
                           CL_PLATFORM_NAME,sizeof(pbuf),pbuf,NULL));
-	        printf("Platform [%d] Name %s\n",i,pbuf);
+	        if(cfg->isgpuinfo) printf("Platform [%d] Name %s\n",i,pbuf);
                 cps[1]=(cl_context_properties)platform;
         	for(j=0; j<2; j++){
 		    cl_device_id * devices;
@@ -76,7 +78,16 @@ cl_platform_id mcx_set_gpu(int printinfo){
                     devices = (cl_device_id*)malloc(deviceListSize);
                     mcx_assess(clGetContextInfo(context,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL));
 		    devnum=deviceListSize/sizeof(cl_device_id);
-                    for(k=0;k<devnum;k++){
+		    if(activedev)
+		      for(k=0;k<MAX_DEVICE;k++){
+		        if((isdigit(cfg->deviceid[k]) && (uint)(cfg->deviceid[k]-'0')<devnum)
+			 ||(isalpha(cfg->deviceid[k]) && (uint)(cfg->deviceid[k]-'a')<devnum) )
+				(*activedev)++;
+			if(cfg->deviceid[k]=='\0')
+				break;
+		      }
+		    if(cfg->isgpuinfo)
+                      for(k=0;k<devnum;k++){
                 	mcx_assess(clGetDeviceInfo(devices[k],CL_DEVICE_NAME,100,(void*)&pbuf,NULL));
                 	printf("============ %s device [%d of %d]: %s  ============\n",devname[j],k+1,devnum,pbuf);
 			mcx_assess(clGetDeviceInfo(devices[k],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_int),(void*)&devparam,NULL));
@@ -85,7 +96,7 @@ cl_platform_id mcx_set_gpu(int printinfo){
                 	printf(" Global memory :\t%ld B\n",(unsigned long)devmem);
                 	mcx_assess(clGetDeviceInfo(devices[k],CL_DEVICE_LOCAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL));
                 	printf(" Local memory  :\t%ld B\n",(unsigned long)devmem);
-                    }
+                      }
                     free(devices);
                     clReleaseContext(context);
         	}
@@ -93,7 +104,7 @@ cl_platform_id mcx_set_gpu(int printinfo){
         }
         free(platforms);
     }
-    if(printinfo==2) exit(0);
+    if(cfg->isgpuinfo==2) exit(0);
     return platform;
 #endif
 }
@@ -163,7 +174,7 @@ void mcx_assess(int cuerr){
 /*
    master driver code to run MC simulations
 */
-void mcx_run_simulation(Config *cfg){
+void mcx_run_simulation(Config *cfg,int threadid){
 
      cl_int i,j,iter;
      cl_float  minstep=MIN(MIN(cfg->steps.x,cfg->steps.y),cfg->steps.z);
@@ -203,13 +214,6 @@ void mcx_run_simulation(Config *cfg){
      
      cl_uchar  *media=(cl_uchar *)(cfg->vol);
      cl_float  *field;
-     if(cfg->respin>1){
-         field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate*2); //the second half will be used to accumulate
-     }else{
-         field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate);
-     }
-     threadphoton=cfg->nphoton/cfg->nthread/cfg->respin;
-     oddphotons=cfg->nphoton-threadphoton*cfg->nthread*cfg->respin;
 
      float4 *Ppos;
      float4 *Pdir;
@@ -221,8 +225,25 @@ void mcx_run_simulation(Config *cfg){
     }else{ //deviceType = "gpu" 
         dType = CL_DEVICE_TYPE_GPU;
     }
-    platform=mcx_set_gpu(cfg->isgpuinfo);
-    
+    if(!(threadid<MAX_DEVICE && cfg->deviceid[threadid]>0))
+	return;
+    printf("threadid=%d\tcfg=%d\n",threadid,cfg->deviceid[threadid]);
+
+    if(isalpha(cfg->deviceid[threadid])){
+	    if(cfg->deviceid[threadid]>='a' && cfg->deviceid[threadid]<='z')
+		cfg->deviceid[threadid]-='a';
+	    else if(cfg->deviceid[threadid]>='a' && cfg->deviceid[threadid]<='z')
+		cfg->deviceid[threadid]=cfg->deviceid[threadid]-'A'+('z'-'a')+1;
+	    dType = CL_DEVICE_TYPE_GPU;
+    }else{
+	    cfg->deviceid[threadid]-='0';
+            dType = CL_DEVICE_TYPE_CPU;
+    }
+
+#pragma omp critical
+{
+    platform=mcx_set_gpu(cfg,NULL);
+
     cl_context_properties cps[3]={CL_CONTEXT_PLATFORM, (cl_context_properties)platform, 0};
 
     /* Use NULL for backward compatibility */
@@ -230,14 +251,13 @@ void mcx_run_simulation(Config *cfg){
 
     mcx_assess((context=clCreateContextFromType(cprops,dType,NULL,NULL,&status),status));
     mcx_assess(clGetContextInfo(context, CL_CONTEXT_DEVICES,0,NULL,&deviceListSize));
-
+}
     devices = (cl_device_id*)malloc(deviceListSize);
     if(devices == NULL){
         mcx_assess(-1);
     }
-    if(cfg->deviceid[0]>0){       // will support a list of devices soon
-        devid=cfg->deviceid[0]-1; // device id starts from 1
-    }
+    devid=cfg->deviceid[threadid]; // device id starts from 1
+
     if(devid<0||devid>=(int)(deviceListSize/sizeof(cl_device_id))){
 	fprintf(cfg->flog,"WARNING: maximum device count is %d, specified %d. fall back to default - device 0\n",
             (int)(deviceListSize/sizeof(cl_device_id)),devid+1);
@@ -253,8 +273,17 @@ void mcx_run_simulation(Config *cfg){
     mcx_assess(clGetDeviceInfo(devices[devid],CL_DEVICE_MAX_WORK_GROUP_SIZE,
                   sizeof(size_t),(void*)&maxWorkGroupSize,NULL));
 
+     if(cfg->respin>1){
+         field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate*2); //the second half will be used to accumul$
+     }else{
+         field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate);
+     }
+     threadphoton=cfg->nphoton/cfg->nthread/cfg->respin;
+     oddphotons=cfg->nphoton-threadphoton*cfg->nthread*cfg->respin;
+
      if(cfg->nthread%cfg->nblocksize)
      	cfg->nthread=(cfg->nthread/cfg->nblocksize)*cfg->nblocksize;
+
      mcgrid[0]=cfg->nthread;
      mcblock[0]=cfg->nblocksize;
 
@@ -287,7 +316,7 @@ void mcx_run_simulation(Config *cfg){
      	srand(cfg->seed);
      else
         srand(time(0));
-	
+
      for (i=0; i<cfg->nthread; i++) {
            memcpy(Ppos+i,&p0,sizeof(p0));
            memcpy(Pdir+i,&c0,sizeof(c0));
@@ -296,9 +325,10 @@ void mcx_run_simulation(Config *cfg){
            Plen[i].x=0.f;Plen[i].y=0.f;Plen[i].z=minstep*R_C0;Plen[i].w=0.f;
      }
      for (i=0; i<cfg->nthread*RAND_SEED_LEN; i++) {
-	   Pseed[i]=rand();
+	   Pseed[i]=rand()+threadid;
      }
-     
+#pragma omp critical
+{
      mcx_assess((gmedia=clCreateBuffer(context,RO_MEM, sizeof(cl_uchar)*(dimxyz),media,&status),status));
      mcx_assess((gfield=clCreateBuffer(context,RW_MEM, sizeof(cl_float)*(dimxyz)*cfg->maxgate,field,&status),status));
      mcx_assess((gPpos=clCreateBuffer(context,RW_MEM, sizeof(cl_float4)*cfg->nthread,Ppos,&status),status));
@@ -308,8 +338,8 @@ void mcx_run_simulation(Config *cfg){
      mcx_assess((genergy=clCreateBuffer(context,RW_MEM, sizeof(float)*cfg->nthread*2,energy,&status),status));
      mcx_assess((gproperty=clCreateBuffer(context,RO_MEM, cfg->medianum*sizeof(Medium),cfg->prop,&status),status));
      mcx_assess((gstopsign=clCreateBuffer(context,RW_PTR, sizeof(cl_uint),&stopsign,&status),status));
-
-     fprintf(cfg->flog,"\
+}
+     if(threadid==0) fprintf(cfg->flog,"\
 ###############################################################################\n\
 #                 Monte Carlo Extreme (MCX) -- OpenCL                         #\n\
 ###############################################################################\n\
@@ -338,13 +368,15 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 	 
 	 The calculation of the energy conservation will only reflect the last simulation.
      */
-
+#pragma omp critical
+{
     mcx_assess((program=clCreateProgramWithSource(context, 1,(const char **)&(cfg->clsource), NULL, &status),status));
     if(cfg->iscpu && cfg->isverbose){ 
        status=clBuildProgram(program, 0, NULL, "-D __DEVICE_EMULATION__ -D MCX_CPU_ONLY -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
     }else{
        status=clBuildProgram(program, 0, NULL, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
     }
+}
     if(status!=CL_SUCCESS){
 	size_t len;
 	char msg[2048];

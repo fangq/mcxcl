@@ -21,11 +21,11 @@
 #include <math.h>
 #include "mcx_utils.h"
 
-char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D',
+char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','G',
                  'd','r','S','p','e','U','R','l','L','I','o','c','k','v','\0'};
 const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--thread","--blocksize","--session","--array",
-                 "--gategroup","--reflect","--reflect3","--device","--savedet",
+                 "--gategroup","--reflect","--reflect3","--device","--devicelist","--savedet",
                  "--repeat","--save2pt","--printlen","--minenergy",
                  "--normalize","--skipradius","--log","--listgpu",
                  "--printgpu","--root","--cpu","--kernel","--verbose",""};
@@ -119,7 +119,7 @@ void mcx_initcfg(Config *cfg){
      cfg->isverbose=0;
      cfg->clsource='\0';
      memset(cfg->deviceid,0,MAX_DEVICE);
-     cfg->deviceid[0]=1; /*for now, only use the first device by default*/
+     cfg->deviceid[0]='a'; /*for now, only use the first device by default*/
      strcpy(cfg->kernelfile,"mcx_core.cl");
 }
 
@@ -462,6 +462,9 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 				break;
                      case 'D':
 			        i=mcx_readarg(argc,argv,i,cfg->deviceid,"bytenumlist");
+                                break;
+                     case 'G':
+                                i=mcx_readarg(argc,argv,i,cfg->deviceid,"string");
                                 break;
 		}
 	    }
