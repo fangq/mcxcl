@@ -26,6 +26,7 @@
 int main (int argc, char *argv[]) {
      Config mcxconfig;
      unsigned int threadid=0,activedev=0;
+     float *fluence=NULL,totalenergy=0.f;
 
      mcx_initcfg(&mcxconfig);
 
@@ -39,6 +40,8 @@ int main (int argc, char *argv[]) {
      if(activedev==0)
      	return 0;
 
+     mcx_createfluence(&fluence,&mcxconfig);
+
 #ifdef _OPENMP
      omp_set_num_threads(activedev);
 #endif
@@ -50,9 +53,11 @@ int main (int argc, char *argv[]) {
 #endif
 
      // this launches the MC simulation
-     mcx_run_simulation(&mcxconfig,threadid);
+     mcx_run_simulation(&mcxconfig,threadid,fluence,&totalenergy);
 }
      // clean up the allocated memory in the config
+
+     mcx_clearfluence(&fluence);
      mcx_clearcfg(&mcxconfig);
      return 0;
 }

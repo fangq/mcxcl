@@ -102,6 +102,8 @@ void mcx_normalize(float field[], float scale, int fieldlen);
 int  mcx_readarg(int argc, char *argv[], int id, void *output,const char *type);
 void mcx_printlog(Config *cfg, const char *str);
 int  mcx_remap(char *opt);
+void mcx_createfluence(float **fluence, Config *cfg);
+void mcx_clearfluence(float **fluence);
 #ifdef	__cplusplus
 }
 #endif

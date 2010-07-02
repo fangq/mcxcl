@@ -174,7 +174,7 @@ void mcx_assess(int cuerr){
 /*
    master driver code to run MC simulations
 */
-void mcx_run_simulation(Config *cfg,int threadid){
+void mcx_run_simulation(Config *cfg,int threadid,float *fluence,float *totalenergy){
 
      cl_int i,j,iter;
      cl_float  minstep=MIN(MIN(cfg->steps.x,cfg->steps.y),cfg->steps.z);
@@ -182,7 +182,7 @@ void mcx_run_simulation(Config *cfg,int threadid){
      cl_float4 c0={{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f}};
      cl_float4 maxidx={{cfg->dim.x,cfg->dim.y,cfg->dim.z}};
      cl_float t,twindow0,twindow1;
-     cl_float energyloss=0.f,energyabsorbed=0.f,savefreq,bubbler2;
+     cl_float energyloss=0.f,energyabsorbed=0.f,savefreq,bubbler2,simuenergy;
      cl_float *energy;
      cl_int threadphoton, oddphotons, stopsign=0;
 
@@ -482,16 +482,36 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
                               absorp+=field[j*dimxyz+i];
                            eabsorp+=absorp*cfg->prop[media[i]].mua;
        	       	       }
-                       scale=energy[1]/(energy[0]+energy[1])/Vvox/cfg->tstep/eabsorp;
+		       simuenergy=energy[0]+energy[1];
+                       scale=energy[1]/(simuenergy*Vvox*cfg->tstep*eabsorp);
                        fprintf(cfg->flog,"normalization factor alpha=%f\n",scale);  fflush(cfg->flog);
                        mcx_normalize(field,scale,fieldlen);
                    }
                    fprintf(cfg->flog,"data normalization complete : %d ms\n",GetTimeMillis()-tic);
+#pragma omp critical
+{
+                   for(i=0;i<fieldlen;i++)
+		   	fluence[i]+=field[i]*simuenergy;
+
+                   *totalenergy+=simuenergy;
+}
+#pragma omp barrier
+#pragma omp master
+{
+                   fprintf(cfg->flog,"total simulated energy: %f\n",*totalenergy);
+                   fprintf(cfg->flog,"saving data complete : %d ms\n",GetTimeMillis()-tic);
+		   fflush(cfg->flog);
+
+                   if(*totalenergy>EPS)
+		   	*totalenergy=1.f/(*totalenergy);
+                   for(i=0;i<fieldlen;i++)
+		   	fluence[i]*=(*totalenergy);
 
                    fprintf(cfg->flog,"saving data to file ...\t");
-                   mcx_savedata(field,fieldlen,cfg);
+                   mcx_savedata(fluence,fieldlen,cfg);
                    fprintf(cfg->flog,"saving data complete : %d ms\n",GetTimeMillis()-tic);
                    fflush(cfg->flog);
+}
                }
                mcx_assess(clFinish(commands));
            }

@@ -57,6 +57,15 @@ void mcx_error(int id,const char *msg){
      exit(id);
 }
 
+void mcx_createfluence(float **fluence, Config *cfg){
+     mcx_clearfluence(fluence);
+     *fluence=(float*)calloc(cfg->dim.x*cfg->dim.y*cfg->dim.z,cfg->maxgate*sizeof(float));
+}
+
+void mcx_clearfluence(float **fluence){
+     if(*fluence) free(*fluence);
+}
+
 void mcx_readconfig(const char *fname, Config *cfg){
      if(fname[0]==0){
      	mcx_loadconfig(stdin,cfg);
