@@ -76,18 +76,20 @@ typedef struct MCXConfig{
 	char isgpuinfo;     /*1 to print gpu info when attach, 0 do not print*/
 	char iscpu;         /*1 use CPU for simulation, 0 use GPU*/
 	char isverbose;     /*1 print debug info, 0 do not*/
+	char issrcfrom0;    /*1 do not subtract 1 from src/det positions, 0 subtract 1*/
         float minenergy;    /*minimum energy to propagate photon*/
         FILE *flog;         /*stream handle to print log information*/
         char rootpath[MAX_PATH_LENGTH];
         char kernelfile[MAX_SESSION_LENGTH];
 	char *clsource;
         char deviceid[MAX_DEVICE];
+	float workload[MAX_DEVICE];
 } Config;
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
-void mcx_savedata(float *dat,int len,Config *cfg);
+void mcx_savedata(float *dat,int len,int doappend, Config *cfg);
 void mcx_error(int id,const char *msg);
 void mcx_loadconfig(FILE *in, Config *cfg);
 void mcx_saveconfig(FILE *in, Config *cfg);

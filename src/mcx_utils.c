@@ -21,20 +21,80 @@
 #include <math.h>
 #include "mcx_utils.h"
 
-char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','G',
+char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','G','W','z',
                  'd','r','S','p','e','U','R','l','L','I','o','c','k','v','\0'};
 const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
-                 "--thread","--blocksize","--session","--array",
-                 "--gategroup","--reflect","--reflect3","--device","--devicelist","--savedet",
-                 "--repeat","--save2pt","--printlen","--minenergy",
+                 "--thread","--blocksize","--session","--array","--gategroup",
+                 "--reflect","--reflect3","--device","--devicelist","--workload","--srcfrom0",
+		 "--savedet","--repeat","--save2pt","--printlen","--minenergy",
                  "--normalize","--skipradius","--log","--listgpu",
                  "--printgpu","--root","--cpu","--kernel","--verbose",""};
 
-void mcx_savedata(float *dat,int len,Config *cfg){
+
+void mcx_initcfg(Config *cfg){
+     cfg->medianum=0;
+     cfg->detnum=0;
+     cfg->dim.x=0;
+     cfg->dim.y=0;
+     cfg->dim.z=0;
+     cfg->nblocksize=128;
+     cfg->nphoton=0;
+     cfg->nthread=0;
+     cfg->seed=0;
+     cfg->isrowmajor=0; /* default is Matlab array*/
+     cfg->maxgate=1;
+     cfg->isreflect=1;
+     cfg->isref3=0;
+     cfg->isnormalized=1;
+     cfg->issavedet=1;
+     cfg->respin=1;
+     cfg->issave2pt=1;
+     cfg->isgpuinfo=0;
+
+     cfg->prop=NULL;
+     cfg->detpos=NULL;
+     cfg->vol=NULL;
+     cfg->session[0]='\0';
+     cfg->printnum=0;
+     cfg->minenergy=0.f;
+     cfg->flog=stdout;
+     cfg->sradius=0.f;
+     cfg->rootpath[0]='\0';
+     cfg->iscpu=0;
+     cfg->isverbose=0;
+     cfg->clsource='\0';
+     memset(cfg->deviceid,0,MAX_DEVICE);
+     memset(cfg->workload,0,MAX_DEVICE*sizeof(float));
+     cfg->deviceid[0]='a'; /*use the first GPU device by default*/
+     strcpy(cfg->kernelfile,"mcx_core.cl");
+     cfg->issrcfrom0=0;
+}
+
+void mcx_clearcfg(Config *cfg){
+     if(cfg->medianum)
+     	free(cfg->prop);
+     if(cfg->detnum)
+     	free(cfg->detpos);
+     if(cfg->dim.x && cfg->dim.y && cfg->dim.z)
+        free(cfg->vol);
+     if(cfg->clsource)
+        free(cfg->clsource);
+
+     mcx_initcfg(cfg);
+}
+
+void mcx_savedata(float *dat, int len, int doappend, Config *cfg){
      FILE *fp;
      char name[MAX_PATH_LENGTH];
      sprintf(name,"%s.mc2",cfg->session);
-     fp=fopen(name,"wb");
+     if(doappend){
+        fp=fopen(name,"ab");
+     }else{
+        fp=fopen(name,"wb");
+     }
+     if(fp==NULL){
+	mcx_error(-2,"can not save data to disk");
+     }
      fwrite(dat,sizeof(float),len,fp);
      fclose(fp);
 }
@@ -95,56 +155,6 @@ void mcx_writeconfig(const char *fname, Config *cfg){
      }
 }
 
-void mcx_initcfg(Config *cfg){
-     cfg->medianum=0;
-     cfg->detnum=0;
-     cfg->dim.x=0;
-     cfg->dim.y=0;
-     cfg->dim.z=0;
-     cfg->nblocksize=128;
-     cfg->nphoton=0;
-     cfg->nthread=0;
-     cfg->seed=0;
-     cfg->isrowmajor=1; /* default is C array*/
-     cfg->maxgate=1;
-     cfg->isreflect=1;
-     cfg->isref3=0;
-     cfg->isnormalized=1;
-     cfg->issavedet=1;
-     cfg->respin=1;
-     cfg->issave2pt=1;
-     cfg->isgpuinfo=0;
-
-     cfg->prop=NULL;
-     cfg->detpos=NULL;
-     cfg->vol=NULL;
-     cfg->session[0]='\0';
-     cfg->printnum=0;
-     cfg->minenergy=0.f;
-     cfg->flog=stdout;
-     cfg->sradius=0.f;
-     cfg->rootpath[0]='\0';
-     cfg->iscpu=0;
-     cfg->isverbose=0;
-     cfg->clsource='\0';
-     memset(cfg->deviceid,0,MAX_DEVICE);
-     cfg->deviceid[0]='a'; /*for now, only use the first device by default*/
-     strcpy(cfg->kernelfile,"mcx_core.cl");
-}
-
-void mcx_clearcfg(Config *cfg){
-     if(cfg->medianum)
-     	free(cfg->prop);
-     if(cfg->detnum)
-     	free(cfg->detpos);
-     if(cfg->dim.x && cfg->dim.y && cfg->dim.z)
-        free(cfg->vol);
-     if(cfg->clsource)
-        free(cfg->clsource);
-
-     mcx_initcfg(cfg);
-}
-
 void mcx_loadconfig(FILE *in, Config *cfg){
      int i,gates,idx1d;
      char filename[MAX_PATH_LENGTH]={0}, comment[MAX_PATH_LENGTH];
@@ -165,7 +175,9 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      if(in==stdin)
      	fprintf(stdout,"%f %f %f\nPlease specify the normal direction of the source fiber: [0 0 1]\n\t",
                                    cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z);
-     cfg->srcpos.x--;cfg->srcpos.y--;cfg->srcpos.z--; /*convert to C index, grid center*/
+     if(!cfg->issrcfrom0){
+     	cfg->srcpos.x--;cfg->srcpos.y--;cfg->srcpos.z--; /*convert to C index, grid center*/
+     }
      fscanf(in,"%f %f %f", &(cfg->srcdir.x),&(cfg->srcdir.y),&(cfg->srcdir.z) );
      fgets(comment,MAX_PATH_LENGTH,in);
      if(in==stdin)
@@ -246,15 +258,21 @@ void mcx_loadconfig(FILE *in, Config *cfg){
         if(in==stdin)
 		fprintf(stdout,"Please define detector #%d: x,y,z (in mm): [5 5 5 1]\n\t",i);
      	fscanf(in, "%f %f %f", &(cfg->detpos[i].x),&(cfg->detpos[i].y),&(cfg->detpos[i].z));
-        cfg->detpos[i].x--;cfg->detpos[i].y--;cfg->detpos[i].z--;  /*convert to C index*/
+        if(!cfg->issrcfrom0){
+	   cfg->detpos[i].x--;cfg->detpos[i].y--;cfg->detpos[i].z--;  /*convert to C index*/
+	}
         fgets(comment,MAX_PATH_LENGTH,in);
         if(in==stdin)
 		fprintf(stdout,"%f %f %f\n",cfg->detpos[i].x,cfg->detpos[i].y,cfg->detpos[i].z);
      }
      if(filename[0]){
         mcx_loadvolume(filename,cfg);
-	idx1d=cfg->isrowmajor?(int)(floor(cfg->srcpos.x)*cfg->dim.y*cfg->dim.z+floor(cfg->srcpos.y)*cfg->dim.z+floor(cfg->srcpos.z)):\
-                      (int)(floor(cfg->srcpos.z)*cfg->dim.y*cfg->dim.x+floor(cfg->srcpos.y)*cfg->dim.x+floor(cfg->srcpos.x));
+        if(cfg->srcpos.x<0.f || cfg->srcpos.y<0.f || cfg->srcpos.z<0.f ||
+            cfg->srcpos.x>=cfg->dim.x || cfg->srcpos.y>=cfg->dim.y || cfg->srcpos.z>=cfg->dim.z)
+                mcx_error(-4,"source position is outside of the volume");
+
+	idx1d=cfg->isrowmajor?((int)floor(cfg->srcpos.x)*cfg->dim.y*cfg->dim.z+(int)floor(cfg->srcpos.y)*cfg->dim.z+(int)floor(cfg->srcpos.z)):\
+                      ((int)floor(cfg->srcpos.z)*cfg->dim.y*cfg->dim.x+(int)floor(cfg->srcpos.y)*cfg->dim.x+(int)floor(cfg->srcpos.x));
 	
         /* if the specified source position is outside the domain, move the source
 	   along the initial vector until it hit the domain */
@@ -346,6 +364,15 @@ int mcx_readarg(int argc, char *argv[], int id, void *output,const char *type){
 		    }
 		 nexttok=strtok(NULL," ,;");
 		 /*if(len>=MAX_DEVICE) break;*/
+	     }
+	 }else if(strcmp(type,"floatlist")==0){
+	     char *nexttok;
+	     float *numlist=(float *)output;
+	     int len=0;
+	     nexttok=strtok(argv[id+1]," ,;");
+	     while(nexttok){
+    		 numlist[len++]=atof(nexttok); /*device id<256*/
+		 nexttok=strtok(NULL," ,;");
 	     }
 	 }
      }else{
@@ -455,13 +482,17 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                      case 'l':
                                 issavelog=1;
                                 break;
-		     case 'L':  cfg->isgpuinfo=2;
+		     case 'L':  
+		                cfg->isgpuinfo=2;
 		                break;
-		     case 'I':  cfg->isgpuinfo=1;
+		     case 'I':  
+		                cfg->isgpuinfo=1;
 		                break;
-		     case 'c':  cfg->iscpu=1;
+		     case 'c':  
+		                cfg->iscpu=1;
 		                break;
-		     case 'v':  cfg->isverbose=1;
+		     case 'v':  
+		                cfg->isverbose=1;
 		                break;
 		     case 'o':
 		     	        i=mcx_readarg(argc,argv,i,cfg->rootpath,"string");
@@ -474,6 +505,12 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                                 break;
                      case 'G':
                                 i=mcx_readarg(argc,argv,i,cfg->deviceid,"string");
+                                break;
+                     case 'W':
+			        i=mcx_readarg(argc,argv,i,cfg->workload,"floatlist");
+                                break;
+                     case 'z':
+                                i=mcx_readarg(argc,argv,i,&(cfg->issrcfrom0),"char");
                                 break;
 		}
 	    }
@@ -530,7 +567,8 @@ where possible parameters include (the first item in [] is the default value)\n\
  -m [0|int]     (--move)	total photon moves\n\
  -n [0|int]     (--photon)	total photon number (not supported yet, use -m only)\n\
  -r [1|int]     (--repeat)	number of repeations\n\
- -a [1|0]       (--array)	1 for C array, 0 for Matlab array\n\
+ -a [0|1]       (--array)	0 for Matlab array, 1 for C array\n\
+ -z [0|1]       (--srcfrom0)    src/detector coordinates start from 0, otherwise from 1\n\
  -g [1|int]     (--gategroup)	number of time gates per run\n\
  -b [1|0]       (--reflect)	1 to reflect the photons at the boundary, 0 to exit\n\
  -B [0|1]       (--reflect3)	1 to consider maximum 3 reflections, 0 consider only 2\n\
@@ -547,7 +585,8 @@ where possible parameters include (the first item in [] is the default value)\n\
  -I             (--printgpu)	print GPU information and run program\n\
  -c             (--cpu) 	use CPU as the platform for OpenCL backend\n\
  -k[mcx_core.cl](--kernel)      specify OpenCL kernel source\n\
- -D [1|int]     (--device)      specify the id of the OpenCL device (the first one is 1)\n\
+ -G '012abc'    (--devicelist)  specify the list of OpenCL devices (CPU:0-9,GPU:a-zA-Z)\n\
+ -W '50,30,20'  (--workload)    specify relative workload for each device; total is the sum\n\
 example:\n\
-       %s -t 1024 -T 256 -m 1000000 -f input.inp -s test -r 2 -a 0 -g 10 -U 0\n",exename,exename);
+       %s -t 1024 -T 256 -m 1000000 -f input.inp -s test -r 1 -a 0 -g 10 -U 0\n",exename,exename);
 }
