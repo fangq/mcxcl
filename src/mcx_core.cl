@@ -196,8 +196,8 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
      gpu_rng_init(t,tnew,n_seed,idx);
 
      // assuming the initial position is within the domain (mcx_config is supposed to ensure)
-     idx1d=isrowmajor?(int)(floor(npos.x)*dimlen.y+floor(npos.y)*dimlen.x+floor(npos.z)):\
-                      (int)(floor(npos.z)*dimlen.y+floor(npos.y)*dimlen.x+floor(npos.x));
+     idx1d=isrowmajor?((int)floor(npos.x)*dimlen.y+(int)floor(npos.y)*dimlen.x+(int)floor(npos.z)):\
+                      ((int)floor(npos.z)*dimlen.y+(int)floor(npos.y)*dimlen.x+(int)floor(npos.x));
      idxorig=idx1d;
      mediaid=media[idx1d];
      mediaidorig=mediaid;
@@ -299,8 +299,8 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
 	  }
 
           idx1dold=idx1d;
-          idx1d=isrowmajor?(int)(floor(npos.x)*dimlen.y+floor(npos.y)*dimlen.x+floor(npos.z)):\
-                           (int)(floor(npos.z)*dimlen.y+floor(npos.y)*dimlen.x+floor(npos.x));
+          idx1d=isrowmajor?((int)floor(npos.x)*dimlen.y+(int)floor(npos.y)*dimlen.x+(int)floor(npos.z)):\
+                           ((int)floor(npos.z)*dimlen.y+(int)floor(npos.y)*dimlen.x+(int)floor(npos.x));
           GPUDEBUG(("old and new voxel: %d<->%d\n",idx1dold,idx1d));
           if(npos.x<0||npos.y<0||npos.z<0||npos.x>=maxidx.x||npos.y>=maxidx.y||npos.z>=maxidx.z){
 	      mediaid=0;
