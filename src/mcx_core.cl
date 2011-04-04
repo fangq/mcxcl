@@ -263,7 +263,7 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
 			   ndir=(float4)(stheta*cphi,stheta*sphi,(ndir.z>0.f)?ctheta:-ctheta,ndir.w);
                            GPUDEBUG(("new dir-z: %10.5e %10.5e %10.5e\n",ndir.x,ndir.y,ndir.z));
  		       }
-                       ndir.w++;
+                       ndir.w+=1.f;
 	       }
 	  }
 

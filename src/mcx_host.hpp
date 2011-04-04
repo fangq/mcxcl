@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-void mcx_run_simulation(Config *cfg,int threadid,float *fluence,float *totalenergy);
+void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,float *totalenergy);
 cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev);
 void mcx_assess(int cuerr);
 

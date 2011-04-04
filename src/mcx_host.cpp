@@ -170,7 +170,7 @@ void mcx_assess(int cuerr){
 /*
    master driver code to run MC simulations
 */
-void mcx_run_simulation(Config *cfg,int threadid,float *fluence,float *totalenergy){
+void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,float *totalenergy){
 
      cl_int i,j,iter;
      cl_float  minstep=MIN(MIN(cfg->steps.x,cfg->steps.y),cfg->steps.z);
@@ -236,13 +236,16 @@ void mcx_run_simulation(Config *cfg,int threadid,float *fluence,float *totalener
 	     cfg->deviceid[threadid]-='0';
              dType = CL_DEVICE_TYPE_CPU;
      }
-     for(i=0;i<MAX_DEVICE;i++) fullload+=cfg->workload[i];
+     for(i=0;i<MAX_DEVICE;i++)
+     	fullload+=cfg->workload[i];
+
+#pragma omp barrier
+
      if(fullload<EPS){
-
+	cfg->workload[threadid]=100.f/activedev;
      }
-     fullload=(fullload==0.f)?100.f:fullload;
+     fullload=(fullload<EPS)?100.f:fullload;
      deviceload=cfg->workload[threadid]/fullload*cfg->nphoton;
-
 #pragma omp critical
 {
      platform=mcx_set_gpu(cfg,NULL);

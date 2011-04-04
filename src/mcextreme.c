@@ -53,7 +53,7 @@ int main (int argc, char *argv[]) {
 #endif
 
      // this launches the MC simulation
-     mcx_run_simulation(&mcxconfig,threadid,fluence,&totalenergy);
+     mcx_run_simulation(&mcxconfig,threadid,activedev,fluence,&totalenergy);
 }
      // clean up the allocated memory in the config
 
