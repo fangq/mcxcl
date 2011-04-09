@@ -19,8 +19,6 @@
 /* #endif*/
 #endif
 
-#define MAX_PROP            256
-#define MAX_DETECTORS       256
 #define MAX_PATH_LENGTH     1024
 #define MAX_SESSION_LENGTH  256
 #define MAX_DEVICE          256
@@ -51,8 +49,9 @@ typedef struct MCXConfig{
 	uint4 dim;        /*domain size*/
 	uint4 crop0;      /*sub-volume for cache*/
 	uint4 crop1;      /*the other end of the caching box*/
-	int medianum;     /*total types of media*/
-	int detnum;       /*total detector numbers*/
+	unsigned int medianum;     /*total types of media*/
+	unsigned int detnum;       /*total detector numbers*/
+        unsigned int maxdetphoton; /*anticipated maximum detected photons*/
 	float detradius;  /*detector radius*/
         float sradius;    /*source region radius: if set to non-zero, accumulation 
                             will not perform for dist<sradius; this can reduce
@@ -70,6 +69,7 @@ typedef struct MCXConfig{
 	char isrowmajor;    /*1 for C-styled array in vol, 0 for matlab-styled array*/
 	char isreflect;     /*1 for reflecting photons at boundary,0 for exiting*/
         char isref3;        /*1 considering maximum 3 ref. interfaces; 0 max 2 ref*/
+        char isrefint;      /*1 to consider reflections at internal boundaries; 0 do not*/
 	char isnormalized;  /*1 to normalize the fluence, 0 for raw fluence*/
 	char issavedet;     /*1 to count all photons hits the detectors*/
 	char issave2pt;     /*1 to save the 2-point distribution, 0 do not save*/
@@ -78,6 +78,7 @@ typedef struct MCXConfig{
 	char isverbose;     /*1 print debug info, 0 do not*/
 	char issrcfrom0;    /*1 do not subtract 1 from src/det positions, 0 subtract 1*/
         float minenergy;    /*minimum energy to propagate photon*/
+        float unitinmm;     /*defines the length unit in mm for grid*/
         FILE *flog;         /*stream handle to print log information*/
         char rootpath[MAX_PATH_LENGTH];
         char kernelfile[MAX_SESSION_LENGTH];
@@ -106,6 +107,8 @@ void mcx_printlog(Config *cfg, const char *str);
 int  mcx_remap(char *opt);
 void mcx_createfluence(float **fluence, Config *cfg);
 void mcx_clearfluence(float **fluence);
+void mcx_convertrow2col(unsigned char **vol, uint4 *dim);
+
 #ifdef	__cplusplus
 }
 #endif

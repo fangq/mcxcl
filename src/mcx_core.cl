@@ -17,6 +17,7 @@
 
 #ifdef __DEVICE_EMULATION__
 #define GPUDEBUG(x)        printf x             // enable debugging in CPU mode
+#pragma OPENCL EXTENSION cl_amd_printf : enable
 #else
 #define GPUDEBUG(x)
 #endif
@@ -41,6 +42,28 @@
 #define SAME_VOXEL         -9999.f                 //scatter within a voxel
 #define MAX_PROP           256                     //maximum property number
 
+#define DET_MASK           0x80
+#define MED_MASK           0x7F
+
+typedef struct KernelParams {
+  float4 ps,c0;
+  float4 maxidx;
+  uint4  dimlen,cp0,cp1;
+  uint2  cachebox;
+  float  minstep;
+  float  twin0,twin1,tmax;
+  float  oneoverc0;
+  unsigned int isrowmajor,save2pt,doreflect,dorefint,savedet;
+  float  Rtstep;
+  float  minenergy;
+  float  skipradius2;
+  float  minaccumtime;
+  unsigned int maxdetphoton;
+  unsigned int maxmedia;
+  unsigned int detnum;
+  unsigned int idx1dorig;
+  unsigned int mediaidorig;
+}MCXParam __attribute__ ((aligned (16)));
 
 
 #ifndef DOUBLE_PREC_LOGISTIC
@@ -153,36 +176,30 @@ typedef struct PhotonData {
    this is the core Monte Carlo simulation kernel, please see Fig. 1 in Fang2009
 */
 __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const uchar media[],
-     __global float field[], __global float genergy[], const float minstep, 
-     float twin0, float twin1,  float tmax,  uint4 dimlen, 
-     uchar isrowmajor,  uchar save2pt,  float Rtstep,
-     const float4 p0, const float4 c0, const float4 maxidx,
-     const uchar doreflect, const uchar doreflect3, 
-     const float minenergy,  const float sradius2, __global uint n_seed[],__global float4 n_pos[],
-     __global float4 n_dir[],__global float4 n_len[],__constant float4 gproperty[],__global uint stopsign[1]){
+     __global float field[], __global float genergy[], __global uint n_seed[],__global float4 n_pos[],
+     __global float4 n_dir[],__global float4 n_len[],__constant float4 gproperty[],
+     __global uint stopsign[1], __constant MCXParam gcfg[]){
 
      int idx= get_global_id(0);
 
-     float4 npos=n_pos[idx];  //{x,y,z}: x,y,z coordinates,{w}:packet weight
-     float4 ndir=n_dir[idx];  //{x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event
+     float4 npos=gcfg->ps;  //{x,y,z}: x,y,z coordinates,{w}:packet weight
+     float4 ndir=gcfg->c0;  //{x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event
                               //ndir.w can be dropped to save register
      float4 nlen=n_len[idx];  //nlen.w can be dropped to save register
      float4 npos0;            //reflection var, to save pre-reflection npos state
-     float4 htime;            //reflection var
-     float  minaccumtime=minstep*R_C0;   //can be moved to constant memory
      float  energyloss=genergy[idx<<1];
      float  energyabsorbed=genergy[(idx<<1)+1];
 
-     int i,idx1d, idx1dold,idxorig;   //idx1dold is related to reflection
-     //int np=nphoton+((idx==get_local_size(0)*get_num_groups(0)-1) ? ophoton: 0);
+     int idx1d, idx1dold;   //idx1dold is related to reflection
+     int np= (idx<ophoton) ? nphoton+1 : nphoton;
 
 #ifdef TEST_RACING
      int cc=0;
 #endif
-     uchar  mediaid, mediaidorig;
+     uchar  mediaid,mediaidold;
      char   medid=-1;
      float  atten;         //can be taken out to minimize registers
-     float  flipdir,n1,Rtotal;   //reflection var
+     float  n1,Rtotal;   //reflection var
 
      //for MT RNG, these will be zero-length arrays and be optimized out
      RandType t[RAND_BUF_LEN],tnew[RAND_BUF_LEN];
@@ -191,29 +208,18 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
      float len,cphi,sphi,theta,stheta,ctheta,tmp0,tmp1;
      float accumweight=0.f;
 
-     GPUDEBUG(("(%f %f %f %d)\n",n_pos[0].x,n_pos[0].y,n_pos[0].z,n_seed[0]));
-
      gpu_rng_init(t,tnew,n_seed,idx);
 
      // assuming the initial position is within the domain (mcx_config is supposed to ensure)
-     idx1d=isrowmajor?((int)floor(npos.x)*dimlen.y+(int)floor(npos.y)*dimlen.x+(int)floor(npos.z)):\
-                      ((int)floor(npos.z)*dimlen.y+(int)floor(npos.y)*dimlen.x+(int)floor(npos.x));
-     idxorig=idx1d;
-     mediaid=media[idx1d];
-     mediaidorig=mediaid;
-	  
+     idx1d=gcfg->idx1dorig;
+     mediaid=gcfg->mediaidorig;
+
      if(mediaid==0) {
           return; // the initial position is not within the medium
      }
      prop=gproperty[mediaid];
 
-     /*
-      using a while-loop to terminate a thread by np will cause MT RNG to be 3.5x slower
-      LL5 RNG will only be slightly slower than for-loop with photon-move criterion
-     */
-     //while(nlen.w<np) {
-
-     for(i=0;i<nphoton;i++){ // here nphoton actually means photon moves
+     while(nlen.w<np) {
 
           GPUDEBUG(("*i= (%d) L=%f w=%e a=%f\n",(int)nlen.w,nlen.x,npos.w,nlen.y));
 	  if(nlen.x<=0.f) {  // if this photon has finished the current jump
@@ -269,49 +275,48 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
 
           n1=prop.z;
 	  prop=gproperty[mediaid];
-	  len=minstep*prop.y; //Wang1995: minstep*(prop.x+prop.y)
+	  len=gcfg->minstep*prop.y; //Wang1995: gcfg->minstep*(prop.x+prop.y)
 
           npos0=npos;
-	  if(len>nlen.x){  //scattering ends in this voxel: mus*minstep > s 
+	  if(len>nlen.x){  //scattering ends in this voxel: mus*gcfg->minstep > s 
                tmp0=nlen.x/prop.y;
 	       energyabsorbed+=npos.w;
 	       npos.xyz+=ndir.xyz*tmp0;
                npos.w=npos.w*exp(-prop.x*tmp0);
-   	       //npos=(float4)(npos.x+ndir.x*tmp0,npos.y+ndir.y*tmp0,npos.z+ndir.z*tmp0,
-               //            npos.w*exp(-prop.x*tmp0));
 	       energyabsorbed-=npos.w;
 	       nlen.x=SAME_VOXEL;
 	       nlen.y+=tmp0*prop.z*R_C0;  // accumulative time
                GPUDEBUG((">>ends in voxel %f<%f %f [%d]\n",nlen.x,len,prop.y,idx1d));
-	  }else{                      //otherwise, move minstep
+	  }else{                      //otherwise, move gcfg->minstep
 	       energyabsorbed+=npos.w;
                if(mediaid!=medid){
-                  atten=exp(-prop.x*minstep);
+                  atten=exp(-prop.x*gcfg->minstep);
                }
                npos.xyz+=ndir.xyz;
                npos.w*=atten;
-   	       //npos=(float4)(npos.x+ndir.x,npos.y+ndir.y,npos.z+ndir.z,npos.w*atten);
                medid=mediaid;
 	       energyabsorbed-=npos.w;
 	       nlen.x-=len;     //remaining probability: sum(s_i*mus_i)
-	       nlen.y+=minaccumtime*prop.z; //total time
+	       nlen.y+=gcfg->minaccumtime*prop.z; //total time
                GPUDEBUG((">>keep going %f<%f %f [%d] %e %e\n",nlen.x,len,prop.y,idx1d,nlen.y,nlen.z));
 	  }
 
+          mediaidold=media[idx1d];
           idx1dold=idx1d;
-          idx1d=isrowmajor?((int)floor(npos.x)*dimlen.y+(int)floor(npos.y)*dimlen.x+(int)floor(npos.z)):\
-                           ((int)floor(npos.z)*dimlen.y+(int)floor(npos.y)*dimlen.x+(int)floor(npos.x));
+          idx1d=((int)floor(npos.z)*gcfg->dimlen.y+(int)floor(npos.y)*gcfg->dimlen.x+(int)floor(npos.x));
           GPUDEBUG(("old and new voxel: %d<->%d\n",idx1dold,idx1d));
-          if(npos.x<0||npos.y<0||npos.z<0||npos.x>=maxidx.x||npos.y>=maxidx.y||npos.z>=maxidx.z){
+          if(npos.x<0||npos.y<0||npos.z<0||npos.x>=gcfg->maxidx.x||npos.y>=gcfg->maxidx.y||npos.z>=gcfg->maxidx.z){
 	      mediaid=0;
 	  }else{
               mediaid=media[idx1d];
           }
-
+	  
           //if hit the boundary, exceed the max time window or exit the domain, rebound or launch a new one
-	  if(mediaid==0||nlen.y>tmax||nlen.y>twin1){
-              flipdir=0.f;
-              if(doreflect) {
+	  if(mediaid==0||nlen.y>gcfg->tmax||nlen.y>gcfg->twin1){
+              float flipdir=0.f;
+              float4 htime;            //reflection var
+
+              if(gcfg->doreflect) {
                 //time-of-flight to hit the wall in each direction
                 htime.x=(ndir.x>EPS||ndir.x<-EPS)?(floor(npos0.x)+(ndir.x>0.f)-npos0.x)/ndir.x:VERY_BIG;
                 htime.y=(ndir.y>EPS||ndir.y<-EPS)?(floor(npos0.y)+(ndir.y>0.f)-npos0.y)/ndir.y:VERY_BIG;
@@ -326,13 +331,11 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
        	        htime.y=floor(npos0.y+tmp0*ndir.y);
        	        htime.z=floor(npos0.z+tmp0*ndir.z);
 
-                if(htime.x>=0&&htime.y>=0&&htime.z>=0&&htime.x<maxidx.x&&htime.y<maxidx.y&&htime.z<maxidx.z){
-                    if( media[isrowmajor?(int)(htime.x*dimlen.y+htime.y*dimlen.x+htime.z):\
-                           (int)(htime.z*dimlen.y+htime.y*dimlen.x+htime.x)]){ //hit again
+                if(htime.x>=0&&htime.y>=0&&htime.z>=0&&htime.x<gcfg->maxidx.x&&htime.y<gcfg->maxidx.y&&htime.z<gcfg->maxidx.z){
+                    if(media[(int)(htime.z*gcfg->dimlen.y+htime.y*gcfg->dimlen.x+htime.x)]==mediaidold){ //if the first vox is not air
 
                      GPUDEBUG((" first try failed: [%.1f %.1f,%.1f] %d (%.1f %.1f %.1f)\n",htime.x,htime.y,htime.z,
-                           media[isrowmajor?(int)(htime.x*dimlen.y+htime.y*dimlen.x+htime.z):\
-                           (int)(htime.z*dimlen.y+htime.y*dimlen.x+htime.x)], maxidx.x, maxidx.y,maxidx.z));
+                           media[(int)(htime.z*gcfg->dimlen.y+htime.y*gcfg->dimlen.x+htime.x)], gcfg->maxidx.x, gcfg->maxidx.y,gcfg->maxidx.z));
 
                      htime.x=(ndir.x>EPS||ndir.x<-EPS)?(floor(npos.x)+(ndir.x<0.f)-npos.x)/(-ndir.x):VERY_BIG;
                      htime.y=(ndir.y>EPS||ndir.y<-EPS)?(floor(npos.y)+(ndir.y<0.f)-npos.y)/(-ndir.y):VERY_BIG;
@@ -341,19 +344,17 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
                      tmp1=flipdir;   //save the previous ref. interface id
                      flipdir=(tmp0==htime.x?1.f:(tmp0==htime.y?2.f:(tmp0==htime.z&&idx1d!=idx1dold)?3.f:0.f));
 
-                     if(doreflect3){
+                     if(gcfg->doreflect){
                        tmp0*=JUST_ABOVE_ONE;
                        htime.x=floor(npos.x-tmp0*ndir.x); //move to the last intersection pt
                        htime.y=floor(npos.y-tmp0*ndir.y);
                        htime.z=floor(npos.z-tmp0*ndir.z);
 
-                       if(tmp1!=flipdir&&htime.x>=0&&htime.y>=0&&htime.z>=0&&htime.x<maxidx.x&&htime.y<maxidx.y&&htime.z<maxidx.z){
-                           if(! media[isrowmajor?(int)(htime.x*dimlen.y+htime.y*dimlen.x+htime.z):\
-                                  (int)(htime.z*dimlen.y+htime.y*dimlen.x+htime.x)]){ //this is an air voxel
+                       if(tmp1!=flipdir&&htime.x>=0&&htime.y>=0&&htime.z>=0&&htime.x<gcfg->maxidx.x&&htime.y<gcfg->maxidx.y&&htime.z<gcfg->maxidx.z){
+                           if(media[(int)(htime.z*gcfg->dimlen.y+htime.y*gcfg->dimlen.x+htime.x)]!=mediaidold){ //this is an air voxel
 
                                GPUDEBUG((" second try failed: [%.1f %.1f,%.1f] %d (%.1f %.1f %.1f)\n",htime.x,htime.y,htime.z,
-                                   media[isrowmajor?(int)(htime.x*dimlen.y+htime.y*dimlen.x+htime.z):\
-                                   (int)(htime.z*dimlen.y+htime.y*dimlen.x+htime.x)], maxidx.x, maxidx.y,maxidx.z));
+                                   media[(int)(htime.z*gcfg->dimlen.y+htime.y*gcfg->dimlen.x+htime.x)], gcfg->maxidx.x, gcfg->maxidx.y,gcfg->maxidx.z));
 
                                /*to compute the remaining interface, we used the following fact to accelerate: 
                                  if there exist 3 intersections, photon must pass x/y/z interface exactly once,
@@ -378,7 +379,7 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
               //recycled some old register variables to save memory
 	      //if hit boundary within the time window and is n-mismatched, rebound
 
-              if(doreflect&&nlen.y<tmax&&nlen.y<twin1&& flipdir>0.f && n1!=prop.z&&npos.w>minenergy){
+              if(gcfg->doreflect&&nlen.y<gcfg->tmax&&nlen.y<gcfg->twin1&& flipdir>0.f && n1!=prop.z&&npos.w>gcfg->minenergy){
                   tmp0=n1*n1;
                   tmp1=prop.z*prop.z;
                   if(flipdir>=3.f) { //flip in z axis
@@ -422,41 +423,41 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
 		  if(stopsign[0]) break;
 #endif
                   energyloss+=npos.w;  // sum all the remaining energy
-	          npos=p0;
-	          ndir=c0;
-	          nlen=(float4)(0.f,0.f,minaccumtime,nlen.w+1);
-                  idx1d=idxorig;
-		  mediaid=mediaidorig;
+	          npos=gcfg->ps;
+	          ndir=gcfg->c0;
+	          nlen=(float4)(0.f,0.f,gcfg->minaccumtime,nlen.w+1);
+                  idx1d=gcfg->idx1dorig;
+                  mediaid=gcfg->mediaidorig;
               }
 	  }else if(nlen.y>=nlen.z){
              GPUDEBUG(("field add to %d->%f(%d)  t(%e)>t0(%e)\n",idx1d,npos.w,(int)nlen.w,nlen.y,nlen.z));
              // if t is within the time window, which spans cfg->maxgate*cfg->tstep wide
-             if(save2pt&&nlen.y>=twin0 & nlen.y<twin1){
+             if(gcfg->save2pt&&nlen.y>=gcfg->twin0 & nlen.y<gcfg->twin1){
 #ifdef TEST_RACING
                   // enable TEST_RACING to determine how many missing accumulations due to race
-                  if( (npos.x-p0.x)*(npos.x-p0.x)+(npos.y-p0.y)*(npos.y-p0.y)+(npos.z-p0.z)*(npos.z-p0.z)>sradius2) {
-                      field[idx1d+(int)(floor((nlen.y-twin0)*Rtstep))*dimlen.z]+=1.f;
+                  if( (npos.x-gcfg->ps.x)*(npos.x-gcfg->ps.x)+(npos.y-gcfg->ps.y)*(npos.y-gcfg->ps.y)+(npos.z-gcfg->ps.z)*(npos.z-gcfg->ps.z)>gcfg->skipradius2) {
+                      field[idx1d+(int)(floor((nlen.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z]+=1.f;
 		      cc++;
                   }
 #else
   #ifndef USE_ATOMIC
-                  // set sradius2 to only start depositing energy when dist^2>sradius2 
-                  if(sradius2>EPS){
-                      if((npos.x-p0.x)*(npos.x-p0.x)+(npos.y-p0.y)*(npos.y-p0.y)+(npos.z-p0.z)*(npos.z-p0.z)>sradius2){
-                          field[idx1d+(int)(floor((nlen.y-twin0)*Rtstep))*dimlen.z]+=npos.w;
+                  // set gcfg->skipradius2 to only start depositing energy when dist^2>gcfg->skipradius2 
+                  if(gcfg->skipradius2>EPS){
+                      if((npos.x-gcfg->ps.x)*(npos.x-gcfg->ps.x)+(npos.y-gcfg->ps.y)*(npos.y-gcfg->ps.y)+(npos.z-gcfg->ps.z)*(npos.z-gcfg->ps.z)>gcfg->skipradius2){
+                          field[idx1d+(int)(floor((nlen.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z]+=npos.w;
                       }else{
                           accumweight+=npos.w*prop.x; // weight*absorption
                       }
                   }else{
-                      field[idx1d+(int)(floor((nlen.y-twin0)*Rtstep))*dimlen.z]+=npos.w;
+                      field[idx1d+(int)(floor((nlen.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z]+=npos.w;
                   }
   #else
                   // ifndef CUDA_NO_SM_11_ATOMIC_INTRINSICS
-//		  atomicFloatAdd(& field[idx1d+(int)(floor((nlen.y-twin0)*Rtstep))*dimlen.z], npos.w);
+//		  atomicFloatAdd(& field[idx1d+(int)(floor((nlen.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z], npos.w);
   #endif
 #endif
 	     }
-             nlen.z+=minaccumtime; // fluence is a temporal-integration
+             nlen.z+=gcfg->minaccumtime; // fluence is a temporal-integration
 	  }
      }
      // accumweight saves the total absorbed energy in the sphere r<sradius.

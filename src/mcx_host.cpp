@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <ctype.h>
+#include <math.h>
 #include <unistd.h>
 #include "mcx_host.hpp"
 #include "tictoc.h"
@@ -64,6 +65,7 @@ cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
                           CL_PLATFORM_NAME,sizeof(pbuf),pbuf,NULL));
 	        if(cfg->isgpuinfo) printf("Platform [%d] Name %s\n",i,pbuf);
                 cps[1]=(cl_context_properties)platform;
+		if(activedev) *activedev=0;
         	for(j=0; j<2; j++){
 		    cl_device_id * devices;
 		    context=clCreateContextFromType(cps,devtype[j],NULL,NULL,&status);
@@ -77,8 +79,8 @@ cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
 		    devnum=deviceListSize/sizeof(cl_device_id);
 		    if(activedev)
 		      for(k=0;k<MAX_DEVICE;k++){
-		        if((isdigit(cfg->deviceid[k]) && (uint)(cfg->deviceid[k]-'0')<devnum)
-			 ||(isalpha(cfg->deviceid[k]) && (uint)(cfg->deviceid[k]-'a')<devnum) )
+		        if((j==0 && isdigit(cfg->deviceid[k]) && (uint)(cfg->deviceid[k]-'0')<devnum)
+			 ||(j>0  && isalpha(cfg->deviceid[k]) && (uint)(cfg->deviceid[k]-'a')<devnum) )
 				(*activedev)++;
 			if(cfg->deviceid[k]=='\0')
 				break;
@@ -174,11 +176,8 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
 
      cl_int i,j,iter;
      cl_float  minstep=MIN(MIN(cfg->steps.x,cfg->steps.y),cfg->steps.z);
-     cl_float4 p0={{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}};
-     cl_float4 c0={{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f}};
-     cl_float4 maxidx={{cfg->dim.x,cfg->dim.y,cfg->dim.z}};
      cl_float t,twindow0,twindow1;
-     cl_float energyloss=0.f,energyabsorbed=0.f,savefreq,bubbler2,simuenergy,fullload=0.f;
+     cl_float energyloss=0.f,energyabsorbed=0.f,simuenergy,fullload=0.f;
      cl_int deviceload=0;
      cl_float *energy;
      cl_int threadphoton, oddphotons, stopsign=0;
@@ -188,7 +187,6 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      uint4 cp0=cfg->crop0,cp1=cfg->crop1;
      uint2 cachebox;
      uint4 dimlen;
-     //uint4 threaddim;
      cl_float Vvox,scale,absorp,eabsorp;
 
      cl_context context;                 // compute context
@@ -203,7 +201,7 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      size_t kernelWorkGroupSize;
      size_t maxWorkGroupSize;
      int    devid=0;
-     cl_mem gmedia,gfield,gPpos,gPdir,gPlen,gPseed,genergy,gproperty,gstopsign;
+     cl_mem gmedia,gfield,gPpos,gPdir,gPlen,gPseed,genergy,gproperty,gstopsign,gparam;
 
      size_t mcgrid[1], mcblock[1];
 
@@ -216,6 +214,15 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      float4 *Pdir;
      float4 *Plen;
      cl_uint   *Pseed;
+
+     MCXParam param={{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f},
+		     {cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f},
+		     {cfg->dim.x,cfg->dim.y,cfg->dim.z,0},dimlen,cp0,cp1,cachebox,
+		     minstep,0.f,0.f,cfg->tend,R_C0*cfg->unitinmm,cfg->isrowmajor,
+                     cfg->issave2pt,cfg->isreflect,cfg->isrefint,cfg->issavedet,1.f/cfg->tstep,
+                     cfg->minenergy,
+                     cfg->sradius*cfg->sradius,minstep*R_C0*cfg->unitinmm,cfg->maxdetphoton,
+                     cfg->medianum-1,cfg->detnum,0,0};
 
      if(cfg->iscpu){
          dType = CL_DEVICE_TYPE_CPU;
@@ -284,8 +291,10 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      }else{
          field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate);
      }
-     threadphoton=deviceload/cfg->nthread/cfg->respin;
-     oddphotons=deviceload-threadphoton*cfg->nthread*cfg->respin;
+     if(cfg->nthread%cfg->nblocksize)
+        cfg->nthread=(cfg->nthread/cfg->nblocksize)*cfg->nblocksize;
+     threadphoton=cfg->nphoton/cfg->nthread/cfg->respin;
+     oddphotons=cfg->nphoton/cfg->respin-threadphoton*cfg->nthread;
 
      if(cfg->nthread%cfg->nblocksize)
      	cfg->nthread=(cfg->nthread/cfg->nblocksize)*cfg->nblocksize;
@@ -299,23 +308,19 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      Pseed=(cl_uint*)malloc(sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN);
      energy=(cl_float*)calloc(sizeof(cl_float),cfg->nthread*2);
 
-     if(cfg->isrowmajor){ // if the volume is stored in C array order
-	     cachebox.x=(cp1.z-cp0.z+1);
-	     cachebox.y=(cp1.y-cp0.y+1)*(cp1.z-cp0.z+1);
-	     dimlen.x=cfg->dim.z;
-	     dimlen.y=cfg->dim.y*cfg->dim.z;
-     }else{               // if the volume is stored in matlab/fortran array order
-	     cachebox.x=(cp1.x-cp0.x+1);
-	     cachebox.y=(cp1.y-cp0.y+1)*(cp1.x-cp0.x+1);
-	     dimlen.x=cfg->dim.x;
-	     dimlen.y=cfg->dim.y*cfg->dim.x;
-     }
+     cachebox.x=(cp1.x-cp0.x+1);
+     cachebox.y=(cp1.y-cp0.y+1)*(cp1.x-cp0.x+1);
+     dimlen.x=cfg->dim.x;
+     dimlen.y=cfg->dim.x*cfg->dim.y;
      dimlen.z=cfg->dim.x*cfg->dim.y*cfg->dim.z;
-     /*
-      threaddim.x=cfg->dim.z;
-      threaddim.y=cfg->dim.y*cfg->dim.z;
-      threaddim.z=dimlen.z;
-     */
+
+     memcpy(&(param.dimlen.x),&(dimlen.x),sizeof(uint4));
+     memcpy(&(param.cachebox.x),&(cachebox.x),sizeof(uint2));
+     param.idx1dorig=(int(floorf(param.ps.z))*dimlen.y+
+                      int(floorf(param.ps.y))*dimlen.x+
+		      int(floorf(param.ps.x)));
+     param.mediaidorig=(cfg->vol[param.idx1dorig] & MED_MASK);
+
      Vvox=cfg->steps.x*cfg->steps.y*cfg->steps.z;
 
      if(cfg->seed>0)
@@ -324,15 +329,14 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
         srand(time(0));
 
      for (i=0; i<cfg->nthread; i++) {
-           memcpy(Ppos+i,&p0,sizeof(p0));
-           memcpy(Pdir+i,&c0,sizeof(c0));
-	   //Ppos[i]=p0;  // initial position
-           //Pdir[i]=c0;
+           memcpy(Ppos+i,&param.ps,sizeof(param.ps));
+           memcpy(Pdir+i,&param.c0,sizeof(param.c0));
            Plen[i].x=0.f;Plen[i].y=0.f;Plen[i].z=minstep*R_C0;Plen[i].w=0.f;
      }
      for (i=0; i<cfg->nthread*RAND_SEED_LEN; i++) {
 	   Pseed[i]=rand()+threadid;
      }
+     printf("param.tmax=%e\n",param.tmax);
 #pragma omp critical
 {
      mcx_assess((gmedia=clCreateBuffer(context,RO_MEM, sizeof(cl_uchar)*(dimxyz),media,&status),status));
@@ -343,6 +347,7 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      mcx_assess((gPseed=clCreateBuffer(context,RW_MEM, sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,Pseed,&status),status));
      mcx_assess((genergy=clCreateBuffer(context,RW_MEM, sizeof(float)*cfg->nthread*2,energy,&status),status));
      mcx_assess((gproperty=clCreateBuffer(context,RO_MEM, cfg->medianum*sizeof(Medium),cfg->prop,&status),status));
+     mcx_assess((gparam=clCreateBuffer(context,RO_MEM,sizeof(MCXParam),&param,&status),status));
      mcx_assess((gstopsign=clCreateBuffer(context,RW_PTR, sizeof(cl_uint),&stopsign,&status),status));
 }
      if(threadid==0) fprintf(cfg->flog,"\
@@ -398,34 +403,17 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
         	sizeof(size_t),&kernelWorkGroupSize,0));
      fprintf(cfg->flog,"create kernel complete : %d ms\n",GetTimeMillis()-tic);
 
-     oddphotons=0;
-     savefreq=1.f/cfg->tstep;
-     bubbler2=cfg->sradius*cfg->sradius;
-
-     mcx_assess(clSetKernelArg(kernel, 0, sizeof(cl_uint), (void*)&(deviceload)));
-     mcx_assess(clSetKernelArg(kernel, 1, sizeof(cl_uint), (void*)&(oddphotons)));
+     mcx_assess(clSetKernelArg(kernel, 0, sizeof(cl_uint),(void*)&threadphoton));
+     mcx_assess(clSetKernelArg(kernel, 1, sizeof(cl_uint),(void*)&oddphotons));
      mcx_assess(clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&gmedia));
      mcx_assess(clSetKernelArg(kernel, 3, sizeof(cl_mem), (void*)&gfield));
      mcx_assess(clSetKernelArg(kernel, 4, sizeof(cl_mem), (void*)&genergy));
-     mcx_assess(clSetKernelArg(kernel, 5, sizeof(cl_float), (void*)&(minstep)));
-     mcx_assess(clSetKernelArg(kernel, 8, sizeof(cl_float), (void*)&(cfg->tend)));
-     mcx_assess(clSetKernelArg(kernel, 9, sizeof(cl_uint4), (void*)&(dimlen)));
-     mcx_assess(clSetKernelArg(kernel,10, sizeof(cl_uchar), (void*)&(cfg->isrowmajor)));
-     mcx_assess(clSetKernelArg(kernel,11, sizeof(cl_uchar), (void*)&(cfg->issave2pt)));
-     mcx_assess(clSetKernelArg(kernel,12, sizeof(cl_float), (void*)&(savefreq)));
-     mcx_assess(clSetKernelArg(kernel,13, sizeof(cl_float4), (void*)&(p0)));
-     mcx_assess(clSetKernelArg(kernel,14, sizeof(cl_float4), (void*)&(c0)));
-     mcx_assess(clSetKernelArg(kernel,15, sizeof(cl_float4), (void*)&(maxidx)));
-     mcx_assess(clSetKernelArg(kernel,16, sizeof(cl_uchar), (void*)&(cfg->isreflect)));
-     mcx_assess(clSetKernelArg(kernel,17, sizeof(cl_uchar), (void*)&(cfg->isref3)));
-     mcx_assess(clSetKernelArg(kernel,18, sizeof(cl_float), (void*)&(cfg->minenergy)));
-     mcx_assess(clSetKernelArg(kernel,19, sizeof(cl_float), (void*)&(bubbler2)));
-     mcx_assess(clSetKernelArg(kernel,20, sizeof(cl_mem),   (void*)&(gPseed)));
-     mcx_assess(clSetKernelArg(kernel,21, sizeof(cl_mem), (void*)&gPpos));
-     mcx_assess(clSetKernelArg(kernel,22, sizeof(cl_mem), (void*)&gPdir));
-     mcx_assess(clSetKernelArg(kernel,23, sizeof(cl_mem), (void*)&gPlen));
-     mcx_assess(clSetKernelArg(kernel,24, sizeof(cl_mem), (void*)&gproperty));
-     mcx_assess(clSetKernelArg(kernel,25, sizeof(cl_mem), (void*)&gstopsign));
+     mcx_assess(clSetKernelArg(kernel, 5, sizeof(cl_mem), (void*)&gPseed));
+     mcx_assess(clSetKernelArg(kernel, 6, sizeof(cl_mem), (void*)&gPpos));
+     mcx_assess(clSetKernelArg(kernel, 7, sizeof(cl_mem), (void*)&gPdir));
+     mcx_assess(clSetKernelArg(kernel, 8, sizeof(cl_mem), (void*)&gPlen));
+     mcx_assess(clSetKernelArg(kernel, 9, sizeof(cl_mem), (void*)&gproperty));
+     mcx_assess(clSetKernelArg(kernel,10, sizeof(cl_mem), (void*)&gstopsign));
 
      fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
 
@@ -441,9 +429,12 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
        for(iter=0;iter<cfg->respin;iter++){
 
            fprintf(cfg->flog,"simulation run#%2d ... \t",iter+1); fflush(cfg->flog);
+	   param.twin0=twindow0;
+	   param.twin1=twindow1;
+	   clReleaseMemObject(gparam);
+	   mcx_assess((gparam=clCreateBuffer(context,RO_MEM,sizeof(MCXParam),&param,&status),status));
+           mcx_assess(clSetKernelArg(kernel,11, sizeof(cl_mem), (void*)&gparam));
 
-           mcx_assess(clSetKernelArg(kernel, 6, sizeof(cl_float), (void*)&(twindow0)));
-           mcx_assess(clSetKernelArg(kernel, 7, sizeof(cl_float), (void*)&(twindow1)));
            // launch kernel
            mcx_assess(clEnqueueNDRangeKernel(commands,kernel,1,NULL,mcgrid,mcblock, 0, NULL, 
 #ifndef USE_OS_TIMER
@@ -601,6 +592,7 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
      clReleaseMemObject(genergy);
      clReleaseMemObject(gproperty);
      clReleaseMemObject(gstopsign);
+     clReleaseMemObject(gparam);
 
      free(devices);
      clReleaseKernel(kernel);

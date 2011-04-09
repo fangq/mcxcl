@@ -50,7 +50,8 @@ void mcx_initcfg(Config *cfg){
      cfg->respin=1;
      cfg->issave2pt=1;
      cfg->isgpuinfo=0;
-
+     cfg->unitinmm=1.f;
+     cfg->isrefint=0;
      cfg->prop=NULL;
      cfg->detpos=NULL;
      cfg->vol=NULL;
@@ -63,6 +64,8 @@ void mcx_initcfg(Config *cfg){
      cfg->iscpu=0;
      cfg->isverbose=0;
      cfg->clsource='\0';
+     cfg->maxdetphoton=1000000; 
+
      memset(cfg->deviceid,0,MAX_DEVICE);
      memset(cfg->workload,0,MAX_DEVICE*sizeof(float));
      cfg->deviceid[0]='a'; /*use the first GPU device by default*/
@@ -238,7 +241,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      cfg->prop[0].mus=0.f;
      cfg->prop[0].g=0.f;
      cfg->prop[0].n=1.f;
-     for(i=1;i<cfg->medianum;i++){
+     for(i=1;i<(int)cfg->medianum;i++){
         if(in==stdin)
 		fprintf(stdout,"Please define medium #%d: mus(1/mm), anisotropy, mua(1/mm) and refractive index: [1.01 0.01 0.04 1.37]\n\t",i);
      	fscanf(in, "%f %f %f %f", &(cfg->prop[i].mus),&(cfg->prop[i].g),&(cfg->prop[i].mua),&(cfg->prop[i].n));
@@ -254,7 +257,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      	fprintf(stdout,"%d %f\n",cfg->detnum,cfg->detradius);
      cfg->detpos=(float4*)malloc(sizeof(float4)*cfg->detnum);
      cfg->issavedet=(cfg->detpos>0);
-     for(i=0;i<cfg->detnum;i++){
+     for(i=0;i<(int)cfg->detnum;i++){
         if(in==stdin)
 		fprintf(stdout,"Please define detector #%d: x,y,z (in mm): [5 5 5 1]\n\t",i);
      	fscanf(in, "%f %f %f", &(cfg->detpos[i].x),&(cfg->detpos[i].y),&(cfg->detpos[i].z));
@@ -267,13 +270,17 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      }
      if(filename[0]){
         mcx_loadvolume(filename,cfg);
+        if(cfg->isrowmajor){
+                /*from here on, the array is always col-major*/
+                mcx_convertrow2col(&(cfg->vol), &(cfg->dim));
+                cfg->isrowmajor=0;
+        }
         if(cfg->srcpos.x<0.f || cfg->srcpos.y<0.f || cfg->srcpos.z<0.f ||
             cfg->srcpos.x>=cfg->dim.x || cfg->srcpos.y>=cfg->dim.y || cfg->srcpos.z>=cfg->dim.z)
                 mcx_error(-4,"source position is outside of the volume");
 
-	idx1d=cfg->isrowmajor?((int)floor(cfg->srcpos.x)*cfg->dim.y*cfg->dim.z+(int)floor(cfg->srcpos.y)*cfg->dim.z+(int)floor(cfg->srcpos.z)):\
-                      ((int)floor(cfg->srcpos.z)*cfg->dim.y*cfg->dim.x+(int)floor(cfg->srcpos.y)*cfg->dim.x+(int)floor(cfg->srcpos.x));
-	
+	idx1d=((int)floor(cfg->srcpos.z)*cfg->dim.y*cfg->dim.x+(int)floor(cfg->srcpos.y)*cfg->dim.x+(int)floor(cfg->srcpos.x));
+
         /* if the specified source position is outside the domain, move the source
 	   along the initial vector until it hit the domain */
 	if(cfg->vol && cfg->vol[idx1d]==0){
@@ -294,7 +301,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
 }
 
 void mcx_saveconfig(FILE *out, Config *cfg){
-     int i;
+     unsigned int i;
 
      fprintf(out,"%d\n", (cfg->nphoton) ); 
      fprintf(out,"%d\n", (cfg->seed) );
@@ -331,6 +338,26 @@ void mcx_loadvolume(char *filename,Config *cfg){
      if(res!=datalen){
      	 mcx_error(-6,"file size does not match specified dimensions");
      }
+}
+
+void  mcx_convertrow2col(unsigned char **vol, uint4 *dim){
+     uint x,y,z;
+     unsigned int dimxy,dimyz;
+     unsigned char *newvol=NULL;
+     
+     if(*vol==NULL || dim->x==0 || dim->y==0 || dim->z==0){
+        return;
+     }     
+     newvol=(unsigned char*)malloc(sizeof(unsigned char)*dim->x*dim->y*dim->z);
+     dimxy=dim->x*dim->y;
+     dimyz=dim->y*dim->z;
+     for(x=0;x<dim->x;x++)
+      for(y=0;y<dim->y;y++)
+       for(z=0;z<dim->z;z++){
+                newvol[z*dimxy+y*dim->x+x]=*vol[x*dimyz+y*dim->z+z];
+       }
+     free(*vol);
+     *vol=newvol;
 }
 
 int mcx_readarg(int argc, char *argv[], int id, void *output,const char *type){
