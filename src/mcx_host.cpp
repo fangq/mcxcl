@@ -180,7 +180,7 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      cl_float energyloss=0.f,energyabsorbed=0.f,simuenergy,fullload=0.f;
      cl_int deviceload=0;
      cl_float *energy;
-     cl_int threadphoton, oddphotons, stopsign=0;
+     cl_int threadphoton, oddphotons, stopsign=0, detected=0;
 
      cl_int photoncount=0,printnum;
      cl_int tic,fieldlen;
@@ -201,7 +201,7 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      size_t kernelWorkGroupSize;
      size_t maxWorkGroupSize;
      int    devid=0;
-     cl_mem gmedia,gfield,gPpos,gPdir,gPlen,gPseed,genergy,gproperty,gstopsign,gparam;
+     cl_mem gmedia,gfield,gPpos,gPdir,gPlen,gPdet,gPseed,genergy,gproperty,gstopsign,gparam,gdetected;
 
      size_t mcgrid[1], mcblock[1];
 
@@ -210,10 +210,9 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      cl_uchar  *media=(cl_uchar *)(cfg->vol);
      cl_float  *field;
 
-     float4 *Ppos;
-     float4 *Pdir;
-     float4 *Plen;
+     float4 *Ppos, *Pdir, *Plen;
      cl_uint   *Pseed;
+     float  *Pdet;
 
      MCXParam param={{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f},
 		     {cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f},
@@ -307,6 +306,7 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      Plen=(float4*)malloc(sizeof(cl_float4)*cfg->nthread);
      Pseed=(cl_uint*)malloc(sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN);
      energy=(cl_float*)calloc(sizeof(cl_float),cfg->nthread*2);
+     Pdet=(float*)calloc(cfg->maxdetphoton,sizeof(float)*(cfg->medianum+1));
 
      cachebox.x=(cp1.x-cp0.x+1);
      cachebox.y=(cp1.y-cp0.y+1)*(cp1.x-cp0.x+1);
@@ -346,13 +346,15 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      mcx_assess((gPlen=clCreateBuffer(context,RW_MEM, sizeof(cl_float4)*cfg->nthread,Plen,&status),status));
      mcx_assess((gPseed=clCreateBuffer(context,RW_MEM, sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,Pseed,&status),status));
      mcx_assess((genergy=clCreateBuffer(context,RW_MEM, sizeof(float)*cfg->nthread*2,energy,&status),status));
+     mcx_assess((gPdet=clCreateBuffer(context,RW_MEM, sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),Pdet,&status),status));
      mcx_assess((gproperty=clCreateBuffer(context,RO_MEM, cfg->medianum*sizeof(Medium),cfg->prop,&status),status));
      mcx_assess((gparam=clCreateBuffer(context,RO_MEM,sizeof(MCXParam),&param,&status),status));
      mcx_assess((gstopsign=clCreateBuffer(context,RW_PTR, sizeof(cl_uint),&stopsign,&status),status));
+     mcx_assess((gdetected=clCreateBuffer(context,RW_MEM, sizeof(cl_uint),&detected,&status),status));
 }
      if(threadid==0) fprintf(cfg->flog,"\
 ###############################################################################\n\
-#                 Monte Carlo Extreme (MCX) -- OpenCL                         #\n\
+#                 Monte Carlo eXtreme (MCX) -- OpenCL                         #\n\
 ###############################################################################\n\
 $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\n\
 ###############################################################################\n");
@@ -412,8 +414,10 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
      mcx_assess(clSetKernelArg(kernel, 6, sizeof(cl_mem), (void*)&gPpos));
      mcx_assess(clSetKernelArg(kernel, 7, sizeof(cl_mem), (void*)&gPdir));
      mcx_assess(clSetKernelArg(kernel, 8, sizeof(cl_mem), (void*)&gPlen));
-     mcx_assess(clSetKernelArg(kernel, 9, sizeof(cl_mem), (void*)&gproperty));
-     mcx_assess(clSetKernelArg(kernel,10, sizeof(cl_mem), (void*)&gstopsign));
+     mcx_assess(clSetKernelArg(kernel, 9, sizeof(cl_mem), (void*)&gPdet));
+     mcx_assess(clSetKernelArg(kernel,10, sizeof(cl_mem), (void*)&gproperty));
+     mcx_assess(clSetKernelArg(kernel,11, sizeof(cl_mem), (void*)&gstopsign));
+     mcx_assess(clSetKernelArg(kernel,12, sizeof(cl_mem), (void*)&gdetected));
 
      fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
 
@@ -433,7 +437,7 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 	   param.twin1=twindow1;
 	   clReleaseMemObject(gparam);
 	   mcx_assess((gparam=clCreateBuffer(context,RO_MEM,sizeof(MCXParam),&param,&status),status));
-           mcx_assess(clSetKernelArg(kernel,11, sizeof(cl_mem), (void*)&gparam));
+           mcx_assess(clSetKernelArg(kernel,13, sizeof(cl_mem), (void*)&gparam));
 
            // launch kernel
            mcx_assess(clEnqueueNDRangeKernel(commands,kernel,1,NULL,mcgrid,mcblock, 0, NULL, 
@@ -593,6 +597,7 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
      clReleaseMemObject(gproperty);
      clReleaseMemObject(gstopsign);
      clReleaseMemObject(gparam);
+     clReleaseMemObject(gdetected);
 
      free(devices);
      clReleaseKernel(kernel);
