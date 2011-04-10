@@ -90,6 +90,7 @@ typedef struct MCXConfig{
 	char iscpu;         /*1 use CPU for simulation, 0 use GPU*/
 	char isverbose;     /*1 print debug info, 0 do not*/
 	char issrcfrom0;    /*1 do not subtract 1 from src/det positions, 0 subtract 1*/
+        char isdumpmask;    /*1 dump detector mask; 0 not*/
         float minenergy;    /*minimum energy to propagate photon*/
         float unitinmm;     /*defines the length unit in mm for grid*/
         FILE *flog;         /*stream handle to print log information*/
@@ -121,6 +122,7 @@ void mcx_normalize(float field[], float scale, int fieldlen);
 int  mcx_readarg(int argc, char *argv[], int id, void *output,const char *type);
 void mcx_printlog(Config *cfg, const char *str);
 int  mcx_remap(char *opt);
+void mcx_maskdet(Config *cfg);
 void mcx_createfluence(float **fluence, Config *cfg);
 void mcx_clearfluence(float **fluence);
 void mcx_convertrow2col(unsigned char **vol, uint4 *dim);

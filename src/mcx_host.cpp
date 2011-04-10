@@ -340,7 +340,6 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      for (i=0; i<cfg->nthread*RAND_SEED_LEN; i++) {
 	   Pseed[i]=rand()+threadid;
      }
-     printf("param.tmax=%e\n",param.tmax);
 #pragma omp critical
 {
      mcx_assess((gmedia=clCreateBuffer(context,RO_MEM, sizeof(cl_uchar)*(dimxyz),media,&status),status));
@@ -358,30 +357,25 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      mcx_assess((gdetected=clCreateBuffer(context,RW_MEM, sizeof(cl_uint),&detected,&status),status));
 }
      if(threadid==0) fprintf(cfg->flog,"\
-###############################################################################\n\
-#                     Monte Carlo eXtreme (MCX) -- OpenCL                     #\n\
-#     Copyright (c) 2009-2011 Qianqian Fang <fangq at nmr.mgh.harvard.edu>    #\n\
-#                                                                             #\n\
-#    Martinos Center for Biomedical Imaging, Massachusetts General Hospital   #\n\
-###############################################################################\n\
-$MCX $Rev::     $ Last Commit $Date::                     $ by $Author:: fangq$\n\
-###############################################################################\n");
+===============================================================================\n\
+=                     Monte Carlo eXtreme (MCX) -- OpenCL                     =\n\
+=     Copyright (c) 2009-2011 Qianqian Fang <fangq at nmr.mgh.harvard.edu>    =\n\
+=                                                                             =\n\
+=    Martinos Center for Biomedical Imaging, Massachusetts General Hospital   =\n\
+===============================================================================\n\
+$MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\n\
+===============================================================================\n");
 
      tic=StartTimer();
-#ifdef MCX_TARGET_NAME
-     fprintf(cfg->flog,"- variant name: [%s] compiled with OpenCL version [%d]\n",
-             MCX_TARGET_NAME,CL_VERSION_1_0);
-#else
-     fprintf(cfg->flog,"- code name: [Vanilla MCX] compiled with OpenCL version [%d]\n",
+     if(cfg->issavedet)
+         fprintf(cfg->flog,"- variant name: [%s] compiled with OpenCL version [%d]\n",
+             "Detective MCXCL",CL_VERSION_1_0);
+     else
+         fprintf(cfg->flog,"- code name: [Vanilla MCXCL] compiled with OpenCL version [%d]\n",
              CL_VERSION_1_0);
-#endif
-     fprintf(cfg->flog,"compiled with: [RNG] %s [Seed Length] %d\n",MCX_RNG_NAME,RAND_SEED_LEN);
-#ifdef SAVE_DETECTORS
-     fprintf(cfg->flog,"- this version CAN save photons at the detectors\n\n");
-#else
-     fprintf(cfg->flog,"- this version CAN NOT save photons at the detectors\n\n");
-#endif
-     fprintf(cfg->flog,"threadph=%d oddphotons=%d np=%d nthread=%d repetition=%d\n",threadphoton,oddphotons,
+
+     fprintf(cfg->flog,"- compiled with: [RNG] %s [Seed Length] %d\n",MCX_RNG_NAME,RAND_SEED_LEN);
+     fprintf(cfg->flog,"- threadph=%d oddphotons=%d np=%d nthread=%d repetition=%d\n",threadphoton,oddphotons,
            deviceload,cfg->nthread,cfg->respin);
      fprintf(cfg->flog,"initializing streams ...\t");
      fflush(cfg->flog);
@@ -407,11 +401,10 @@ $MCX $Rev::     $ Last Commit $Date::                     $ by $Author:: fangq$\
      if(cfg->iscpu && cfg->isverbose){ 
 	status=clBuildProgram(program, 0, NULL, "-D __DEVICE_EMULATION__ -D MCX_CPU_ONLY -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
      }else{
-#ifdef SAVE_DETECTORS
-	status=clBuildProgram(program, 0, NULL, "-D SAVE_DETECTORS -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
-#else
-	status=clBuildProgram(program, 0, NULL, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
-#endif
+	if(cfg->issavedet)
+		status=clBuildProgram(program, 0, NULL, "-D SAVE_DETECTORS -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
+	else
+		status=clBuildProgram(program, 0, NULL, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
      }
 }
      if(status!=CL_SUCCESS){
@@ -443,7 +436,7 @@ $MCX $Rev::     $ Last Commit $Date::                     $ by $Author:: fangq$\
      mcx_assess(clSetKernelArg(kernel,11, sizeof(cl_mem), (void*)&gdetpos));
      mcx_assess(clSetKernelArg(kernel,12, sizeof(cl_mem), (void*)&gstopsign));
      mcx_assess(clSetKernelArg(kernel,13, sizeof(cl_mem), (void*)&gdetected));
-     mcx_assess(clSetKernelArg(kernel,14, sizeof(cl_float)*cfg->nblocksize*param.maxmedia, NULL));
+     mcx_assess(clSetKernelArg(kernel,14, cfg->issavedet? sizeof(cl_float)*cfg->nblocksize*param.maxmedia : 1, NULL));
 
      fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
 
@@ -476,7 +469,6 @@ $MCX $Rev::     $ Last Commit $Date::                     $ by $Author:: fangq$\
                                             &detected, 0, NULL, NULL));
            fprintf(cfg->flog,"kernel complete:  \t%d ms\nretrieving fields ... \t",GetTimeMillis()-tic);
 
-#ifdef SAVE_DETECTORS
            if(cfg->issavedet){
                 mcx_assess(clEnqueueReadBuffer(commands,gPdet,CL_TRUE,0,sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),
 	                                        Pdet, 0, NULL, NULL));
@@ -496,7 +488,6 @@ is more than what your have specified (%d), please use the -H option to specify 
 			mcx_savedata(Pdet,cfg->his.savedphoton*(cfg->medianum+1),
 		             photoncount>cfg->his.totalphoton,"mch",cfg);
 	   }
-#endif
 	   //handling the 2pt distributions
            if(cfg->issave2pt){
                mcx_assess(clEnqueueReadBuffer(commands,gfield,CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,

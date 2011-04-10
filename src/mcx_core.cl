@@ -16,14 +16,14 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef SAVE_DETECTORS
-//  #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+  #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 #endif
 
 #ifdef __DEVICE_EMULATION__
-#define GPUDEBUG(x)        printf x             // enable debugging in CPU mode
-#pragma OPENCL EXTENSION cl_amd_printf : enable
+  #define GPUDEBUG(x)        printf x             // enable debugging in CPU mode
+  #pragma OPENCL EXTENSION cl_amd_printf : enable
 #else
-#define GPUDEBUG(x)
+  #define GPUDEBUG(x)
 #endif
 
 #define RAND_BUF_LEN       5        //register arrays
@@ -175,7 +175,8 @@ void savedetphoton(__global float n_det[],__global uint *detectedphoton,float we
       uint j,baseaddr=0;
       j=finddetector(p0,gdetpos,gcfg);
       if(j){
-	 //baseaddr=atomic_add(detectedphoton,1);
+         //baseaddr=(++ (*detectedphoton));
+	 baseaddr=atomic_add(detectedphoton,1);
 	 if(baseaddr<gcfg->maxdetphoton){
 	    baseaddr*=gcfg->maxmedia+2;
 	    n_det[baseaddr++]=j;
@@ -191,16 +192,17 @@ void savedetphoton(__global float n_det[],__global uint *detectedphoton,float we
 
 void launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
            uint *mediaid,uchar isdet, __local float ppath[],float energyloss[],float energyabsorbed[],
-	   __global float n_det[],__global uint *dpnum,__constant float4 gdetpos[],
-	   __constant float4 gproperty[],__constant MCXParam gcfg[]){
+	   __global float n_det[],__global uint *dpnum, __constant float4 gproperty[],
+	   __constant float4 gdetpos[],__constant MCXParam gcfg[]){
 
       *energyloss+=p[0].w;  // sum all the remaining energy
       *energyabsorbed+=1.f-p[0].w;
 #ifdef SAVE_DETECTORS
       // let's handle detectors here
       if(gcfg->savedet){
-         if(*mediaid==0 && isdet)
+         if(*mediaid==0 && isdet){
 	      savedetphoton(n_det,dpnum,v[0].w,ppath,p,gdetpos,gcfg);
+	 }
 	 clearpath(ppath,gcfg);
       }
 #endif
@@ -446,7 +448,7 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
 	             GPUDEBUG(("  ID%d J%d C%d flip=%3f (%d %d) cphi=%f sphi=%f p=%f %f %f p0=%f %f %f\n",
                          idx,(int)v.w,(int)f.w,
 	                 flipdir,idx1dold,idx1d,cphi,sphi,p.x,p.y,p.z,p0.x,p0.y,p0.z));
-                  } // else, total internal reflection
+                  }
 	          if(Rtotal<1.f && rand_next_reflect(t)>Rtotal){ // do transmission
                         if(mediaid==0){ // transmission to external boundary
 		    	    launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,(mediaidold & DET_MASK),

@@ -65,6 +65,7 @@ void mcx_initcfg(Config *cfg){
      cfg->isverbose=0;
      cfg->clsource='\0';
      cfg->maxdetphoton=1000000; 
+     cfg->isdumpmask=0;
 
      memset(cfg->deviceid,0,MAX_DEVICE);
      memset(cfg->workload,0,MAX_DEVICE*sizeof(float));
@@ -267,11 +268,13 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      if(in==stdin)
      	fprintf(stdout,"%d %f\n",cfg->detnum,cfg->detradius);
      cfg->detpos=(float4*)malloc(sizeof(float4)*cfg->detnum);
-     cfg->issavedet=(cfg->detpos>0);
+     if(cfg->issavedet && cfg->detnum==0) 
+      	cfg->issavedet=0;
      for(i=0;i<(int)cfg->detnum;i++){
         if(in==stdin)
 		fprintf(stdout,"Please define detector #%d: x,y,z (in mm): [5 5 5 1]\n\t",i);
      	fscanf(in, "%f %f %f", &(cfg->detpos[i].x),&(cfg->detpos[i].y),&(cfg->detpos[i].z));
+	cfg->detpos[i].w=cfg->detradius*cfg->detradius;
         if(!cfg->issrcfrom0){
 	   cfg->detpos[i].x--;cfg->detpos[i].y--;cfg->detpos[i].z--;  /*convert to C index*/
 	}
@@ -286,6 +289,8 @@ void mcx_loadconfig(FILE *in, Config *cfg){
                 mcx_convertrow2col(&(cfg->vol), &(cfg->dim));
                 cfg->isrowmajor=0;
         }
+	if(cfg->issavedet)
+		mcx_maskdet(cfg);
         if(cfg->srcpos.x<0.f || cfg->srcpos.y<0.f || cfg->srcpos.z<0.f ||
             cfg->srcpos.x>=cfg->dim.x || cfg->srcpos.y>=cfg->dim.y || cfg->srcpos.z>=cfg->dim.z)
                 mcx_error(-4,"source position is outside of the volume");
@@ -369,6 +374,68 @@ void  mcx_convertrow2col(unsigned char **vol, uint4 *dim){
        }
      free(*vol);
      *vol=newvol;
+}
+
+void  mcx_maskdet(Config *cfg){
+     uint d,dx,dy,dz,idx1d,zi,yi;
+     float x,y,z,ix,iy,iz;
+     unsigned char *padvol;
+     
+     dx=cfg->dim.x+2;
+     dy=cfg->dim.y+2;
+     dz=cfg->dim.z+2;
+
+     /*handling boundaries in a volume search is tedious, I first pad vol by a layer of zeros,
+       then I don't need to worry about boundaries any more*/
+
+     padvol=(unsigned char*)calloc(dx*dy,dz);
+
+     for(zi=1;zi<=cfg->dim.z;zi++)
+        for(yi=1;yi<=cfg->dim.y;yi++)
+	        memcpy(padvol+zi*dy*dx+yi*dx+1,cfg->vol+(zi-1)*cfg->dim.y*cfg->dim.x+(yi-1)*cfg->dim.x,cfg->dim.x);
+
+     for(d=0;d<cfg->detnum;d++)                              /*loop over each detector*/
+        for(z=-cfg->detpos[d].w;z<=cfg->detpos[d].w;z++){   /*search in a sphere*/
+           iz=z+cfg->detpos[d].z; /*1.5=1+0.5, 1 comes from the padding layer, 0.5 move to voxel center*/
+           for(y=-cfg->detpos[d].w;y<=cfg->detpos[d].w;y++){
+              iy=y+cfg->detpos[d].y;
+              for(x=-cfg->detpos[d].w;x<=cfg->detpos[d].w;x++){
+	         ix=x+cfg->detpos[d].x;
+
+		 if(iz<0||ix<0||iy<0||ix>=cfg->dim.x||iy>=cfg->dim.y||iz>=cfg->dim.z||
+		    x*x+y*y+z*z > (cfg->detpos[d].w+1.f)*(cfg->detpos[d].w+1.f))
+		    continue;
+
+		 idx1d=(int)((iz+1.f)*dy*dx+(iy+1.f)*dx+(ix+1.f));
+
+		 if(padvol[idx1d])  /*looking for a voxel on the interface or bounding box*/
+                  if(!(padvol[idx1d+1]&&padvol[idx1d-1]&&padvol[idx1d+dx]&&padvol[idx1d-dx]&&padvol[idx1d+dy*dx]&&padvol[idx1d-dy*dx]&&
+		     padvol[idx1d+dx+1]&&padvol[idx1d+dx-1]&&padvol[idx1d-dx+1]&&padvol[idx1d-dx-1]&&
+		     padvol[idx1d+dy*dx+1]&&padvol[idx1d+dy*dx-1]&&padvol[idx1d-dy*dx+1]&&padvol[idx1d-dy*dx-1]&&
+		     padvol[idx1d+dy*dx+dx]&&padvol[idx1d+dy*dx-dx]&&padvol[idx1d-dy*dx+dx]&&padvol[idx1d-dy*dx-dx]&&
+		     padvol[idx1d+dy*dx+dx+1]&&padvol[idx1d+dy*dx+dx-1]&&padvol[idx1d+dy*dx-dx+1]&&padvol[idx1d+dy*dx-dx-1]&&
+		     padvol[idx1d-dy*dx+dx+1]&&padvol[idx1d-dy*dx+dx-1]&&padvol[idx1d-dy*dx-dx+1]&&padvol[idx1d-dy*dx-dx-1])){
+		          cfg->vol[(int)(iz*cfg->dim.y*cfg->dim.x+iy*cfg->dim.x+ix)]|=(1<<7);/*set the highest bit to 1*/
+	          }
+	      }
+	  }
+     }
+
+     if(cfg->isdumpmask){
+     	 char fname[MAX_PATH_LENGTH];
+	 FILE *fp;
+	 sprintf(fname,"%s.mask",cfg->session);
+	 if((fp=fopen(fname,"wb"))==NULL){
+	 	mcx_error(-10,"can not save mask file");
+	 }
+	 if(fwrite(cfg->vol,cfg->dim.x*cfg->dim.y,cfg->dim.z,fp)!=cfg->dim.z){
+	 	mcx_error(-10,"can not save mask file");
+	 }
+	 fclose(fp);
+         free(padvol);
+	 exit(0);
+     }
+     free(padvol);
 }
 
 int mcx_readarg(int argc, char *argv[], int id, void *output,const char *type){
@@ -587,14 +654,14 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 
 void mcx_usage(char *exename){
      printf("\
-######################################################################################\n\
-#                      Monte Carlo eXtreme (MCX) -- OpenCL                           #\n\
-#              Author: Qianqian Fang <fangq at nmr.mgh.harvard.edu>                  #\n\
-#                                                                                    #\n\
-#      Martinos Center for Biomedical Imaging, Massachusetts General Hospital        #\n\
-######################################################################################\n\
-$MCX $Rev:: 155 $, Last Commit: $Date:: 2009-12-19 18:57:32 -05#$ by $Author:: fangq $\n\
-######################################################################################\n\
+======================================================================================\n\
+=                      Monte Carlo eXtreme (MCX) -- OpenCL                           =\n\
+=              Author: Qianqian Fang <fangq at nmr.mgh.harvard.edu>                  =\n\
+=                                                                                    =\n\
+=      Martinos Center for Biomedical Imaging, Massachusetts General Hospital        =\n\
+======================================================================================\n\
+$MCXCL $Rev:: 155$, Last Commit:$Date:: 2009-12-19 18:57:32 -05#$ by $Author:: fangq $\n\
+======================================================================================\n\
 \n\
 usage: %s <param1> <param2> ...\n\
 where possible parameters include (the first item in [] is the default value)\n\
