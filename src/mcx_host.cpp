@@ -180,9 +180,11 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      cl_float energyloss=0.f,energyabsorbed=0.f,simuenergy,fullload=0.f;
      cl_int deviceload=0;
      cl_float *energy;
-     cl_int threadphoton, oddphotons, stopsign=0, detected=0;
+     cl_int threadphoton, oddphotons, stopsign=0;
+     cl_uint detected=0;
 
-     cl_int photoncount=0,printnum;
+     cl_int  printnum;
+     cl_uint photoncount=0;
      cl_int tic,fieldlen;
      uint4 cp0=cfg->crop0,cp1=cfg->crop1;
      uint2 cachebox;
@@ -201,7 +203,9 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      size_t kernelWorkGroupSize;
      size_t maxWorkGroupSize;
      int    devid=0;
-     cl_mem gmedia,gfield,gPpos,gPdir,gPlen,gPdet,gPseed,genergy,gproperty,gstopsign,gparam,gdetected;
+     cl_mem gmedia,gfield;
+     cl_mem gPpos,gPdir,gPlen,gPdet,gPseed,genergy;
+     cl_mem gproperty,gstopsign,gparam,gdetected,gdetpos;
 
      size_t mcgrid[1], mcblock[1];
 
@@ -348,19 +352,35 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      mcx_assess((genergy=clCreateBuffer(context,RW_MEM, sizeof(float)*cfg->nthread*2,energy,&status),status));
      mcx_assess((gPdet=clCreateBuffer(context,RW_MEM, sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),Pdet,&status),status));
      mcx_assess((gproperty=clCreateBuffer(context,RO_MEM, cfg->medianum*sizeof(Medium),cfg->prop,&status),status));
+     mcx_assess((gdetpos=clCreateBuffer(context,RO_MEM, cfg->detnum*sizeof(float4),cfg->detpos,&status),status));
      mcx_assess((gparam=clCreateBuffer(context,RO_MEM,sizeof(MCXParam),&param,&status),status));
      mcx_assess((gstopsign=clCreateBuffer(context,RW_PTR, sizeof(cl_uint),&stopsign,&status),status));
      mcx_assess((gdetected=clCreateBuffer(context,RW_MEM, sizeof(cl_uint),&detected,&status),status));
 }
      if(threadid==0) fprintf(cfg->flog,"\
 ###############################################################################\n\
-#                 Monte Carlo eXtreme (MCX) -- OpenCL                         #\n\
+#                     Monte Carlo eXtreme (MCX) -- OpenCL                     #\n\
+#     Copyright (c) 2009-2011 Qianqian Fang <fangq at nmr.mgh.harvard.edu>    #\n\
+#                                                                             #\n\
+#    Martinos Center for Biomedical Imaging, Massachusetts General Hospital   #\n\
 ###############################################################################\n\
-$MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\n\
+$MCX $Rev::     $ Last Commit $Date::                     $ by $Author:: fangq$\n\
 ###############################################################################\n");
 
      tic=StartTimer();
+#ifdef MCX_TARGET_NAME
+     fprintf(cfg->flog,"- variant name: [%s] compiled with OpenCL version [%d]\n",
+             MCX_TARGET_NAME,CL_VERSION_1_0);
+#else
+     fprintf(cfg->flog,"- code name: [Vanilla MCX] compiled with OpenCL version [%d]\n",
+             CL_VERSION_1_0);
+#endif
      fprintf(cfg->flog,"compiled with: [RNG] %s [Seed Length] %d\n",MCX_RNG_NAME,RAND_SEED_LEN);
+#ifdef SAVE_DETECTORS
+     fprintf(cfg->flog,"- this version CAN save photons at the detectors\n\n");
+#else
+     fprintf(cfg->flog,"- this version CAN NOT save photons at the detectors\n\n");
+#endif
      fprintf(cfg->flog,"threadph=%d oddphotons=%d np=%d nthread=%d repetition=%d\n",threadphoton,oddphotons,
            deviceload,cfg->nthread,cfg->respin);
      fprintf(cfg->flog,"initializing streams ...\t");
@@ -387,7 +407,11 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
      if(cfg->iscpu && cfg->isverbose){ 
 	status=clBuildProgram(program, 0, NULL, "-D __DEVICE_EMULATION__ -D MCX_CPU_ONLY -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
      }else{
+#ifdef SAVE_DETECTORS
+	status=clBuildProgram(program, 0, NULL, "-D SAVE_DETECTORS -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
+#else
 	status=clBuildProgram(program, 0, NULL, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
+#endif
      }
 }
      if(status!=CL_SUCCESS){
@@ -416,8 +440,10 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
      mcx_assess(clSetKernelArg(kernel, 8, sizeof(cl_mem), (void*)&gPlen));
      mcx_assess(clSetKernelArg(kernel, 9, sizeof(cl_mem), (void*)&gPdet));
      mcx_assess(clSetKernelArg(kernel,10, sizeof(cl_mem), (void*)&gproperty));
-     mcx_assess(clSetKernelArg(kernel,11, sizeof(cl_mem), (void*)&gstopsign));
-     mcx_assess(clSetKernelArg(kernel,12, sizeof(cl_mem), (void*)&gdetected));
+     mcx_assess(clSetKernelArg(kernel,11, sizeof(cl_mem), (void*)&gdetpos));
+     mcx_assess(clSetKernelArg(kernel,12, sizeof(cl_mem), (void*)&gstopsign));
+     mcx_assess(clSetKernelArg(kernel,13, sizeof(cl_mem), (void*)&gdetected));
+     mcx_assess(clSetKernelArg(kernel,14, sizeof(cl_float)*cfg->nblocksize*param.maxmedia, NULL));
 
      fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
 
@@ -437,7 +463,7 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 	   param.twin1=twindow1;
 	   clReleaseMemObject(gparam);
 	   mcx_assess((gparam=clCreateBuffer(context,RO_MEM,sizeof(MCXParam),&param,&status),status));
-           mcx_assess(clSetKernelArg(kernel,13, sizeof(cl_mem), (void*)&gparam));
+           mcx_assess(clSetKernelArg(kernel,15, sizeof(cl_mem), (void*)&gparam));
 
            // launch kernel
            mcx_assess(clEnqueueNDRangeKernel(commands,kernel,1,NULL,mcgrid,mcblock, 0, NULL, 
@@ -446,10 +472,31 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 #else
                   NULL));
 #endif
-           mcx_assess(clEnqueueReadBuffer(commands,gfield,CL_TRUE,0,sizeof(cl_float),
-                                            field, 0, NULL, NULL));
+           mcx_assess(clEnqueueReadBuffer(commands,gdetected,CL_TRUE,0,sizeof(uint),
+                                            &detected, 0, NULL, NULL));
            fprintf(cfg->flog,"kernel complete:  \t%d ms\nretrieving fields ... \t",GetTimeMillis()-tic);
 
+#ifdef SAVE_DETECTORS
+           if(cfg->issavedet){
+                mcx_assess(clEnqueueReadBuffer(commands,gPdet,CL_TRUE,0,sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),
+	                                        Pdet, 0, NULL, NULL));
+		if(detected>cfg->maxdetphoton){
+			fprintf(cfg->flog,"WARNING: the detected photon (%d) \
+is more than what your have specified (%d), please use the -H option to specify a greater number\t"
+                           ,detected,cfg->maxdetphoton);
+		}else{
+			fprintf(cfg->flog,"detected %d photons\t",detected);
+		}
+		cfg->his.unitinmm=cfg->unitinmm;
+		cfg->his.detected=detected;
+		cfg->his.savedphoton=MIN(detected,cfg->maxdetphoton);
+		if(cfg->exportdetected) //you must allocate the buffer long enough
+	                memcpy(cfg->exportdetected,Pdet,cfg->his.savedphoton*(cfg->medianum+1)*sizeof(float));
+		else
+			mcx_savedata(Pdet,cfg->his.savedphoton*(cfg->medianum+1),
+		             photoncount>cfg->his.totalphoton,"mch",cfg);
+	   }
+#endif
 	   //handling the 2pt distributions
            if(cfg->issave2pt){
                mcx_assess(clEnqueueReadBuffer(commands,gfield,CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,
@@ -509,7 +556,7 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
 		   	fluence[i]*=(*totalenergy);
 
                    fprintf(cfg->flog,"saving data to file ...\t");
-                   mcx_savedata(fluence,fieldlen,t>cfg->tstart,cfg);
+                   mcx_savedata(fluence,fieldlen,t>cfg->tstart,"mc2",cfg);
                    fprintf(cfg->flog,"saving data complete : %d ms\n",GetTimeMillis()-tic);
                    fflush(cfg->flog);
 }
@@ -598,6 +645,7 @@ $MCX $Rev::     $ Last Commit:$Date::                     $ by $Author:: fangq$\
      clReleaseMemObject(gstopsign);
      clReleaseMemObject(gparam);
      clReleaseMemObject(gdetected);
+     clReleaseMemObject(gdetpos);
 
      free(devices);
      clReleaseKernel(kernel);

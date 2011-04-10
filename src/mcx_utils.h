@@ -30,6 +30,19 @@ typedef struct MCXMedium{
 	float g;
 } Medium;  /*this order shall match prop.{xyzw} in mcx_main_loop*/
 
+typedef struct MCXHistoryHeader{
+	char magic[4];
+	unsigned int  version;
+	unsigned int  maxmedia;
+	unsigned int  detnum;
+	unsigned int  colcount;
+	unsigned int  totalphoton;
+	unsigned int  detected;
+	unsigned int  savedphoton;
+	float unitinmm;
+	int reserved[7];
+} History;
+
 typedef struct MCXConfig{
 	int nphoton;      /*(total simulated photon number) we now use this to 
 	                     temporarily alias totalmove, as to specify photon
@@ -80,17 +93,20 @@ typedef struct MCXConfig{
         float minenergy;    /*minimum energy to propagate photon*/
         float unitinmm;     /*defines the length unit in mm for grid*/
         FILE *flog;         /*stream handle to print log information*/
+        History his;        /*header info of the history file*/
         char rootpath[MAX_PATH_LENGTH];
         char kernelfile[MAX_SESSION_LENGTH];
 	char *clsource;
         char deviceid[MAX_DEVICE];
 	float workload[MAX_DEVICE];
+	float *exportfield;     /*memory buffer when returning the flux to external programs such as matlab*/
+	float *exportdetected;  /*memory buffer when returning the partial length info to external programs such as matlab*/
 } Config;
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
-void mcx_savedata(float *dat,int len,int doappend, Config *cfg);
+void mcx_savedata(float *dat,int len,int doappend, const char *suffix, Config *cfg);
 void mcx_error(int id,const char *msg);
 void mcx_loadconfig(FILE *in, Config *cfg);
 void mcx_saveconfig(FILE *in, Config *cfg);

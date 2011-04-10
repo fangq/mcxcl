@@ -50,13 +50,15 @@ logatomic:  CUCCOPT+=-DUSE_ATOMIC -use_fast_math -arch compute_11
 mtbox logbox:		CUCCOPT+=-DCACHE_NON_ATOMIC
 debugmt debuglog:	CUCCOPT+=-deviceemu
 mtatomic logatomic:	BINARY:=$(BINARY)_atomic
+det:        CPPOPT+=-DSAVE_DETECTORS -DMCX_TARGET_NAME='"Detective MCX"' -fopenmp
+det detbox: BINARY:=$(BINARY)_det
 omp:        CUCCOPT+=-fopenmp
 omp:        CPPOPT+=-fopenmp
-omp:        LINKOPT+=-fopenmp
+det omp:        LINKOPT+=-fopenmp
 
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 
-all mt fast log logfast racing mtatomic logatomic mtbox logbox debugmt debuglog omp: $(OUTPUT_DIR)/$(BINARY)
+all mt fast log logfast racing mtatomic logatomic mtbox logbox debugmt debuglog omp det: $(OUTPUT_DIR)/$(BINARY)
 
 $(OUTPUT_DIR)/$(BINARY): $(OBJS)
 	$(CCC) $(LINKOPT) $(OBJS) -o $(OUTPUT_DIR)/$(BINARY)

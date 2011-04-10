@@ -71,6 +71,14 @@ void mcx_initcfg(Config *cfg){
      cfg->deviceid[0]='a'; /*use the first GPU device by default*/
      strcpy(cfg->kernelfile,"mcx_core.cl");
      cfg->issrcfrom0=0;
+
+     memset(&cfg->his,0,sizeof(History));
+     memcpy(cfg->his.magic,"MCXH",4);     
+     cfg->his.version=1;
+     cfg->his.unitinmm=1.f;
+     cfg->exportfield=NULL;
+     cfg->exportdetected=NULL;
+
 }
 
 void mcx_clearcfg(Config *cfg){
@@ -86,10 +94,10 @@ void mcx_clearcfg(Config *cfg){
      mcx_initcfg(cfg);
 }
 
-void mcx_savedata(float *dat, int len, int doappend, Config *cfg){
+void mcx_savedata(float *dat, int len, int doappend, const char *suffix, Config *cfg){
      FILE *fp;
      char name[MAX_PATH_LENGTH];
-     sprintf(name,"%s.mc2",cfg->session);
+     sprintf(name,"%s.%s",cfg->session,suffix);
      if(doappend){
         fp=fopen(name,"ab");
      }else{
@@ -97,6 +105,9 @@ void mcx_savedata(float *dat, int len, int doappend, Config *cfg){
      }
      if(fp==NULL){
 	mcx_error(-2,"can not save data to disk");
+     }
+     if(strcmp(suffix,"mch")==0){
+	fwrite(&(cfg->his),sizeof(History),1,fp);
      }
      fwrite(dat,sizeof(float),len,fp);
      fclose(fp);

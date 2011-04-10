@@ -15,6 +15,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef SAVE_DETECTORS
+//  #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+#endif
+
 #ifdef __DEVICE_EMULATION__
 #define GPUDEBUG(x)        printf x             // enable debugging in CPU mode
 #pragma OPENCL EXTENSION cl_amd_printf : enable
@@ -147,52 +151,31 @@ float rand_next_reflect(RandType t[RAND_BUF_LEN]){
     return rand_uniform01(t[1]);
 }
 
-void clearpath(float *p, __constant MCXParam gcfg[]){
+void clearpath(__local float *p, __constant MCXParam gcfg[]){
       uint i;
       for(i=0;i<gcfg->maxmedia;i++)
       	   p[i]=0.f;
 }
 
-void launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
-           uint *mediaid,uchar isdet, float ppath[],float energyloss[],float energyabsorbed[],
-	   __global float n_det[],__global uint *dpnum,__constant float4 gproperty[],__constant MCXParam gcfg[]){
-
-      *energyloss+=p[0].w;  // sum all the remaining energy
-      *energyabsorbed+=1.f-p[0].w;
 #ifdef SAVE_DETECTORS
-      // let's handle detectors here
-      if(gcfg->savedet){
-         if(*mediaid==0 && isdet)
-	      savedetphoton(n_det,dpnum,v[0].w,ppath,p);
-	 clearpath(ppath,gcfg);
-      }
-#endif
-      p[0]=gcfg->ps;
-      v[0]=gcfg->c0;
-      f[0].x=0.f;f[0].y=0.f;f[0].z=gcfg->minaccumtime;f[0].w=f[0].w+1;
-      *idx1d=gcfg->idx1dorig;
-      *mediaid=gcfg->mediaidorig;
-      prop[0]=gproperty[*mediaid]; //always use mediaid to read gproperty[]
-}
-
-#ifdef SAVE_DETECTORS
-uint finddetector(MCXpos *p0){
+uint finddetector(float4 p0[],__constant float4 gdetpos[],__constant MCXParam gcfg[]){
       uint i;
       for(i=0;i<gcfg->detnum;i++){
-      	if((gdetpos[i].x-p0->x)*(gdetpos[i].x-p0->x)+
-	   (gdetpos[i].y-p0->y)*(gdetpos[i].y-p0->y)+
-	   (gdetpos[i].z-p0->z)*(gdetpos[i].z-p0->z) < gdetpos[i].w){
+      	if((gdetpos[i].x-p0[0].x)*(gdetpos[i].x-p0[0].x)+
+	   (gdetpos[i].y-p0[0].y)*(gdetpos[i].y-p0[0].y)+
+	   (gdetpos[i].z-p0[0].z)*(gdetpos[i].z-p0[0].z) < gdetpos[i].w){
 	        return i+1;
 	   }
       }
       return 0;
 }
 
-void savedetphoton(__global float n_det[],uint *detectedphoton,float weight,float *ppath,MCXpos *p0){
+void savedetphoton(__global float n_det[],__global uint *detectedphoton,float weight,
+                   __local float *ppath,float4 p0[],__constant float4 gdetpos[],__constant MCXParam gcfg[]){
       uint j,baseaddr=0;
-      j=finddetector(p0);
+      j=finddetector(p0,gdetpos,gcfg);
       if(j){
-	 baseaddr=atomicAdd(detectedphoton,1);
+	 //baseaddr=atomic_add(detectedphoton,1);
 	 if(baseaddr<gcfg->maxdetphoton){
 	    baseaddr*=gcfg->maxmedia+2;
 	    n_det[baseaddr++]=j;
@@ -205,13 +188,38 @@ void savedetphoton(__global float n_det[],uint *detectedphoton,float weight,floa
 }
 #endif
 
+
+void launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
+           uint *mediaid,uchar isdet, __local float ppath[],float energyloss[],float energyabsorbed[],
+	   __global float n_det[],__global uint *dpnum,__constant float4 gdetpos[],
+	   __constant float4 gproperty[],__constant MCXParam gcfg[]){
+
+      *energyloss+=p[0].w;  // sum all the remaining energy
+      *energyabsorbed+=1.f-p[0].w;
+#ifdef SAVE_DETECTORS
+      // let's handle detectors here
+      if(gcfg->savedet){
+         if(*mediaid==0 && isdet)
+	      savedetphoton(n_det,dpnum,v[0].w,ppath,p,gdetpos,gcfg);
+	 clearpath(ppath,gcfg);
+      }
+#endif
+      p[0]=gcfg->ps;
+      v[0]=gcfg->c0;
+      f[0].x=0.f;f[0].y=0.f;f[0].z=gcfg->minaccumtime;f[0].w=f[0].w+1;
+      *idx1d=gcfg->idx1dorig;
+      *mediaid=gcfg->mediaidorig;
+      prop[0]=gproperty[*mediaid]; //always use mediaid to read gproperty[]
+}
+
 /*
    this is the core Monte Carlo simulation kernel, please see Fig. 1 in Fang2009
 */
 __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const uchar media[],
      __global float field[], __global float genergy[], __global uint n_seed[],__global float4 n_pos[],
      __global float4 n_dir[],__global float4 n_len[],__global float n_det[],__constant float4 gproperty[],
-     __global uint stopsign[1],__global uint detectedphoton[1], __constant MCXParam gcfg[]){
+     __constant float4 gdetpos[], __global uint stopsign[1],__global uint detectedphoton[1],
+     __local float *sharedmem, __constant MCXParam gcfg[]){
 
      int idx= get_global_id(0);
 
@@ -240,6 +248,7 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
 
      float len,cphi,sphi,theta,stheta,ctheta,tmp0,tmp1;
      float accumweight=0.f;
+     __local float *ppath=sharedmem+get_local_id(0)*gcfg->maxmedia;
 
      gpu_rng_init(t,tnew,n_seed,idx);
 
@@ -441,7 +450,7 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
 	          if(Rtotal<1.f && rand_next_reflect(t)>Rtotal){ // do transmission
                         if(mediaid==0){ // transmission to external boundary
 		    	    launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,(mediaidold & DET_MASK),
-			        NULL,&energyloss,&energyabsorbed,n_det,detectedphoton,gproperty,gcfg);
+			        ppath,&energyloss,&energyabsorbed,n_det,detectedphoton,gproperty,gdetpos,gcfg);
 			    continue;
 			}
 			tmp0=n1/prop.z;
@@ -477,8 +486,8 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
 #ifdef MCX_CPU_ONLY
 		  if(stopsign[0]) break;
 #endif
-		  launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,(mediaidold & DET_MASK),NULL,
-		      &energyloss,&energyabsorbed,n_det,detectedphoton,gproperty,gcfg);
+		  launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,(mediaidold & DET_MASK),ppath,
+		      &energyloss,&energyabsorbed,n_det,detectedphoton,gproperty,gdetpos,gcfg);
 		  continue;
               }
 	  }else if(f.y>=f.z){
