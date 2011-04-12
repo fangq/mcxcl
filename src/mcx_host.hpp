@@ -9,23 +9,23 @@ extern "C" {
 #endif
 
 typedef struct KernelParams {
-  float4 ps,c0;
-  float4 maxidx;
-  uint4  dimlen,cp0,cp1;
-  uint2  cachebox;
-  float  minstep;
-  float  twin0,twin1,tmax;
-  float  oneoverc0;
-  unsigned int isrowmajor,save2pt,doreflect,dorefint,savedet;
-  float  Rtstep;
-  float  minenergy;
-  float  skipradius2;
-  float  minaccumtime;
-  unsigned int maxdetphoton;
-  unsigned int maxmedia;
-  unsigned int detnum;
-  unsigned int idx1dorig;
-  unsigned int mediaidorig;
+  cl_float4 ps,c0;
+  cl_float4 maxidx;
+  cl_uint4  dimlen,cp0,cp1;
+  cl_uint2  cachebox;
+  cl_float  minstep;
+  cl_float  twin0,twin1,tmax;
+  cl_float  oneoverc0;
+  cl_uint isrowmajor,save2pt,doreflect,dorefint,savedet;
+  cl_float  Rtstep;
+  cl_float  minenergy;
+  cl_float  skipradius2;
+  cl_float  minaccumtime;
+  cl_uint maxdetphoton;
+  cl_uint maxmedia;
+  cl_uint detnum;
+  cl_uint idx1dorig;
+  cl_uint mediaidorig;
 }MCXParam __attribute__ ((aligned (16)));
 
 void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,float *totalenergy);

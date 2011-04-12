@@ -186,9 +186,10 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      cl_int  printnum;
      cl_uint photoncount=0;
      cl_int tic,fieldlen;
-     uint4 cp0=cfg->crop0,cp1=cfg->crop1;
-     uint2 cachebox;
-     uint4 dimlen;
+     cl_uint4 cp0={{cfg->crop0.x,cfg->crop0.y,cfg->crop0.z,cfg->crop0.w}};
+     cl_uint4 cp1={{cfg->crop1.x,cfg->crop1.y,cfg->crop1.z,cfg->crop1.w}};
+     cl_uint2 cachebox;
+     cl_uint4 dimlen;
      cl_float Vvox,scale,absorp,eabsorp;
 
      cl_context context;                 // compute context
@@ -218,9 +219,9 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      cl_uint   *Pseed;
      float  *Pdet;
 
-     MCXParam param={{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f},
-		     {cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f},
-		     {cfg->dim.x,cfg->dim.y,cfg->dim.z,0},dimlen,cp0,cp1,cachebox,
+     MCXParam param={{{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}},
+		     {{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f}},
+		     {{cfg->dim.x,cfg->dim.y,cfg->dim.z,0}},dimlen,cp0,cp1,cachebox,
 		     minstep,0.f,0.f,cfg->tend,R_C0*cfg->unitinmm,cfg->isrowmajor,
                      cfg->issave2pt,cfg->isreflect,cfg->isrefint,cfg->issavedet,1.f/cfg->tstep,
                      cfg->minenergy,
@@ -256,7 +257,7 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      }
      fullload=(fullload<EPS)?100.f:fullload;
      deviceload=cfg->workload[threadid]/fullload*cfg->nphoton;
-#pragma omp critical
+//#pragma omp critical
 {
      platform=mcx_set_gpu(cfg,NULL);
 
@@ -340,7 +341,7 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      for (i=0; i<cfg->nthread*RAND_SEED_LEN; i++) {
 	   Pseed[i]=rand()+threadid;
      }
-#pragma omp critical
+//#pragma omp critical
 {
      mcx_assess((gmedia=clCreateBuffer(context,RO_MEM, sizeof(cl_uchar)*(dimxyz),media,&status),status));
      mcx_assess((gfield=clCreateBuffer(context,RW_MEM, sizeof(cl_float)*(dimxyz)*cfg->maxgate,field,&status),status));
@@ -395,7 +396,7 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 	 
 	 The calculation of the energy conservation will only reflect the last simulation.
      */
-#pragma omp critical
+//#pragma omp critical
 {
      mcx_assess((program=clCreateProgramWithSource(context, 1,(const char **)&(cfg->clsource), NULL, &status),status));
      if(cfg->iscpu && cfg->isverbose){ 
@@ -407,6 +408,8 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 		status=clBuildProgram(program, 0, NULL, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
      }
 }
+#pragma omp barrier
+
      if(status!=CL_SUCCESS){
 	 size_t len;
 	 char msg[2048];
