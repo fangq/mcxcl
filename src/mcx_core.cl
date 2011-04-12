@@ -67,7 +67,7 @@ typedef struct KernelParams {
   unsigned int detnum;
   unsigned int idx1dorig;
   unsigned int mediaidorig;
-}MCXParam __attribute__ ((aligned (16)));
+} MCXParam __attribute__ ((aligned (16)));
 
 
 #ifndef DOUBLE_PREC_LOGISTIC
@@ -175,8 +175,8 @@ void savedetphoton(__global float n_det[],__global uint *detectedphoton,float we
       uint j,baseaddr=0;
       j=finddetector(p0,gdetpos,gcfg);
       if(j){
-         //baseaddr=(++ (*detectedphoton));
-	 baseaddr=atomic_add(detectedphoton,1);
+         baseaddr=(++ (*detectedphoton));
+	 //baseaddr=atomic_add(detectedphoton,1);
 	 if(baseaddr<gcfg->maxdetphoton){
 	    baseaddr*=gcfg->maxmedia+2;
 	    n_det[baseaddr++]=j;
@@ -208,7 +208,7 @@ void launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
 #endif
       p[0]=gcfg->ps;
       v[0]=gcfg->c0;
-      f[0].x=0.f;f[0].y=0.f;f[0].z=gcfg->minaccumtime;f[0].w=f[0].w+1;
+      f[0]=(float4)(0.f,0.f,gcfg->minaccumtime,f[0].w+1);
       *idx1d=gcfg->idx1dorig;
       *mediaid=gcfg->mediaidorig;
       prop[0]=gproperty[*mediaid]; //always use mediaid to read gproperty[]
@@ -239,10 +239,10 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
 #ifdef TEST_RACING
      int cc=0;
 #endif
-     uint  mediaid,mediaidold;
-     int   medid=-1;
+     uchar  mediaid,mediaidold;
+     char   medid=-1;
      float  atten;         //can be taken out to minimize registers
-     float  n1,Rtotal;   //reflection var
+     float  n1;   //reflection var
 
      //for MT RNG, these will be zero-length arrays and be optimized out
      RandType t[RAND_BUF_LEN],tnew[RAND_BUF_LEN];
@@ -420,6 +420,7 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
 	      //if hit boundary within the time window and is n-mismatched, rebound
 
               if(gcfg->doreflect&&f.y<gcfg->tmax&&f.y<gcfg->twin1&& flipdir>0.f && n1!=prop.z&&p.w>gcfg->minenergy){
+	          float Rtotal=1.f;
                   tmp0=n1*n1;
                   tmp1=prop.z*prop.z;
                   if(flipdir>=3.f) { //flip in z axis
@@ -457,19 +458,14 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
 			}
 			tmp0=n1/prop.z;
                 	if(flipdir>=3.f) { //transmit through z plane
-                	   v.x=tmp0*v.x;
-                	   v.y=tmp0*v.y;
+                	   v.xy=tmp0*v.xy;
                 	}else if(flipdir>=2.f){ //transmit through y plane
-                	   v.x=tmp0*v.x;
-                	   v.z=tmp0*v.z;
+                	   v.xz=tmp0*v.xz;
                 	}else if(flipdir>=1.f){ //transmit through x plane
-                	   v.y=tmp0*v.y;
-                	   v.z=tmp0*v.z;
+                	   v.yz=tmp0*v.yz;
                 	}
 			tmp0=rsqrt(v.x*v.x+v.y*v.y+v.z*v.z);
-			v.x=v.x*tmp0;
-			v.y=v.y*tmp0;
-			v.z=v.z*tmp0;
+			v.xyz=v.xyz*tmp0;
 		  }else{ //do reflection
                 	if(flipdir>=3.f) { //flip in z axis
                 	   v.z=-v.z;
@@ -481,8 +477,7 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
                         p=p0;   //move back
                 	idx1d=idx1dold;
 		 	mediaid=(media[idx1d] & MED_MASK);
-        	  	*((float4*)(&prop))=gproperty[mediaid];
-                  	n1=prop.z;
+			prop=gproperty[mediaid];
 		  }
               }else{  // launch a new photon
 #ifdef MCX_CPU_ONLY

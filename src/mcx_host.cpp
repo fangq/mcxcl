@@ -227,7 +227,7 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
                      cfg->minenergy,
                      cfg->sradius*cfg->sradius,minstep*R_C0*cfg->unitinmm,cfg->maxdetphoton,
                      cfg->medianum-1,cfg->detnum,0,0};
-
+printf("param size=%d\n",sizeof(param));
      if(cfg->iscpu){
          dType = CL_DEVICE_TYPE_CPU;
      }else{ //deviceType = "gpu" 
@@ -439,7 +439,7 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
      mcx_assess(clSetKernelArg(kernel,11, sizeof(cl_mem), (void*)&gdetpos));
      mcx_assess(clSetKernelArg(kernel,12, sizeof(cl_mem), (void*)&gstopsign));
      mcx_assess(clSetKernelArg(kernel,13, sizeof(cl_mem), (void*)&gdetected));
-     mcx_assess(clSetKernelArg(kernel,14, cfg->issavedet? sizeof(cl_float)*cfg->nblocksize*param.maxmedia : 1, NULL));
+     mcx_assess(clSetKernelArg(kernel,14, cfg->issavedet? sizeof(cl_float)*cfg->nblocksize*param.maxmedia : 0, NULL));
 
      fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
 
