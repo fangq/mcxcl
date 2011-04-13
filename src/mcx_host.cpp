@@ -25,6 +25,10 @@
 #include "tictoc.h"
 #include "mcx_const.h"
 
+#ifdef _OPENMP
+  #include <omp.h>
+#endif
+
 #define MIN(a,b)           ((a)<(b)?(a):(b))
 #define MCX_RNG_NAME       "Logistic-Lattice"
 #define RAND_SEED_LEN      5        //32bit seed length (32*5=160bits)
@@ -40,7 +44,7 @@ extern cl_event kernelevent;
 */
 cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
 
-    unsigned int i,j,k,devnum;
+    int i,j,k,devnum;
     cl_uint numPlatforms,devparam;
     cl_ulong devmem;
     cl_platform_id platform = NULL;
@@ -174,13 +178,13 @@ void mcx_assess(int cuerr){
 */
 void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,float *totalenergy){
 
-     cl_int i,j,iter;
+     cl_uint i,j,iter;
      cl_float  minstep=MIN(MIN(cfg->steps.x,cfg->steps.y),cfg->steps.z);
      cl_float t,twindow0,twindow1;
      cl_float energyloss=0.f,energyabsorbed=0.f,simuenergy,fullload=0.f;
      cl_int deviceload=0;
      cl_float *energy;
-     cl_int threadphoton, oddphotons, stopsign=0;
+     cl_int threadphoton, oddphotons, stopsign=0, workdev;
      cl_uint detected=0;
 
      cl_int  printnum;
@@ -190,10 +194,9 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      cl_uint4 cp1={{cfg->crop1.x,cfg->crop1.y,cfg->crop1.z,cfg->crop1.w}};
      cl_uint2 cachebox;
      cl_uint4 dimlen;
-     cl_float Vvox,scale,absorp,eabsorp;
 
      cl_context context;                 // compute context
-     cl_command_queue commands;          // compute command queue
+     cl_command_queue *commands;          // compute command queue
      cl_program program;                 // compute program
      cl_kernel kernel;                   // compute kernel
      cl_int status = 0;
@@ -201,9 +204,10 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      cl_platform_id platform = NULL;
      cl_device_type dType;
      cl_device_id* devices;
+     cl_event * waittoread;
      size_t kernelWorkGroupSize;
      size_t maxWorkGroupSize;
-     int    devid=0;
+     int  devid=0;
      cl_mem gmedia,gfield;
      cl_mem gPpos,gPdir,gPlen,gPdet,gPseed,genergy;
      cl_mem gproperty,gstopsign,gparam,gdetected,gdetpos;
@@ -227,7 +231,7 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
                      cfg->minenergy,
                      cfg->sradius*cfg->sradius,minstep*R_C0*cfg->unitinmm,cfg->maxdetphoton,
                      cfg->medianum-1,cfg->detnum,0,0};
-printf("param size=%d\n",sizeof(param));
+
      if(cfg->iscpu){
          dType = CL_DEVICE_TYPE_CPU;
      }else{ //deviceType = "gpu" 
@@ -250,45 +254,48 @@ printf("param size=%d\n",sizeof(param));
      for(i=0;i<MAX_DEVICE;i++)
      	fullload+=cfg->workload[i];
 
-#pragma omp barrier
-
      if(fullload<EPS){
 	cfg->workload[threadid]=100.f/activedev;
      }
      fullload=(fullload<EPS)?100.f:fullload;
      deviceload=cfg->workload[threadid]/fullload*cfg->nphoton;
-//#pragma omp critical
-{
+
      platform=mcx_set_gpu(cfg,NULL);
 
      cl_context_properties cps[3]={CL_CONTEXT_PLATFORM, (cl_context_properties)platform, 0};
 
      /* Use NULL for backward compatibility */
      cl_context_properties* cprops=(platform==NULL)?NULL:cps;
-
-     mcx_assess((context=clCreateContextFromType(cprops,dType,NULL,NULL,&status),status));
+     mcx_assess((context=clCreateContextFromType(cprops,CL_DEVICE_TYPE_ALL,NULL,NULL,&status),status));
      mcx_assess(clGetContextInfo(context, CL_CONTEXT_DEVICES,0,NULL,&deviceListSize));
-}
-     devices = (cl_device_id*)malloc(deviceListSize);
+     workdev=(int)deviceListSize/sizeof(cl_device_id);
+#ifdef _OPENMP
+     omp_set_num_threads(workdev);
+#endif
+
+     devices = (cl_device_id*)malloc(workdev*sizeof(cl_device_id));
+     commands= (cl_command_queue*)malloc(workdev*sizeof(cl_command_queue));
+     waittoread=(cl_event *)malloc(workdev*sizeof(cl_event));
      if(devices == NULL){
          mcx_assess(-1);
      }
      devid=cfg->deviceid[threadid]; // device id starts from 1
 
-     if(devid<0||devid>=(int)(deviceListSize/sizeof(cl_device_id))){
+     if(devid<0||devid>=(int)(workdev)){
 	 fprintf(cfg->flog,"WARNING: maximum device count is %d, specified %d. fall back to default - device 0\n",
              (int)(deviceListSize/sizeof(cl_device_id)),devid+1);
          devid=0; // if out of bound, fall back to the default
      }
      mcx_assess(clGetContextInfo(context,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL));
-
      {
          /* The block is to move the declaration of prop closer to its use */
          cl_command_queue_properties prop = CL_QUEUE_PROFILING_ENABLE;
-         mcx_assess((commands=clCreateCommandQueue(context,devices[devid],prop,&status),status));
+         for(i=0;i<workdev;i++){
+             mcx_assess((commands[i]=clCreateCommandQueue(context,devices[i],prop,&status),status));
+	}
      }
-     mcx_assess(clGetDeviceInfo(devices[devid],CL_DEVICE_MAX_WORK_GROUP_SIZE,
-                   sizeof(size_t),(void*)&maxWorkGroupSize,NULL));
+//     mcx_assess(clGetDeviceInfo(devices[devid],CL_DEVICE_MAX_WORK_GROUP_SIZE,
+//                   sizeof(size_t),(void*)&maxWorkGroupSize,NULL));
 
      if(cfg->respin>1){
          field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate*2); //the second half will be used to accumul$
@@ -326,8 +333,6 @@ printf("param size=%d\n",sizeof(param));
 		      int(floorf(param.ps.x)));
      param.mediaidorig=(cfg->vol[param.idx1dorig] & MED_MASK);
 
-     Vvox=cfg->steps.x*cfg->steps.y*cfg->steps.z;
-
      if(cfg->seed>0)
      	srand(cfg->seed);
      else
@@ -341,8 +346,6 @@ printf("param size=%d\n",sizeof(param));
      for (i=0; i<cfg->nthread*RAND_SEED_LEN; i++) {
 	   Pseed[i]=rand()+threadid;
      }
-//#pragma omp critical
-{
      mcx_assess((gmedia=clCreateBuffer(context,RO_MEM, sizeof(cl_uchar)*(dimxyz),media,&status),status));
      mcx_assess((gfield=clCreateBuffer(context,RW_MEM, sizeof(cl_float)*(dimxyz)*cfg->maxgate,field,&status),status));
      mcx_assess((gPpos=clCreateBuffer(context,RW_MEM, sizeof(cl_float4)*cfg->nthread,Ppos,&status),status));
@@ -356,7 +359,7 @@ printf("param size=%d\n",sizeof(param));
      mcx_assess((gparam=clCreateBuffer(context,RO_MEM,sizeof(MCXParam),&param,&status),status));
      mcx_assess((gstopsign=clCreateBuffer(context,RW_PTR, sizeof(cl_uint),&stopsign,&status),status));
      mcx_assess((gdetected=clCreateBuffer(context,RW_MEM, sizeof(cl_uint),&detected,&status),status));
-}
+
      if(threadid==0) fprintf(cfg->flog,"\
 ===============================================================================\n\
 =                     Monte Carlo eXtreme (MCX) -- OpenCL                     =\n\
@@ -396,8 +399,7 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 	 
 	 The calculation of the energy conservation will only reflect the last simulation.
      */
-//#pragma omp critical
-{
+
      mcx_assess((program=clCreateProgramWithSource(context, 1,(const char **)&(cfg->clsource), NULL, &status),status));
      if(cfg->iscpu && cfg->isverbose){ 
 	status=clBuildProgram(program, 0, NULL, "-D __DEVICE_EMULATION__ -D MCX_CPU_ONLY -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
@@ -407,8 +409,6 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 	else
 		status=clBuildProgram(program, 0, NULL, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
      }
-}
-#pragma omp barrier
 
      if(status!=CL_SUCCESS){
 	 size_t len;
@@ -439,11 +439,15 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
      mcx_assess(clSetKernelArg(kernel,11, sizeof(cl_mem), (void*)&gdetpos));
      mcx_assess(clSetKernelArg(kernel,12, sizeof(cl_mem), (void*)&gstopsign));
      mcx_assess(clSetKernelArg(kernel,13, sizeof(cl_mem), (void*)&gdetected));
-     mcx_assess(clSetKernelArg(kernel,14, cfg->issavedet? sizeof(cl_float)*cfg->nblocksize*param.maxmedia : 0, NULL));
+     mcx_assess(clSetKernelArg(kernel,14, cfg->issavedet? sizeof(cl_float)*cfg->nblocksize*param.maxmedia : 1, NULL));
 
      fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
 
      //simulate for all time-gates in maxgate groups per run
+
+     cl_float Vvox,scale,absorp,eabsorp;
+     Vvox=cfg->steps.x*cfg->steps.y*cfg->steps.z;
+
      for(t=cfg->tstart;t<cfg->tend;t+=cfg->tstep*cfg->maxgate){
        twindow0=t;
        twindow1=t+cfg->tstep*cfg->maxgate;
@@ -462,18 +466,25 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
            mcx_assess(clSetKernelArg(kernel,15, sizeof(cl_mem), (void*)&gparam));
 
            // launch kernel
-           mcx_assess(clEnqueueNDRangeKernel(commands,kernel,1,NULL,mcgrid,mcblock, 0, NULL, 
+           for(devid=0;devid<workdev;devid++)
+               mcx_assess(clEnqueueNDRangeKernel(commands[devid],kernel,1,NULL,mcgrid,mcblock, 0, NULL, 
 #ifndef USE_OS_TIMER
                   &kernelevent));
 #else
                   NULL));
 #endif
-           mcx_assess(clEnqueueReadBuffer(commands,gdetected,CL_TRUE,0,sizeof(uint),
-                                            &detected, 0, NULL, NULL));
+
+           for(devid=0;devid<workdev;devid++)
+               mcx_assess(clEnqueueReadBuffer(commands[devid],gdetected,CL_FALSE,0,sizeof(uint),
+                                            &detected, 0, NULL, waittoread+devid));
+
+           clWaitForEvents(workdev,waittoread);
+
            fprintf(cfg->flog,"kernel complete:  \t%d ms\nretrieving fields ... \t",GetTimeMillis()-tic);
 
-           if(cfg->issavedet){
-                mcx_assess(clEnqueueReadBuffer(commands,gPdet,CL_TRUE,0,sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),
+           for(devid=0;devid<workdev;devid++){
+             if(cfg->issavedet){
+                mcx_assess(clEnqueueReadBuffer(commands[devid],gPdet,CL_TRUE,0,sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),
 	                                        Pdet, 0, NULL, NULL));
 		if(detected>cfg->maxdetphoton){
 			fprintf(cfg->flog,"WARNING: the detected photon (%d) \
@@ -490,10 +501,10 @@ is more than what your have specified (%d), please use the -H option to specify 
 		else
 			mcx_savedata(Pdet,cfg->his.savedphoton*(cfg->medianum+1),
 		             photoncount>cfg->his.totalphoton,"mch",cfg);
-	   }
-	   //handling the 2pt distributions
-           if(cfg->issave2pt){
-               mcx_assess(clEnqueueReadBuffer(commands,gfield,CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,
+	     }
+	     //handling the 2pt distributions
+             if(cfg->issave2pt){
+               mcx_assess(clEnqueueReadBuffer(commands[devid],gfield,CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,
 	                                        field, 0, NULL, NULL));
                fprintf(cfg->flog,"transfer complete:\t%d ms\n",GetTimeMillis()-tic);  fflush(cfg->flog);
 
@@ -508,9 +519,9 @@ is more than what your have specified (%d), please use the -H option to specify 
                    if(cfg->isnormalized){
 
                        fprintf(cfg->flog,"normizing raw data ...\t");
-                       mcx_assess(clEnqueueReadBuffer(commands,genergy,CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
+                       mcx_assess(clEnqueueReadBuffer(commands[devid],genergy,CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
 	                                        energy, 0, NULL, NULL));
-                       mcx_assess(clEnqueueReadBuffer(commands,gPlen,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
+                       mcx_assess(clEnqueueReadBuffer(commands[devid],gPlen,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
 	                                        Plen, 0, NULL, NULL));
                        eabsorp=0.f;
                        for(i=1;i<cfg->nthread;i++){
@@ -530,16 +541,10 @@ is more than what your have specified (%d), please use the -H option to specify 
                        mcx_normalize(field,scale,fieldlen);
                    }
                    fprintf(cfg->flog,"data normalization complete : %d ms\n",GetTimeMillis()-tic);
-#pragma omp critical
-{
                    for(i=0;i<fieldlen;i++)
 		   	fluence[i]+=field[i]*simuenergy;
 
                    *totalenergy+=simuenergy;
-}
-#pragma omp barrier
-#pragma omp master
-{
                    fprintf(cfg->flog,"total simulated energy: %f\n",*totalenergy);
                    fprintf(cfg->flog,"saving data complete : %d ms\n",GetTimeMillis()-tic);
 		   fflush(cfg->flog);
@@ -553,48 +558,50 @@ is more than what your have specified (%d), please use the -H option to specify 
                    mcx_savedata(fluence,fieldlen,t>cfg->tstart,"mc2",cfg);
                    fprintf(cfg->flog,"saving data complete : %d ms\n",GetTimeMillis()-tic);
                    fflush(cfg->flog);
-}
                }
-               mcx_assess(clFinish(commands));
-           }
-	   //initialize the next simulation
-	   if(twindow1<cfg->tend && iter<cfg->respin){
+               mcx_assess(clFinish(commands[devid]));
+             }
+	     //initialize the next simulation
+	     if(twindow1<cfg->tend && iter<cfg->respin){
                   memset(field,0,sizeof(cl_float)*dimxyz*cfg->maxgate);
-                  mcx_assess(clEnqueueWriteBuffer(commands,gfield,CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,
+                  mcx_assess(clEnqueueWriteBuffer(commands[devid],gfield,CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,
                                                 field, 0, NULL, NULL));
-                  mcx_assess(clEnqueueWriteBuffer(commands,gPpos,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
+                  mcx_assess(clEnqueueWriteBuffer(commands[devid],gPpos,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
 	                                        Ppos, 0, NULL, NULL));
-                  mcx_assess(clEnqueueWriteBuffer(commands,gPdir,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
+                  mcx_assess(clEnqueueWriteBuffer(commands[devid],gPdir,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
 	                                        Pdir, 0, NULL, NULL));
-                  mcx_assess(clEnqueueWriteBuffer(commands,gPlen,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
+                  mcx_assess(clEnqueueWriteBuffer(commands[devid],gPlen,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
 	                                        Plen, 0, NULL, NULL));
-	   }
-	   if(cfg->respin>1 && RAND_SEED_LEN>1){
+	     }
+	     if(cfg->respin>1 && RAND_SEED_LEN>1){
                for (i=0; i<cfg->nthread*RAND_SEED_LEN; i++)
 		   Pseed[i]=rand();
-               mcx_assess(clEnqueueWriteBuffer(commands,gPseed,CL_TRUE,0,sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,
+               mcx_assess(clEnqueueWriteBuffer(commands[devid],gPseed,CL_TRUE,0,sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,
 	                                        Pseed, 0, NULL, NULL));
-	   }
-       }
+	     }
+           }// loop over work devices
+       }// iteration
        if(twindow1<cfg->tend){
 	    cl_float *tmpenergy=(cl_float*)calloc(sizeof(cl_float),cfg->nthread*2);
-            mcx_assess(clEnqueueWriteBuffer(commands,genergy,CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
+            mcx_assess(clEnqueueWriteBuffer(commands[devid],genergy,CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
                                         tmpenergy, 0, NULL, NULL));
 	    free(tmpenergy);
             //cudaMemset(genergy,0,sizeof(float)*cfg->nthread*2);
        }
-     }
-     mcx_assess(clFinish(commands));
-     mcx_assess(clEnqueueReadBuffer(commands,gPpos,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
+     }// time gates
+     mcx_assess(clFinish(commands[0]));
+     mcx_assess(clEnqueueReadBuffer(commands[0],gPpos,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
      				   Ppos, 0, NULL, NULL));
-     mcx_assess(clEnqueueReadBuffer(commands,gPdir,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
+     mcx_assess(clEnqueueReadBuffer(commands[0],gPdir,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
      				   Pdir, 0, NULL, NULL));
-     mcx_assess(clEnqueueReadBuffer(commands,gPlen,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
+     mcx_assess(clEnqueueReadBuffer(commands[0],gPlen,CL_TRUE,0,sizeof(cl_float4)*cfg->nthread,
 	                           Plen, 0, NULL, NULL));
-     mcx_assess(clEnqueueReadBuffer(commands,gPseed,CL_TRUE,0,sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,
+     mcx_assess(clEnqueueReadBuffer(commands[0],gPseed,CL_TRUE,0,sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,
 	                           Pseed, 0, NULL, NULL));
-     mcx_assess(clEnqueueReadBuffer(commands,genergy,CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
+     mcx_assess(clEnqueueReadBuffer(commands[0],genergy,CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
 	                           energy, 0, NULL, NULL));
+
+#pragma omp barrier
 
      for (i=0; i<cfg->nthread; i++) {
 	  photoncount+=(int)Plen[i].w;
@@ -642,9 +649,12 @@ is more than what your have specified (%d), please use the -H option to specify 
      clReleaseMemObject(gdetpos);
 
      free(devices);
+     free(commands);
+     free(waittoread);
      clReleaseKernel(kernel);
      clReleaseProgram(program);
-     clReleaseCommandQueue(commands);
+     for(devid=0;devid<workdev;devid++)
+        clReleaseCommandQueue(commands[devid]);
      clReleaseContext(context);
 #ifndef USE_OS_TIMER
      clReleaseEvent(kernelevent);

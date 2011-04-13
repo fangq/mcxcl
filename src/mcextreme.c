@@ -19,9 +19,6 @@
 #include "mcx_utils.h"
 #include "mcx_host.hpp"
 
-#ifdef _OPENMP
-  #include <omp.h>
-#endif
 
 int main (int argc, char *argv[]) {
      Config mcxconfig;
@@ -42,21 +39,10 @@ int main (int argc, char *argv[]) {
 
      mcx_createfluence(&fluence,&mcxconfig);
 
-#ifdef _OPENMP
-     omp_set_num_threads(activedev);
-#endif
-
-#pragma omp parallel private(threadid)
-{
-#ifdef _OPENMP
-     threadid=omp_get_thread_num();
-#endif
-
      // this launches the MC simulation
      mcx_run_simulation(&mcxconfig,threadid,activedev,fluence,&totalenergy);
-}
-     // clean up the allocated memory in the config
 
+     // clean up the allocated memory in the config
      mcx_clearfluence(&fluence);
      mcx_clearcfg(&mcxconfig);
      return 0;
