@@ -93,9 +93,9 @@ cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
                       for(k=0;k<devnum;k++){
                 	mcx_assess(clGetDeviceInfo(devices[k],CL_DEVICE_NAME,100,(void*)&pbuf,NULL));
                 	printf("============ %s device [%d of %d]: %s  ============\n",devname[j],k+1,devnum,pbuf);
-			mcx_assess(clGetDeviceInfo(devices[k],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_int),(void*)&devparam,NULL));
+			mcx_assess(clGetDeviceInfo(devices[k],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),(void*)&devparam,NULL));
                 	mcx_assess(clGetDeviceInfo(devices[k],CL_DEVICE_GLOBAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL));
-                	printf(" Compute units :\t%d core(s)\n",(int)devparam);
+                	printf(" Compute units :\t%d core(s)\n",(uint)devparam);
                 	printf(" Global memory :\t%ld B\n",(unsigned long)devmem);
                 	mcx_assess(clGetDeviceInfo(devices[k],CL_DEVICE_LOCAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL));
                 	printf(" Local memory  :\t%ld B\n",(unsigned long)devmem);
@@ -193,7 +193,7 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      cl_uint4 cp0={{cfg->crop0.x,cfg->crop0.y,cfg->crop0.z,cfg->crop0.w}};
      cl_uint4 cp1={{cfg->crop1.x,cfg->crop1.y,cfg->crop1.z,cfg->crop1.w}};
      cl_uint2 cachebox;
-     cl_uint4 dimlen;
+     cl_uint4 dimlen, workspace={{cfg->nphoton,cfg->nthread,cfg->nblocksize,0}};
 
      cl_context context;                 // compute context
      cl_command_queue *commands;          // compute command queue
@@ -207,6 +207,8 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      cl_event * waittoread;
      size_t kernelWorkGroupSize;
      size_t maxWorkGroupSize;
+
+     cl_uint *cucount;
      int  devid=0;
      cl_mem gmedia,gfield;
      cl_mem gPpos,gPdir,gPlen,gPdet,gPseed,genergy;
@@ -276,6 +278,8 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      devices = (cl_device_id*)malloc(workdev*sizeof(cl_device_id));
      commands= (cl_command_queue*)malloc(workdev*sizeof(cl_command_queue));
      waittoread=(cl_event *)malloc(workdev*sizeof(cl_event));
+     cucount=(cl_event *)calloc(workdev,sizeof(cl_int));
+
      if(devices == NULL){
          mcx_assess(-1);
      }
@@ -287,15 +291,23 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
          devid=0; // if out of bound, fall back to the default
      }
      mcx_assess(clGetContextInfo(context,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL));
-     {
-         /* The block is to move the declaration of prop closer to its use */
-         cl_command_queue_properties prop = CL_QUEUE_PROFILING_ENABLE;
-         for(i=0;i<workdev;i++){
-             mcx_assess((commands[i]=clCreateCommandQueue(context,devices[i],prop,&status),status));
-	}
+     /* The block is to move the declaration of prop closer to its use */
+     cl_command_queue_properties prop = CL_QUEUE_PROFILING_ENABLE;
+
+     totalcucore=0;
+     for(i=0;i<workdev;i++){
+         char pbuf[100]='\0';
+         mcx_assess((commands[i]=clCreateCommandQueue(context,devices[i],prop,&status),status));
+         mcx_assess(clGetDeviceInfo(devices[i],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),(void*)(cucount+i),NULL));
+         mcx_assess(clGetDeviceInfo(devices[i],CL_DEVICE_NAME,100,(void*)&pbuf,NULL));
+         if(strstr(pbuf,"ATI")){
+            cucount[i]*=(80/5); // an ati core typically has 80 SP, and 80/5=16 VLIW
+	 }else if(strstr(pbuf,"NVIDIA")){
+            cucount[i]*=8;  // an nvidia MP typically has 8 SP
+         }
+         totalcucore+=cucount[i];
      }
-//     mcx_assess(clGetDeviceInfo(devices[devid],CL_DEVICE_MAX_WORK_GROUP_SIZE,
-//                   sizeof(size_t),(void*)&maxWorkGroupSize,NULL));
+     workspace.w=totalcucore & 0xFFFF; // support maximum 65535 cores
 
      if(cfg->respin>1){
          field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate*2); //the second half will be used to accumul$
@@ -425,8 +437,8 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
         	sizeof(size_t),&kernelWorkGroupSize,0));
      fprintf(cfg->flog,"create kernel complete : %d ms\n",GetTimeMillis()-tic);
 
-     mcx_assess(clSetKernelArg(kernel, 0, sizeof(cl_uint),(void*)&threadphoton));
-     mcx_assess(clSetKernelArg(kernel, 1, sizeof(cl_uint),(void*)&oddphotons));
+     mcx_assess(clSetKernelArg(kernel, 0, sizeof(cl_uint4),(void*)&workspace));
+//     mcx_assess(clSetKernelArg(kernel, 0, sizeof(cl_uint),(void*)&threadphoton));
      mcx_assess(clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&gmedia));
      mcx_assess(clSetKernelArg(kernel, 3, sizeof(cl_mem), (void*)&gfield));
      mcx_assess(clSetKernelArg(kernel, 4, sizeof(cl_mem), (void*)&genergy));
@@ -464,6 +476,7 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 	   clReleaseMemObject(gparam);
 	   mcx_assess((gparam=clCreateBuffer(context,RO_MEM,sizeof(MCXParam),&param,&status),status));
            mcx_assess(clSetKernelArg(kernel,15, sizeof(cl_mem), (void*)&gparam));
+           mcx_assess(clSetKernelArg(kernel, 1, sizeof(cl_uint),(void*)(cucount)));
 
            // launch kernel
            for(devid=0;devid<workdev;devid++)
