@@ -171,7 +171,8 @@ void mcx_writeconfig(const char *fname, Config *cfg){
 }
 
 void mcx_loadconfig(FILE *in, Config *cfg){
-     int i,gates,idx1d;
+     int i,idx1d;
+     unsigned int gates;
      char filename[MAX_PATH_LENGTH]={0}, comment[MAX_PATH_LENGTH];
      
      if(in==stdin)
@@ -207,7 +208,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      if(cfg->tstart>cfg->tend || cfg->tstep==0.f){
          mcx_error(-9,"incorrect time gate settings");
      }
-     gates=(int)((cfg->tend-cfg->tstart)/cfg->tstep+0.5);
+     gates=(unsigned int)((cfg->tend-cfg->tstart)/cfg->tstep+0.5);
      if(cfg->maxgate>gates)
 	 cfg->maxgate=gates;
 

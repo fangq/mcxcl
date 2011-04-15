@@ -22,7 +22,7 @@
 
 int main (int argc, char *argv[]) {
      Config mcxconfig;
-     unsigned int threadid=0,activedev=0;
+     unsigned int activedev=0;
      float *fluence=NULL,totalenergy=0.f;
 
      mcx_initcfg(&mcxconfig);
@@ -40,7 +40,7 @@ int main (int argc, char *argv[]) {
      mcx_createfluence(&fluence,&mcxconfig);
 
      // this launches the MC simulation
-     mcx_run_simulation(&mcxconfig,threadid,activedev,fluence,&totalenergy);
+     mcx_run_simulation(&mcxconfig,activedev,fluence,&totalenergy);
 
      // clean up the allocated memory in the config
      mcx_clearfluence(&fluence);

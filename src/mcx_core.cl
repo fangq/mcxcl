@@ -217,9 +217,9 @@ void launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
 /*
    this is the core Monte Carlo simulation kernel, please see Fig. 1 in Fang2009
 */
-__kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const uchar media[],
-     __global float field[], __global float genergy[], __global uint n_seed[],__global float4 n_pos[],
-     __global float4 n_dir[],__global float4 n_len[],__global float n_det[],__constant float4 gproperty[],
+__kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const uchar media[],
+     __global float field[], __global float genergy[], __global uint n_seed[],
+     __global float n_det[],__constant float4 gproperty[],
      __constant float4 gdetpos[], __global uint stopsign[1],__global uint detectedphoton[1],
      __local float *sharedmem, __constant MCXParam gcfg[]){
 
@@ -228,7 +228,7 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
      float4 p=gcfg->ps;  //{x,y,z}: x,y,z coordinates,{w}:packet weight
      float4 v=gcfg->c0;  //{x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event
                               //v.w can be dropped to save register
-     float4 f=n_len[idx];  //f.w can be dropped to save register
+     float4 f=(float4)(0.f,0.f,gcfg->minaccumtime,0);  //f.w can be dropped to save register
      float4 p0;            //reflection var, to save pre-reflection p state
      float  energyloss=genergy[idx<<1];
      float  energyabsorbed=genergy[(idx<<1)+1];
@@ -527,12 +527,5 @@ __kernel void mcx_main_loop( const int nphoton, const int ophoton,__global const
 
      genergy[idx<<1]=energyloss;
      genergy[(idx<<1)+1]=energyabsorbed;
-
-#ifdef TEST_RACING
-     n_seed[idx]=cc;
-#endif
-     n_pos[idx]=p;
-     n_dir[idx]=v;
-     n_len[idx]=f;
 }
 

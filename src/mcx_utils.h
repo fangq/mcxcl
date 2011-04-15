@@ -48,8 +48,8 @@ typedef struct MCXConfig{
 	                     temporarily alias totalmove, as to specify photon
 			     number is causing some troubles*/
 	//int totalmove;   /* [depreciated] total move per photon*/
-        int nblocksize;   /*thread block size*/
-	int nthread;      /*num of total threads, multiple of 128*/
+        unsigned int nblocksize;   /*thread block size*/
+	unsigned int nthread;      /*num of total threads, multiple of 128*/
 	int seed;         /*random number generator seed*/
 	
 	float4 srcpos;    /*src position in mm*/
@@ -73,8 +73,8 @@ typedef struct MCXConfig{
 	Medium *prop;     /*optical property mapping table*/
 	float4 *detpos;   /*detector positions and radius, overwrite detradius*/
 
-	int maxgate;        /*simultaneous recording gates*/
-	int respin;         /*number of repeatitions*/
+	unsigned int maxgate;        /*simultaneous recording gates*/
+	unsigned int respin;         /*number of repeatitions*/
 	int printnum;       /*number of printed threads (for debugging)*/
 
 	unsigned char *vol; /*pointer to the volume*/
