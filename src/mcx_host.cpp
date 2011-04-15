@@ -193,12 +193,12 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      cl_uint4 cp0={{cfg->crop0.x,cfg->crop0.y,cfg->crop0.z,cfg->crop0.w}};
      cl_uint4 cp1={{cfg->crop1.x,cfg->crop1.y,cfg->crop1.z,cfg->crop1.w}};
      cl_uint2 cachebox;
-     cl_uint4 dimlen, workspace={{cfg->nphoton,cfg->nthread,cfg->nblocksize,0}};
+     cl_uint4 dimlen;
 
      cl_context context;                 // compute context
      cl_command_queue *commands;          // compute command queue
      cl_program program;                 // compute program
-     cl_kernel kernel;                   // compute kernel
+     cl_kernel *kernel;                   // compute kernel
      cl_int status = 0;
      size_t deviceListSize;
      cl_platform_id platform = NULL;
@@ -208,7 +208,7 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      size_t kernelWorkGroupSize;
      size_t maxWorkGroupSize;
 
-     cl_uint *cucount;
+     cl_uint *cucount,totalcucore;
      int  devid=0;
      cl_mem gmedia,gfield;
      cl_mem gPpos,gPdir,gPlen,gPdet,gPseed,genergy;
@@ -278,7 +278,7 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
      devices = (cl_device_id*)malloc(workdev*sizeof(cl_device_id));
      commands= (cl_command_queue*)malloc(workdev*sizeof(cl_command_queue));
      waittoread=(cl_event *)malloc(workdev*sizeof(cl_event));
-     cucount=(cl_event *)calloc(workdev,sizeof(cl_int));
+     cucount=(cl_uint *)calloc(workdev,sizeof(cl_uint));
 
      if(devices == NULL){
          mcx_assess(-1);
@@ -296,7 +296,7 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
 
      totalcucore=0;
      for(i=0;i<workdev;i++){
-         char pbuf[100]='\0';
+         char pbuf[100]={'\0'};
          mcx_assess((commands[i]=clCreateCommandQueue(context,devices[i],prop,&status),status));
          mcx_assess(clGetDeviceInfo(devices[i],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),(void*)(cucount+i),NULL));
          mcx_assess(clGetDeviceInfo(devices[i],CL_DEVICE_NAME,100,(void*)&pbuf,NULL));
@@ -307,7 +307,6 @@ void mcx_run_simulation(Config *cfg,int threadid,int activedev,float *fluence,fl
          }
          totalcucore+=cucount[i];
      }
-     workspace.w=totalcucore & 0xFFFF; // support maximum 65535 cores
 
      if(cfg->respin>1){
          field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate*2); //the second half will be used to accumul$
@@ -432,27 +431,30 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
      }
      fprintf(cfg->flog,"build program complete : %d ms\n",GetTimeMillis()-tic);
 
-     mcx_assess((kernel = clCreateKernel(program, "mcx_main_loop", &status),status));
-     mcx_assess(clGetKernelWorkGroupInfo(kernel,devices[devid],CL_KERNEL_WORK_GROUP_SIZE,
-        	sizeof(size_t),&kernelWorkGroupSize,0));
-     fprintf(cfg->flog,"create kernel complete : %d ms\n",GetTimeMillis()-tic);
+     kernel=(cl_kernel*)malloc(workdev*sizeof(cl_kernel));
 
-     mcx_assess(clSetKernelArg(kernel, 0, sizeof(cl_uint4),(void*)&workspace));
-//     mcx_assess(clSetKernelArg(kernel, 0, sizeof(cl_uint),(void*)&threadphoton));
-     mcx_assess(clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&gmedia));
-     mcx_assess(clSetKernelArg(kernel, 3, sizeof(cl_mem), (void*)&gfield));
-     mcx_assess(clSetKernelArg(kernel, 4, sizeof(cl_mem), (void*)&genergy));
-     mcx_assess(clSetKernelArg(kernel, 5, sizeof(cl_mem), (void*)&gPseed));
-     mcx_assess(clSetKernelArg(kernel, 6, sizeof(cl_mem), (void*)&gPpos));
-     mcx_assess(clSetKernelArg(kernel, 7, sizeof(cl_mem), (void*)&gPdir));
-     mcx_assess(clSetKernelArg(kernel, 8, sizeof(cl_mem), (void*)&gPlen));
-     mcx_assess(clSetKernelArg(kernel, 9, sizeof(cl_mem), (void*)&gPdet));
-     mcx_assess(clSetKernelArg(kernel,10, sizeof(cl_mem), (void*)&gproperty));
-     mcx_assess(clSetKernelArg(kernel,11, sizeof(cl_mem), (void*)&gdetpos));
-     mcx_assess(clSetKernelArg(kernel,12, sizeof(cl_mem), (void*)&gstopsign));
-     mcx_assess(clSetKernelArg(kernel,13, sizeof(cl_mem), (void*)&gdetected));
-     mcx_assess(clSetKernelArg(kernel,14, cfg->issavedet? sizeof(cl_float)*cfg->nblocksize*param.maxmedia : 1, NULL));
+     for(i=0;i<workdev;i++){
+	 mcx_assess((kernel[i] = clCreateKernel(program, "mcx_main_loop", &status),status));
+	 //mcx_assess(clGetKernelWorkGroupInfo(kernel[i],devices[devid],CL_KERNEL_WORK_GROUP_SIZE,
+         //	    sizeof(size_t),&kernelWorkGroupSize,0));
+	 fprintf(cfg->flog,"create kernel complete : %d ms\n",GetTimeMillis()-tic);
 
+	 mcx_assess(clSetKernelArg(kernel[i], 0, sizeof(cl_uint),(void*)&threadphoton));
+         mcx_assess(clSetKernelArg(kernel[i], 1, sizeof(cl_uint),(void*)&oddphotons));
+	 mcx_assess(clSetKernelArg(kernel[i], 2, sizeof(cl_mem), (void*)&gmedia));
+	 mcx_assess(clSetKernelArg(kernel[i], 3, sizeof(cl_mem), (void*)&gfield));
+	 mcx_assess(clSetKernelArg(kernel[i], 4, sizeof(cl_mem), (void*)&genergy));
+	 mcx_assess(clSetKernelArg(kernel[i], 5, sizeof(cl_mem), (void*)&gPseed));
+	 mcx_assess(clSetKernelArg(kernel[i], 6, sizeof(cl_mem), (void*)&gPpos));
+	 mcx_assess(clSetKernelArg(kernel[i], 7, sizeof(cl_mem), (void*)&gPdir));
+	 mcx_assess(clSetKernelArg(kernel[i], 8, sizeof(cl_mem), (void*)&gPlen));
+	 mcx_assess(clSetKernelArg(kernel[i], 9, sizeof(cl_mem), (void*)&gPdet));
+	 mcx_assess(clSetKernelArg(kernel[i],10, sizeof(cl_mem), (void*)&gproperty));
+	 mcx_assess(clSetKernelArg(kernel[i],11, sizeof(cl_mem), (void*)&gdetpos));
+	 mcx_assess(clSetKernelArg(kernel[i],12, sizeof(cl_mem), (void*)&gstopsign));
+	 mcx_assess(clSetKernelArg(kernel[i],13, sizeof(cl_mem), (void*)&gdetected));
+	 mcx_assess(clSetKernelArg(kernel[i],14, cfg->issavedet? sizeof(cl_float)*cfg->nblocksize*param.maxmedia : 1, NULL));
+     }
      fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
 
      //simulate for all time-gates in maxgate groups per run
@@ -475,22 +477,18 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 	   param.twin1=twindow1;
 	   clReleaseMemObject(gparam);
 	   mcx_assess((gparam=clCreateBuffer(context,RO_MEM,sizeof(MCXParam),&param,&status),status));
-           mcx_assess(clSetKernelArg(kernel,15, sizeof(cl_mem), (void*)&gparam));
-           mcx_assess(clSetKernelArg(kernel, 1, sizeof(cl_uint),(void*)(cucount)));
-
+           for(devid=0;devid<workdev;devid++){
+              mcx_assess(clSetKernelArg(kernel[devid],15, sizeof(cl_mem), (void*)&gparam));
            // launch kernel
-           for(devid=0;devid<workdev;devid++)
-               mcx_assess(clEnqueueNDRangeKernel(commands[devid],kernel,1,NULL,mcgrid,mcblock, 0, NULL, 
+               mcx_assess(clEnqueueNDRangeKernel(commands[devid],kernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, 
 #ifndef USE_OS_TIMER
                   &kernelevent));
 #else
                   NULL));
 #endif
-
-           for(devid=0;devid<workdev;devid++)
                mcx_assess(clEnqueueReadBuffer(commands[devid],gdetected,CL_FALSE,0,sizeof(uint),
                                             &detected, 0, NULL, waittoread+devid));
-
+           }
            clWaitForEvents(workdev,waittoread);
 
            fprintf(cfg->flog,"kernel complete:  \t%d ms\nretrieving fields ... \t",GetTimeMillis()-tic);
@@ -614,8 +612,6 @@ is more than what your have specified (%d), please use the -H option to specify 
      mcx_assess(clEnqueueReadBuffer(commands[0],genergy,CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
 	                           energy, 0, NULL, NULL));
 
-#pragma omp barrier
-
      for (i=0; i<cfg->nthread; i++) {
 	  photoncount+=(int)Plen[i].w;
           energyloss+=energy[i<<1];
@@ -664,7 +660,9 @@ is more than what your have specified (%d), please use the -H option to specify 
      free(devices);
      free(commands);
      free(waittoread);
-     clReleaseKernel(kernel);
+     for(i=0;i<workdev;i++)
+         clReleaseKernel(kernel[i]);
+     free(kernel);
      clReleaseProgram(program);
      for(devid=0;devid<workdev;devid++)
         clReleaseCommandQueue(commands[devid]);
