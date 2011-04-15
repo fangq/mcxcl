@@ -100,6 +100,7 @@ typedef struct MCXConfig{
         History his;        /*header info of the history file*/
         char rootpath[MAX_PATH_LENGTH];
         char kernelfile[MAX_SESSION_LENGTH];
+	char compileropt[MAX_PATH_LENGTH];
 	char *clsource;
         char deviceid[MAX_DEVICE];
 	float workload[MAX_DEVICE];

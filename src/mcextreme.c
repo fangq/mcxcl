@@ -40,7 +40,7 @@ int main (int argc, char *argv[]) {
      mcx_createfluence(&fluence,&mcxconfig);
 
      // this launches the MC simulation
-     mcx_run_simulation(&mcxconfig,activedev,fluence,&totalenergy);
+     mcx_run_simulation(&mcxconfig,fluence,&totalenergy);
 
      // clean up the allocated memory in the config
      mcx_clearfluence(&fluence);

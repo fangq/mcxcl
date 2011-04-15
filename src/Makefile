@@ -9,7 +9,6 @@ CCC=g++
 BINARY=mcxcl
 OUTPUT_DIR=../bin
 INCLUDEDIRS=#-I/home/fangq/Download/ati-stream-sdk-v2.0-lnx32/include
-#LINKOPT=-g -m32 -lpthread -ldl -L/usr/X11R6/lib -lOpenCL -lSDKUtil -L/home/fangq/Download/ati-stream-sdk-v2.0-lnx32/lib/x86
 LINKOPT=-g -lOpenCL
 
 CUCCOPT=-I/usr/local/cuda/include #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
@@ -50,13 +49,10 @@ logatomic:  CUCCOPT+=-DUSE_ATOMIC -use_fast_math -arch compute_11
 mtbox logbox:		CUCCOPT+=-DCACHE_NON_ATOMIC
 debugmt debuglog:	CUCCOPT+=-deviceemu
 mtatomic logatomic:	BINARY:=$(BINARY)_atomic
-omp:        CUCCOPT+=-fopenmp
-omp:        CPPOPT+=-fopenmp
-omp:        LINKOPT+=-fopenmp
 
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 
-all mt fast log logfast racing mtatomic logatomic mtbox logbox debugmt debuglog omp det: $(OUTPUT_DIR)/$(BINARY)
+all mt fast log logfast racing mtatomic logatomic mtbox logbox debugmt debuglog det: $(OUTPUT_DIR)/$(BINARY)
 
 $(OUTPUT_DIR)/$(BINARY): $(OBJS)
 	$(CCC) $(LINKOPT) $(OBJS) -o $(OUTPUT_DIR)/$(BINARY)

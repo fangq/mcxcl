@@ -115,7 +115,7 @@ cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
     cl_context context;                 // compute context
     const char *devname[]={"CPU","GPU"};
     char pbuf[100];
-    cl_context_properties cps[3]={CL_CONTEXT_PLATFORM, NULL, 0};
+    cl_context_properties cps[3]={CL_CONTEXT_PLATFORM, 0, 0};
     cl_int status = 0;
     size_t deviceListSize;
 
@@ -146,11 +146,10 @@ cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
 		    devnum=deviceListSize/sizeof(cl_device_id);
 		    if(activedev)
 		      for(k=0;k<MAX_DEVICE;k++){
-		        if((j==0 && isdigit(cfg->deviceid[k]) && (uint)(cfg->deviceid[k]-'0')<devnum)
-			 ||(j>0  && isalpha(cfg->deviceid[k]) && (uint)(cfg->deviceid[k]-'a')<devnum) )
-				(*activedev)++;
 			if(cfg->deviceid[k]=='\0')
 				break;
+			else
+				(*activedev)++;
 		      }
 		    if(cfg->isgpuinfo)
                       for(k=0;k<devnum;k++){
@@ -178,7 +177,7 @@ cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
 /*
    master driver code to run MC simulations
 */
-void mcx_run_simulation(Config *cfg,int activedev,float *fluence,float *totalenergy){
+void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      cl_uint i,j,iter;
      cl_float  minstep=MIN(MIN(cfg->steps.x,cfg->steps.y),cfg->steps.z);
@@ -187,7 +186,7 @@ void mcx_run_simulation(Config *cfg,int activedev,float *fluence,float *totalene
      cl_int deviceload=0;
      cl_float *energy;
      cl_int stopsign=0;
-     cl_uint detected=0,workdev;
+     cl_uint detected=0,workdev,activedev;
 
      cl_uint photoncount=0;
      cl_uint tic,fieldlen;
@@ -221,6 +220,7 @@ void mcx_run_simulation(Config *cfg,int activedev,float *fluence,float *totalene
 
      cl_uint   *Pseed;
      float  *Pdet;
+     char opt[MAX_PATH_LENGTH]={'\0'};
 
      MCXParam param={{{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}},
 		     {{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f}},
@@ -241,7 +241,29 @@ void mcx_run_simulation(Config *cfg,int activedev,float *fluence,float *totalene
      OCL_ASSERT((clGetContextInfo(mcxcontext, CL_CONTEXT_DEVICES,0,NULL,&deviceListSize)));
      workdev=(int)deviceListSize/sizeof(cl_device_id);
 
+     if(workdev>MAX_DEVICE)
+         workdev=MAX_DEVICE;
+
      devices = (cl_device_id*)malloc(workdev*sizeof(cl_device_id));
+
+     if(devices == NULL){
+         OCL_ASSERT(-1);
+     }
+     OCL_ASSERT((clGetContextInfo(mcxcontext,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL)));
+
+     activedev=0;
+     for(i=0;i<workdev;i++){
+         if(cfg->deviceid[i]=='1')
+	     devices[activedev++]=devices[i];
+	 else if(cfg->deviceid[i]=='\0')
+	     break;
+	 else if(cfg->deviceid[i]!='0')
+	     mcx_error(-1,"device mask must contain either 0 or 1",__FILE__,__LINE__);
+     }
+     if(activedev==0) activedev=1;
+     workdev=activedev;
+     printf("workdev=%d\n",workdev);
+
      mcxqueue= (cl_command_queue*)malloc(workdev*sizeof(cl_command_queue));
      waittoread=(cl_event *)malloc(workdev*sizeof(cl_event));
      cucount=(cl_uint *)calloc(workdev,sizeof(cl_uint));
@@ -254,10 +276,6 @@ void mcx_run_simulation(Config *cfg,int activedev,float *fluence,float *totalene
      gdetected=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gdetpos=(cl_mem *)malloc(workdev*sizeof(cl_mem));
 
-     if(devices == NULL){
-         OCL_ASSERT(-1);
-     }
-     OCL_ASSERT((clGetContextInfo(mcxcontext,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL)));
      /* The block is to move the declaration of prop closer to its use */
      cl_command_queue_properties prop = CL_QUEUE_PROFILING_ENABLE;
 
@@ -359,15 +377,12 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
      fprintf(cfg->flog,"init complete : %d ms\n",GetTimeMillis()-tic);
 
      OCL_ASSERT(((mcxprogram=clCreateProgramWithSource(mcxcontext, 1,(const char **)&(cfg->clsource), NULL, &status),status)));
-     if(cfg->iscpu && cfg->isverbose){ 
-	status=clBuildProgram(mcxprogram, 0, NULL, "-D __DEVICE_EMULATION__ -D MCX_CPU_ONLY -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
-     }else{
-	if(cfg->issavedet)
-		status=clBuildProgram(mcxprogram, 0, NULL, "-D SAVE_DETECTORS -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
-	else
-		status=clBuildProgram(mcxprogram, 0, NULL, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
-     }
-
+     if(cfg->issavedet)
+	sprintf(opt,"-D SAVE_DETECTORS -cl-mad-enable -cl-fast-relaxed-math %s",cfg->compileropt);
+     else
+	sprintf(opt,"-cl-mad-enable -cl-fast-relaxed-math %s",cfg->compileropt);
+     status=clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);
+     
      if(status!=CL_SUCCESS){
 	 size_t len;
 	 char msg[2048];
@@ -383,8 +398,8 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
      for(i=0;i<workdev;i++){
          cl_int threadphoton, oddphotons;
 
-         threadphoton=cfg->nphoton*cfg->workload[i]/(fullload*cfg->nthread*cfg->respin);
-         oddphotons=cfg->nphoton*cfg->workload[i]/(fullload*cfg->respin)-threadphoton*cfg->nthread;
+         threadphoton=(int)(cfg->nphoton*cfg->workload[i]/(fullload*cfg->nthread*cfg->respin));
+         oddphotons=(int)(cfg->nphoton*cfg->workload[i]/(fullload*cfg->respin)-threadphoton*cfg->nthread);
          fprintf(cfg->flog,"- [device %d] threadph=%d oddphotons=%d np=%.1f nthread=%d repetition=%d\n",i,threadphoton,oddphotons,
                cfg->nphoton*cfg->workload[i]/fullload,cfg->nthread,cfg->respin);
 
