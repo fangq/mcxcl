@@ -227,7 +227,6 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
      float4 p=gcfg->ps;  //{x,y,z}: x,y,z coordinates,{w}:packet weight
      float4 v=gcfg->c0;  //{x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event
-                              //v.w can be dropped to save register
      float4 f=(float4)(0.f,0.f,gcfg->minaccumtime,0);  //f.w can be dropped to save register
      float4 p0;            //reflection var, to save pre-reflection p state
      float  energyloss=genergy[idx<<1];
@@ -236,10 +235,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      uint idx1d, idx1dold;   //idx1dold is related to reflection
      int np= (idx<ophoton) ? nphoton+1 : nphoton;
 
-#ifdef TEST_RACING
-     int cc=0;
-#endif
-     uchar  mediaid,mediaidold;
+     uint   mediaid,mediaidold;
      char   medid=-1;
      float  atten;         //can be taken out to minimize registers
      float  n1;   //reflection var
@@ -333,7 +329,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                if(mediaid!=medid){
                   atten=exp(-prop.x*gcfg->minstep);
                }
-               p.xyz+=v.xyz;
+               p.xyz+=v.xyz*gcfg->minstep;
                p.w*=atten;
                medid=mediaid;
 	       f.x-=len;     //remaining probability: sum(s_i*mus_i)
@@ -352,7 +348,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           }
 	  
           //if hit the boundary, exceed the max time window or exit the domain, rebound or launch a new one
-	  if(mediaid==0||f.y>gcfg->tmax||f.y>gcfg->twin1){
+	  if(mediaid==0||f.y>gcfg->tmax||f.y>gcfg->twin1||(gcfg->dorefint && n1!=gproperty[mediaid].w) ){
               float flipdir=0.f;
               float4 htime;            //reflection var
 
@@ -367,9 +363,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
                 //move to the 1st intersection pt
                 tmp0*=JUST_ABOVE_ONE;
-                htime.x=floor(p0.x+tmp0*v.x);
-       	        htime.y=floor(p0.y+tmp0*v.y);
-       	        htime.z=floor(p0.z+tmp0*v.z);
+		htime=floor(p0+tmp0*v);
 
                 if(htime.x>=0&&htime.y>=0&&htime.z>=0&&htime.x<gcfg->maxidx.x&&htime.y<gcfg->maxidx.y&&htime.z<gcfg->maxidx.z){
                     if(media[(int)(htime.z*gcfg->dimlen.y+htime.y*gcfg->dimlen.x+htime.x)]==mediaidold){ //if the first vox is not air
@@ -386,9 +380,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
                      if(gcfg->doreflect){
                        tmp0*=JUST_ABOVE_ONE;
-                       htime.x=floor(p.x-tmp0*v.x); //move to the last intersection pt
-                       htime.y=floor(p.y-tmp0*v.y);
-                       htime.z=floor(p.z-tmp0*v.z);
+		       htime=floor(p-tmp0*v);
 
                        if(tmp1!=flipdir&&htime.x>=0&&htime.y>=0&&htime.z>=0&&htime.x<gcfg->maxidx.x&&htime.y<gcfg->maxidx.y&&htime.z<gcfg->maxidx.z){
                            if(media[(int)(htime.z*gcfg->dimlen.y+htime.y*gcfg->dimlen.x+htime.x)]!=mediaidold){ //this is an air voxel
@@ -478,6 +470,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                 	idx1d=idx1dold;
 		 	mediaid=(media[idx1d] & MED_MASK);
 			prop=gproperty[mediaid];
+			n1=prop.z;
 		  }
               }else{  // launch a new photon
 #ifdef MCX_CPU_ONLY
@@ -487,18 +480,13 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 		      &energyloss,&energyabsorbed,n_det,detectedphoton,gproperty,gdetpos,gcfg);
 		  continue;
               }
-	  }else if(f.y>=f.z){
+	  }
+	  
+	  if(f.y>=f.z){
              GPUDEBUG(("field add to %d->%f(%d)  t(%e)>t0(%e)\n",idx1d,p.w,(int)f.w,f.y,f.z));
              // if t is within the time window, which spans cfg->maxgate*cfg->tstep wide
              if(gcfg->save2pt&&f.y>=gcfg->twin0 & f.y<gcfg->twin1){
-#ifdef TEST_RACING
-                  // enable TEST_RACING to determine how many missing accumulations due to race
-                  if( (p.x-gcfg->ps.x)*(p.x-gcfg->ps.x)+(p.y-gcfg->ps.y)*(p.y-gcfg->ps.y)+(p.z-gcfg->ps.z)*(p.z-gcfg->ps.z)>gcfg->skipradius2) {
-                      field[idx1d+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z]+=1.f;
-		      cc++;
-                  }
-#else
-  #ifndef USE_ATOMIC
+#ifndef USE_ATOMIC
                   // set gcfg->skipradius2 to only start depositing energy when dist^2>gcfg->skipradius2 
                   if(gcfg->skipradius2>EPS){
                       if((p.x-gcfg->ps.x)*(p.x-gcfg->ps.x)+(p.y-gcfg->ps.y)*(p.y-gcfg->ps.y)+(p.z-gcfg->ps.z)*(p.z-gcfg->ps.z)>gcfg->skipradius2){
@@ -509,10 +497,9 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                   }else{
                       field[idx1d+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z]+=p.w;
                   }
-  #else
+#else
                   // ifndef CUDA_NO_SM_11_ATOMIC_INTRINSICS
 //		  atomicFloatAdd(& field[idx1d+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z], p.w);
-  #endif
 #endif
 	     }
              f.z+=gcfg->minaccumtime; // fluence is a temporal-integration

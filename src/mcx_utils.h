@@ -23,6 +23,9 @@
 #define MAX_SESSION_LENGTH  256
 #define MAX_DEVICE          256
 
+#define MCX_ASSERT(x)  mcx_assess((x),"assert error",__FILE__,__LINE__)
+
+
 typedef struct MCXMedium{
 	float mua;
 	float mus;
@@ -108,7 +111,8 @@ typedef struct MCXConfig{
 extern "C" {
 #endif
 void mcx_savedata(float *dat,int len,int doappend, const char *suffix, Config *cfg);
-void mcx_error(int id,const char *msg);
+void mcx_error(const int id,const char *msg,const char *file,const int linenum);
+void mcx_assess(const int id,const char *msg,const char *file,const int linenum);
 void mcx_loadconfig(FILE *in, Config *cfg);
 void mcx_saveconfig(FILE *in, Config *cfg);
 void mcx_readconfig(const char *fname, Config *cfg);

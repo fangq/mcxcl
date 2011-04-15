@@ -32,7 +32,7 @@ int main (int argc, char *argv[]) {
 
      // identify gpu number and set one gpu active
      if(!mcx_set_gpu(&mcxconfig,&activedev)){
-         mcx_error(-1,"No compute platform was found\n");
+         mcx_error(-1,"No compute platform was found\n",__FILE__,__LINE__);
      }
      if(activedev==0)
      	return 0;

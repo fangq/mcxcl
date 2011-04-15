@@ -13,7 +13,7 @@ INCLUDEDIRS=#-I/home/fangq/Download/ati-stream-sdk-v2.0-lnx32/include
 LINKOPT=-g -lOpenCL
 
 CUCCOPT=-I/usr/local/cuda/include #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
-CPPOPT=-g -Wall -DMCX_OPENCL -DUSE_OS_TIMER -I/usr/local/cuda/include #-O3
+CPPOPT=-g -Wall -O3 -DMCX_OPENCL -DUSE_OS_TIMER -I/usr/local/cuda/include #-O3
 
 OBJSUFFIX=.o
 EXESUFFIX=

@@ -30,7 +30,7 @@ typedef struct KernelParams {
 
 void mcx_run_simulation(Config *cfg,int activedev,float *fluence,float *totalenergy);
 cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev);
-void mcx_assess(int cuerr);
+void ocl_assess(int cuerr,const char *file,const int linenum);
 
 #ifdef  __cplusplus
 }

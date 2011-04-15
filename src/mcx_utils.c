@@ -105,7 +105,7 @@ void mcx_savedata(float *dat, int len, int doappend, const char *suffix, Config 
         fp=fopen(name,"wb");
      }
      if(fp==NULL){
-	mcx_error(-2,"can not save data to disk");
+	mcx_error(-2,"can not save data to disk",__FILE__,__LINE__);
      }
      if(strcmp(suffix,"mch")==0){
 	fwrite(&(cfg->his),sizeof(History),1,fp);
@@ -127,9 +127,19 @@ void mcx_normalize(float field[], float scale, int fieldlen){
      }
 }
 
-void mcx_error(int id,const char *msg){
-     fprintf(stdout,"MCX ERROR(%d):%s\n",id,msg);
+void mcx_assess(const int err,const char *msg,const char *file,const int linenum){
+     if(!err){
+         mcx_error(err,msg,file,linenum);
+     }
+}
+
+void mcx_error(const int id,const char *msg,const char *file,const int linenum){
+     fprintf(stdout,"\nMCX ERROR(%d):%s in unit %s:%d\n",id,msg,file,linenum);
+#ifdef MCX_CONTAINER
+     mcx_throw_exception(id,msg,file,linenum);
+#else
      exit(id);
+#endif
 }
 
 void mcx_createfluence(float **fluence, Config *cfg){
@@ -150,7 +160,7 @@ void mcx_readconfig(const char *fname, Config *cfg){
      }
      else{
      	FILE *fp=fopen(fname,"rt");
-	if(fp==NULL) mcx_error(-2,"can not load the specified config file");
+	if(fp==NULL) mcx_error(-2,"can not load the specified config file",__FILE__,__LINE__);
 	mcx_loadconfig(fp,cfg); 
 	fclose(fp);
         if(cfg->session[0]=='\0'){
@@ -164,7 +174,7 @@ void mcx_writeconfig(const char *fname, Config *cfg){
      	mcx_saveconfig(stdout,cfg);
      else{
      	FILE *fp=fopen(fname,"wt");
-	if(fp==NULL) mcx_error(-2,"can not write to the specified config file");
+	if(fp==NULL) mcx_error(-2,"can not write to the specified config file",__FILE__,__LINE__);
 	mcx_saveconfig(fp,cfg);     
 	fclose(fp);
      }
@@ -173,46 +183,46 @@ void mcx_writeconfig(const char *fname, Config *cfg){
 void mcx_loadconfig(FILE *in, Config *cfg){
      int i,idx1d;
      unsigned int gates;
-     char filename[MAX_PATH_LENGTH]={0}, comment[MAX_PATH_LENGTH];
+     char filename[MAX_PATH_LENGTH]={0}, comment[MAX_PATH_LENGTH],*comm;
      
      if(in==stdin)
      	fprintf(stdout,"Please specify the total number of photons: [1000000]\n\t");
-     fscanf(in,"%d", &(i) ); 
+     MCX_ASSERT(fscanf(in,"%d", &(i) )==1); 
      if(cfg->nphoton==0) cfg->nphoton=i;
-     fgets(comment,MAX_PATH_LENGTH,in);
+     comm=fgets(comment,MAX_PATH_LENGTH,in);
      if(in==stdin)
      	fprintf(stdout,"%d\nPlease specify the random number generator seed: [1234567]\n\t",cfg->nphoton);
-     fscanf(in,"%d", &(cfg->seed) );
-     fgets(comment,MAX_PATH_LENGTH,in);
+     MCX_ASSERT(fscanf(in,"%d", &(cfg->seed) )==1);
+     comm=fgets(comment,MAX_PATH_LENGTH,in);
      if(in==stdin)
      	fprintf(stdout,"%d\nPlease specify the position of the source: [10 10 5]\n\t",cfg->seed);
-     fscanf(in,"%f %f %f", &(cfg->srcpos.x),&(cfg->srcpos.y),&(cfg->srcpos.z) );
-     fgets(comment,MAX_PATH_LENGTH,in);
+     MCX_ASSERT(fscanf(in,"%f %f %f", &(cfg->srcpos.x),&(cfg->srcpos.y),&(cfg->srcpos.z) )==3);
+     comm=fgets(comment,MAX_PATH_LENGTH,in);
      if(in==stdin)
      	fprintf(stdout,"%f %f %f\nPlease specify the normal direction of the source fiber: [0 0 1]\n\t",
                                    cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z);
      if(!cfg->issrcfrom0){
      	cfg->srcpos.x--;cfg->srcpos.y--;cfg->srcpos.z--; /*convert to C index, grid center*/
      }
-     fscanf(in,"%f %f %f", &(cfg->srcdir.x),&(cfg->srcdir.y),&(cfg->srcdir.z) );
-     fgets(comment,MAX_PATH_LENGTH,in);
+     MCX_ASSERT(fscanf(in,"%f %f %f", &(cfg->srcdir.x),&(cfg->srcdir.y),&(cfg->srcdir.z) )==3);
+     comm=fgets(comment,MAX_PATH_LENGTH,in);
      if(in==stdin)
      	fprintf(stdout,"%f %f %f\nPlease specify the time gates in seconds (start end and step) [0.0 1e-9 1e-10]\n\t",
                                    cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z);
-     fscanf(in,"%f %f %f", &(cfg->tstart),&(cfg->tend),&(cfg->tstep) );
-     fgets(comment,MAX_PATH_LENGTH,in);
+     MCX_ASSERT(fscanf(in,"%f %f %f", &(cfg->tstart),&(cfg->tend),&(cfg->tstep) )==3);
+     comm=fgets(comment,MAX_PATH_LENGTH,in);
 
      if(in==stdin)
      	fprintf(stdout,"%f %f %f\nPlease specify the path to the volume binary file:\n\t",
                                    cfg->tstart,cfg->tend,cfg->tstep);
      if(cfg->tstart>cfg->tend || cfg->tstep==0.f){
-         mcx_error(-9,"incorrect time gate settings");
+         mcx_error(-9,"incorrect time gate settings",__FILE__,__LINE__);
      }
      gates=(unsigned int)((cfg->tend-cfg->tstart)/cfg->tstep+0.5);
      if(cfg->maxgate>gates)
 	 cfg->maxgate=gates;
 
-     fscanf(in,"%s", filename);
+     MCX_ASSERT(fscanf(in,"%s", filename)==1);
      if(cfg->rootpath[0]){
 #ifdef WIN32
          sprintf(comment,"%s\\%s",cfg->rootpath,filename);
@@ -221,31 +231,31 @@ void mcx_loadconfig(FILE *in, Config *cfg){
 #endif
          strncpy(filename,comment,MAX_PATH_LENGTH);
      }
-     fgets(comment,MAX_PATH_LENGTH,in);
+     comm=fgets(comment,MAX_PATH_LENGTH,in);
 
      if(in==stdin)
      	fprintf(stdout,"%s\nPlease specify the x voxel size (in mm), x dimension, min and max x-index [1.0 100 1 100]:\n\t",filename);
-     fscanf(in,"%f %d %d %d", &(cfg->steps.x),&(cfg->dim.x),&(cfg->crop0.x),&(cfg->crop1.x));
-     fgets(comment,MAX_PATH_LENGTH,in);
+     MCX_ASSERT(fscanf(in,"%f %d %d %d", &(cfg->steps.x),&(cfg->dim.x),&(cfg->crop0.x),&(cfg->crop1.x))==4);
+     comm=fgets(comment,MAX_PATH_LENGTH,in);
 
      if(in==stdin)
      	fprintf(stdout,"%f %d %d %d\nPlease specify the y voxel size (in mm), y dimension, min and max y-index [1.0 100 1 100]:\n\t",
                                   cfg->steps.x,cfg->dim.x,cfg->crop0.x,cfg->crop1.x);
-     fscanf(in,"%f %d %d %d", &(cfg->steps.y),&(cfg->dim.y),&(cfg->crop0.y),&(cfg->crop1.y));
-     fgets(comment,MAX_PATH_LENGTH,in);
+     MCX_ASSERT(fscanf(in,"%f %d %d %d", &(cfg->steps.y),&(cfg->dim.y),&(cfg->crop0.y),&(cfg->crop1.y))==4);
+     comm=fgets(comment,MAX_PATH_LENGTH,in);
 
      if(in==stdin)
      	fprintf(stdout,"%f %d %d %d\nPlease specify the z voxel size (in mm), z dimension, min and max z-index [1.0 100 1 100]:\n\t",
                                   cfg->steps.y,cfg->dim.y,cfg->crop0.y,cfg->crop1.y);
-     fscanf(in,"%f %d %d %d", &(cfg->steps.z),&(cfg->dim.z),&(cfg->crop0.z),&(cfg->crop1.z));
-     fgets(comment,MAX_PATH_LENGTH,in);
+     MCX_ASSERT(fscanf(in,"%f %d %d %d", &(cfg->steps.z),&(cfg->dim.z),&(cfg->crop0.z),&(cfg->crop1.z))==4);
+     comm=fgets(comment,MAX_PATH_LENGTH,in);
 
      if(in==stdin)
      	fprintf(stdout,"%f %d %d %d\nPlease specify the total types of media:\n\t",
                                   cfg->steps.z,cfg->dim.z,cfg->crop0.z,cfg->crop1.z);
-     fscanf(in,"%d", &(cfg->medianum));
+     MCX_ASSERT(fscanf(in,"%d", &(cfg->medianum))==1);
      cfg->medianum++;
-     fgets(comment,MAX_PATH_LENGTH,in);
+     comm=fgets(comment,MAX_PATH_LENGTH,in);
 
      if(in==stdin)
      	fprintf(stdout,"%d\n",cfg->medianum);
@@ -257,15 +267,15 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      for(i=1;i<(int)cfg->medianum;i++){
         if(in==stdin)
 		fprintf(stdout,"Please define medium #%d: mus(1/mm), anisotropy, mua(1/mm) and refractive index: [1.01 0.01 0.04 1.37]\n\t",i);
-     	fscanf(in, "%f %f %f %f", &(cfg->prop[i].mus),&(cfg->prop[i].g),&(cfg->prop[i].mua),&(cfg->prop[i].n));
-        fgets(comment,MAX_PATH_LENGTH,in);
+     	MCX_ASSERT(fscanf(in, "%f %f %f %f", &(cfg->prop[i].mus),&(cfg->prop[i].g),&(cfg->prop[i].mua),&(cfg->prop[i].n))==4);
+        comm=fgets(comment,MAX_PATH_LENGTH,in);
         if(in==stdin)
 		fprintf(stdout,"%f %f %f %f\n",cfg->prop[i].mus,cfg->prop[i].g,cfg->prop[i].mua,cfg->prop[i].n);
      }
      if(in==stdin)
      	fprintf(stdout,"Please specify the total number of detectors and fiber diameter (in mm):\n\t");
-     fscanf(in,"%d %f", &(cfg->detnum), &(cfg->detradius));
-     fgets(comment,MAX_PATH_LENGTH,in);
+     MCX_ASSERT(fscanf(in,"%d %f", &(cfg->detnum), &(cfg->detradius))==2);
+     comm=fgets(comment,MAX_PATH_LENGTH,in);
      if(in==stdin)
      	fprintf(stdout,"%d %f\n",cfg->detnum,cfg->detradius);
      cfg->detpos=(float4*)malloc(sizeof(float4)*cfg->detnum);
@@ -274,12 +284,12 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      for(i=0;i<(int)cfg->detnum;i++){
         if(in==stdin)
 		fprintf(stdout,"Please define detector #%d: x,y,z (in mm): [5 5 5 1]\n\t",i);
-     	fscanf(in, "%f %f %f", &(cfg->detpos[i].x),&(cfg->detpos[i].y),&(cfg->detpos[i].z));
+     	MCX_ASSERT(fscanf(in, "%f %f %f", &(cfg->detpos[i].x),&(cfg->detpos[i].y),&(cfg->detpos[i].z))==3);
 	cfg->detpos[i].w=cfg->detradius*cfg->detradius;
         if(!cfg->issrcfrom0){
 	   cfg->detpos[i].x--;cfg->detpos[i].y--;cfg->detpos[i].z--;  /*convert to C index*/
 	}
-        fgets(comment,MAX_PATH_LENGTH,in);
+        comm=fgets(comment,MAX_PATH_LENGTH,in);
         if(in==stdin)
 		fprintf(stdout,"%f %f %f\n",cfg->detpos[i].x,cfg->detpos[i].y,cfg->detpos[i].z);
      }
@@ -294,7 +304,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
 		mcx_maskdet(cfg);
         if(cfg->srcpos.x<0.f || cfg->srcpos.y<0.f || cfg->srcpos.z<0.f ||
             cfg->srcpos.x>=cfg->dim.x || cfg->srcpos.y>=cfg->dim.y || cfg->srcpos.z>=cfg->dim.z)
-                mcx_error(-4,"source position is outside of the volume");
+                mcx_error(-4,"source position is outside of the volume",__FILE__,__LINE__);
 
 	idx1d=((int)floor(cfg->srcpos.z)*cfg->dim.y*cfg->dim.x+(int)floor(cfg->srcpos.y)*cfg->dim.x+(int)floor(cfg->srcpos.x));
 
@@ -313,7 +323,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
 		}
 	}
      }else{
-     	mcx_error(-4,"one must specify a binary volume file in order to run the simulation");
+     	mcx_error(-4,"one must specify a binary volume file in order to run the simulation",__FILE__,__LINE__);
      }
 }
 
@@ -342,7 +352,7 @@ void mcx_loadvolume(char *filename,Config *cfg){
      int datalen,res;
      FILE *fp=fopen(filename,"rb");
      if(fp==NULL){
-     	     mcx_error(-5,"the specified binary volume file does not exist");
+     	     mcx_error(-5,"the specified binary volume file does not exist",__FILE__,__LINE__);
      }
      if(cfg->vol){
      	     free(cfg->vol);
@@ -353,7 +363,7 @@ void mcx_loadvolume(char *filename,Config *cfg){
      res=fread(cfg->vol,sizeof(unsigned char),datalen,fp);
      fclose(fp);
      if(res!=datalen){
-     	 mcx_error(-6,"file size does not match specified dimensions");
+     	 mcx_error(-6,"file size does not match specified dimensions",__FILE__,__LINE__);
      }
 }
 
@@ -427,10 +437,10 @@ void  mcx_maskdet(Config *cfg){
 	 FILE *fp;
 	 sprintf(fname,"%s.mask",cfg->session);
 	 if((fp=fopen(fname,"wb"))==NULL){
-	 	mcx_error(-10,"can not save mask file");
+	 	mcx_error(-10,"can not save mask file",__FILE__,__LINE__);
 	 }
 	 if(fwrite(cfg->vol,cfg->dim.x*cfg->dim.y,cfg->dim.z,fp)!=cfg->dim.z){
-	 	mcx_error(-10,"can not save mask file");
+	 	mcx_error(-10,"can not save mask file",__FILE__,__LINE__);
 	 }
 	 fclose(fp);
          free(padvol);
@@ -482,7 +492,7 @@ int mcx_readarg(int argc, char *argv[], int id, void *output,const char *type){
 	     }
 	 }
      }else{
-     	 mcx_error(-1,"incomplete input");
+     	 mcx_error(-1,"incomplete input",__FILE__,__LINE__);
      }
      return id+1;
 }
@@ -502,6 +512,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
      int i=1,isinteractive=1,issavelog=0;
      char filename[MAX_PATH_LENGTH]={0};
      char logfile[MAX_PATH_LENGTH]={0};
+     float np=0.f;
 
      if(argc<=1){
      	mcx_usage(argv[0]);
@@ -511,7 +522,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
      	    if(argv[i][0]=='-'){
 		if(argv[i][1]=='-'){
 			if(mcx_remap(argv[i])){
-				mcx_error(-2,"unknown verbose option");
+				mcx_error(-2,"unknown verbose option",__FILE__,__LINE__);
 			}
 		}
 	        switch(argv[i][1]){
@@ -520,7 +531,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 				exit(0);
 		     case 'i':
 				if(filename[0]){
-					mcx_error(-2,"you can not specify both interactive mode and config file");
+					mcx_error(-2,"you can not specify both interactive mode and config file",__FILE__,__LINE__);
 				}
 		     		isinteractive=1;
 				break;
@@ -528,20 +539,13 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     		isinteractive=0;
 		     	        i=mcx_readarg(argc,argv,i,filename,"string");
 				break;
-                     /* 
-		        ideally we may support -n option to specify photon numbers,
-		        however, we found using while-loop for -n will cause some 
-			troubles for MT RNG, and timed-out error for some other cases.
-			right now, -n is only an alias for -m and both are specifying
-			the photon moves per thread. Here, variable cfg->nphoton is 
-			indeed the photon moves per thread.
-		     */
-		     case 'n':
-				mcx_error(-2,"specifying photon number is not supported, please use -m");
+		     case 'm':
+				mcx_error(-2,"specifying photon move is not supported any more, please use -n",__FILE__,__LINE__);
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->nphoton),"int");
 		     	        break;
-		     case 'm':
-		     	        i=mcx_readarg(argc,argv,i,&(cfg->nphoton),"int");
+		     case 'n':
+		     	        i=mcx_readarg(argc,argv,i,&(np),"float");
+				cfg->nphoton=(int)np;
 		     	        break;
 		     case 't':
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->nthread),"int");
@@ -634,13 +638,13 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
      	  FILE *fp=fopen(cfg->kernelfile,"rb");
 	  int srclen;
 	  if(fp==NULL){
-	  	mcx_error(-10,"the specified OpenCL kernel file does not exist!");
+	  	mcx_error(-10,"the specified OpenCL kernel file does not exist!",__FILE__,__LINE__);
 	  }
 	  fseek(fp,0,SEEK_END);
 	  srclen=ftell(fp);
 	  cfg->clsource=(char *)malloc(srclen+1);
 	  fseek(fp,0,SEEK_SET);
-	  fread(cfg->clsource,1,srclen,fp);
+	  MCX_ASSERT((fread(cfg->clsource,srclen,1,fp)==1));
 	  cfg->clsource[srclen]='\0';
 	  fclose(fp);
      }
