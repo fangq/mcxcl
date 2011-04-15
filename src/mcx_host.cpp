@@ -190,10 +190,10 @@ void mcx_run_simulation(Config *cfg,int activedev,float *fluence,float *totalene
      cl_uint2 cachebox;
      cl_uint4 dimlen;
 
-     cl_context context;                 // compute context
-     cl_command_queue *commands;          // compute command queue
-     cl_program program;                 // compute program
-     cl_kernel *kernel;                   // compute kernel
+     cl_context mcxcontext;                 // compute mcxcontext
+     cl_command_queue *mcxqueue;          // compute command queue
+     cl_program mcxprogram;                 // compute mcxprogram
+     cl_kernel *mcxkernel;                   // compute mcxkernel
      cl_int status = 0;
      size_t deviceListSize;
      cl_platform_id platform = NULL;
@@ -203,7 +203,7 @@ void mcx_run_simulation(Config *cfg,int activedev,float *fluence,float *totalene
      cl_uint *cucount,totalcucore;
      cl_uint  devid=0;
      cl_mem gmedia,gproperty,gparam;
-     cl_mem *gfield,*gPdet,*gPseed,*genergy;
+     cl_mem *gfield,*gdetphoton,*gseed,*genergy;
      cl_mem *gstopsign,*gdetected,*gdetpos;
 
      size_t mcgrid[1], mcblock[1];
@@ -231,18 +231,18 @@ void mcx_run_simulation(Config *cfg,int activedev,float *fluence,float *totalene
 
      /* Use NULL for backward compatibility */
      cl_context_properties* cprops=(platform==NULL)?NULL:cps;
-     mcx_assess((context=clCreateContextFromType(cprops,CL_DEVICE_TYPE_ALL,NULL,NULL,&status),status));
-     mcx_assess(clGetContextInfo(context, CL_CONTEXT_DEVICES,0,NULL,&deviceListSize));
+     mcx_assess((mcxcontext=clCreateContextFromType(cprops,CL_DEVICE_TYPE_ALL,NULL,NULL,&status),status));
+     mcx_assess(clGetContextInfo(mcxcontext, CL_CONTEXT_DEVICES,0,NULL,&deviceListSize));
      workdev=(int)deviceListSize/sizeof(cl_device_id);
 
      devices = (cl_device_id*)malloc(workdev*sizeof(cl_device_id));
-     commands= (cl_command_queue*)malloc(workdev*sizeof(cl_command_queue));
+     mcxqueue= (cl_command_queue*)malloc(workdev*sizeof(cl_command_queue));
      waittoread=(cl_event *)malloc(workdev*sizeof(cl_event));
      cucount=(cl_uint *)calloc(workdev,sizeof(cl_uint));
 
-     gPseed=(cl_mem *)malloc(workdev*sizeof(cl_mem));
+     gseed=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gfield=(cl_mem *)malloc(workdev*sizeof(cl_mem));
-     gPdet=(cl_mem *)malloc(workdev*sizeof(cl_mem));
+     gdetphoton=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      genergy=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gstopsign=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gdetected=(cl_mem *)malloc(workdev*sizeof(cl_mem));
@@ -251,14 +251,14 @@ void mcx_run_simulation(Config *cfg,int activedev,float *fluence,float *totalene
      if(devices == NULL){
          mcx_assess(-1);
      }
-     mcx_assess(clGetContextInfo(context,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL));
+     mcx_assess(clGetContextInfo(mcxcontext,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL));
      /* The block is to move the declaration of prop closer to its use */
      cl_command_queue_properties prop = CL_QUEUE_PROFILING_ENABLE;
 
      totalcucore=0;
      for(i=0;i<workdev;i++){
          char pbuf[100]={'\0'};
-         mcx_assess((commands[i]=clCreateCommandQueue(context,devices[i],prop,&status),status));
+         mcx_assess((mcxqueue[i]=clCreateCommandQueue(mcxcontext,devices[i],prop,&status),status));
          mcx_assess(clGetDeviceInfo(devices[i],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),(void*)(cucount+i),NULL));
          mcx_assess(clGetDeviceInfo(devices[i],CL_DEVICE_NAME,100,(void*)&pbuf,NULL));
          if(strstr(pbuf,"ATI")){
@@ -312,20 +312,20 @@ void mcx_run_simulation(Config *cfg,int activedev,float *fluence,float *totalene
      else
         srand(time(0));
 
-     mcx_assess((gmedia=clCreateBuffer(context,RO_MEM, sizeof(cl_uchar)*(dimxyz),media,&status),status));
-     mcx_assess((gproperty=clCreateBuffer(context,RO_MEM, cfg->medianum*sizeof(Medium),cfg->prop,&status),status));
-     mcx_assess((gparam=clCreateBuffer(context,RO_MEM, sizeof(MCXParam),&param,&status),status));
+     mcx_assess((gmedia=clCreateBuffer(mcxcontext,RO_MEM, sizeof(cl_uchar)*(dimxyz),media,&status),status));
+     mcx_assess((gproperty=clCreateBuffer(mcxcontext,RO_MEM, cfg->medianum*sizeof(Medium),cfg->prop,&status),status));
+     mcx_assess((gparam=clCreateBuffer(mcxcontext,RO_MEM, sizeof(MCXParam),&param,&status),status));
 
      for(i=0;i<workdev;i++){
        for (j=0; j<cfg->nthread*RAND_SEED_LEN;j++)
 	   Pseed[j]=rand();
-       mcx_assess((gPseed[i]=clCreateBuffer(context,RW_MEM, sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,Pseed,&status),status));
-       mcx_assess((gfield[i]=clCreateBuffer(context,RW_MEM, sizeof(cl_float)*(dimxyz)*cfg->maxgate,field,&status),status));
-       mcx_assess((gPdet[i]=clCreateBuffer(context,RW_MEM, sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),Pdet,&status),status));
-       mcx_assess((genergy[i]=clCreateBuffer(context,RW_MEM, sizeof(float)*cfg->nthread*2,energy,&status),status));
-       mcx_assess((gstopsign[i]=clCreateBuffer(context,RW_PTR, sizeof(cl_uint),&stopsign,&status),status));
-       mcx_assess((gdetected[i]=clCreateBuffer(context,RW_MEM, sizeof(cl_uint),&detected,&status),status));
-       mcx_assess((gdetpos[i]=clCreateBuffer(context,RO_MEM, cfg->detnum*sizeof(float4),cfg->detpos,&status),status));
+       mcx_assess((gseed[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,Pseed,&status),status));
+       mcx_assess((gfield[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_float)*(dimxyz)*cfg->maxgate,field,&status),status));
+       mcx_assess((gdetphoton[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),Pdet,&status),status));
+       mcx_assess((genergy[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*cfg->nthread*2,energy,&status),status));
+       mcx_assess((gstopsign[i]=clCreateBuffer(mcxcontext,RW_PTR, sizeof(cl_uint),&stopsign,&status),status));
+       mcx_assess((gdetected[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint),&detected,&status),status));
+       mcx_assess((gdetpos[i]=clCreateBuffer(mcxcontext,RO_MEM, cfg->detnum*sizeof(float4),cfg->detpos,&status),status));
      }
 
      fprintf(cfg->flog,"\
@@ -353,27 +353,27 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 
      fprintf(cfg->flog,"init complete : %d ms\n",GetTimeMillis()-tic);
 
-     mcx_assess((program=clCreateProgramWithSource(context, 1,(const char **)&(cfg->clsource), NULL, &status),status));
+     mcx_assess((mcxprogram=clCreateProgramWithSource(mcxcontext, 1,(const char **)&(cfg->clsource), NULL, &status),status));
      if(cfg->iscpu && cfg->isverbose){ 
-	status=clBuildProgram(program, 0, NULL, "-D __DEVICE_EMULATION__ -D MCX_CPU_ONLY -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
+	status=clBuildProgram(mcxprogram, 0, NULL, "-D __DEVICE_EMULATION__ -D MCX_CPU_ONLY -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);
      }else{
 	if(cfg->issavedet)
-		status=clBuildProgram(program, 0, NULL, "-D SAVE_DETECTORS -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
+		status=clBuildProgram(mcxprogram, 0, NULL, "-D SAVE_DETECTORS -cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
 	else
-		status=clBuildProgram(program, 0, NULL, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
+		status=clBuildProgram(mcxprogram, 0, NULL, "-cl-mad-enable -cl-fast-relaxed-math", NULL, NULL);    
      }
 
      if(status!=CL_SUCCESS){
 	 size_t len;
 	 char msg[2048];
 	 // get the details on the error, and store it in buffer
-	 clGetProgramBuildInfo(program,devices[devid],CL_PROGRAM_BUILD_LOG,sizeof(msg),msg,&len); 
+	 clGetProgramBuildInfo(mcxprogram,devices[devid],CL_PROGRAM_BUILD_LOG,sizeof(msg),msg,&len); 
 	 fprintf(cfg->flog,"Kernel build error:\n%s\n", msg);
-	 mcx_error(-(int)status,(char*)("Error: Failed to build program executable!"));
+	 mcx_error(-(int)status,(char*)("Error: Failed to build mcxprogram executable!"));
      }
-     fprintf(cfg->flog,"build program complete : %d ms\n",GetTimeMillis()-tic);
+     fprintf(cfg->flog,"build mcxprogram complete : %d ms\n",GetTimeMillis()-tic);
 
-     kernel=(cl_kernel*)malloc(workdev*sizeof(cl_kernel));
+     mcxkernel=(cl_kernel*)malloc(workdev*sizeof(cl_kernel));
 
      for(i=0;i<workdev;i++){
          threadphoton=cfg->nphoton*cfg->workload[i]/(fullload*cfg->nthread*cfg->respin);
@@ -381,21 +381,21 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
          fprintf(cfg->flog,"- [device %d] threadph=%d oddphotons=%d np=%.1f nthread=%d repetition=%d\n",i,threadphoton,oddphotons,
                cfg->nphoton*cfg->workload[i]/fullload,cfg->nthread,cfg->respin);
 
-	 mcx_assess((kernel[i] = clCreateKernel(program, "mcx_main_loop", &status),status));
-	 mcx_assess(clSetKernelArg(kernel[i], 0, sizeof(cl_uint),(void*)&threadphoton));
-         mcx_assess(clSetKernelArg(kernel[i], 1, sizeof(cl_uint),(void*)&oddphotons));
-	 mcx_assess(clSetKernelArg(kernel[i], 2, sizeof(cl_mem), (void*)&gmedia));
-	 mcx_assess(clSetKernelArg(kernel[i], 3, sizeof(cl_mem), (void*)(gfield+i)));
-	 mcx_assess(clSetKernelArg(kernel[i], 4, sizeof(cl_mem), (void*)(genergy+i)));
-	 mcx_assess(clSetKernelArg(kernel[i], 5, sizeof(cl_mem), (void*)(gPseed+i)));
-	 mcx_assess(clSetKernelArg(kernel[i], 6, sizeof(cl_mem), (void*)(gPdet+i)));
-	 mcx_assess(clSetKernelArg(kernel[i], 7, sizeof(cl_mem), (void*)&gproperty));
-	 mcx_assess(clSetKernelArg(kernel[i], 8, sizeof(cl_mem), (void*)(gdetpos+i)));
-	 mcx_assess(clSetKernelArg(kernel[i], 9, sizeof(cl_mem), (void*)(gstopsign+i)));
-	 mcx_assess(clSetKernelArg(kernel[i],10, sizeof(cl_mem), (void*)(gdetected+i)));
-	 mcx_assess(clSetKernelArg(kernel[i],11, cfg->issavedet? sizeof(cl_float)*cfg->nblocksize*param.maxmedia : 1, NULL));
+	 mcx_assess((mcxkernel[i] = clCreateKernel(mcxprogram, "mcx_main_loop", &status),status));
+	 mcx_assess(clSetKernelArg(mcxkernel[i], 0, sizeof(cl_uint),(void*)&threadphoton));
+         mcx_assess(clSetKernelArg(mcxkernel[i], 1, sizeof(cl_uint),(void*)&oddphotons));
+	 mcx_assess(clSetKernelArg(mcxkernel[i], 2, sizeof(cl_mem), (void*)&gmedia));
+	 mcx_assess(clSetKernelArg(mcxkernel[i], 3, sizeof(cl_mem), (void*)(gfield+i)));
+	 mcx_assess(clSetKernelArg(mcxkernel[i], 4, sizeof(cl_mem), (void*)(genergy+i)));
+	 mcx_assess(clSetKernelArg(mcxkernel[i], 5, sizeof(cl_mem), (void*)(gseed+i)));
+	 mcx_assess(clSetKernelArg(mcxkernel[i], 6, sizeof(cl_mem), (void*)(gdetphoton+i)));
+	 mcx_assess(clSetKernelArg(mcxkernel[i], 7, sizeof(cl_mem), (void*)&gproperty));
+	 mcx_assess(clSetKernelArg(mcxkernel[i], 8, sizeof(cl_mem), (void*)(gdetpos+i)));
+	 mcx_assess(clSetKernelArg(mcxkernel[i], 9, sizeof(cl_mem), (void*)(gstopsign+i)));
+	 mcx_assess(clSetKernelArg(mcxkernel[i],10, sizeof(cl_mem), (void*)(gdetected+i)));
+	 mcx_assess(clSetKernelArg(mcxkernel[i],11, cfg->issavedet? sizeof(cl_float)*cfg->nblocksize*param.maxmedia : 1, NULL));
      }
-     fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
+     fprintf(cfg->flog,"set mcxkernel arguments complete : %d ms\n",GetTimeMillis()-tic);
 
      //simulate for all time-gates in maxgate groups per run
 
@@ -414,26 +414,26 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
            fprintf(cfg->flog,"simulation run#%2d ... \t",iter+1); fflush(cfg->flog);
 	   param.twin0=twindow0;
 	   param.twin1=twindow1;
-           mcx_assess(clEnqueueWriteBuffer(commands[devid],gparam,CL_TRUE,0,sizeof(MCXParam),&param, 0, NULL, NULL));
+           mcx_assess(clEnqueueWriteBuffer(mcxqueue[devid],gparam,CL_TRUE,0,sizeof(MCXParam),&param, 0, NULL, NULL));
            for(devid=0;devid<workdev;devid++){
-              mcx_assess(clSetKernelArg(kernel[devid],12, sizeof(cl_mem), (void*)&gparam));
-              // launch kernel
-               mcx_assess(clEnqueueNDRangeKernel(commands[devid],kernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, 
+              mcx_assess(clSetKernelArg(mcxkernel[devid],12, sizeof(cl_mem), (void*)&gparam));
+              // launch mcxkernel
+               mcx_assess(clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, 
 #ifndef USE_OS_TIMER
                   &kernelevent));
 #else
                   NULL));
 #endif
-               mcx_assess(clEnqueueReadBuffer(commands[devid],gdetected[devid],CL_FALSE,0,sizeof(uint),
+               mcx_assess(clEnqueueReadBuffer(mcxqueue[devid],gdetected[devid],CL_FALSE,0,sizeof(uint),
                                             &detected, 0, NULL, waittoread+devid));
            }
            clWaitForEvents(workdev,waittoread);
 
-           fprintf(cfg->flog,"kernel complete:  \t%d ms\nretrieving fields ... \t",GetTimeMillis()-tic);
+           fprintf(cfg->flog,"mcxkernel complete:  \t%d ms\nretrieving fields ... \t",GetTimeMillis()-tic);
 
            for(devid=0;devid<workdev;devid++){
              if(cfg->issavedet){
-                mcx_assess(clEnqueueReadBuffer(commands[devid],gPdet[devid],CL_TRUE,0,sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),
+                mcx_assess(clEnqueueReadBuffer(mcxqueue[devid],gdetphoton[devid],CL_TRUE,0,sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),
 	                                        Pdet, 0, NULL, NULL));
 		if(detected>cfg->maxdetphoton){
 			fprintf(cfg->flog,"WARNING: the detected photon (%d) \
@@ -453,7 +453,7 @@ is more than what your have specified (%d), please use the -H option to specify 
 	     }
 	     //handling the 2pt distributions
              if(cfg->issave2pt){
-               mcx_assess(clEnqueueReadBuffer(commands[devid],gfield[devid],CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,
+               mcx_assess(clEnqueueReadBuffer(mcxqueue[devid],gfield[devid],CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,
 	                                        field, 0, NULL, NULL));
                fprintf(cfg->flog,"transfer complete:\t%d ms\n",GetTimeMillis()-tic);  fflush(cfg->flog);
 
@@ -468,7 +468,7 @@ is more than what your have specified (%d), please use the -H option to specify 
                    if(cfg->isnormalized){
 
                        fprintf(cfg->flog,"normizing raw data ...\t");
-                       mcx_assess(clEnqueueReadBuffer(commands[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
+                       mcx_assess(clEnqueueReadBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
 	                                        energy, 0, NULL, NULL));
                        eabsorp=0.f;
                        for(i=1;i<cfg->nthread;i++){
@@ -482,6 +482,8 @@ is more than what your have specified (%d), please use the -H option to specify 
                               absorp+=field[j*dimxyz+i];
                            eabsorp+=absorp*cfg->prop[media[i]].mua;
        	       	       }
+		       energyloss+=energy[0];
+		       energyabsorbed+=energy[1];
 		       simuenergy=energy[0]+energy[1];
                        scale=energy[1]/(simuenergy*Vvox*cfg->tstep*eabsorp);
                        fprintf(cfg->flog,"normalization factor alpha=%f\n",scale);  fflush(cfg->flog);
@@ -506,42 +508,33 @@ is more than what your have specified (%d), please use the -H option to specify 
                    fprintf(cfg->flog,"saving data complete : %d ms\n",GetTimeMillis()-tic);
                    fflush(cfg->flog);
                }
-               mcx_assess(clFinish(commands[devid]));
+               mcx_assess(clFinish(mcxqueue[devid]));
              }
 	     //initialize the next simulation
 	     if(twindow1<cfg->tend && iter<cfg->respin){
                   memset(field,0,sizeof(cl_float)*dimxyz*cfg->maxgate);
-                  mcx_assess(clEnqueueWriteBuffer(commands[devid],gfield[devid],CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,
+                  mcx_assess(clEnqueueWriteBuffer(mcxqueue[devid],gfield[devid],CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,
                                                 field, 0, NULL, NULL));
-		  mcx_assess(clSetKernelArg(kernel[devid], 3, sizeof(cl_mem), (void*)(gfield+devid)));
+		  mcx_assess(clSetKernelArg(mcxkernel[devid], 3, sizeof(cl_mem), (void*)(gfield+devid)));
 	     }
 	     if(cfg->respin>1 && RAND_SEED_LEN>1){
                for (i=0; i<cfg->nthread*RAND_SEED_LEN; i++)
 		   Pseed[i]=rand();
-               mcx_assess(clEnqueueWriteBuffer(commands[devid],gPseed[devid],CL_TRUE,0,sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,
+               mcx_assess(clEnqueueWriteBuffer(mcxqueue[devid],gseed[devid],CL_TRUE,0,sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,
 	                                        Pseed, 0, NULL, NULL));
-	       mcx_assess(clSetKernelArg(kernel[devid], 5, sizeof(cl_mem), (void*)(gPseed+devid)));
+	       mcx_assess(clSetKernelArg(mcxkernel[devid], 5, sizeof(cl_mem), (void*)(gseed+devid)));
 	     }
            }// loop over work devices
        }// iteration
        if(twindow1<cfg->tend){
 	    cl_float *tmpenergy=(cl_float*)calloc(sizeof(cl_float),cfg->nthread*2);
-            mcx_assess(clEnqueueWriteBuffer(commands[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
+            mcx_assess(clEnqueueWriteBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
                                         tmpenergy, 0, NULL, NULL));
-	    mcx_assess(clSetKernelArg(kernel[devid], 4, sizeof(cl_mem), (void*)(genergy+devid)));	
+	    mcx_assess(clSetKernelArg(mcxkernel[devid], 4, sizeof(cl_mem), (void*)(genergy+devid)));	
 	    free(tmpenergy);
             //cudaMemset(genergy,0,sizeof(float)*cfg->nthread*2);
        }
      }// time gates
-     mcx_assess(clFinish(commands[0]));
-     mcx_assess(clEnqueueReadBuffer(commands[0],genergy[0],CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
-	                           energy, 0, NULL, NULL));
-
-     for (i=0; i<cfg->nthread; i++) {
-	  //photoncount+=(int)Plen[i].w;
-          energyloss+=energy[i<<1];
-          energyabsorbed+=energy[(i<<1)+1];
-     }
 
 #ifdef TEST_RACING
      {
@@ -569,28 +562,30 @@ is more than what your have specified (%d), please use the -H option to specify 
 
      for(i=0;i<workdev;i++){
          clReleaseMemObject(gfield[i]);
-         clReleaseMemObject(gPseed[i]);
+         clReleaseMemObject(gseed[i]);
          clReleaseMemObject(genergy[i]);
          clReleaseMemObject(gstopsign[i]);
          clReleaseMemObject(gdetected[i]);
          clReleaseMemObject(gdetpos[i]);
-         clReleaseKernel(kernel[i]);
+         clReleaseKernel(mcxkernel[i]);
      }
-     free(devices);
-     free(commands);
-     free(waittoread);
      free(gfield);
-     free(gPseed);
+     free(gseed);
      free(genergy);
      free(gstopsign);
      free(gdetected);
      free(gdetpos);
-     free(kernel);
+     free(mcxkernel);
 
-     clReleaseProgram(program);
+     free(devices);
+     free(waittoread);
+
      for(devid=0;devid<workdev;devid++)
-        clReleaseCommandQueue(commands[devid]);
-     clReleaseContext(context);
+        clReleaseCommandQueue(mcxqueue[devid]);
+
+     free(mcxqueue);
+     clReleaseProgram(mcxprogram);
+     clReleaseContext(mcxcontext);
 #ifndef USE_OS_TIMER
      clReleaseEvent(kernelevent);
 #endif
