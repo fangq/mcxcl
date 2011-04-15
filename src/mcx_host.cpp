@@ -25,17 +25,6 @@
 #include "tictoc.h"
 #include "mcx_const.h"
 
-#define MIN(a,b)           ((a)<(b)?(a):(b))
-#define MCX_RNG_NAME       "Logistic-Lattice"
-#define RAND_SEED_LEN      5        //32bit seed length (32*5=160bits)
-#define RO_MEM             (CL_MEM_READ_ONLY  | CL_MEM_COPY_HOST_PTR)
-#define WO_MEM             (CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR)
-#define RW_MEM             (CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR)
-#define RW_PTR             (CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR)
-
-#define OCL_ASSERT(x)  ocl_assess((x),__FILE__,__LINE__)
-
-
 extern cl_event kernelevent;
 
 
