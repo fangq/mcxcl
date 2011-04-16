@@ -425,8 +425,8 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
            fprintf(cfg->flog,"simulation run#%2d ... \t",iter+1); fflush(cfg->flog);
 	   param.twin0=twindow0;
 	   param.twin1=twindow1;
-           OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],gparam,CL_TRUE,0,sizeof(MCXParam),&param, 0, NULL, NULL)));
            for(devid=0;devid<workdev;devid++){
+              OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],gparam,CL_TRUE,0,sizeof(MCXParam),&param, 0, NULL, NULL)));
               OCL_ASSERT((clSetKernelArg(mcxkernel[devid],12, sizeof(cl_mem), (void*)&gparam)));
               // launch mcxkernel
                OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, 
@@ -520,7 +520,6 @@ is more than what your have specified (%d), please use the -H option to specify 
                    fprintf(cfg->flog,"saving data complete : %d ms\n",GetTimeMillis()-tic);
                    fflush(cfg->flog);
                }
-               OCL_ASSERT((clFinish(mcxqueue[devid])));
              }
 	     //initialize the next simulation
 	     if(twindow1<cfg->tend && iter<cfg->respin){
@@ -536,6 +535,7 @@ is more than what your have specified (%d), please use the -H option to specify 
 	                                        Pseed, 0, NULL, NULL)));
 	       OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 5, sizeof(cl_mem), (void*)(gseed+devid))));
 	     }
+             OCL_ASSERT((clFinish(mcxqueue[devid])));
            }// loop over work devices
        }// iteration
        if(twindow1<cfg->tend){

@@ -227,7 +227,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
      float4 p=gcfg->ps;  //{x,y,z}: x,y,z coordinates,{w}:packet weight
      float4 v=gcfg->c0;  //{x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event
-     float4 f=(float4)(0.f,0.f,gcfg->minaccumtime,0);  //f.w can be dropped to save register
+     float4 f=(float4)(0.f,0.f,gcfg->minaccumtime,0.f);  //f.w can be dropped to save register
      float4 p0;            //reflection var, to save pre-reflection p state
      float  energyloss=genergy[idx<<1];
      float  energyabsorbed=genergy[(idx<<1)+1];
