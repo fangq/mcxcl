@@ -172,13 +172,12 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cl_float  minstep=MIN(MIN(cfg->steps.x,cfg->steps.y),cfg->steps.z);
      cl_float t,twindow0,twindow1;
      cl_float energyloss=0.f,energyabsorbed=0.f,simuenergy,fullload=0.f;
-     cl_int deviceload=0;
      cl_float *energy;
      cl_int stopsign=0;
      cl_uint detected=0,workdev,activedev;
 
      cl_uint photoncount=0;
-     cl_uint tic,fieldlen;
+     cl_uint tic,tic0,tic1,toc=0,fieldlen;
      cl_uint4 cp0={{cfg->crop0.x,cfg->crop0.y,cfg->crop0.z,cfg->crop0.w}};
      cl_uint4 cp1={{cfg->crop1.x,cfg->crop1.y,cfg->crop1.z,cfg->crop1.w}};
      cl_uint2 cachebox;
@@ -412,6 +411,7 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 
      cl_float Vvox,scale,absorp,eabsorp;
      Vvox=cfg->steps.x*cfg->steps.y*cfg->steps.z;
+     tic0=GetTimeMillis();
 
      for(t=cfg->tstart;t<cfg->tend;t+=cfg->tstep*cfg->maxgate){
        twindow0=t;
@@ -439,8 +439,9 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
                                             &detected, 0, NULL, waittoread+devid)));
            }
            clWaitForEvents(workdev,waittoread);
-
-           fprintf(cfg->flog,"kernel complete:  \t%d ms\nretrieving flux ... \t",GetTimeMillis()-tic);
+           tic1=GetTimeMillis();
+	   toc+=tic1-tic0;
+           fprintf(cfg->flog,"kernel complete:  \t%d ms\nretrieving flux ... \t",tic1-tic);
 
            for(devid=0;devid<workdev;devid++){
              if(cfg->issavedet){
@@ -548,8 +549,8 @@ is more than what your have specified (%d), please use the -H option to specify 
      }// time gates
 
      // total energy here equals total simulated photons+unfinished photons for all threads
-     fprintf(cfg->flog,"simulated %d photons (%d) with %d threads (repeat x%d)\n",
-             photoncount,deviceload,cfg->nthread,cfg->respin); fflush(cfg->flog);
+     fprintf(cfg->flog,"simulated %d photons using %d CUs with %d threads (repeat x%d)\nMCXCL simulation speed: %.2f photon/ms\n",
+             cfg->nphoton, workdev ,cfg->nthread,cfg->respin,(double)cfg->nphoton/toc); fflush(cfg->flog);
      fprintf(cfg->flog,"exit energy:%16.8e + absorbed energy:%16.8e = total: %16.8e\n",
              energyloss,energyabsorbed,energyloss+energyabsorbed);fflush(cfg->flog);
      fflush(cfg->flog);
