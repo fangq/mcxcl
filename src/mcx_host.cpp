@@ -97,8 +97,8 @@ void ocl_assess(int cuerr,const char *file,const int linenum){
 cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
 
     uint i,j,k,devnum;
-    cl_uint numPlatforms,devparam;
-    cl_ulong devmem;
+    cl_uint numPlatforms,devparam,clockspeed;
+    cl_ulong devmem,constmem;
     cl_platform_id platform = NULL;
     cl_device_type devtype[]={CL_DEVICE_TYPE_CPU,CL_DEVICE_TYPE_GPU};
     cl_context context;                 // compute context
@@ -146,10 +146,14 @@ cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
                 	printf("============ %s device [%d of %d]: %s  ============\n",devname[j],k+1,devnum,pbuf);
 			OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),(void*)&devparam,NULL)));
                 	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GLOBAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL)));
-                	printf(" Compute units :\t%d core(s)\n",(uint)devparam);
-                	printf(" Global memory :\t%ld B\n",(unsigned long)devmem);
+                	printf(" Compute units   :\t%d core(s)\n",(uint)devparam);
+                	printf(" Global memory   :\t%ld B\n",(unsigned long)devmem);
                 	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_LOCAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL)));
-                	printf(" Local memory  :\t%ld B\n",(unsigned long)devmem);
+                	printf(" Local memory    :\t%ld B\n",(unsigned long)devmem);
+                	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,sizeof(cl_ulong),(void*)&constmem,NULL)));
+                	printf(" Constant memory :\t%ld B\n",(unsigned long)constmem);
+                	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CLOCK_FREQUENCY,sizeof(cl_uint),(void*)&clockspeed,NULL)));
+                	printf(" Clock speed     :\t%d MHz\n",clockspeed);
                       }
                     free(devices);
                     clReleaseContext(context);
@@ -342,7 +346,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      fprintf(cfg->flog,"\
 ===============================================================================\n\
 =                     Monte Carlo eXtreme (MCX) -- OpenCL                     =\n\
-=     Copyright (c) 2009-2011 Qianqian Fang <fangq at nmr.mgh.harvard.edu>    =\n\
+=     Copyright (c) 2009-2012 Qianqian Fang <fangq at nmr.mgh.harvard.edu>    =\n\
 =                                                                             =\n\
 =    Martinos Center for Biomedical Imaging, Massachusetts General Hospital   =\n\
 ===============================================================================\n\
@@ -409,7 +413,7 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 
      //simulate for all time-gates in maxgate groups per run
 
-     cl_float Vvox,scale,absorp,eabsorp;
+     cl_float Vvox,scale,eabsorp;
      Vvox=cfg->steps.x*cfg->steps.y*cfg->steps.z;
      tic0=GetTimeMillis();
 
@@ -489,16 +493,11 @@ is more than what your have specified (%d), please use the -H option to specify 
        	       	       	   energy[1]+=energy[(i<<1)+1];
                            //eabsorp+=Plen[i].z;  // the accumulative absorpted energy near the source
                        }
-       	       	       for(i=0;i<dimxyz;i++){
-                           absorp=0.f;
-                           for(j=0;j<cfg->maxgate;j++)
-                              absorp+=field[j*dimxyz+i];
-                           eabsorp+=absorp*cfg->prop[media[i]].mua;
-       	       	       }
+                       eabsorp+=energy[1];
 		       energyloss+=energy[0];
 		       energyabsorbed+=energy[1];
 		       simuenergy=energy[0]+energy[1];
-                       scale=energy[1]/(simuenergy*Vvox*cfg->tstep*eabsorp);
+                       scale=(cfg->nphoton-energy[0])/(cfg->nphoton*Vvox*cfg->tstep*eabsorp);
                        fprintf(cfg->flog,"normalization factor alpha=%f\n",scale);  fflush(cfg->flog);
                        mcx_normalize(field,scale,fieldlen);
                    }

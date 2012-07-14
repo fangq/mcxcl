@@ -175,8 +175,7 @@ void savedetphoton(__global float n_det[],__global uint *detectedphoton,float we
       uint j,baseaddr=0;
       j=finddetector(p0,gdetpos,gcfg);
       if(j){
-         baseaddr=(++ (*detectedphoton));
-	 //baseaddr=atomic_add(detectedphoton,1);
+	 baseaddr=atomic_inc(detectedphoton);
 	 if(baseaddr<gcfg->maxdetphoton){
 	    baseaddr*=gcfg->maxmedia+2;
 	    n_det[baseaddr++]=j;
@@ -196,7 +195,6 @@ void launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
 	   __constant float4 gdetpos[],__constant MCXParam gcfg[]){
 
       *energyloss+=p[0].w;  // sum all the remaining energy
-      *energyabsorbed+=1.f-p[0].w;
 #ifdef SAVE_DETECTORS
       // let's handle detectors here
       if(gcfg->savedet){
@@ -249,6 +247,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      __local float *ppath=sharedmem+get_local_id(0)*gcfg->maxmedia;
 
      gpu_rng_init(t,tnew,n_seed,idx);
+     if(gcfg->savedet) clearpath(ppath,gcfg);
 
      // assuming the initial position is within the domain (mcx_config is supposed to ensure)
      idx1d=gcfg->idx1dorig;
@@ -273,8 +272,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                        sphi=sincos(tmp0,&cphi);
                        GPUDEBUG(("next angle phi %20.16e\n",tmp0));
 
-                       //Henyey-Greenstein Phase Function, "Handbook of Optical Biomedical Diagnostics",2002,Chap3,p234
-                       //see Boas2002
+                       //Henyey-Greenstein Phase Function, "Handbook of Optical 
+                       //Biomedical Diagnostics",2002,Chap3,p234, also see Boas2002
 
                        if(prop.w>EPS){  //if prop.w is too small, the distribution of theta is bad
 		           tmp0=(1.f-prop.w*prop.w)/(1.f-prop.w+2.f*prop.w*rand_next_zangle(t));
@@ -289,7 +288,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 		           stheta=sin(theta);
 		           ctheta=tmp0;
                        }else{  //Wang1995 has acos(2*ran-1), rather than 2*pi*ran, need to check
-			   theta=ONE_PI*rand_next_zangle(t);
+			   theta=TWO_PI*rand_next_zangle(t);
                            stheta=sincos(theta,&ctheta);
                        }
                        GPUDEBUG(("next scat angle theta %20.16e\n",theta));
@@ -301,7 +300,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 		           v=(float4)(
 				tmp1*(v.x*v.z*cphi - v.y*sphi) + v.x*ctheta,
 				tmp1*(v.y*v.z*cphi + v.x*sphi) + v.y*ctheta,
-				-tmp1*tmp0*cphi                         + v.z*ctheta,
+				-tmp1*tmp0*cphi                + v.z*ctheta,
 				v.w
 			   );
                            GPUDEBUG(("new dir: %10.5e %10.5e %10.5e\n",v.x,v.y,v.z));
@@ -319,11 +318,11 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
           p0=p;
 	  if(len>f.x){  //scattering ends in this voxel: mus*gcfg->minstep > s 
-               tmp0=f.x/prop.y;
+               tmp0=f.x/prop.y; // unit=grid
 	       p.xyz+=v.xyz*tmp0;
-               p.w=p.w*exp(-prop.x*tmp0);
+               p.w*=exp(-prop.x*tmp0);
 	       f.x=SAME_VOXEL;
-	       f.y+=tmp0*prop.z*R_C0;  // accumulative time
+	       f.y+=tmp0*prop.z*R_C0;  //propagation time (unit=s)
                GPUDEBUG((">>ends in voxel %f<%f %f [%d]\n",f.x,len,prop.y,idx1d));
 	  }else{                      //otherwise, move gcfg->minstep
                if(mediaid!=medid){
@@ -334,6 +333,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                medid=mediaid;
 	       f.x-=len;     //remaining probability: sum(s_i*mus_i)
 	       f.y+=gcfg->minaccumtime*prop.z; //total time
+               if(gcfg->savedet) ppath[mediaid-1]+=gcfg->minstep; //(unit=grid)
                GPUDEBUG((">>keep going %f<%f %f [%d] %e %e\n",f.x,len,prop.y,idx1d,f.y,f.z));
 	  }
 
@@ -352,7 +352,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
               float flipdir=0.f;
               float4 htime;            //reflection var
 
-              if(gcfg->doreflect) {
+              if(gcfg->doreflect || (gcfg->savedet && (mediaidold & DET_MASK)) ) {
                 //time-of-flight to hit the wall in each direction
                 htime.x=(v.x>EPS||v.x<-EPS)?(floor(p0.x)+(v.x>0.f)-p0.x)/v.x:VERY_BIG;
                 htime.y=(v.y>EPS||v.y<-EPS)?(floor(p0.y)+(v.y>0.f)-p0.y)/v.y:VERY_BIG;
@@ -396,11 +396,19 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
        	       	       	       	    a*2+b*3+c=1
                                */
                                flipdir=-tmp1-flipdir+6.f;
+
+                               htime.x=(v.x>EPS||v.x<-EPS)?(floor(htime.x)+(v.x<0.f)-htime.x)/(-v.x):VERY_BIG;
+                               htime.y=(v.y>EPS||v.y<-EPS)?(floor(htime.y)+(v.y<0.f)-htime.y)/(-v.y):VERY_BIG;
+                               htime.z=(v.z>EPS||v.z<-EPS)?(floor(htime.z)+(v.z<0.f)-htime.z)/(-v.z):VERY_BIG;
+                               tmp1=fmin(fmin(htime.x,htime.y),htime.z);
+                               htime=p-(tmp0+tmp1)*v; /*htime is now the exact exit position*/
                            }
                        }
                      }
                   }
-                }
+                }else{
+		  htime=p0+tmp0*v; /*htime is now the exact exit position*/
+		}
               }
 
               prop=gproperty[mediaid];
@@ -408,25 +416,22 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
               GPUDEBUG(("->ID%d J%d C%d tlen %e flip %d %.1f!=%.1f dir=%f %f %f pos=%f %f %f\n",idx,(int)v.w,
                   (int)f.w,f.y, (int)flipdir, n1,prop.z,v.x,v.y,v.z,p.x,p.y,p.z));
 
-              //recycled some old register variables to save memory
 	      //if hit boundary within the time window and is n-mismatched, rebound
 
               if(gcfg->doreflect&&f.y<gcfg->tmax&&f.y<gcfg->twin1&& flipdir>0.f && n1!=prop.z&&p.w>gcfg->minenergy){
 	          float Rtotal=1.f;
+
                   tmp0=n1*n1;
                   tmp1=prop.z*prop.z;
                   if(flipdir>=3.f) { //flip in z axis
                      cphi=fabs(v.z);
                      sphi=v.x*v.x+v.y*v.y;
-                     v.z=-v.z;
                   }else if(flipdir>=2.f){ //flip in y axis
                      cphi=fabs(v.y);
        	       	     sphi=v.x*v.x+v.z*v.z;
-                     v.y=-v.y;
                   }else if(flipdir>=1.f){ //flip in x axis
                      cphi=fabs(v.x);                //cos(si)
                      sphi=v.y*v.y+v.z*v.z; //sin(si)^2
-                     v.x=-v.x;
                   }
                   len=1.f-tmp0/tmp1*sphi;   //1-[n1/n2*sin(si)]^2
 	          GPUDEBUG((" ref len=%f %f+%f=%f w=%f\n",len,cphi,sphi,cphi*cphi+sphi,p.w));
@@ -444,6 +449,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                   }
 	          if(Rtotal<1.f && rand_next_reflect(t)>Rtotal){ // do transmission
                         if(mediaid==0){ // transmission to external boundary
+                            p.xyz=htime.xyz; p.w=p0.w;
 		    	    launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,(mediaidold & DET_MASK),
 			        ppath,&energyloss,&energyabsorbed,n_det,detectedphoton,gproperty,gdetpos,gcfg);
 			    continue;
@@ -476,6 +482,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 #ifdef MCX_CPU_ONLY
 		  if(stopsign[0]) break;
 #endif
+                  p.xyz=htime.xyz; p.w=p0.w;
 		  launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,(mediaidold & DET_MASK),ppath,
 		      &energyloss,&energyabsorbed,n_det,detectedphoton,gproperty,gdetpos,gcfg);
 		  continue;
@@ -485,7 +492,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	  if(f.y>=f.z){
              GPUDEBUG(("field add to %d->%f(%d)  t(%e)>t0(%e)\n",idx1d,p.w,(int)f.w,f.y,f.z));
              // if t is within the time window, which spans cfg->maxgate*cfg->tstep wide
-             if(gcfg->save2pt&&f.y>=gcfg->twin0 & f.y<gcfg->twin1){
+             if(gcfg->save2pt && f.y>=gcfg->twin0 && f.y<gcfg->twin1){
+                  energyabsorbed+=p.w*prop.x;
 #ifndef USE_ATOMIC
                   // set gcfg->skipradius2 to only start depositing energy when dist^2>gcfg->skipradius2 
                   if(gcfg->skipradius2>EPS){
@@ -502,7 +510,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 //		  atomicFloatAdd(& field[idx1d+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z], p.w);
 #endif
 	     }
-             f.z+=gcfg->minaccumtime; // fluence is a temporal-integration
+             f.z+=gcfg->minaccumtime*prop.z; // fluence is a temporal-integration, unit=s
 	  }
      }
      // accumweight saves the total absorbed energy in the sphere r<sradius.
