@@ -28,13 +28,10 @@ ifeq ($(findstring Msys,$(PLATFORM)), Msys)
   CPPOPT =-c  -D_CRT_SECURE_NO_DEPRECATE -DWIN32
   OBJSUFFIX=.obj
   EXESUFFIX=.exe
-else
-  ifeq ($(findstring x86_64,$(ARCH)), x86_64)
-     ifeq "$(wildcard /usr/local/cuda/lib64)" "/usr/local/cuda/lib64"
-        #LINKOPT=-L/usr/local/cuda/lib64 -lcudart 
-        #LINKOPT=-g -lOpenCL
-     endif
-  endif
+endif
+
+ifdef AMDAPPSDKROOT
+  INCLUDEDIRS +=-I$(AMDAPPSDKROOT)/include
 endif
   
 all logfast:CUCCOPT+=
@@ -55,7 +52,7 @@ OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 all mt fast log logfast racing mtatomic logatomic mtbox logbox debugmt debuglog det: $(OUTPUT_DIR)/$(BINARY)
 
 $(OUTPUT_DIR)/$(BINARY): $(OBJS)
-	$(CCC) $(LINKOPT) $(OBJS) -o $(OUTPUT_DIR)/$(BINARY)
+	$(CCC) $(OBJS) $(LINKOPT) -o $(OUTPUT_DIR)/$(BINARY)
 
 %$(OBJSUFFIX): %.c
 	$(CCC) $(INCLUDEDIRS) $(CPPOPT) -c -o $@  $<

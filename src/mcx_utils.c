@@ -183,7 +183,7 @@ void mcx_writeconfig(const char *fname, Config *cfg){
 
 void mcx_loadconfig(FILE *in, Config *cfg){
      int i,idx1d;
-     unsigned int gates;
+     unsigned int gates,itmp;
      char filename[MAX_PATH_LENGTH]={0}, comment[MAX_PATH_LENGTH],*comm;
      
      if(in==stdin)
@@ -199,6 +199,9 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      	fprintf(stdout,"%d\nPlease specify the position of the source: [10 10 5]\n\t",cfg->seed);
      MCX_ASSERT(fscanf(in,"%f %f %f", &(cfg->srcpos.x),&(cfg->srcpos.y),&(cfg->srcpos.z) )==3);
      comm=fgets(comment,MAX_PATH_LENGTH,in);
+     if(cfg->issrcfrom0==0 && comm!=NULL && sscanf(comm,"%d",&itmp)==1)
+         cfg->issrcfrom0=itmp;
+
      if(in==stdin)
      	fprintf(stdout,"%f %f %f\nPlease specify the normal direction of the source fiber: [0 0 1]\n\t",
                                    cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z);
