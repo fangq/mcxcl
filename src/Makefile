@@ -17,6 +17,10 @@ CPPOPT=-g -Wall -O3 -DMCX_OPENCL -DUSE_OS_TIMER -I/usr/local/cuda/include #-O3
 OBJSUFFIX=.o
 EXESUFFIX=
 
+MAKE       := make
+ECHO       := echo
+MKDIR      := mkdir
+
 FILES=mcx_host mcx_utils tictoc mcextreme
 
 ARCH = $(shell uname -m)
@@ -51,7 +55,10 @@ OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 
 all mt fast log logfast racing mtatomic logatomic mtbox logbox debugmt debuglog det: $(OUTPUT_DIR)/$(BINARY)
 
-$(OUTPUT_DIR)/$(BINARY): $(OBJS)
+makedirs:
+	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) $(OUTPUT_DIR); fi
+
+$(OUTPUT_DIR)/$(BINARY): makedirs $(OBJS)
 	$(CCC) $(OBJS) $(LINKOPT) -o $(OUTPUT_DIR)/$(BINARY)
 
 %$(OBJSUFFIX): %.c

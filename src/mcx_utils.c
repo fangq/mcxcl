@@ -22,7 +22,7 @@
 #include "mcx_utils.h"
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','G','W','z',
-                 'd','r','S','p','e','U','R','l','L','I','o','c','k','v','X','\0'};
+                 'd','r','S','p','e','U','R','l','L','I','o','c','k','v','J','\0'};
 const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--thread","--blocksize","--session","--array","--gategroup",
                  "--reflect","--reflect3","--device","--devicelist","--workload","--srcfrom0",
@@ -37,7 +37,7 @@ void mcx_initcfg(Config *cfg){
      cfg->dim.x=0;
      cfg->dim.y=0;
      cfg->dim.z=0;
-     cfg->nblocksize=128;
+     cfg->nblocksize=64;
      cfg->nphoton=0;
      cfg->nthread=0;
      cfg->seed=0;
@@ -46,7 +46,7 @@ void mcx_initcfg(Config *cfg){
      cfg->isreflect=1;
      cfg->isref3=0;
      cfg->isnormalized=1;
-     cfg->issavedet=1;
+     cfg->issavedet=0;
      cfg->respin=1;
      cfg->issave2pt=1;
      cfg->isgpuinfo=0;
@@ -614,7 +614,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     case 'k': 
 		     	        i=mcx_readarg(argc,argv,i,cfg->kernelfile,"string");
 				break;
-		     case 'X': 
+		     case 'J': 
 		     	        i=mcx_readarg(argc,argv,i,cfg->compileropt,"string");
 				break;
                      case 'D':
@@ -680,9 +680,8 @@ where possible parameters include (the first item in [] is the default value)\n\
  -i 	        (--interactive) interactive mode\n\
  -f config      (--input)	read config from a file\n\
  -t [1024|int]  (--thread)	total thread number\n\
- -T [128|int]   (--blocksize)	thread number per block\n\
- -m [0|int]     (--move)	total photon moves\n\
- -n [0|int]     (--photon)	total photon number (not supported yet, use -m only)\n\
+ -T [64|int]    (--blocksize)	thread number per block\n\
+ -n [0|int]     (--photon)	total photon number\n\
  -r [1|int]     (--repeat)	number of repeations\n\
  -a [0|1]       (--array)	0 for Matlab array, 1 for C array\n\
  -z [0|1]       (--srcfrom0)    src/detector coordinates start from 0, otherwise from 1\n\
@@ -692,7 +691,7 @@ where possible parameters include (the first item in [] is the default value)\n\
  -e [0.|float]  (--minenergy)	minimum energy level to propagate a photon\n\
  -R [0.|float]  (--skipradius)  minimum distance to source to start accumulation\n\
  -U [1|0]       (--normalize)	1 to normailze the fluence to unitary, 0 to save raw fluence\n\
- -d [1|0]       (--savedet)	1 to save photon info at detectors, 0 not to save\n\
+ -d [0|1]       (--savedet)	1 to save photon info at detectors, 0 not to save\n\
  -S [1|0]       (--save2pt)	1 to save the fluence field, 0 do not save\n\
  -s sessionid   (--session)	a string to identify this specific simulation (and output files)\n\
  -p [0|int]     (--printlen)	number of threads to print (debug)\n\
@@ -701,10 +700,10 @@ where possible parameters include (the first item in [] is the default value)\n\
  -L             (--listgpu)	print GPU information only\n\
  -I             (--printgpu)	print GPU information and run program\n\
  -c             (--cpu) 	use CPU as the platform for OpenCL backend\n\
- -k[mcx_core.cl](--kernel)      specify OpenCL kernel source\n\
+ -k mcx_core.cl (--kernel)      specify path to OpenCL kernel source file\n\
  -G '0111'      (--devicelist)  specify the active OpenCL devices (1 enable, 0 disable)\n\
  -W '50,30,20'  (--workload)    specify relative workload for each device; total is the sum\n\
- -X '-D MCX'    (--compileropt) specify additional JIT compiler options\n\
+ -J '-D MCX'    (--compileropt) specify additional JIT compiler options\n\
 example:\n\
-       %s -t 1024 -T 256 -m 1000000 -f input.inp -s test -r 1 -a 0 -g 10 -U 0\n",exename,exename);
+  %s -t 1024 -T 64 -n 1e7 -f input.inp -s test -r 1 -b 0 -G 1010 -W '50,50' -k ../../src/mcx_core.cl\n",exename,exename);
 }
