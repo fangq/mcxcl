@@ -100,17 +100,11 @@ void logistic_step(RandType *t, RandType *tnew, int len_1){
     t[2]=FUN(t[2]);
     t[3]=FUN(t[3]);
     t[4]=FUN(t[4]);
-    tnew[3]=RING_FUN(t[0],t[4],t[1]);   /* shuffle the results by separation of 2*/
-    tnew[4]=RING_FUN(t[1],t[0],t[2]);
-    tnew[0]=RING_FUN(t[2],t[1],t[3]);
-    tnew[1]=RING_FUN(t[3],t[2],t[4]);
-    tnew[2]=RING_FUN(t[4],t[3],t[0]);
-    tmp =t[0];
-    t[0]=t[2];
-    t[2]=t[4];
-    t[4]=t[1];
-    t[1]=t[3];
-    t[3]=tmp;
+    tnew[4]=RING_FUN(t[0],t[4],t[1]);   /* shuffle the results by separation of 2*/
+    tnew[0]=RING_FUN(t[1],t[0],t[2]);
+    tnew[1]=RING_FUN(t[2],t[1],t[3]);
+    tnew[2]=RING_FUN(t[3],t[2],t[4]);
+    tnew[3]=RING_FUN(t[4],t[3],t[0]);
 }
 // generate random number for the next zenith angle
 void rand_need_more(RandType t[RAND_BUF_LEN],RandType tbuf[RAND_BUF_LEN]){
@@ -134,22 +128,40 @@ void gpu_rng_init(RandType t[RAND_BUF_LEN], RandType tnew[RAND_BUF_LEN],__global
     logistic_init(t,tnew,n_seed,idx);
 }
 // generate [0,1] random number for the next scattering length
-float rand_next_scatlen(RandType t[RAND_BUF_LEN]){
+float rand_next_scatlen(RandType t[RAND_BUF_LEN], RandType tnew[RAND_BUF_LEN]){
+    rand_need_more(t,tnew);
     RandType ran=rand_uniform01(t[0]);
+    if(ran==0.f) ran=rand_uniform01(t[1]);
     return ((ran==0.f)?LOG_MT_MAX:(-log(ran)));
 }
 // generate [0,1] random number for the next arimuthal angle
-float rand_next_aangle(RandType t[RAND_BUF_LEN]){
-    return rand_uniform01(t[2]);
+float rand_next_aangle(RandType t[RAND_BUF_LEN], RandType tnew[RAND_BUF_LEN]){
+    rand_need_more(t,tnew);
+    return rand_uniform01(t[t[2]+t[3]>=1.f]);
 }
-// generate random number for the next zenith angle
-float rand_next_zangle(RandType t[RAND_BUF_LEN]){
-    return rand_uniform01(t[4]);
+
+#define rand_next_zangle(t1,t2) rand_next_aangle(t1,t2)
+#define rand_next_reflect(t1,t2) rand_next_aangle(t1,t2)
+#define rand_do_roulette(t1,t2) rand_next_aangle(t1,t2) 
+
+// OpenCL float atomicadd hack:
+// http://suhorukov.blogspot.co.uk/2011/12/opencl-11-atomic-operations-on-floating.html
+
+inline void atomicadd(volatile __global float *source, const float operand) {
+    union {
+        unsigned int intVal;
+        float floatVal;
+    } newVal;
+    union {
+        unsigned int intVal;
+        float floatVal;
+    } prevVal;
+    do {
+        prevVal.floatVal = *source;
+        newVal.floatVal = prevVal.floatVal + operand;
+    } while (atomic_cmpxchg((volatile __global unsigned int *)source, prevVal.intVal, newVal.intVal) != prevVal.intVal);
 }
-// generate random number for the next zenith angle
-float rand_next_reflect(RandType t[RAND_BUF_LEN]){
-    return rand_uniform01(t[1]);
-}
+
 
 void clearpath(__local float *p, __constant MCXParam gcfg[]){
       uint i;
@@ -170,18 +182,19 @@ uint finddetector(float4 p0[],__constant float4 gdetpos[],__constant MCXParam gc
       return 0;
 }
 
-void savedetphoton(__global float n_det[],__global uint *detectedphoton,float weight,
+void savedetphoton(__global float n_det[],__global uint *detectedphoton,float nscat,
                    __local float *ppath,float4 p0[],__constant float4 gdetpos[],__constant MCXParam gcfg[]){
-      uint j,baseaddr=0;
-      j=finddetector(p0,gdetpos,gcfg);
-      if(j){
-	 baseaddr=atomic_inc(detectedphoton);
+      uint detid;
+      detid=finddetector(p0,gdetpos,gcfg);
+      if(detid){
+	 uint baseaddr=atomic_inc(detectedphoton);
 	 if(baseaddr<gcfg->maxdetphoton){
+	    uint i;
 	    baseaddr*=gcfg->maxmedia+2;
-	    n_det[baseaddr++]=j;
-	    n_det[baseaddr++]=weight;
-	    for(j=0;j<gcfg->maxmedia;j++){
-		n_det[baseaddr+j]=ppath[j]; // save partial pathlength to the memory
+	    n_det[baseaddr++]=detid;
+	    n_det[baseaddr++]=nscat;
+	    for(i=0;i<gcfg->maxmedia;i++){
+		n_det[baseaddr+i]=ppath[i]; // save partial pathlength to the memory
 	    }
 	 }
       }
@@ -189,10 +202,10 @@ void savedetphoton(__global float n_det[],__global uint *detectedphoton,float we
 #endif
 
 
-void launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
-           uint *mediaid,uchar isdet, __local float ppath[],float energyloss[],float energyabsorbed[],
+int launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
+           uint *mediaid,uchar isdet, __local float ppath[],float energyloss[],float energylaunched[],
 	   __global float n_det[],__global uint *dpnum, __constant float4 gproperty[],
-	   __constant float4 gdetpos[],__constant MCXParam gcfg[]){
+	   __constant float4 gdetpos[],__constant MCXParam gcfg[],int threadid, int threadphoton, int oddphotons){
 
       *energyloss+=p[0].w;  // sum all the remaining energy
 #ifdef SAVE_DETECTORS
@@ -204,12 +217,16 @@ void launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
 	 clearpath(ppath,gcfg);
       }
 #endif
+      if(f->w>=(threadphoton+(threadid<oddphotons)))
+         return 1; // all photons complete 
       p[0]=gcfg->ps;
       v[0]=gcfg->c0;
       f[0]=(float4)(0.f,0.f,gcfg->minaccumtime,f[0].w+1);
       *idx1d=gcfg->idx1dorig;
       *mediaid=gcfg->mediaidorig;
       prop[0]=gproperty[*mediaid]; //always use mediaid to read gproperty[]
+      *energylaunched+=p[0].w;
+      return 0;
 }
 
 /*
@@ -227,11 +244,12 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      float4 v=gcfg->c0;  //{x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event
      float4 f=(float4)(0.f,0.f,gcfg->minaccumtime,0.f);  //f.w can be dropped to save register
      float4 p0;            //reflection var, to save pre-reflection p state
-     float  energyloss=genergy[idx<<1];
-     float  energyabsorbed=genergy[(idx<<1)+1];
+     float  energyloss=genergy[idx*3];
+     float  energyabsorbed=genergy[idx*3+1];
+     float  energylaunched=genergy[idx*3+2];
 
      uint idx1d, idx1dold;   //idx1dold is related to reflection
-     int np= (idx<ophoton) ? nphoton+1 : nphoton;
+     int np= nphoton + (idx<ophoton);
 
      uint   mediaid,mediaidold;
      char   medid=-1;
@@ -258,17 +276,16 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      }
      prop=gproperty[mediaid];
 
-     while(f.w<np) {
+     while(f.w<=np) {
 
           GPUDEBUG(("*i= (%d) L=%f w=%e a=%f\n",(int)f.w,f.x,p.w,f.y));
 	  if(f.x<=0.f) {  // if this photon has finished the current jump
-               rand_need_more(t,tnew);
-   	       f.x=rand_next_scatlen(t);
+   	       f.x=rand_next_scatlen(t,tnew);
 
                GPUDEBUG(("next scat len=%20.16e \n",f.x));
 	       if(p.w<1.f){ //weight
                        //random arimuthal angle
-                       tmp0=TWO_PI*rand_next_aangle(t); //next arimuth angle
+                       tmp0=TWO_PI*rand_next_aangle(t,tnew); //next arimuth angle
                        sphi=sincos(tmp0,&cphi);
                        GPUDEBUG(("next angle phi %20.16e\n",tmp0));
 
@@ -276,7 +293,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                        //Biomedical Diagnostics",2002,Chap3,p234, also see Boas2002
 
                        if(prop.w>EPS){  //if prop.w is too small, the distribution of theta is bad
-		           tmp0=(1.f-prop.w*prop.w)/(1.f-prop.w+2.f*prop.w*rand_next_zangle(t));
+		           tmp0=(1.f-prop.w*prop.w)/(1.f-prop.w+2.f*prop.w*rand_next_zangle(t,tnew));
 		           tmp0*=tmp0;
 		           tmp0=(1.f+prop.w*prop.w-tmp0)/(2.f*prop.w);
 
@@ -287,8 +304,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 		           theta=acos(tmp0);
 		           stheta=sin(theta);
 		           ctheta=tmp0;
-                       }else{  //Wang1995 has acos(2*ran-1), rather than 2*pi*ran, need to check
-			   theta=TWO_PI*rand_next_zangle(t);
+                       }else{
+			   theta=acos(2.f*rand_next_zangle(t,tnew)-1.f);
                            stheta=sincos(theta,&ctheta);
                        }
                        GPUDEBUG(("next scat angle theta %20.16e\n",theta));
@@ -447,23 +464,25 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                          idx,(int)v.w,(int)f.w,
 	                 flipdir,idx1dold,idx1d,cphi,sphi,p.x,p.y,p.z,p0.x,p0.y,p0.z));
                   }
-	          if(Rtotal<1.f && rand_next_reflect(t)>Rtotal){ // do transmission
+	          if(Rtotal<1.f && rand_next_reflect(t,tnew)>Rtotal){ // do transmission
                         if(mediaid==0){ // transmission to external boundary
                             p.xyz=htime.xyz; p.w=p0.w;
-		    	    launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,(mediaidold & DET_MASK),
-			        ppath,&energyloss,&energyabsorbed,n_det,detectedphoton,gproperty,gdetpos,gcfg);
+		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,(mediaidold & DET_MASK),
+			        ppath,&energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton))
+                                    break;
 			    continue;
 			}
 			tmp0=n1/prop.z;
                 	if(flipdir>=3.f) { //transmit through z plane
                 	   v.xy=tmp0*v.xy;
+			   v.z=sqrt(1.f - v.y*v.y - v.x*v.x);
                 	}else if(flipdir>=2.f){ //transmit through y plane
                 	   v.xz=tmp0*v.xz;
+			   v.y=sqrt(1.f - v.x*v.x - v.z*v.z);
                 	}else if(flipdir>=1.f){ //transmit through x plane
                 	   v.yz=tmp0*v.yz;
+			   v.x=sqrt(1.f - v.y*v.y - v.z*v.z);
                 	}
-			tmp0=rsqrt(v.x*v.x+v.y*v.y+v.z*v.z);
-			v.xyz=v.xyz*tmp0;
 		  }else{ //do reflection
                 	if(flipdir>=3.f) { //flip in z axis
                 	   v.z=-v.z;
@@ -483,8 +502,9 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 		  if(stopsign[0]) break;
 #endif
                   p.xyz=htime.xyz; p.w=p0.w;
-		  launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,(mediaidold & DET_MASK),ppath,
-		      &energyloss,&energyabsorbed,n_det,detectedphoton,gproperty,gdetpos,gcfg);
+		  if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,(mediaidold & DET_MASK),ppath,
+		      &energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton))
+                         break;
 		  continue;
               }
 	  }
@@ -506,8 +526,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                       field[idx1d+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z]+=p.w;
                   }
 #else
-                  // ifndef CUDA_NO_SM_11_ATOMIC_INTRINSICS
-//		  atomicFloatAdd(& field[idx1d+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z], p.w);
+		  atomicadd(& field[idx1d+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z], p.w);
 #endif
 	     }
              f.z+=gcfg->minaccumtime*prop.z; // fluence is a temporal-integration, unit=s
@@ -520,7 +539,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
      f.z=accumweight;
 
-     genergy[idx<<1]=energyloss;
-     genergy[(idx<<1)+1]=energyabsorbed;
+     genergy[idx*3]=energyloss;
+     genergy[idx*3+1]=energyabsorbed;
+     genergy[idx*3+2]=energylaunched;
 }
 

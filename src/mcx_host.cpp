@@ -175,7 +175,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cl_uint i,j,iter;
      cl_float  minstep=MIN(MIN(cfg->steps.x,cfg->steps.y),cfg->steps.z);
      cl_float t,twindow0,twindow1;
-     cl_float energyloss=0.f,energyabsorbed=0.f,simuenergy,fullload=0.f;
+     cl_float energyloss=0.f,simuenergy,fullload=0.f;
      cl_float *energy;
      cl_int stopsign=0;
      cl_uint detected=0,workdev,activedev;
@@ -306,7 +306,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      mcblock[0]=cfg->nblocksize;
 
      Pseed=(cl_uint*)malloc(sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN);
-     energy=(cl_float*)calloc(sizeof(cl_float),cfg->nthread*2);
+     energy=(cl_float*)calloc(sizeof(cl_float),cfg->nthread*3);
      Pdet=(float*)calloc(cfg->maxdetphoton,sizeof(float)*(cfg->medianum+1));
 
      cachebox.x=(cp1.x-cp0.x+1);
@@ -337,7 +337,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
        OCL_ASSERT(((gseed[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,Pseed,&status),status)));
        OCL_ASSERT(((gfield[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_float)*(dimxyz)*cfg->maxgate,field,&status),status)));
        OCL_ASSERT(((gdetphoton[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),Pdet,&status),status)));
-       OCL_ASSERT(((genergy[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*cfg->nthread*2,energy,&status),status)));
+       OCL_ASSERT(((genergy[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*cfg->nthread*3,energy,&status),status)));
        OCL_ASSERT(((gstopsign[i]=clCreateBuffer(mcxcontext,RW_PTR, sizeof(cl_uint),&stopsign,&status),status)));
        OCL_ASSERT(((gdetected[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint),&detected,&status),status)));
        OCL_ASSERT(((gdetpos[i]=clCreateBuffer(mcxcontext,RO_MEM, cfg->detnum*sizeof(float4),cfg->detpos,&status),status)));
@@ -346,7 +346,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      fprintf(cfg->flog,"\
 ===============================================================================\n\
 =                     Monte Carlo eXtreme (MCX) -- OpenCL                     =\n\
-=     Copyright (c) 2009-2012 Qianqian Fang <fangq at nmr.mgh.harvard.edu>    =\n\
+=     Copyright (c) 2009-2014 Qianqian Fang <fangq at nmr.mgh.harvard.edu>    =\n\
 =                                                                             =\n\
 =    Martinos Center for Biomedical Imaging, Massachusetts General Hospital   =\n\
 ===============================================================================\n\
@@ -485,17 +485,18 @@ is more than what your have specified (%d), please use the -H option to specify 
                    if(cfg->isnormalized){
 
                        fprintf(cfg->flog,"normizing raw data ...\t");
-                       OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
+                       OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*cfg->nthread*3,
 	                                        energy, 0, NULL, NULL)));
                        eabsorp=0.f;
                        for(i=1;i<cfg->nthread;i++){
-                           energy[0]+=energy[i<<1];
-       	       	       	   energy[1]+=energy[(i<<1)+1];
+                           energy[0]+=energy[i*3];
+       	       	       	   energy[1]+=energy[i*3+1];
+       	       	       	   energy[2]+=energy[i*3+2];
                            //eabsorp+=Plen[i].z;  // the accumulative absorpted energy near the source
                        }
                        eabsorp+=energy[1];
 		       energyloss+=energy[0];
-		       energyabsorbed+=energy[1];
+		       simuenergy=energy[2];
                        scale=(simuenergy-energy[0])/(simuenergy*Vvox*cfg->tstep*eabsorp);
                        fprintf(cfg->flog,"normalization factor alpha=%f\n",scale);  fflush(cfg->flog);
                        mcx_normalize(field,scale,fieldlen);
@@ -506,13 +507,8 @@ is more than what your have specified (%d), please use the -H option to specify 
 
                    *totalenergy+=simuenergy;
                    fprintf(cfg->flog,"total simulated energy: %f\n",*totalenergy);
-                   fprintf(cfg->flog,"saving data complete : %d ms\n",GetTimeMillis()-tic);
+                   fprintf(cfg->flog,"saving data complete : %d ms\n\n",GetTimeMillis()-tic);
 		   fflush(cfg->flog);
-
-                   if(*totalenergy>EPS)
-		   	*totalenergy=1.f/(*totalenergy);
-                   for(i=0;i<fieldlen;i++)
-		   	fluence[i]*=(*totalenergy);
 
                    fprintf(cfg->flog,"saving data to file ...\t");
                    mcx_savedata(fluence,fieldlen,t>cfg->tstart,"mc2",cfg);
@@ -538,8 +534,8 @@ is more than what your have specified (%d), please use the -H option to specify 
            }// loop over work devices
        }// iteration
        if(twindow1<cfg->tend){
-	    cl_float *tmpenergy=(cl_float*)calloc(sizeof(cl_float),cfg->nthread*2);
-            OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*cfg->nthread*2,
+	    cl_float *tmpenergy=(cl_float*)calloc(sizeof(cl_float),cfg->nthread*3);
+            OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*cfg->nthread*3,
                                         tmpenergy, 0, NULL, NULL)));
 	    OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 4, sizeof(cl_mem), (void*)(genergy+devid))));	
 	    free(tmpenergy);
@@ -550,7 +546,7 @@ is more than what your have specified (%d), please use the -H option to specify 
      fprintf(cfg->flog,"simulated %d photons using %d CUs with %d threads (repeat x%d)\nMCXCL simulation speed: %.2f photon/ms\n",
              cfg->nphoton, workdev ,cfg->nthread,cfg->respin,(double)cfg->nphoton/toc); fflush(cfg->flog);
      fprintf(cfg->flog,"exit energy:%16.8e + absorbed energy:%16.8e = total: %16.8e\n",
-             energyloss,energyabsorbed,energyloss+energyabsorbed);fflush(cfg->flog);
+             energyloss,(*totalenergy)-energyloss,*totalenergy);fflush(cfg->flog);
      fflush(cfg->flog);
 
      clReleaseMemObject(gmedia);

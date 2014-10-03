@@ -37,6 +37,8 @@ typedef struct KernelParams {
   cl_uint detnum;
   cl_uint idx1dorig;
   cl_uint mediaidorig;
+  cl_uint threadphoton;
+  cl_uint oddphotons;
 }MCXParam __attribute__ ((aligned (16)));
 
 void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy);
