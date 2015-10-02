@@ -93,7 +93,7 @@ typedef struct KernelParams {
 #define RING_FUN(x,y,z)      (NU2*(x)+NU*((y)+(z)))
 
 
-void logistic_step(RandType *t, RandType *tnew, int len_1){
+void logistic_step(__private RandType *t, __private RandType *tnew, int len_1){
     RandType tmp;
     t[0]=FUN(t[0]);
     t[1]=FUN(t[1]);
@@ -107,12 +107,12 @@ void logistic_step(RandType *t, RandType *tnew, int len_1){
     tnew[3]=RING_FUN(t[4],t[3],t[0]);
 }
 // generate random number for the next zenith angle
-void rand_need_more(RandType t[RAND_BUF_LEN],RandType tbuf[RAND_BUF_LEN]){
+void rand_need_more(__private RandType t[RAND_BUF_LEN], __private RandType tbuf[RAND_BUF_LEN]){
     logistic_step(t,tbuf,RAND_BUF_LEN-1);
     logistic_step(tbuf,t,RAND_BUF_LEN-1);
 }
 
-void logistic_init(RandType *t,RandType *tnew,__global uint seed[],uint idx){
+void logistic_init(__private RandType *t, __private RandType *tnew,__global uint seed[],uint idx){
      int i;
      for(i=0;i<RAND_BUF_LEN;i++)
            t[i]=(RandType)seed[idx*RAND_BUF_LEN+i]*R_MAX_C_RAND;
@@ -124,18 +124,19 @@ void logistic_init(RandType *t,RandType *tnew,__global uint seed[],uint idx){
 RandType rand_uniform01(RandType v){
     return logistic_uniform(v);
 }
-void gpu_rng_init(RandType t[RAND_BUF_LEN], RandType tnew[RAND_BUF_LEN],__global uint *n_seed,int idx){
+void gpu_rng_init(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN],__global uint *n_seed,int idx){
+//void gpu_rng_init(RandType *t, RandType *tnew, __global uint *n_seed,int idx){
     logistic_init(t,tnew,n_seed,idx);
 }
 // generate [0,1] random number for the next scattering length
-float rand_next_scatlen(RandType t[RAND_BUF_LEN], RandType tnew[RAND_BUF_LEN]){
+float rand_next_scatlen(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN]){
     rand_need_more(t,tnew);
     RandType ran=rand_uniform01(t[0]);
     if(ran==0.f) ran=rand_uniform01(t[1]);
     return ((ran==0.f)?LOG_MT_MAX:(-log(ran)));
 }
 // generate [0,1] random number for the next arimuthal angle
-float rand_next_aangle(RandType t[RAND_BUF_LEN], RandType tnew[RAND_BUF_LEN]){
+float rand_next_aangle(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN]){
     rand_need_more(t,tnew);
     return rand_uniform01(t[t[2]+t[3]>=1.f]);
 }
