@@ -94,7 +94,6 @@ typedef struct KernelParams {
 
 
 void logistic_step(__private RandType *t, __private RandType *tnew, int len_1){
-    RandType tmp;
     t[0]=FUN(t[0]);
     t[1]=FUN(t[1]);
     t[2]=FUN(t[2]);
