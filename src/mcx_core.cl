@@ -94,6 +94,7 @@ typedef struct KernelParams {
 
 
 void logistic_step(__private RandType *t, __private RandType *tnew, int len_1){
+    RandType tmp;
     t[0]=FUN(t[0]);
     t[1]=FUN(t[1]);
     t[2]=FUN(t[2]);
@@ -217,7 +218,7 @@ int launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
 	 clearpath(ppath,gcfg);
       }
 #endif
-      if(f[0]->w>=(threadphoton+(threadid<oddphotons)))
+      if(f->w>=(threadphoton+(threadid<oddphotons)))
          return 1; // all photons complete 
       p[0]=gcfg->ps;
       v[0]=gcfg->c0;
