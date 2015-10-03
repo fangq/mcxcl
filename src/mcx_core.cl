@@ -217,7 +217,7 @@ int launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
 	 clearpath(ppath,gcfg);
       }
 #endif
-      if(f[0]->w>=(threadphoton+(threadid<oddphotons)))
+      if(f[0].w>=(threadphoton+(threadid<oddphotons)))
          return 1; // all photons complete 
       p[0]=gcfg->ps;
       v[0]=gcfg->c0;

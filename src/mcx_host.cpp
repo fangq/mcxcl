@@ -96,74 +96,74 @@ void ocl_assess(int cuerr,const char *file,const int linenum){
 */
 cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
 
-    uint i,j,k,devnum;
-    cl_uint numPlatforms,devparam,clockspeed;
-    cl_ulong devmem,constmem;
-    cl_platform_id platform = NULL;
-    cl_device_type devtype[]={CL_DEVICE_TYPE_CPU,CL_DEVICE_TYPE_GPU};
-    cl_context context;                 // compute context
-    const char *devname[]={"CPU","GPU"};
-    char pbuf[100];
-    cl_context_properties cps[3]={CL_CONTEXT_PLATFORM, 0, 0};
-    cl_int status = 0;
-    size_t deviceListSize;
+  uint i,j,k,devnum;
+  cl_uint numPlatforms,devparam,clockspeed;
+  cl_ulong devmem,constmem;
+  cl_platform_id platform = NULL;
+  cl_device_type devtype[]={CL_DEVICE_TYPE_CPU,CL_DEVICE_TYPE_GPU};
+  cl_context context;                 // compute context
+  const char *devname[]={"CPU","GPU"};
+  char pbuf[100];
+  cl_context_properties cps[3]={CL_CONTEXT_PLATFORM, 0, 0};
+  cl_int status = 0;
+  size_t deviceListSize;
 
-    clGetPlatformIDs(0, NULL, &numPlatforms);
-    if(activedev) *activedev=0;
+  clGetPlatformIDs(0, NULL, &numPlatforms);
+  if(activedev) *activedev=0;
 
-    if (numPlatforms>0) {
-        cl_platform_id* platforms =(cl_platform_id*)malloc(sizeof(cl_platform_id)*numPlatforms);
-        OCL_ASSERT((clGetPlatformIDs(numPlatforms, platforms, NULL)));
-        for (i = 0; i < numPlatforms; ++i) {
-            platform = platforms[i];
-	    if(1){
-                OCL_ASSERT((clGetPlatformInfo(platforms[i],
-                          CL_PLATFORM_NAME,sizeof(pbuf),pbuf,NULL)));
-	        if(cfg->isgpuinfo) printf("Platform [%d] Name %s\n",i,pbuf);
-                cps[1]=(cl_context_properties)platform;
-		if(activedev) *activedev=0;
-        	for(j=0; j<2; j++){
-		    cl_device_id * devices;
-		    context=clCreateContextFromType(cps,devtype[j],NULL,NULL,&status);
-		    if(status!=CL_SUCCESS){
-		            clReleaseContext(context);
-			    continue;
-		    }
-		    OCL_ASSERT((clGetContextInfo(context, CL_CONTEXT_DEVICES,0,NULL,&deviceListSize)));
-                    devices = (cl_device_id*)malloc(deviceListSize);
-                    OCL_ASSERT((clGetContextInfo(context,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL)));
-		    devnum=deviceListSize/sizeof(cl_device_id);
-		    if(activedev)
-		      for(k=0;k<MAX_DEVICE;k++){
-			if(cfg->deviceid[k]=='\0')
-				break;
-			else
-				(*activedev)++;
-		      }
-		    if(cfg->isgpuinfo)
-                      for(k=0;k<devnum;k++){
-                	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_NAME,100,(void*)&pbuf,NULL)));
-                	printf("============ %s device [%d of %d]: %s  ============\n",devname[j],k+1,devnum,pbuf);
-			OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),(void*)&devparam,NULL)));
-                	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GLOBAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL)));
-                	printf(" Compute units   :\t%d core(s)\n",(uint)devparam);
-                	printf(" Global memory   :\t%ld B\n",(unsigned long)devmem);
-                	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_LOCAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL)));
-                	printf(" Local memory    :\t%ld B\n",(unsigned long)devmem);
-                	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,sizeof(cl_ulong),(void*)&constmem,NULL)));
-                	printf(" Constant memory :\t%ld B\n",(unsigned long)constmem);
-                	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CLOCK_FREQUENCY,sizeof(cl_uint),(void*)&clockspeed,NULL)));
-                	printf(" Clock speed     :\t%d MHz\n",clockspeed);
-                      }
-                    free(devices);
-                    clReleaseContext(context);
-        	}
-	    }
+  if (numPlatforms>0) {
+    cl_platform_id* platforms =(cl_platform_id*)malloc(sizeof(cl_platform_id)*numPlatforms);
+    OCL_ASSERT((clGetPlatformIDs(numPlatforms, platforms, NULL)));
+    for (i = 0; i < numPlatforms; ++i) {
+      platform = platforms[i];
+      if(1){
+        OCL_ASSERT((clGetPlatformInfo(platforms[i],
+                CL_PLATFORM_NAME,sizeof(pbuf),pbuf,NULL)));
+        if(cfg->isgpuinfo) printf("Platform [%d] Name %s\n",i,pbuf);
+        cps[1]=(cl_context_properties)platform;
+        if(activedev) *activedev=0;
+        for(j=0; j<2; j++){
+          cl_device_id * devices;
+          context=clCreateContextFromType(cps,devtype[j],NULL,NULL,&status);
+          if(status!=CL_SUCCESS){
+            clReleaseContext(context);
+            continue;
+          }
+          OCL_ASSERT((clGetContextInfo(context, CL_CONTEXT_DEVICES,0,NULL,&deviceListSize)));
+          devices = (cl_device_id*)malloc(deviceListSize);
+          OCL_ASSERT((clGetContextInfo(context,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL)));
+          devnum=deviceListSize/sizeof(cl_device_id);
+          if(activedev)
+            for(k=0;k<MAX_DEVICE;k++){
+              if(cfg->deviceid[k]=='\0')
+                break;
+              else
+                (*activedev)++;
+            }
+          if(cfg->isgpuinfo)
+            for(k=0;k<devnum;k++){
+              OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_NAME,100,(void*)&pbuf,NULL)));
+              printf("============ %s device [%d of %d]: %s  ============\n",devname[j],k+1,devnum,pbuf);
+              OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),(void*)&devparam,NULL)));
+              OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GLOBAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL)));
+              printf(" Compute units   :\t%d core(s)\n",(uint)devparam);
+              printf(" Global memory   :\t%ld B\n",(unsigned long)devmem);
+              OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_LOCAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL)));
+              printf(" Local memory    :\t%ld B\n",(unsigned long)devmem);
+              OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,sizeof(cl_ulong),(void*)&constmem,NULL)));
+              printf(" Constant memory :\t%ld B\n",(unsigned long)constmem);
+              OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CLOCK_FREQUENCY,sizeof(cl_uint),(void*)&clockspeed,NULL)));
+              printf(" Clock speed     :\t%d MHz\n",clockspeed);
+            }
+          free(devices);
+          clReleaseContext(context);
         }
-        free(platforms);
+      }
     }
-    if(cfg->isgpuinfo==2) exit(0);
-    return platform;
+    free(platforms);
+  }
+  if(cfg->isgpuinfo==2) exit(0);
+  return platform;
 }
 
 
@@ -214,14 +214,28 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      float  *Pdet;
      char opt[MAX_PATH_LENGTH]={'\0'};
 
-     MCXParam param={{{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}},
-		     {{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f}},
-		     {{cfg->dim.x,cfg->dim.y,cfg->dim.z,0}},dimlen,cp0,cp1,cachebox,
-		     minstep,0.f,0.f,cfg->tend,R_C0*cfg->unitinmm,cfg->isrowmajor,
-                     cfg->issave2pt,cfg->isreflect,cfg->isrefint,cfg->issavedet,1.f/cfg->tstep,
-                     cfg->minenergy,
-                     cfg->sradius*cfg->sradius,minstep*R_C0*cfg->unitinmm,cfg->maxdetphoton,
-                     cfg->medianum-1,cfg->detnum,0,0};
+     MCXParam param={{{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}},            
+       {{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f}},                          
+       {{static_cast <float>(cfg->dim.x),                                          
+          static_cast <float>(cfg->dim.y),                                          
+          static_cast <float>(cfg->dim.z),0.f}},                                    
+       dimlen,cp0,cp1,                                                             
+       cachebox,                                                                   
+       minstep,                                                                    
+       0.f,0.f,cfg->tend,                                                          
+       R_C0*cfg->unitinmm,                                                         
+       static_cast <cl_uint>(cfg->isrowmajor),                                     
+       static_cast <cl_uint>(cfg->issave2pt),                                      
+       static_cast <cl_uint>(cfg->isreflect),                                      
+       static_cast <cl_uint>(cfg->isrefint),                                       
+       static_cast <cl_uint>(cfg->issavedet),                                      
+       1.f/cfg->tstep,                                                             
+       cfg->minenergy,                                                             
+       cfg->sradius*cfg->sradius,                                                  
+       minstep*R_C0*cfg->unitinmm,                                                 
+       cfg->maxdetphoton,                                                          
+       cfg->medianum-1,                                                            
+       cfg->detnum,0,0};
 
      platform=mcx_set_gpu(cfg,NULL);
 
@@ -397,7 +411,7 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 
 	 OCL_ASSERT(((mcxkernel[i] = clCreateKernel(mcxprogram, "mcx_main_loop", &status),status)));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 0, sizeof(cl_uint),(void*)&threadphoton)));
-         OCL_ASSERT((clSetKernelArg(mcxkernel[i], 1, sizeof(cl_uint),(void*)&oddphotons)));
+   OCL_ASSERT((clSetKernelArg(mcxkernel[i], 1, sizeof(cl_uint),(void*)&oddphotons)));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 2, sizeof(cl_mem), (void*)&gmedia)));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 3, sizeof(cl_mem), (void*)(gfield+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 4, sizeof(cl_mem), (void*)(genergy+i))));
@@ -427,19 +441,18 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
        //total number of repetition for the simulations, results will be accumulated to field
        for(iter=0;iter<cfg->respin;iter++){
            fprintf(cfg->flog,"simulation run#%2d ... \t",iter+1); fflush(cfg->flog);
-	   param.twin0=twindow0;
-	   param.twin1=twindow1;
+           param.twin0=twindow0;
+           param.twin1=twindow1;
            for(devid=0;devid<workdev;devid++){
               OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],gparam,CL_TRUE,0,sizeof(MCXParam),&param, 0, NULL, NULL)));
               OCL_ASSERT((clSetKernelArg(mcxkernel[devid],12, sizeof(cl_mem), (void*)&gparam)));
               // launch mcxkernel
-               OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, 
-#ifndef USE_OS_TIMER
-                  &kernelevent)));
+#ifdef USE_OS_TIMER
+              OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, NULL))); 
 #else
-                  NULL)));
+              OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, &kernelevent))); 
 #endif
-               OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetected[devid],CL_FALSE,0,sizeof(uint),
+              OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetected[devid],CL_FALSE,0,sizeof(uint),
                                             &detected, 0, NULL, waittoread+devid)));
            }
            clWaitForEvents(workdev,waittoread);
