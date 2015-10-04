@@ -216,9 +216,16 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      MCXParam param={{{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}},
 		     {{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f}},
-		     {{cfg->dim.x,cfg->dim.y,cfg->dim.z,0}},dimlen,cp0,cp1,cachebox,
-		     minstep,0.f,0.f,cfg->tend,R_C0*cfg->unitinmm,cfg->isrowmajor,
-                     cfg->issave2pt,cfg->isreflect,cfg->isrefint,cfg->issavedet,1.f/cfg->tstep,
+		     {{static_cast <float>(cfg->dim.x),
+                       static_cast <float>(cfg->dim.y),
+                       static_cast <float>(cfg->dim.z),0.f}},dimlen,cp0,cp1,cachebox,
+		     minstep,0.f,0.f,cfg->tend,R_C0*cfg->unitinmm,
+                     static_cast <cl_uint>(cfg->isrowmajor),
+                     static_cast <cl_uint>(cfg->issave2pt),
+                     static_cast <cl_uint>(cfg->isreflect),
+                     static_cast <cl_uint>(cfg->isrefint),
+                     static_cast <cl_uint>(cfg->issavedet),
+                     1.f/cfg->tstep,
                      cfg->minenergy,
                      cfg->sradius*cfg->sradius,minstep*R_C0*cfg->unitinmm,cfg->maxdetphoton,
                      cfg->medianum-1,cfg->detnum,0,0};
@@ -427,19 +434,18 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
        //total number of repetition for the simulations, results will be accumulated to field
        for(iter=0;iter<cfg->respin;iter++){
            fprintf(cfg->flog,"simulation run#%2d ... \t",iter+1); fflush(cfg->flog);
-	   param.twin0=twindow0;
-	   param.twin1=twindow1;
+           param.twin0=twindow0;
+           param.twin1=twindow1;
            for(devid=0;devid<workdev;devid++){
               OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],gparam,CL_TRUE,0,sizeof(MCXParam),&param, 0, NULL, NULL)));
               OCL_ASSERT((clSetKernelArg(mcxkernel[devid],12, sizeof(cl_mem), (void*)&gparam)));
               // launch mcxkernel
-               OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, 
-#ifndef USE_OS_TIMER
-                  &kernelevent)));
+#ifdef USE_OS_TIMER
+              OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, NULL))); 
 #else
-                  NULL)));
+              OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, &kernelevent))); 
 #endif
-               OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetected[devid],CL_FALSE,0,sizeof(uint),
+              OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetected[devid],CL_FALSE,0,sizeof(uint),
                                             &detected, 0, NULL, waittoread+devid)));
            }
            clWaitForEvents(workdev,waittoread);
