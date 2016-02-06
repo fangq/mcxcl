@@ -217,7 +217,7 @@ int launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
 	 clearpath(ppath,gcfg);
       }
 #endif
-      if(f[0]->w>=(threadphoton+(threadid<oddphotons)))
+      if(f[0].w>=(threadphoton+(threadid<oddphotons)))
          return 1; // all photons complete 
       p[0]=gcfg->ps;
       v[0]=gcfg->c0;
@@ -369,6 +369,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
               float flipdir=0.f;
               float4 htime;            //reflection var
 
+#ifdef MCXCL_DO_REFLECT
+
               if(gcfg->doreflect || (gcfg->savedet && (mediaidold & DET_MASK)) ) {
                 //time-of-flight to hit the wall in each direction
                 htime.x=(v.x>EPS||v.x<-EPS)?(floor(p0.x)+(v.x>0.f)-p0.x)/v.x:VERY_BIG;
@@ -394,7 +396,6 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                      tmp0=fmin(fmin(htime.x,htime.y),htime.z);
                      tmp1=flipdir;   //save the previous ref. interface id
                      flipdir=(tmp0==htime.x?1.f:(tmp0==htime.y?2.f:(tmp0==htime.z&&idx1d!=idx1dold)?3.f:0.f));
-
                      if(gcfg->doreflect){
                        tmp0*=JUST_ABOVE_ONE;
 		       htime=floor(p-tmp0*v);
@@ -428,6 +429,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 		}
               }
 
+#endif
               prop=gproperty[mediaid];
 
               GPUDEBUG(("->ID%d J%d C%d tlen %e flip %d %.1f!=%.1f dir=%f %f %f pos=%f %f %f\n",idx,(int)v.w,
