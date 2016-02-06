@@ -203,11 +203,9 @@ void savedetphoton(__global float n_det[],__global uint *detectedphoton,float ns
 
 
 int launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
-           uint *mediaid,uchar isdet, __local float ppath[],float energyloss[],float energylaunched[],
+           uint *mediaid,uchar isdet, __local float ppath[],float energyloss[],float energyabsorbed[],
 	   __global float n_det[],__global uint *dpnum, __constant float4 gproperty[],
 	   __constant float4 gdetpos[],__constant MCXParam gcfg[],int threadid, int threadphoton, int oddphotons){
-
-      *energyloss+=p[0].w;  // sum all the remaining energy
 #ifdef SAVE_DETECTORS
       // let's handle detectors here
       if(gcfg->savedet){
@@ -225,7 +223,6 @@ int launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
       *idx1d=gcfg->idx1dorig;
       *mediaid=gcfg->mediaidorig;
       prop[0]=gproperty[*mediaid]; //always use mediaid to read gproperty[]
-      *energylaunched+=p[0].w;
       return 0;
 }
 
@@ -359,7 +356,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           idx1d=((int)floor(p.z)*gcfg->dimlen.y+(int)floor(p.y)*gcfg->dimlen.x+(int)floor(p.x));
           GPUDEBUG(("old and new voxel: %d<->%d\n",idx1dold,idx1d));
           if(p.x<0||p.y<0||p.z<0||p.x>=gcfg->maxidx.x||p.y>=gcfg->maxidx.y||p.z>=gcfg->maxidx.z){
-	      mediaid=0;
+	      mediaid=0;	
 	  }else{
               mediaid=media[idx1d];
           }
@@ -466,10 +463,12 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                   }
 	          if(Rtotal<1.f && rand_next_reflect(t,tnew)>Rtotal){ // do transmission
                         if(mediaid==0){ // transmission to external boundary
-                            p.xyz=htime.xyz; p.w=p0.w;
+                            p.xyz=htime.xyz; p.w=p0.w;      
+			    energyloss+=p.w;  // sum all the remaining energy
 		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,(mediaidold & DET_MASK),
-			        ppath,&energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton))
+			        ppath,&energyloss,&energyabsorbed,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton))
                                     break;
+			    energylaunched+=p.w;
 			    continue;
 			}
 			tmp0=n1/prop.z;
@@ -502,9 +501,12 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 		  if(stopsign[0]) break;
 #endif
                   p.xyz=htime.xyz; p.w=p0.w;
+		  energyloss+=p.w;  // sum all the remaining energy
 		  if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,(mediaidold & DET_MASK),ppath,
-		      &energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton))
+		      &energyloss,&energyabsorbed,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton))
                          break;
+		  energylaunched+=p.w;
+			    
 		  continue;
               }
 	  }
