@@ -286,7 +286,6 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      float slen
      float Lmove = 0.f;
 
-
      __local float *ppath=sharedmem+get_local_id(0)*gcfg->maxmedia;
 
      gpu_rng_init(t,tnew,n_seed,idx);
@@ -353,8 +352,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                        v.w+=1.f;
 	       }
 	  }
-	  
-	  n1=prop.z;
+          
+          n1=prop.z;
 	  prop=gproperty[mediaid];
 
 	  len=(faststep) ? gcfg->minstep : hitgrid(&p, &v, &p0, &flipdir);
@@ -367,7 +366,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	  f.x-=slen;
 	  f.y+=len*prop.w*gcfg->oneoverc0;
 	  Lmove+=len;
-
+	  
           mediaidold=media[idx1d];
           idx1dold=idx1d;
           idx1d=((int)floor(p.z)*gcfg->dimlen.y+(int)floor(p.y)*gcfg->dimlen.x+(int)floor(p.x));
