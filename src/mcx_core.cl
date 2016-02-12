@@ -353,7 +353,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                        v.w+=1.f;
 	       }
 	  }
-
+	  
 	  n1=prop.z;
 	  prop=gproperty[mediaid];
 
