@@ -352,8 +352,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                        v.w+=1.f;
 	       }
 	  }
-          
-          n1=prop.z;
+	  
+	  n1=prop.z;
 	  prop=gproperty[mediaid];
 
 	  len=(faststep) ? gcfg->minstep : hitgrid(&p, &v, &p0, &flipdir);
