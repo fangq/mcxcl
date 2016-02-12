@@ -201,6 +201,29 @@ void savedetphoton(__global float n_det[],__global uint *detectedphoton,float ns
 }
 #endif
 
+float hitgrid(float4 p0[], float4 v[], float4 htime[], float *id){
+	float dist; 
+	
+	htime[0]->x=fabs(native_divide(floor(p0[0]->x)+(v[0]->x>0.f)-p0[0]->x,v[0]->x));
+	htime[0]->y=fabs(native_divide(floor(p0[0]->y)+(v[0]->y>0.f)-p0[0]->y,v[0]->y));
+	htime[0]->z=fabs(native_divide(floor(p0[0]->z)+(v[0]->z>0.f)-p0[0]->z,v[0]->z));
+  
+	dist=fmin(fmin(htime[0]->x,htime[0]->y),htime[0]->z);
+	(*id)=(dist==htime[0]->x?0.f:(dist==htime[0]->y?1.f:2.f));
+  
+	htime[0]->x=p0[0]->x+dist*v[0]->x;
+	htime[0]->y=p0[0]->y+dist*v[0]->y;
+	htime[0]->z=p0[0]->z+dist*v[0]->z;
+  
+	(*id==0.f) ?
+		(htime[0]->x=nextafter(convert_int_rte(htime[0]->x), htime[0]->x+(v[0]->x > 0.f)-0.5f)) :
+		((*id==1.f) ? 
+			(htime[0]->y=nextafter(convert_int_rte(htime[0]->y), htime[0]->y+(v[0]->y > 0.f)-0.5f)) :
+			(htime[0]->z=nextafter(convert_int_rte(htime[0]->z), htime[0]->z+(v[0]->z > 0.f)-0.5f)) );
+
+  return fabs(dist);
+}
+
 
 int launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
            uint *mediaid,uchar isdet, __local float ppath[],float energyloss[],float energyabsorbed[],
@@ -252,6 +275,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      char   medid=-1;
      float  atten;         //can be taken out to minimize registers
      float  n1;   //reflection var
+     float flipdir=-1.f;
 
      //for MT RNG, these will be zero-length arrays and be optimized out
      RandType t[RAND_BUF_LEN],tnew[RAND_BUF_LEN];
@@ -259,6 +283,9 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
      float len,cphi,sphi,theta,stheta,ctheta,tmp0,tmp1;
      float accumweight=0.f;
+     float slen
+     float Lmove = 0.f;
+
      __local float *ppath=sharedmem+get_local_id(0)*gcfg->maxmedia;
 
      gpu_rng_init(t,tnew,n_seed,idx);
@@ -326,31 +353,20 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	       }
 	  }
 
-          n1=prop.z;
+	  n1=prop.z;
 	  prop=gproperty[mediaid];
-	  len=gcfg->minstep*prop.y; //Wang1995: gcfg->minstep*(prop.x+prop.y)
-
-          p0=p;
-	  if(len>f.x){  //scattering ends in this voxel: mus*gcfg->minstep > s 
-               tmp0=f.x/prop.y; // unit=grid
-	       p.xyz+=v.xyz*tmp0;
-               p.w*=exp(-prop.x*tmp0);
-	       f.x=SAME_VOXEL;
-	       f.y+=tmp0*prop.z*R_C0;  //propagation time (unit=s)
-               GPUDEBUG((">>ends in voxel %f<%f %f [%d]\n",f.x,len,prop.y,idx1d));
-	  }else{                      //otherwise, move gcfg->minstep
-               if(mediaid!=medid){
-                  atten=exp(-prop.x*gcfg->minstep);
-               }
-               p.xyz+=v.xyz*gcfg->minstep;
-               p.w*=atten;
-               medid=mediaid;
-	       f.x-=len;     //remaining probability: sum(s_i*mus_i)
-	       f.y+=gcfg->minaccumtime*prop.z; //total time
-               if(gcfg->savedet) ppath[mediaid-1]+=gcfg->minstep; //(unit=grid)
-               GPUDEBUG((">>keep going %f<%f %f [%d] %e %e\n",f.x,len,prop.y,idx1d,f.y,f.z));
-	  }
-
+	  
+	  len=(faststep) ? gcfg->minstep : hitgrid(&p, &v, &p0, &flipdir);
+	  slen=len*prop.y;
+	  
+	  slen=fmin(slen,f.x);
+	  len=slen/prop.y;
+	  p = (faststep || slen==f.x) ? (float4)(p.x+len*v.x, p.y+len*v.y, p.z+len*v.z, p.w) : p0;
+	  p.w*=exp(-prop.x*len);
+	  f.x-=slen;
+	  f.y+=len*prop.w*gcfg->oneoverc0;
+	  Lmove+=len;
+	  
           mediaidold=media[idx1d];
           idx1dold=idx1d;
           idx1d=((int)floor(p.z)*gcfg->dimlen.y+(int)floor(p.y)*gcfg->dimlen.x+(int)floor(p.x));
@@ -363,7 +379,6 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	  
           //if hit the boundary, exceed the max time window or exit the domain, rebound or launch a new one
 	  if(mediaid==0||f.y>gcfg->tmax||f.y>gcfg->twin1||(gcfg->dorefint && n1!=gproperty[mediaid].w) ){
-              float flipdir=0.f;
               float4 htime;            //reflection var
 
               if(gcfg->doreflect || (gcfg->savedet && (mediaidold & DET_MASK)) ) {
