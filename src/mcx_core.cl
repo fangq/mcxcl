@@ -355,10 +355,10 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	  
 	  n1=prop.z;
 	  prop=gproperty[mediaid];
-
+	  
 	  len=(faststep) ? gcfg->minstep : hitgrid(&p, &v, &p0, &flipdir);
 	  slen=len*prop.y;
-
+	  
 	  slen=fmin(slen,f.x);
 	  len=slen/prop.y;
 	  p = (faststep || slen==f.x) ? (float4)(p.x+len*v.x, p.y+len*v.y, p.z+len*v.z, p.w) : p0;
