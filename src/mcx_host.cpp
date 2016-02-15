@@ -175,12 +175,11 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cl_uint i,j,iter;
      cl_float  minstep=MIN(MIN(cfg->steps.x,cfg->steps.y),cfg->steps.z);
      cl_float t,twindow0,twindow1;
-     cl_float energyloss=0.f,simuenergy,fullload=0.f;
+     cl_float fullload=0.f;
      cl_float *energy;
      cl_int stopsign=0;
      cl_uint detected=0,workdev,activedev;
 
-     cl_uint photoncount=0;
      cl_uint tic,tic0,tic1,toc=0,fieldlen;
      cl_uint4 cp0={{cfg->crop0.x,cfg->crop0.y,cfg->crop0.z,cfg->crop0.w}};
      cl_uint4 cp1={{cfg->crop1.x,cfg->crop1.y,cfg->crop1.z,cfg->crop1.w}};
@@ -213,12 +212,13 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cl_uint   *Pseed;
      float  *Pdet;
      char opt[MAX_PATH_LENGTH]={'\0'};
+     cl_uint detreclen=cfg->medianum+1;
 
      MCXParam param={{{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}},
 		     {{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f}},
-		     {{cfg->dim.x,cfg->dim.y,cfg->dim.z,0}},dimlen,cp0,cp1,cachebox,
-		     minstep,0.f,0.f,cfg->tend,R_C0*cfg->unitinmm,cfg->isrowmajor,
-                     cfg->issave2pt,cfg->isreflect,cfg->isrefint,cfg->issavedet,1.f/cfg->tstep,
+		     {{(float)cfg->dim.x,(float)cfg->dim.y,(float)cfg->dim.z,0}},dimlen,cp0,cp1,cachebox,
+		     minstep,0.f,0.f,cfg->tend,R_C0*cfg->unitinmm,(uint)cfg->isrowmajor,
+                     (uint)cfg->issave2pt,(uint)cfg->isreflect,(uint)cfg->isrefint,(uint)cfg->issavedet,1.f/cfg->tstep,
                      cfg->minenergy,
                      cfg->sradius*cfg->sradius,minstep*R_C0*cfg->unitinmm,cfg->maxdetphoton,
                      cfg->medianum-1,cfg->detnum,0,0};
@@ -337,7 +337,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
        OCL_ASSERT(((gseed[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,Pseed,&status),status)));
        OCL_ASSERT(((gfield[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_float)*(dimxyz)*cfg->maxgate,field,&status),status)));
        OCL_ASSERT(((gdetphoton[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),Pdet,&status),status)));
-       OCL_ASSERT(((genergy[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*cfg->nthread*3,energy,&status),status)));
+       OCL_ASSERT(((genergy[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*(cfg->nthread<<1),energy,&status),status)));
        OCL_ASSERT(((gstopsign[i]=clCreateBuffer(mcxcontext,RW_PTR, sizeof(cl_uint),&stopsign,&status),status)));
        OCL_ASSERT(((gdetected[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint),&detected,&status),status)));
        OCL_ASSERT(((gdetpos[i]=clCreateBuffer(mcxcontext,RO_MEM, cfg->detnum*sizeof(float4),cfg->detpos,&status),status)));
@@ -346,9 +346,10 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      fprintf(cfg->flog,"\
 ===============================================================================\n\
 =                     Monte Carlo eXtreme (MCX) -- OpenCL                     =\n\
-=     Copyright (c) 2009-2014 Qianqian Fang <fangq at nmr.mgh.harvard.edu>    =\n\
+=           Copyright (c) 2009-2016 Qianqian Fang <q.fang at neu.edu>         =\n\
 =                                                                             =\n\
-=    Martinos Center for Biomedical Imaging, Massachusetts General Hospital   =\n\
+=                    Computational Imaging Laboratory (CIL)                   =\n\
+=             Department of Bioengineering, Northeastern University           =\n\
 ===============================================================================\n\
 $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\n\
 ===============================================================================\n");
@@ -369,19 +370,26 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
      fprintf(cfg->flog,"init complete : %d ms\n",GetTimeMillis()-tic);
 
      OCL_ASSERT(((mcxprogram=clCreateProgramWithSource(mcxcontext, 1,(const char **)&(cfg->clsource), NULL, &status),status)));
+
+     sprintf(opt,"-g -cl-mad-enable -cl-fast-relaxed-math %s",cfg->compileropt);
      if(cfg->issavedet)
-	sprintf(opt,"-D SAVE_DETECTORS -cl-mad-enable -cl-fast-relaxed-math %s",cfg->compileropt);
-     else
-	sprintf(opt,"-cl-mad-enable -cl-fast-relaxed-math %s",cfg->compileropt);
+         sprintf(opt+strlen(opt)," -D MCX_SAVE_DETECTORS");
+     if(cfg->isreflect)
+         sprintf(opt+strlen(opt)," -D MCX_DO_REFLECTION");
+     sprintf(opt+strlen(opt)," %s",cfg->compileropt);
+
      status=clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);
      
      if(status!=CL_SUCCESS){
 	 size_t len;
-	 char msg[2048];
+	 char *msg;
 	 // get the details on the error, and store it in buffer
-	 clGetProgramBuildInfo(mcxprogram,devices[devid],CL_PROGRAM_BUILD_LOG,sizeof(msg),msg,&len); 
+	 clGetProgramBuildInfo(mcxprogram,devices[devid],CL_PROGRAM_BUILD_LOG,0,NULL,&len); 
+	 msg=new char[len];
+	 clGetProgramBuildInfo(mcxprogram,devices[devid],CL_PROGRAM_BUILD_LOG,len,msg,NULL); 
 	 fprintf(cfg->flog,"Kernel build error:\n%s\n", msg);
 	 mcx_error(-(int)status,(char*)("Error: Failed to build program executable!"),__FILE__,__LINE__);
+	 delete msg;
      }
      fprintf(cfg->flog,"build program complete : %d ms\n",GetTimeMillis()-tic);
 
@@ -411,9 +419,18 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
      }
      fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
 
+     if(cfg->exportfield==NULL)
+         cfg->exportfield=(float *)calloc(sizeof(float)*cfg->dim.x*cfg->dim.y*cfg->dim.z,cfg->maxgate*2);
+     if(cfg->exportdetected==NULL)
+         cfg->exportdetected=(float*)malloc((cfg->medianum+1)*cfg->maxdetphoton*sizeof(float));
+
+     cfg->energytot=0.f;
+     cfg->energyesc=0.f;
+     cfg->runtime=0;
+
      //simulate for all time-gates in maxgate groups per run
 
-     cl_float Vvox,scale,eabsorp;
+     cl_float Vvox;
      Vvox=cfg->steps.x*cfg->steps.y*cfg->steps.z;
      tic0=GetTimeMillis();
 
@@ -430,14 +447,13 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 	   param.twin0=twindow0;
 	   param.twin1=twindow1;
            for(devid=0;devid<workdev;devid++){
-              OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],gparam,CL_TRUE,0,sizeof(MCXParam),&param, 0, NULL, NULL)));
-              OCL_ASSERT((clSetKernelArg(mcxkernel[devid],12, sizeof(cl_mem), (void*)&gparam)));
-              // launch mcxkernel
-               OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, 
+               OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],gparam,CL_TRUE,0,sizeof(MCXParam),&param, 0, NULL, NULL)));
+               OCL_ASSERT((clSetKernelArg(mcxkernel[devid],12, sizeof(cl_mem), (void*)&gparam)));
+               // launch mcxkernel
 #ifndef USE_OS_TIMER
-                  &kernelevent)));
+               OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, &kernelevent)));
 #else
-                  NULL)));
+               OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, NULL)));
 #endif
                OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetected[devid],CL_FALSE,0,sizeof(uint),
                                             &detected, 0, NULL, waittoread+devid)));
@@ -456,16 +472,15 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 is more than what your have specified (%d), please use the -H option to specify a greater number\t"
                            ,detected,cfg->maxdetphoton);
 		}else{
-			fprintf(cfg->flog,"detected %d photons\t",detected);
+			fprintf(cfg->flog,"detected %d photons, total: %d\t",detected,cfg->detectedcount+detected);
 		}
-		cfg->his.unitinmm=cfg->unitinmm;
-		cfg->his.detected=detected;
-		cfg->his.savedphoton=MIN(detected,cfg->maxdetphoton);
-		if(cfg->exportdetected) //you must allocate the buffer long enough
-	                memcpy(cfg->exportdetected,Pdet,cfg->his.savedphoton*(cfg->medianum+1)*sizeof(float));
-		else
-			mcx_savedata(Pdet,cfg->his.savedphoton*(cfg->medianum+1),
-		             photoncount>cfg->his.totalphoton,"mch",cfg);
+                cfg->his.detected+=detected;
+                detected=MIN(detected,cfg->maxdetphoton);
+		if(cfg->exportdetected){
+                        cfg->exportdetected=(float*)realloc(cfg->exportdetected,(cfg->detectedcount+detected)*detreclen*sizeof(float));
+	                memcpy(cfg->exportdetected+cfg->detectedcount*(detreclen),Pdet,detected*(detreclen)*sizeof(float));
+                        cfg->detectedcount+=detected;
+		}
 	     }
 	     //handling the 2pt distributions
              if(cfg->issave2pt){
@@ -480,41 +495,21 @@ is more than what your have specified (%d), please use the -H option to specify 
                if(iter+1==cfg->respin){ 
                    if(cfg->respin>1)  //copy the accumulated fields back
                        memcpy(field,field+fieldlen,sizeof(cl_float)*fieldlen);
-
-		   simuenergy=cfg->nphoton*cfg->workload[devid]/fullload;
+               }
                    if(cfg->isnormalized){
 
-                       fprintf(cfg->flog,"normizing raw data ...\t");
-                       OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*cfg->nthread*3,
+                       OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*(cfg->nthread<<1),
 	                                        energy, 0, NULL, NULL)));
-                       eabsorp=0.f;
-                       for(i=1;i<cfg->nthread;i++){
-                           energy[0]+=energy[i*3];
-       	       	       	   energy[1]+=energy[i*3+1];
-       	       	       	   energy[2]+=energy[i*3+2];
+                       for(i=0;i<cfg->nthread;i++){
+                           cfg->energyesc+=energy[(i<<1)];
+       	       	       	   cfg->energytot+=energy[(i<<1)+1];
                            //eabsorp+=Plen[i].z;  // the accumulative absorpted energy near the source
                        }
-                       eabsorp+=energy[1];
-		       energyloss+=energy[0];
-		       simuenergy=energy[2];
-                       scale=(simuenergy-energy[0])/(simuenergy*Vvox*cfg->tstep*eabsorp);
-                       fprintf(cfg->flog,"normalization factor alpha=%f\n",scale);  fflush(cfg->flog);
-                       mcx_normalize(field,scale,fieldlen);
                    }
-                   fprintf(cfg->flog,"data normalization complete : %d ms\n",GetTimeMillis()-tic);
-                   for(i=0;i<fieldlen;i++)
-		   	fluence[i]+=field[i]*simuenergy;
-
-                   *totalenergy+=simuenergy;
-                   fprintf(cfg->flog,"total simulated energy: %f\n",*totalenergy);
-                   fprintf(cfg->flog,"saving data complete : %d ms\n\n",GetTimeMillis()-tic);
-		   fflush(cfg->flog);
-
-                   fprintf(cfg->flog,"saving data to file ...\t");
-                   mcx_savedata(fluence,fieldlen,t>cfg->tstart,"mc2",cfg);
-                   fprintf(cfg->flog,"saving data complete : %d ms\n",GetTimeMillis()-tic);
-                   fflush(cfg->flog);
-               }
+	           if(cfg->exportfield){
+	               for(i=0;i<fieldlen;i++)
+		           cfg->exportfield[i]+=field[i];
+                   }
              }
 	     //initialize the next simulation
 	     if(twindow1<cfg->tend && iter<cfg->respin){
@@ -535,18 +530,48 @@ is more than what your have specified (%d), please use the -H option to specify 
        }// iteration
        if(twindow1<cfg->tend){
 	    cl_float *tmpenergy=(cl_float*)calloc(sizeof(cl_float),cfg->nthread*3);
-            OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*cfg->nthread*3,
+            OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*(cfg->nthread<<1),
                                         tmpenergy, 0, NULL, NULL)));
 	    OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 4, sizeof(cl_mem), (void*)(genergy+devid))));	
 	    free(tmpenergy);
        }
      }// time gates
 
+     if(cfg->isnormalized){
+	   float scale=0.f;
+           fprintf(cfg->flog,"normalizing raw data ...\t");
+
+           if(cfg->outputtype==otFlux || cfg->outputtype==otFluence){
+               scale=1.f/(cfg->energytot*Vvox*cfg->tstep);
+	       if(cfg->unitinmm!=1.f)
+		   scale*=cfg->unitinmm; /* Vvox (in mm^3 already) * (Tstep) * (Eabsorp/U) */
+
+               if(cfg->outputtype==otFluence)
+		   scale*=cfg->tstep;
+	   }else if(cfg->outputtype==otEnergy || cfg->outputtype==otJacobian)
+	       scale=1.f/cfg->energytot;
+
+	 fprintf(cfg->flog,"normalization factor alpha=%f\n",scale);  fflush(cfg->flog);
+         mcx_normalize(cfg->exportfield,scale,fieldlen);
+     }
+     if(cfg->issave2pt && cfg->parentid==mpStandalone){
+         fprintf(cfg->flog,"saving data to file ... %d %d\t",fieldlen,cfg->maxgate);
+         mcx_savedata(cfg->exportfield,fieldlen,0,"mc2",cfg);
+         fprintf(cfg->flog,"saving data complete : %d ms\n\n",GetTimeMillis()-tic);
+         fflush(cfg->flog);
+     }
+     if(cfg->issavedet && cfg->parentid==mpStandalone && cfg->exportdetected){
+         cfg->his.unitinmm=cfg->unitinmm;
+         cfg->his.savedphoton=cfg->detectedcount;
+         cfg->his.detected=cfg->detectedcount;
+         mcx_savedetphoton(cfg->exportdetected,cfg->seeddata,cfg->detectedcount,0,cfg);
+     }
+
      // total energy here equals total simulated photons+unfinished photons for all threads
-     fprintf(cfg->flog,"simulated %d photons using %d CUs with %d threads (repeat x%d)\nMCXCL simulation speed: %.2f photon/ms\n",
-             cfg->nphoton, workdev ,cfg->nthread,cfg->respin,(double)cfg->nphoton/toc); fflush(cfg->flog);
-     fprintf(cfg->flog,"exit energy:%16.8e + absorbed energy:%16.8e = total: %16.8e\n",
-             energyloss,(*totalenergy)-energyloss,*totalenergy);fflush(cfg->flog);
+     fprintf(cfg->flog,"simulated %d photons (%d) with %d CUs with %d threads (repeat x%d)\nMCX simulation speed: %.2f photon/ms\n",
+             cfg->nphoton,cfg->nphoton,workdev,cfg->nthread, cfg->respin,(double)cfg->nphoton/toc); fflush(cfg->flog);
+     fprintf(cfg->flog,"total simulated energy: %.2f\tabsorbed: %5.5f%%\n(loss due to initial specular reflection is excluded in the total)\n",
+             cfg->energytot,(cfg->energytot-cfg->energyesc)/cfg->energytot*100.f);fflush(cfg->flog);
      fflush(cfg->flog);
 
      clReleaseMemObject(gmedia);

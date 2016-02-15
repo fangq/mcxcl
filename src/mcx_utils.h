@@ -25,12 +25,14 @@
 
 #define MCX_ASSERT(x)  mcx_assess((x),"assert error",__FILE__,__LINE__)
 
+enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otTaylor};
+enum TMCXParent  {mpStandalone, mpMATLAB};
 
 typedef struct MCXMedium{
 	float mua;
 	float mus;
-	float n;
 	float g;
+	float n;
 } Medium __attribute__ ((aligned (16)));  /*this order shall match prop.{xyzw} in mcx_main_loop*/
 
 typedef struct MCXHistoryHeader{
@@ -43,8 +45,15 @@ typedef struct MCXHistoryHeader{
 	unsigned int  detected;
 	unsigned int  savedphoton;
 	float unitinmm;
-	int reserved[7];
+	unsigned int  seedbyte;
+	int reserved[6];
 } History;
+
+typedef struct PhotonReplay{
+	void  *seed;
+	float *weight;
+	float *tof;
+} Replay;
 
 typedef struct MCXConfig{
 	int nphoton;      /*(total simulated photon number) we now use this to 
@@ -94,10 +103,12 @@ typedef struct MCXConfig{
 	char isverbose;     /*1 print debug info, 0 do not*/
 	char issrcfrom0;    /*1 do not subtract 1 from src/det positions, 0 subtract 1*/
         char isdumpmask;    /*1 dump detector mask; 0 not*/
+        char outputtype;    /**<'X' output is flux, 'F' output is fluence, 'E' energy deposit*/
         float minenergy;    /*minimum energy to propagate photon*/
         float unitinmm;     /*defines the length unit in mm for grid*/
         FILE *flog;         /*stream handle to print log information*/
         History his;        /*header info of the history file*/
+	float energytot, energyabs, energyesc;
         char rootpath[MAX_PATH_LENGTH];
         char kernelfile[MAX_SESSION_LENGTH];
 	char compileropt[MAX_PATH_LENGTH];
@@ -106,6 +117,10 @@ typedef struct MCXConfig{
 	float workload[MAX_DEVICE];
 	float *exportfield;     /*memory buffer when returning the flux to external programs such as matlab*/
 	float *exportdetected;  /*memory buffer when returning the partial length info to external programs such as matlab*/
+	unsigned int detectedcount; /**<total number of detected photons*/
+	unsigned int runtime;
+	int parentid;
+	void *seeddata;
 } Config;
 
 #ifdef	__cplusplus
@@ -131,6 +146,7 @@ void mcx_maskdet(Config *cfg);
 void mcx_createfluence(float **fluence, Config *cfg);
 void mcx_clearfluence(float **fluence);
 void mcx_convertrow2col(unsigned char **vol, uint4 *dim);
+void mcx_savedetphoton(float *ppath, void *seeds, int count, int seedbyte, Config *cfg);
 
 #ifdef	__cplusplus
 }

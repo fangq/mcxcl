@@ -22,13 +22,18 @@
 #include "mcx_utils.h"
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','G','W','z',
-                 'd','r','S','p','e','U','R','l','L','I','o','c','k','v','J','\0'};
+                 'd','r','S','p','e','U','R','l','L','M','I','o','c','k','v','J','\0'};
 const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--thread","--blocksize","--session","--array","--gategroup",
                  "--reflect","--reflect3","--device","--devicelist","--workload","--srcfrom0",
 		 "--savedet","--repeat","--save2pt","--printlen","--minenergy",
-                 "--normalize","--skipradius","--log","--listgpu",
+                 "--normalize","--skipradius","--log","--listgpu","--dumpmask",
                  "--printgpu","--root","--cpu","--kernel","--verbose","--compileropt",""};
+#ifdef WIN32
+         char pathsep='\\';
+#else
+         char pathsep='/';
+#endif
 
 
 void mcx_initcfg(Config *cfg){
@@ -74,13 +79,28 @@ void mcx_initcfg(Config *cfg){
      strcpy(cfg->kernelfile,"mcx_core.cl");
      cfg->issrcfrom0=0;
 
+     cfg->exportfield=NULL;
+     cfg->exportdetected=NULL;
+     cfg->energytot=0.f;
+     cfg->energyabs=0.f;
+     cfg->energyesc=0.f;
+     cfg->runtime=0;
+
      memset(&cfg->his,0,sizeof(History));
      memcpy(cfg->his.magic,"MCXH",4);
      cfg->his.version=1;
      cfg->his.unitinmm=1.f;
      cfg->exportfield=NULL;
      cfg->exportdetected=NULL;
-
+     cfg->detectedcount=0;
+     cfg->runtime=0;
+#ifdef MCX_CONTAINER
+     cfg->parentid=mpMATLAB;
+#else
+     cfg->parentid=mpStandalone;
+#endif
+     cfg->seeddata=NULL;
+     cfg->outputtype=otFlux;
 }
 
 void mcx_clearcfg(Config *cfg){
@@ -92,6 +112,12 @@ void mcx_clearcfg(Config *cfg){
         free(cfg->vol);
      if(cfg->clsource)
         free(cfg->clsource);
+     if(cfg->exportfield)
+        free(cfg->exportfield);
+     if(cfg->exportdetected)
+        free(cfg->exportdetected);
+     if(cfg->seeddata)
+        free(cfg->seeddata);
 
      mcx_initcfg(cfg);
 }
@@ -113,6 +139,26 @@ void mcx_savedata(float *dat, int len, int doappend, const char *suffix, Config 
      }
      fwrite(dat,sizeof(float),len,fp);
      fclose(fp);
+}
+
+void mcx_savedetphoton(float *ppath, void *seeds, int count, int doappend, Config *cfg){
+	FILE *fp;
+	char fhistory[MAX_PATH_LENGTH];
+        if(cfg->rootpath[0])
+                sprintf(fhistory,"%s%c%s.mch",cfg->rootpath,pathsep,cfg->session);
+        else
+                sprintf(fhistory,"%s.mch",cfg->session);
+	if(doappend){
+           fp=fopen(fhistory,"ab");
+	}else{
+           fp=fopen(fhistory,"wb");
+	}
+	if(fp==NULL){
+	   mcx_error(-2,"can not save data to disk",__FILE__,__LINE__);
+        }
+	fwrite(&(cfg->his),sizeof(History),1,fp);
+	fwrite(ppath,sizeof(float),count*cfg->his.colcount,fp);
+	fclose(fp);
 }
 
 void mcx_printlog(Config *cfg, const char *str){
@@ -326,6 +372,9 @@ void mcx_loadconfig(FILE *in, Config *cfg){
                 		      (int)(floor(cfg->srcpos.z)*cfg->dim.y*cfg->dim.x+floor(cfg->srcpos.y)*cfg->dim.x+floor(cfg->srcpos.x));
 		}
 	}
+        cfg->his.maxmedia=cfg->medianum-1; /*skip media 0*/
+        cfg->his.detnum=cfg->detnum;
+        cfg->his.colcount=cfg->medianum+1; /*column count=maxmedia+2*/
      }else{
      	mcx_error(-4,"one must specify a binary volume file in order to run the simulation",__FILE__,__LINE__);
      }
@@ -629,6 +678,9 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                      case 'z':
                                 i=mcx_readarg(argc,argv,i,&(cfg->issrcfrom0),"char");
                                 break;
+		     case 'M':
+		     	        i=mcx_readarg(argc,argv,i,&(cfg->isdumpmask),"char");
+		     	        break;
 		}
 	    }
 	    i++;
@@ -668,9 +720,10 @@ void mcx_usage(char *exename){
      printf("\
 ======================================================================================\n\
 =                      Monte Carlo eXtreme (MCX) -- OpenCL                           =\n\
-=              Author: Qianqian Fang <fangq at nmr.mgh.harvard.edu>                  =\n\
+=            Copyright (c) 2009-2016 Qianqian Fang <q.fang at neu.edu>               =\n\
 =                                                                                    =\n\
-=      Martinos Center for Biomedical Imaging, Massachusetts General Hospital        =\n\
+=                      Computational Imaging Laboratory (CIL)                        =\n\
+=               Department of Bioengineering, Northeastern University                =\n\
 ======================================================================================\n\
 $MCXCL $Rev:: 155$, Last Commit:$Date:: 2009-12-19 18:57:32 -05#$ by $Author:: fangq $\n\
 ======================================================================================\n\
