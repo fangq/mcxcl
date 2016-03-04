@@ -203,6 +203,16 @@ void savedetphoton(__global float n_det[],__global uint *detectedphoton,float ns
 }
 #endif
 
+float mcx_nextafterf(float a, int dir){
+      union{
+          float f;
+	  uint  i;
+      } num;
+      num.f=a+1000;
+      num.i+=dir ^ (num.i & 0x80000000U);
+      return num.f-1000;
+}
+
 float hitgrid(float4 p0[], float4 v[], float4 htime[], int *id){
       float dist;
 
@@ -217,17 +227,17 @@ float hitgrid(float4 p0[], float4 v[], float4 htime[], int *id){
 
       //get the direction with the smallest time-of-flight
       dist=fmin(fmin(htime[0].x,htime[0].y),htime[0].z);
-      (*id)=(dist==htime[0].x?0:(dist==htime[1].y?1:2));
+      (*id)=(dist==htime[0].x?0:(dist==htime[0].y?1:2));
 
       htime[0].x=p0[0].x+dist*v[0].x;
       htime[0].y=p0[0].y+dist*v[0].y;
       htime[0].z=p0[0].z+dist*v[0].z;
       
       (*id==0) ?
-	      (htime[0].x=nextafter(convert_int_rte(htime[0].x), htime[0].x+(v[0].x > 0.f)-0.5f)) :
-	      ((*id==1) ? 
-		      (htime[0].y=nextafter(convert_int_rte(htime[0].y), htime[0].y+(v[0].y > 0.f)-0.5f)) :
-		      (htime[0].z=nextafter(convert_int_rte(htime[0].z), htime[0].z+(v[0].z > 0.f)-0.5f)) );
+          (htime[0].x=mcx_nextafterf(convert_int_rte(htime[0].x), (v[0].x > 0.f)-(v[0].x < 0.f))) :
+	  ((*id==1) ? 
+	  	(htime[0].y=mcx_nextafterf(convert_int_rte(htime[0].y), (v[0].y > 0.f)-(v[0].y < 0.f))) :
+		(htime[0].z=mcx_nextafterf(convert_int_rte(htime[0].z), (v[0].z > 0.f)-(v[0].z < 0.f))) );
       return dist;
 }
 
