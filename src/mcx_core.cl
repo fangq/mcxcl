@@ -74,6 +74,7 @@ typedef struct KernelParams {
 #ifndef DOUBLE_PREC_LOGISTIC
   typedef float RandType;
   #define FUN(x)               (4.f*(x)*(1.f-(x)))
+  #define FUN4(x)              ((float4)4.f*(x)*((float4)1.f-(x)))
   #define NU 1e-8f
   #define NU2 (1.f-2.f*NU)
   #define MIN_INVERSE_LIMIT 1e-7f
@@ -83,6 +84,7 @@ typedef struct KernelParams {
 #else
   typedef double RandType;
   #define FUN(x)               (4.0*(x)*(1.0-(x)))
+  #define FUN4(x)              ((double4)4.f*(x)*((double4)1.f-(x)))
   #define NU 1e-14
   #define NU2 (1.0-2.0*NU)
   #define MIN_INVERSE_LIMIT 1e-12
@@ -208,31 +210,25 @@ float mcx_nextafterf(float a, int dir){
           float f;
 	  uint  i;
       } num;
-      num.f=a+1000;
+      num.f=a+1000.f;
       num.i+=dir ^ (num.i & 0x80000000U);
-      return num.f-1000;
+      return num.f-1000.f;
 }
 
 float hitgrid(float4 p0[], float4 v[], float4 htime[], int *id){
       float dist;
 
       //time-of-flight to hit the wall in each direction
-      htime[0].x=fabs(floor(p0[0].x)+(v[0].x>0.f)-p0[0].x); // absolute distance of travel in x/y/z
-      htime[0].y=fabs(floor(p0[0].y)+(v[0].y>0.f)-p0[0].y);
-      htime[0].z=fabs(floor(p0[0].z)+(v[0].z>0.f)-p0[0].z);
 
-      htime[0].x=fabs(native_divide(htime[0].x,v[0].x));
-      htime[0].y=fabs(native_divide(htime[0].y,v[0].y));
-      htime[0].z=fabs(native_divide(htime[0].z,v[0].z));
+      htime[0]=fabs(floor(p0[0])+convert_float4(isgreater(v[0],((float4)(0.f))))-p0[0]);
+      htime[0]=fabs(native_divide(htime[0],v[0]));
 
       //get the direction with the smallest time-of-flight
       dist=fmin(fmin(htime[0].x,htime[0].y),htime[0].z);
       (*id)=(dist==htime[0].x?0:(dist==htime[0].y?1:2));
 
-      htime[0].x=p0[0].x+dist*v[0].x;
-      htime[0].y=p0[0].y+dist*v[0].y;
-      htime[0].z=p0[0].z+dist*v[0].z;
-      
+      htime[0]=p0[0]+(float4)(dist)*v[0];
+
       (*id==0) ?
           (htime[0].x=mcx_nextafterf(convert_int_rte(htime[0].x), (v[0].x > 0.f)-(v[0].x < 0.f))) :
 	  ((*id==1) ? 
@@ -388,7 +384,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
           GPUDEBUG(((__constant char*)"p=[%f %f %f] -> <%f %f %f>*%f -> hit=[%f %f %f] flip=%d\n",p.x,p.y,p.z,v.x,v.y,v.z,len,htime.x,htime.y,htime.z,flipdir));
 
-	  p.xyz = (slen==f.x) ? (float3)(p.x+len*v.x, p.y+len*v.y, p.z+len*v.z) : htime.xyz;
+	  p.xyz = (slen==f.x) ? p.xyz+(float3)(len)*v.xyz : htime.xyz;
 	  p.w*=exp(-prop.x*len);
 	  f.x-=slen;
 	  f.y+=len*prop.w*gcfg->oneoverc0;
@@ -405,7 +401,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           idx1dold=idx1d;
           idx1d=((int)floor(p.z)*gcfg->dimlen.y+(int)floor(p.y)*gcfg->dimlen.x+(int)floor(p.x));
           GPUDEBUG(((__constant char*)"idx1d [%d]->[%d]\n",idx1dold,idx1d));
-          if(p.x<0||p.y<0||p.z<0||p.x>=gcfg->maxidx.x||p.y>=gcfg->maxidx.y||p.z>=gcfg->maxidx.z){
+          if(any(isless(p.xyz,(float3)(0.f))) || any(isgreater(p.xyz,(gcfg->maxidx.xyz)))){
 	      mediaid=0;	
 	  }else{
               mediaid=media[idx1d] & MED_MASK;
