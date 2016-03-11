@@ -96,25 +96,25 @@ typedef struct KernelParams {
 #define RING_FUN(x,y,z)      (NU2*(x)+NU*((y)+(z)))
 
 
-void logistic_step(__private float8 *t, __private float8 *tnew, int len_1){
-    t->s0123=((float4)4.0*t->s0123*((float4)1.0-t->s0123));
-    t->s4=FUN(t->s4);
-    tnew->s4012=((float4)NU2*t->s0123+(float4)NU*(t->s4012+t->s1234));
-    tnew->s3=RING_FUN(t->s4,t->s3,t->s0);
+void logistic_step(__private float8 t[], __private float8 tnew[], int len_1){
+    t[0].s0123=((float4)4.0*t[0].s0123*((float4)1.0-t[0].s0123));
+    t[0].s4=FUN(t[0].s4);
+    tnew[0].s4012=((float4)NU2*t[0].s0123+(float4)NU*(t[0].s4012+t[0].s1234));
+    tnew[0].s3=RING_FUN(t[0].s4,t[0].s3,t[0].s0);
 }
 // generate random number for the next zenith angle
-void rand_need_more(__private float8 *t, __private float8 *tbuf){
+void rand_need_more(__private float8 t[], __private float8 tbuf[]){
     logistic_step(t,tbuf,RAND_BUF_LEN-1);
     logistic_step(tbuf,t,RAND_BUF_LEN-1);
 }
 
-void logistic_init(__private float8 *t, __private float8 *tnew,__global uint seed[],uint idx){
+void logistic_init(__private float8 t[], __private float8 tnew[],__global uint seed[],uint idx){
      int i;
-     t->s0=(RandType)seed[idx*RAND_BUF_LEN]*R_MAX_C_RAND;
-     t->s1=(RandType)seed[idx*RAND_BUF_LEN+1]*R_MAX_C_RAND;
-     t->s2=(RandType)seed[idx*RAND_BUF_LEN+2]*R_MAX_C_RAND;
-     t->s3=(RandType)seed[idx*RAND_BUF_LEN+3]*R_MAX_C_RAND;
-     t->s4=(RandType)seed[idx*RAND_BUF_LEN+4]*R_MAX_C_RAND;
+     t[0].s0=(RandType)seed[idx*RAND_BUF_LEN]*R_MAX_C_RAND;
+     t[0].s1=(RandType)seed[idx*RAND_BUF_LEN+1]*R_MAX_C_RAND;
+     t[0].s2=(RandType)seed[idx*RAND_BUF_LEN+2]*R_MAX_C_RAND;
+     t[0].s3=(RandType)seed[idx*RAND_BUF_LEN+3]*R_MAX_C_RAND;
+     t[0].s4=(RandType)seed[idx*RAND_BUF_LEN+4]*R_MAX_C_RAND;
 
      for(i=0;i<INIT_LOGISTIC;i++)  /*initial randomization*/
            rand_need_more(t,tnew);
@@ -123,21 +123,20 @@ void logistic_init(__private float8 *t, __private float8 *tnew,__global uint see
 RandType rand_uniform01(RandType v){
     return logistic_uniform(v);
 }
-void gpu_rng_init(__private float8 *t, __private float8 *tnew,__global uint *n_seed,int idx){
-//void gpu_rng_init(float8 *t, float8 *tnew, __global uint *n_seed,int idx){
+void gpu_rng_init(__private float8 t[], __private float8 tnew[],__global uint *n_seed,int idx){
     logistic_init(t,tnew,n_seed,idx);
 }
 // generate [0,1] random number for the next scattering length
-float rand_next_scatlen(__private float8 *t, __private float8 *tnew){
+float rand_next_scatlen(__private float8 t[], __private float8 tnew[]){
     rand_need_more(t,tnew);
-    RandType ran=rand_uniform01(t->s0);
-    if(ran==0.f) ran=rand_uniform01(t->s1);
+    RandType ran=rand_uniform01(t[0].s0);
+    if(ran==0.f) ran=rand_uniform01(t[0].s1);
     return ((ran==0.f)?LOG_MT_MAX:(-log(ran)));
 }
 // generate [0,1] random number for the next arimuthal angle
-float rand_next_aangle(__private float8 *t, __private float8 *tnew){
+float rand_next_aangle(__private float8 t[], __private float8 tnew[]){
     rand_need_more(t,tnew);
-    return rand_uniform01(t->s0);
+    return rand_uniform01(t[0].s0);
 }
 
 #define rand_next_zangle(t1,t2) rand_next_aangle(t1,t2)
@@ -218,7 +217,7 @@ float hitgrid(float4 p0[], float4 v[], float4 htime[], int *id){
       //time-of-flight to hit the wall in each direction
 
       htime[0]=fabs(floor(p0[0])+convert_float4(isgreater(v[0],((float4)(0.f))))-p0[0]);
-      htime[0]=fabs(native_divide(htime[0],v[0]));
+      htime[0]=fabs(native_divide(htime[0]+(float4)EPS,v[0]));
 
       //get the direction with the smallest time-of-flight
       dist=fmin(fmin(htime[0].x,htime[0].y),htime[0].z);
