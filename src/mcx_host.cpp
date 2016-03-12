@@ -141,25 +141,25 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
 				}
 				activeplatform=platform;
                           }
+printf("devnum=%d\n",devnum);
+			  if(cfg->isgpuinfo){
+        	        	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_NAME,100,(void*)&pbuf,NULL)));
+                		printf("============ %s device ID %d [%d of %d]: %s  ============\n",devname[j],cuid,k+1,devnum,pbuf);
+				OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),(void*)&devparam,NULL)));
+                		OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GLOBAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL)));
+                		printf(" Compute units   :\t%d core(s)\n",(uint)devparam);
+                		printf(" Global memory   :\t%ld B\n",(unsigned long)devmem);
+                		OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_LOCAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL)));
+                		printf(" Local memory    :\t%ld B\n",(unsigned long)devmem);
+                		OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,sizeof(cl_ulong),(void*)&constmem,NULL)));
+                		printf(" Constant memory :\t%ld B\n",(unsigned long)constmem);
+                		OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CLOCK_FREQUENCY,sizeof(cl_uint),(void*)&clockspeed,NULL)));
+                		printf(" Clock speed     :\t%d MHz\n",clockspeed);
+                      	  }
                     }
-		    if(cfg->isgpuinfo)
-                      for(k=0;k<devnum;k++){
-                	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_NAME,100,(void*)&pbuf,NULL)));
-                	printf("============ %s device ID %d [%d of %d]: %s  ============\n",devname[j],cuid,k+1,devnum,pbuf);
-			OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),(void*)&devparam,NULL)));
-                	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GLOBAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL)));
-                	printf(" Compute units   :\t%d core(s)\n",(uint)devparam);
-                	printf(" Global memory   :\t%ld B\n",(unsigned long)devmem);
-                	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_LOCAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL)));
-                	printf(" Local memory    :\t%ld B\n",(unsigned long)devmem);
-                	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,sizeof(cl_ulong),(void*)&constmem,NULL)));
-                	printf(" Constant memory :\t%ld B\n",(unsigned long)constmem);
-                	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CLOCK_FREQUENCY,sizeof(cl_uint),(void*)&clockspeed,NULL)));
-                	printf(" Clock speed     :\t%d MHz\n",clockspeed);
-                      }
                     free(devices);
                     clReleaseContext(context);
-        	}
+               }
 	    }
         }
         free(platforms);
