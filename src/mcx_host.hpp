@@ -1,6 +1,7 @@
 #ifndef _MCEXTREME_GPU_LAUNCH_H
 #define _MCEXTREME_GPU_LAUNCH_H
 
+#define CL_USE_DEPRECATED_OPENCL_2_0_APIS
 #include <CL/cl.h>
 #include "mcx_utils.h"
 
@@ -42,7 +43,7 @@ typedef struct KernelParams {
 }MCXParam __attribute__ ((aligned (16)));
 
 void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy);
-cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev);
+cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *activedevlist);
 void ocl_assess(int cuerr,const char *file,const int linenum);
 
 #ifdef  __cplusplus

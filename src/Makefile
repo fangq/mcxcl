@@ -23,7 +23,7 @@ MAKE       := make
 ECHO       := echo
 MKDIR      := mkdir
 
-FILES=mcx_host mcx_utils tictoc mcextreme
+FILES=mcx_host mcx_utils tictoc mcxcl
 
 ARCH = $(shell uname -m)
 PLATFORM = $(shell uname -o)

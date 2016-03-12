@@ -94,15 +94,15 @@ void ocl_assess(int cuerr,const char *file,const int linenum){
 /*
   query GPU info and set active GPU
 */
-cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
+cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *activedevlist){
 
-    uint i,j,k,devnum;
+    uint i,j,k,cuid=0,devnum;
     cl_uint numPlatforms,devparam,clockspeed;
     cl_ulong devmem,constmem;
-    cl_platform_id platform = NULL;
-    cl_device_type devtype[]={CL_DEVICE_TYPE_CPU,CL_DEVICE_TYPE_GPU};
+    cl_platform_id platform = NULL, activeplatform=NULL;
+    cl_device_type devtype[]={CL_DEVICE_TYPE_GPU,CL_DEVICE_TYPE_CPU};
     cl_context context;                 // compute context
-    const char *devname[]={"CPU","GPU"};
+    const char *devname[]={"GPU","CPU"};
     char pbuf[100];
     cl_context_properties cps[3]={CL_CONTEXT_PLATFORM, 0, 0};
     cl_int status = 0;
@@ -121,7 +121,6 @@ cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
                           CL_PLATFORM_NAME,sizeof(pbuf),pbuf,NULL)));
 	        if(cfg->isgpuinfo) printf("Platform [%d] Name %s\n",i,pbuf);
                 cps[1]=(cl_context_properties)platform;
-		if(activedev) *activedev=0;
         	for(j=0; j<2; j++){
 		    cl_device_id * devices;
 		    context=clCreateContextFromType(cps,devtype[j],NULL,NULL,&status);
@@ -133,17 +132,20 @@ cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
                     devices = (cl_device_id*)malloc(deviceListSize);
                     OCL_ASSERT((clGetContextInfo(context,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL)));
 		    devnum=deviceListSize/sizeof(cl_device_id);
-		    if(activedev)
-		      for(k=0;k<MAX_DEVICE;k++){
-			if(cfg->deviceid[k]=='\0')
-				break;
-			else
-				(*activedev)++;
-		      }
+                    for(k=0;k<devnum;k++){
+		         if(cfg->deviceid[cuid++]=='1'){
+				activedevlist[(*activedev)++]=devices[k];
+				if(activeplatform && activeplatform!=platform){
+					fprintf(stderr,"Error: one can not mix devices between different platforms\n");
+					exit(-1);
+				}
+				activeplatform=platform;
+                          }
+                    }
 		    if(cfg->isgpuinfo)
                       for(k=0;k<devnum;k++){
                 	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_NAME,100,(void*)&pbuf,NULL)));
-                	printf("============ %s device [%d of %d]: %s  ============\n",devname[j],k+1,devnum,pbuf);
+                	printf("============ %s device ID %d [%d of %d]: %s  ============\n",devname[j],cuid,k+1,devnum,pbuf);
 			OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),(void*)&devparam,NULL)));
                 	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GLOBAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL)));
                 	printf(" Compute units   :\t%d core(s)\n",(uint)devparam);
@@ -163,7 +165,7 @@ cl_platform_id mcx_set_gpu(Config *cfg,unsigned int *activedev){
         free(platforms);
     }
     if(cfg->isgpuinfo==2) exit(0);
-    return platform;
+    return activeplatform;
 }
 
 
@@ -178,7 +180,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cl_float fullload=0.f;
      cl_float *energy;
      cl_int stopsign=0;
-     cl_uint detected=0,workdev,activedev;
+     cl_uint detected=0,workdev;
 
      cl_uint tic,tic0,tic1,toc=0,fieldlen;
      cl_uint4 cp0={{cfg->crop0.x,cfg->crop0.y,cfg->crop0.z,cfg->crop0.w}};
@@ -191,10 +193,9 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cl_program mcxprogram;                 // compute mcxprogram
      cl_kernel *mcxkernel;                   // compute mcxkernel
      cl_int status = 0;
-     size_t deviceListSize;
-     cl_platform_id platform = NULL;
-     cl_device_id* devices;
+     cl_device_id devices[MAX_DEVICE];
      cl_event * waittoread;
+     cl_platform_id platform = NULL;
 
      cl_uint *cucount,totalcucore;
      cl_uint  devid=0;
@@ -223,38 +224,21 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                      cfg->sradius*cfg->sradius,minstep*R_C0*cfg->unitinmm,cfg->maxdetphoton,
                      cfg->medianum-1,cfg->detnum,0,0};
 
-     platform=mcx_set_gpu(cfg,NULL);
+     platform=mcx_list_gpu(cfg,&workdev,devices);
+
+     if(workdev>MAX_DEVICE)
+         workdev=MAX_DEVICE;
+
+     if(devices == NULL){
+         OCL_ASSERT(-1);
+     }
+     printf("workdev=%d\n",workdev);
 
      cl_context_properties cps[3]={CL_CONTEXT_PLATFORM, (cl_context_properties)platform, 0};
 
      /* Use NULL for backward compatibility */
      cl_context_properties* cprops=(platform==NULL)?NULL:cps;
      OCL_ASSERT(((mcxcontext=clCreateContextFromType(cprops,CL_DEVICE_TYPE_ALL,NULL,NULL,&status),status)));
-     OCL_ASSERT((clGetContextInfo(mcxcontext, CL_CONTEXT_DEVICES,0,NULL,&deviceListSize)));
-     workdev=(int)deviceListSize/sizeof(cl_device_id);
-
-     if(workdev>MAX_DEVICE)
-         workdev=MAX_DEVICE;
-
-     devices = (cl_device_id*)malloc(workdev*sizeof(cl_device_id));
-
-     if(devices == NULL){
-         OCL_ASSERT(-1);
-     }
-     OCL_ASSERT((clGetContextInfo(mcxcontext,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL)));
-
-     activedev=0;
-     for(i=0;i<workdev;i++){
-         if(cfg->deviceid[i]=='1')
-	     devices[activedev++]=devices[i];
-	 else if(cfg->deviceid[i]=='\0')
-	     break;
-	 else if(cfg->deviceid[i]!='0')
-	     mcx_error(-1,"device mask must contain either 0 or 1",__FILE__,__LINE__);
-     }
-     if(activedev==0) activedev=1;
-     workdev=activedev;
-     printf("workdev=%d\n",workdev);
 
      mcxqueue= (cl_command_queue*)malloc(workdev*sizeof(cl_command_queue));
      waittoread=(cl_event *)malloc(workdev*sizeof(cl_event));
@@ -595,7 +579,6 @@ is more than what your have specified (%d), please use the -H option to specify 
      free(gdetpos);
      free(mcxkernel);
 
-     free(devices);
      free(waittoread);
 
      for(devid=0;devid<workdev;devid++)

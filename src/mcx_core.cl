@@ -96,28 +96,25 @@ typedef struct KernelParams {
 #define RING_FUN(x,y,z)      (NU2*(x)+NU*((y)+(z)))
 
 
-void logistic_step(__private RandType *t, __private RandType *tnew, int len_1){
-    t[0]=FUN(t[0]);
-    t[1]=FUN(t[1]);
-    t[2]=FUN(t[2]);
-    t[3]=FUN(t[3]);
-    t[4]=FUN(t[4]);
-    tnew[4]=RING_FUN(t[0],t[4],t[1]);   /* shuffle the results by separation of 2*/
-    tnew[0]=RING_FUN(t[1],t[0],t[2]);
-    tnew[1]=RING_FUN(t[2],t[1],t[3]);
-    tnew[2]=RING_FUN(t[3],t[2],t[4]);
-    tnew[3]=RING_FUN(t[4],t[3],t[0]);
+void logistic_step(__private float8 t[], __private float8 tnew[], int len_1){
+    t[0].s0123=((float4)4.0*t[0].s0123*((float4)1.0-t[0].s0123));
+    t[0].s4=FUN(t[0].s4);
+    tnew[0].s4012=((float4)NU2*t[0].s0123+(float4)NU*(t[0].s4012+t[0].s1234));
+    tnew[0].s3=RING_FUN(t[0].s4,t[0].s3,t[0].s0);
 }
 // generate random number for the next zenith angle
-void rand_need_more(__private RandType t[RAND_BUF_LEN], __private RandType tbuf[RAND_BUF_LEN]){
+void rand_need_more(__private float8 t[], __private float8 tbuf[]){
     logistic_step(t,tbuf,RAND_BUF_LEN-1);
     logistic_step(tbuf,t,RAND_BUF_LEN-1);
 }
 
-void logistic_init(__private RandType *t, __private RandType *tnew,__global uint seed[],uint idx){
+void logistic_init(__private float8 t[], __private float8 tnew[],__global uint seed[],uint idx){
      int i;
-     for(i=0;i<RAND_BUF_LEN;i++)
-           t[i]=(RandType)seed[idx*RAND_BUF_LEN+i]*R_MAX_C_RAND;
+     t[0].s0=(RandType)seed[idx*RAND_BUF_LEN]*R_MAX_C_RAND;
+     t[0].s1=(RandType)seed[idx*RAND_BUF_LEN+1]*R_MAX_C_RAND;
+     t[0].s2=(RandType)seed[idx*RAND_BUF_LEN+2]*R_MAX_C_RAND;
+     t[0].s3=(RandType)seed[idx*RAND_BUF_LEN+3]*R_MAX_C_RAND;
+     t[0].s4=(RandType)seed[idx*RAND_BUF_LEN+4]*R_MAX_C_RAND;
 
      for(i=0;i<INIT_LOGISTIC;i++)  /*initial randomization*/
            rand_need_more(t,tnew);
@@ -126,21 +123,20 @@ void logistic_init(__private RandType *t, __private RandType *tnew,__global uint
 RandType rand_uniform01(RandType v){
     return logistic_uniform(v);
 }
-void gpu_rng_init(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN],__global uint *n_seed,int idx){
-//void gpu_rng_init(RandType *t, RandType *tnew, __global uint *n_seed,int idx){
+void gpu_rng_init(__private float8 t[], __private float8 tnew[],__global uint *n_seed,int idx){
     logistic_init(t,tnew,n_seed,idx);
 }
 // generate [0,1] random number for the next scattering length
-float rand_next_scatlen(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN]){
+float rand_next_scatlen(__private float8 t[], __private float8 tnew[]){
     rand_need_more(t,tnew);
-    RandType ran=rand_uniform01(t[0]);
-    if(ran==0.f) ran=rand_uniform01(t[1]);
+    RandType ran=rand_uniform01(t[0].s0);
+    if(ran==0.f) ran=rand_uniform01(t[0].s1);
     return ((ran==0.f)?LOG_MT_MAX:(-log(ran)));
 }
 // generate [0,1] random number for the next arimuthal angle
-float rand_next_aangle(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN]){
+float rand_next_aangle(__private float8 t[], __private float8 tnew[]){
     rand_need_more(t,tnew);
-    return rand_uniform01(t[t[2]+t[3]>=1.f]);
+    return rand_uniform01(t[0].s0);
 }
 
 #define rand_next_zangle(t1,t2) rand_next_aangle(t1,t2)
@@ -339,13 +335,13 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           GPUDEBUG(((__constant char*)"photonid [%d] L=%f w=%e medium=%d\n",(int)f.w,f.x,p.w,mediaid));
 
 	  if(f.x<=0.f) {  // if this photon has finished the current jump
-   	       f.x=rand_next_scatlen(t,tnew);
+   	       f.x=rand_next_scatlen((float8*)t,(float8*)tnew);
 
                GPUDEBUG(((__constant char*)"scat L=%f RNG=[%e %e %e] \n",f.x,t[0],t[1],t[2]));
 
 	       if(p.w<1.f){ //weight
                        //random arimuthal angle
-                       tmp0=TWO_PI*rand_next_aangle(t,tnew); //next arimuth angle
+                       tmp0=TWO_PI*rand_next_aangle((float8*)t,(float8*)tnew); //next arimuth angle
                        sphi=sincos(tmp0,&cphi);
                        GPUDEBUG(((__constant char*)"scat phi=%f\n",tmp0));
 
@@ -353,7 +349,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                        //Biomedical Diagnostics",2002,Chap3,p234, also see Boas2002
 
                        if(prop.z>EPS){  //if prop.z is too small, the distribution of theta is bad
-		           tmp0=(1.f-prop.z*prop.z)/(1.f-prop.z+2.f*prop.z*rand_next_zangle(t,tnew));
+		           tmp0=(1.f-prop.z*prop.z)/(1.f-prop.z+2.f*prop.z*rand_next_zangle((float8*)t,(float8*)tnew));
 		           tmp0*=tmp0;
 		           tmp0=(1.f+prop.z*prop.z-tmp0)/(2.f*prop.z);
 
@@ -365,7 +361,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 		           stheta=sin(theta);
 		           ctheta=tmp0;
                        }else{
-			   theta=acos(2.f*rand_next_zangle(t,tnew)-1.f);
+			   theta=acos(2.f*rand_next_zangle((float8*)t,(float8*)tnew)-1.f);
                            stheta=sincos(theta,&ctheta);
                        }
                        GPUDEBUG(((__constant char*)"scat theta=%f\n",theta));
@@ -464,7 +460,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
        	       	     Rtotal=(Rtotal+(ctheta-stheta)/(ctheta+stheta))*0.5f;
 		     GPUDEBUG(((__constant char*)"Rtotal=%f\n",Rtotal));
                   }
-	          if(Rtotal<1.f && rand_next_reflect(t,tnew)>Rtotal){ // do transmission
+	          if(Rtotal<1.f && rand_next_reflect((float8*)t,(float8*)tnew)>Rtotal){ // do transmission
                         if(mediaid==0){ // transmission to external boundary
                             GPUDEBUG(((__constant char*)"transmit to air, relaunch\n"));
 		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),
