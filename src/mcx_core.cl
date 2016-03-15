@@ -75,7 +75,7 @@ typedef struct KernelParams {
   typedef float RandType;
   #define FUN(x)               (4.f*(x)*(1.f-(x)))
   #define FUN4(x)              ((float4)4.f*(x)*((float4)1.f-(x)))
-  #define NU 1e-8f
+  #define NU 1e-7f
   #define NU2 (1.f-2.f*NU)
   #define MIN_INVERSE_LIMIT 1e-7f
   #define logistic_uniform(v)  (acos(1.f-2.f*(v))*R_PI)
