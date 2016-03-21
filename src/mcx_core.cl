@@ -26,11 +26,7 @@
   #define GPUDEBUG(x)
 #endif
 
-#define RAND_BUF_LEN       5        //register arrays
-#define RAND_SEED_LEN      5        //32bit seed length (32*5=160bits)
 #define R_PI               0.318309886183791f
-#define INIT_LOGISTIC      100
-
 #define RAND_MAX           4294967295
 
 #define ONE_PI             3.1415926535897932f     //pi
@@ -70,6 +66,11 @@ typedef struct KernelParams {
   unsigned int mediaidorig;
 } MCXParam __attribute__ ((aligned (16)));
 
+#ifndef USE_POSIX_RAND
+
+#define RAND_BUF_LEN       5        //register arrays
+#define RAND_SEED_LEN      5        //32bit seed length (32*5=160bits)
+#define INIT_LOGISTIC      100
 
 #ifndef DOUBLE_PREC_LOGISTIC
   typedef float RandType;
@@ -95,7 +96,6 @@ typedef struct KernelParams {
 
 #define RING_FUN(x,y,z)      (NU2*(x)+NU*((y)+(z)))
 
-
 void logistic_step(__private RandType *t, __private RandType *tnew, int len_1){
     t[0]=FUN(t[0]);
     t[1]=FUN(t[1]);
@@ -109,43 +109,123 @@ void logistic_step(__private RandType *t, __private RandType *tnew, int len_1){
     tnew[3]=RING_FUN(t[4],t[3],t[0]);
 }
 // generate random number for the next zenith angle
-void rand_need_more(__private RandType t[RAND_BUF_LEN], __private RandType tbuf[RAND_BUF_LEN]){
-    logistic_step(t,tbuf,RAND_BUF_LEN-1);
-    logistic_step(tbuf,t,RAND_BUF_LEN-1);
+void rand_need_more(__private RandType t[RAND_BUF_LEN]){
+    RandType tnew[RAND_BUF_LEN]={0.f};
+    logistic_step(t,tnew,RAND_BUF_LEN-1);
+    logistic_step(tnew,t,RAND_BUF_LEN-1);
 }
 
-void logistic_init(__private RandType *t, __private RandType *tnew,__global uint seed[],uint idx){
+void logistic_init(__private RandType *t,__global uint seed[],uint idx){
      int i;
      for(i=0;i<RAND_BUF_LEN;i++)
            t[i]=(RandType)seed[idx*RAND_BUF_LEN+i]*R_MAX_C_RAND;
 
      for(i=0;i<INIT_LOGISTIC;i++)  /*initial randomization*/
-           rand_need_more(t,tnew);
+           rand_need_more(t);
 }
 // transform into [0,1] random number
-RandType rand_uniform01(RandType v){
-    return logistic_uniform(v);
+RandType rand_uniform01(__private RandType t[RAND_BUF_LEN]){
+    rand_need_more(t);
+    return logistic_uniform(t[0]);
 }
-void gpu_rng_init(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN],__global uint *n_seed,int idx){
+void gpu_rng_init(__private RandType t[RAND_BUF_LEN],__global uint *n_seed,int idx){
 //void gpu_rng_init(RandType *t, RandType *tnew, __global uint *n_seed,int idx){
-    logistic_init(t,tnew,n_seed,idx);
+    logistic_init(t,n_seed,idx);
 }
 // generate [0,1] random number for the next scattering length
-float rand_next_scatlen(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN]){
-    rand_need_more(t,tnew);
-    RandType ran=rand_uniform01(t[0]);
-    if(ran==0.f) ran=rand_uniform01(t[1]);
+float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
+    RandType ran=rand_uniform01(t);
+    if(ran==0.f) ran=logistic_uniform(t[1]);
     return ((ran==0.f)?LOG_MT_MAX:(-log(ran)));
 }
-// generate [0,1] random number for the next arimuthal angle
-float rand_next_aangle(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN]){
-    rand_need_more(t,tnew);
-    return rand_uniform01(t[t[2]+t[3]>=1.f]);
+
+
+#else
+
+
+#define RAND_BUF_LEN       4        //register arrays
+#define RAND_SEED_LEN      4        //48 bit packed with 64bit length
+#define LOG_MT_MAX         22.1807097779182f
+#define LCG_MULTIPLIER     0x5deece66dul
+#define LCG_INCREMENT      0xb
+#define IEEE754_DOUBLE_BIAS     0x3ff /* Added to exponent.  */
+
+typedef unsigned short     RandType;
+
+int __drand48_iterate (__private RandType t[RAND_BUF_LEN]){
+  ulong X;
+  ulong result;
+
+  X = (ulong) t[2] << 32 | (uint) t[1] << 16 | t[0];
+
+  result = X * LCG_MULTIPLIER + LCG_INCREMENT;
+
+  t[0] = result & 0xffff;
+  t[1] = (result >> 16) & 0xffff;
+  t[2] = (result >> 32) & 0xffff;
+
+  return 0;
 }
 
-#define rand_next_zangle(t1,t2) rand_next_aangle(t1,t2)
-#define rand_next_reflect(t1,t2) rand_next_aangle(t1,t2)
-#define rand_do_roulette(t1,t2) rand_next_aangle(t1,t2) 
+double __erand48_r (__private RandType t[RAND_BUF_LEN]){
+  union{
+    double d;
+    ulong  i;
+  } temp;
+
+  temp.i=0ul;
+  /* Compute next state.  */
+  __drand48_iterate (t);
+
+  /* Construct a positive double with the 48 random bits distributed over
+     its fractional part so the resulting FP number is [0.0,1.0).  */
+  temp.i |= ((ulong)((IEEE754_DOUBLE_BIAS <<4) | (t[0] & 0xf))<<48);
+  temp.i |= (ulong)t[1] << 32;
+  temp.i |= (ulong)t[2] << 16;
+  temp.i |= (ulong)(t[0] & 0xfff0);
+
+  /* Please note the lower 4 bits of mantissa1 are always 0.  */
+  return temp.d - 1.0;
+}
+
+void copystate(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN]){
+    tnew[0]=t[0];
+    tnew[1]=t[1];
+    tnew[2]=t[2];
+}
+
+// generate random number for the next zenith angle
+void rand_need_more(__private RandType t[RAND_BUF_LEN]){
+}
+
+float rand_uniform01(__private RandType t[RAND_BUF_LEN]){
+    return (float)__erand48_r(t);
+}
+
+void gpu_rng_init(__private RandType t[RAND_BUF_LEN], __global uint *n_seed, int idx){
+    t[0] = n_seed[idx*RAND_BUF_LEN] >> 16;
+    t[1] = n_seed[idx*RAND_BUF_LEN]   & 0xffff;
+    t[2] = n_seed[idx*RAND_BUF_LEN+1] & 0xffff;
+}
+void gpu_rng_reseed(__private RandType t[RAND_BUF_LEN],__global uint cpuseed[],uint idx,float reseed){
+}
+// generate [0,1] random number for the next scattering length
+float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
+    float ran=(float)__erand48_r(t);
+    return ((ran==0.f)?LOG_MT_MAX:(-log(ran)));
+}
+
+#endif
+
+// generate [0,1] random number for the next arimuthal angle
+float rand_next_aangle(__private RandType t[RAND_BUF_LEN]){
+    return rand_uniform01(t);
+}
+
+#define rand_next_zangle(t1)  rand_next_aangle(t1)
+#define rand_next_reflect(t1) rand_next_aangle(t1)
+#define rand_do_roulette(t1)  rand_next_aangle(t1) 
+
 
 #ifdef USE_ATOMIC
 // OpenCL float atomicadd hack:
@@ -312,7 +392,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      int flipdir=0;
 
      //for MT RNG, these will be zero-length arrays and be optimized out
-     RandType t[RAND_BUF_LEN],tnew[RAND_BUF_LEN];
+     RandType t[RAND_BUF_LEN];
      float4 prop;    //can become float2 if no reflection
 
      float len,cphi,sphi,theta,stheta,ctheta,tmp0,tmp1;
@@ -326,7 +406,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      if(gcfg->savedet) clearpath(ppath,gcfg);
 #endif
 
-     gpu_rng_init(t,tnew,n_seed,idx);
+     gpu_rng_init(t,n_seed,idx);
 
      if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&w0,&Lmove,0,ppath,
 		      &energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton)){
@@ -339,13 +419,13 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           GPUDEBUG(((__constant char*)"photonid [%d] L=%f w=%e medium=%d\n",(int)f.w,f.x,p.w,mediaid));
 
 	  if(f.x<=0.f) {  // if this photon has finished the current jump
-   	       f.x=rand_next_scatlen(t,tnew);
+   	       f.x=rand_next_scatlen(t);
 
                GPUDEBUG(((__constant char*)"scat L=%f RNG=[%e %e %e] \n",f.x,t[0],t[1],t[2]));
 
 	       if(p.w<1.f){ //weight
                        //random arimuthal angle
-                       tmp0=TWO_PI*rand_next_aangle(t,tnew); //next arimuth angle
+                       tmp0=TWO_PI*rand_next_aangle(t); //next arimuth angle
                        sphi=sincos(tmp0,&cphi);
                        GPUDEBUG(((__constant char*)"scat phi=%f\n",tmp0));
 
@@ -353,7 +433,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                        //Biomedical Diagnostics",2002,Chap3,p234, also see Boas2002
 
                        if(prop.z>EPS){  //if prop.z is too small, the distribution of theta is bad
-		           tmp0=(1.f-prop.z*prop.z)/(1.f-prop.z+2.f*prop.z*rand_next_zangle(t,tnew));
+		           tmp0=(1.f-prop.z*prop.z)/(1.f-prop.z+2.f*prop.z*rand_next_zangle(t));
 		           tmp0*=tmp0;
 		           tmp0=(1.f+prop.z*prop.z-tmp0)/(2.f*prop.z);
 
@@ -365,7 +445,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 		           stheta=sin(theta);
 		           ctheta=tmp0;
                        }else{
-			   theta=acos(2.f*rand_next_zangle(t,tnew)-1.f);
+			   theta=acos(2.f*rand_next_zangle(t)-1.f);
                            stheta=sincos(theta,&ctheta);
                        }
                        GPUDEBUG(((__constant char*)"scat theta=%f\n",theta));
@@ -464,7 +544,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
        	       	     Rtotal=(Rtotal+(ctheta-stheta)/(ctheta+stheta))*0.5f;
 		     GPUDEBUG(((__constant char*)"Rtotal=%f\n",Rtotal));
                   }
-	          if(Rtotal<1.f && rand_next_reflect(t,tnew)>Rtotal){ // do transmission
+	          if(Rtotal<1.f && rand_next_reflect(t)>Rtotal){ // do transmission
                         if(mediaid==0){ // transmission to external boundary
                             GPUDEBUG(((__constant char*)"transmit to air, relaunch\n"));
 		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),
