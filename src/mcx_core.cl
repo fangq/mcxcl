@@ -142,6 +142,7 @@ float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
 
 #else
 
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
 #define RAND_BUF_LEN       4        //register arrays
 #define RAND_SEED_LEN      4        //48 bit packed with 64bit length

@@ -141,7 +141,6 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
 				}
 				activeplatform=platform;
                           }
-printf("devnum=%d\n",devnum);
 			  if(cfg->isgpuinfo){
         	        	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_NAME,100,(void*)&pbuf,NULL)));
                 		printf("============ %s device ID %d [%d of %d]: %s  ============\n",devname[j],cuid,k+1,devnum,pbuf);
