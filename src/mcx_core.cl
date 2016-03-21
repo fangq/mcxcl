@@ -129,9 +129,9 @@ RandType rand_uniform01(__private RandType t[RAND_BUF_LEN]){
     return logistic_uniform(t[0]);
 }
 void gpu_rng_init(__private RandType t[RAND_BUF_LEN],__global uint *n_seed,int idx){
-//void gpu_rng_init(RandType *t, RandType *tnew, __global uint *n_seed,int idx){
     logistic_init(t,n_seed,idx);
 }
+
 // generate [0,1] random number for the next scattering length
 float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
     RandType ran=rand_uniform01(t);
@@ -167,7 +167,7 @@ int __drand48_iterate (__private RandType t[RAND_BUF_LEN]){
   return 0;
 }
 
-double __erand48_r (__private RandType t[RAND_BUF_LEN]){
+float __erand48_r (__private RandType t[RAND_BUF_LEN]){
   union{
     double d;
     ulong  i;
@@ -185,7 +185,7 @@ double __erand48_r (__private RandType t[RAND_BUF_LEN]){
   temp.i |= (ulong)(t[0] & 0xfff0);
 
   /* Please note the lower 4 bits of mantissa1 are always 0.  */
-  return temp.d - 1.0;
+  return (float)temp.d - 1.0f;
 }
 
 void copystate(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN]){
@@ -199,19 +199,19 @@ void rand_need_more(__private RandType t[RAND_BUF_LEN]){
 }
 
 float rand_uniform01(__private RandType t[RAND_BUF_LEN]){
-    return (float)__erand48_r(t);
+    return __erand48_r(t);
 }
 
 void gpu_rng_init(__private RandType t[RAND_BUF_LEN], __global uint *n_seed, int idx){
-    t[0] = n_seed[idx*RAND_BUF_LEN] >> 16;
-    t[1] = n_seed[idx*RAND_BUF_LEN]   & 0xffff;
-    t[2] = n_seed[idx*RAND_BUF_LEN+1] & 0xffff;
+    t[0] = n_seed[idx*RAND_BUF_LEN]   & 0xffff;
+    t[1] = n_seed[idx*RAND_BUF_LEN+1] & 0xffff;
+    t[2] = n_seed[idx*RAND_BUF_LEN+2] & 0xffff;
 }
 void gpu_rng_reseed(__private RandType t[RAND_BUF_LEN],__global uint cpuseed[],uint idx,float reseed){
 }
 // generate [0,1] random number for the next scattering length
 float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
-    float ran=(float)__erand48_r(t);
+    float ran=__erand48_r(t);
     return ((ran==0.f)?LOG_MT_MAX:(-log(ran)));
 }
 
