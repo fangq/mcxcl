@@ -231,7 +231,6 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      if(devices == NULL){
          OCL_ASSERT(-1);
      }
-     printf("workdev=%d\n",workdev);
 
      cl_context_properties cps[3]={CL_CONTEXT_PLATFORM, (cl_context_properties)platform, 0};
 

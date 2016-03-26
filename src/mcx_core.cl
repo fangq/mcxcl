@@ -64,35 +64,24 @@ typedef struct KernelParams {
   unsigned int detnum;
   unsigned int idx1dorig;
   unsigned int mediaidorig;
-} MCXParam __attribute__ ((aligned (16)));
+} MCXParam __attribute__ ((aligned (32)));
 
-#ifndef USE_POSIX_RAND
+
+#ifndef USE_XORSHIFT128P_RAND
 
 #define RAND_BUF_LEN       5        //register arrays
 #define RAND_SEED_LEN      5        //32bit seed length (32*5=160bits)
 #define INIT_LOGISTIC      100
 
-#ifndef DOUBLE_PREC_LOGISTIC
-  typedef float RandType;
-  #define FUN(x)               (4.f*(x)*(1.f-(x)))
-  #define FUN4(x)              ((float4)4.f*(x)*((float4)1.f-(x)))
-  #define NU 1e-7f
-  #define NU2 (1.f-2.f*NU)
-  #define MIN_INVERSE_LIMIT 1e-7f
-  #define logistic_uniform(v)  (acos(1.f-2.f*(v))*R_PI)
-  #define R_MAX_C_RAND       (1.f/RAND_MAX)
-  #define LOG_MT_MAX         22.1807097779182f
-#else
-  typedef double RandType;
-  #define FUN(x)               (4.0*(x)*(1.0-(x)))
-  #define FUN4(x)              ((double4)4.f*(x)*((double4)1.f-(x)))
-  #define NU 1e-14
-  #define NU2 (1.0-2.0*NU)
-  #define MIN_INVERSE_LIMIT 1e-12
-  #define logistic_uniform(v)  (acos(1.0-2.0*(v))*R_PI)
-  #define R_MAX_C_RAND       (1./RAND_MAX)
-  #define LOG_MT_MAX         22.1807097779182
-#endif
+typedef float RandType;
+
+#define FUN(x)               (4.f*(x)*(1.f-(x)))
+#define NU                   1e-7f
+#define NU2                  (1.f-2.f*NU)
+#define MIN_INVERSE_LIMIT    1e-7f
+#define logistic_uniform(v)  (acos(1.f-2.f*(v))*R_PI)
+#define R_MAX_C_RAND         (1.f/RAND_MAX)
+#define LOG_MT_MAX           22.1807097779182f
 
 #define RING_FUN(x,y,z)      (NU2*(x)+NU*((y)+(z)))
 
@@ -132,67 +121,36 @@ void gpu_rng_init(__private RandType t[RAND_BUF_LEN],__global uint *n_seed,int i
     logistic_init(t,n_seed,idx);
 }
 
-// generate [0,1] random number for the next scattering length
-float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
-    RandType ran=rand_uniform01(t);
-    if(ran==0.f) ran=logistic_uniform(t[1]);
-    return ((ran==0.f)?LOG_MT_MAX:(-log(ran)));
-}
-
-
 #else
 
 #pragma OPENCL EXTENSION cl_khr_fp64 : enable
 
-#define RAND_BUF_LEN       4        //register arrays
+#define RAND_BUF_LEN       2        //register arrays
 #define RAND_SEED_LEN      4        //48 bit packed with 64bit length
 #define LOG_MT_MAX         22.1807097779182f
-#define LCG_MULTIPLIER     0x5deece66dul
-#define LCG_INCREMENT      0xb
-#define IEEE754_DOUBLE_BIAS     0x3ff /* Added to exponent.  */
+#define IEEE754_DOUBLE_BIAS     0x3FF0000000000000ul /* Added to exponent.  */
 
-typedef unsigned short     RandType;
+typedef ulong  RandType;
 
-int __drand48_iterate (__private RandType t[RAND_BUF_LEN]){
-  ulong X;
-  ulong result;
+float xorshift128p_nextf (__private RandType t[RAND_BUF_LEN]){
+   union {
+        double d;
+        ulong  i;
+   } s1;
+   const ulong s0 = t[1];
+   s1.i = t[0];
+   t[0] = s0;
+   s1.i ^= s1.i << 23; // a
+   t[1] = s1.i ^ s0 ^ (s1.i >> 18) ^ (s0 >> 5); // b, c
+   s1.i = t[1] + s0;
+   s1.i = (s1.i >> 12) | IEEE754_DOUBLE_BIAS;
 
-  X = (ulong) t[2] << 32 | (uint) t[1] << 16 | t[0];
-
-  result = X * LCG_MULTIPLIER + LCG_INCREMENT;
-
-  t[0] = result & 0xffff;
-  t[1] = (result >> 16) & 0xffff;
-  t[2] = (result >> 32) & 0xffff;
-
-  return 0;
-}
-
-float __erand48_r (__private RandType t[RAND_BUF_LEN]){
-  union{
-    double d;
-    ulong  i;
-  } temp;
-
-  temp.i=0ul;
-  /* Compute next state.  */
-  __drand48_iterate (t);
-
-  /* Construct a positive double with the 48 random bits distributed over
-     its fractional part so the resulting FP number is [0.0,1.0).  */
-  temp.i |= ((ulong)((IEEE754_DOUBLE_BIAS <<4) | (t[0] & 0xf))<<48);
-  temp.i |= (ulong)t[1] << 32;
-  temp.i |= (ulong)t[2] << 16;
-  temp.i |= (ulong)(t[0] & 0xfff0);
-
-  /* Please note the lower 4 bits of mantissa1 are always 0.  */
-  return (float)temp.d - 1.0f;
+   return (float)s1.d - 1.0f;
 }
 
 void copystate(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN]){
     tnew[0]=t[0];
     tnew[1]=t[1];
-    tnew[2]=t[2];
 }
 
 // generate random number for the next zenith angle
@@ -200,32 +158,31 @@ void rand_need_more(__private RandType t[RAND_BUF_LEN]){
 }
 
 float rand_uniform01(__private RandType t[RAND_BUF_LEN]){
-    return __erand48_r(t);
+    return xorshift128p_nextf(t);
+}
+
+void xorshift128p_seed (__global uint seed[4],RandType t[RAND_BUF_LEN])
+{
+    t[0] = (ulong)seed[0] << 32 | seed[1] ;
+    t[1] = (ulong)seed[2] << 32 | seed[3];
 }
 
 void gpu_rng_init(__private RandType t[RAND_BUF_LEN], __global uint *n_seed, int idx){
-    t[0] = n_seed[idx*RAND_BUF_LEN]   & 0xffff;
-    t[1] = n_seed[idx*RAND_BUF_LEN+1] & 0xffff;
-    t[2] = n_seed[idx*RAND_BUF_LEN+2] & 0xffff;
+    xorshift128p_seed((n_seed+idx*RAND_SEED_LEN),t);
 }
 void gpu_rng_reseed(__private RandType t[RAND_BUF_LEN],__global uint cpuseed[],uint idx,float reseed){
-}
-// generate [0,1] random number for the next scattering length
-float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
-    float ran=__erand48_r(t);
-    return ((ran==0.f)?LOG_MT_MAX:(-log(ran)));
 }
 
 #endif
 
-// generate [0,1] random number for the next arimuthal angle
-float rand_next_aangle(__private RandType t[RAND_BUF_LEN]){
-    return rand_uniform01(t);
+float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
+    return -log(rand_uniform01(t)+EPS);
 }
 
-#define rand_next_zangle(t1)  rand_next_aangle(t1)
-#define rand_next_reflect(t1) rand_next_aangle(t1)
-#define rand_do_roulette(t1)  rand_next_aangle(t1) 
+#define rand_next_aangle(t)  rand_uniform01(t)
+#define rand_next_zangle(t)  rand_uniform01(t)
+#define rand_next_reflect(t) rand_uniform01(t)
+#define rand_do_roulette(t)  rand_uniform01(t) 
 
 
 #ifdef USE_ATOMIC
@@ -336,7 +293,7 @@ void rotatevector(float4 v[], float stheta, float ctheta, float sphi, float cphi
 }
 
 int launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
-           uint *mediaid,float *w0, float *Lmove,uchar isdet, __local float ppath[],float *energyloss,float *energylaunched,
+           uint *mediaid,float *w0,uchar isdet, __local float ppath[],float *energyloss,float *energylaunched,
 	   __global float n_det[],__global uint *dpnum, __constant float4 gproperty[],
 	   __constant float4 gdetpos[],__constant MCXParam gcfg[],int threadid, int threadphoton, int oddphotons){
       
@@ -363,7 +320,6 @@ int launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
       prop[0]=gproperty[*mediaid & MED_MASK]; //always use mediaid to read gproperty[]
       *energylaunched+=p[0].w;
       *w0=p[0].w;
-      *Lmove=0.f;
       return 0;
 }
 
@@ -380,7 +336,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
      float4 p={0.f,0.f,0.f,-1.f};  //{x,y,z}: x,y,z coordinates,{w}:packet weight
      float4 v=gcfg->c0;  //{x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event
-     float4 f={0.f,0.f,gcfg->minaccumtime,0.f};  //f.w can be dropped to save register
+     float4 f={0.f,0.f,0.f,0.f};  //f.w can be dropped to save register
      float  energyloss=0.f;
      float  energylaunched=0.f;
 
@@ -396,10 +352,9 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      RandType t[RAND_BUF_LEN];
      float4 prop;    //can become float2 if no reflection
 
-     float len,cphi,sphi,theta,stheta,ctheta,tmp0,tmp1;
+     float cphi,sphi,theta,stheta,ctheta,tmp0,tmp1;
      float accumweight=0.f;
      float slen;
-     float Lmove = 0.f;
 
      __local float *ppath=sharedmem+get_local_id(0)*gcfg->maxmedia;
 
@@ -409,7 +364,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
      gpu_rng_init(t,n_seed,idx);
 
-     if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&w0,&Lmove,0,ppath,
+     if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&w0,0,ppath,
 		      &energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton)){
          n_seed[idx]=NO_LAUNCH;
          return;
@@ -422,7 +377,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	  if(f.x<=0.f) {  // if this photon has finished the current jump
    	       f.x=rand_next_scatlen(t);
 
-               GPUDEBUG(((__constant char*)"scat L=%f RNG=[%e %e %e] \n",f.x,t[0],t[1],t[2]));
+               GPUDEBUG(((__constant char*)"scat L=%f RNG=[%e %e %e] \n",f.x,rand_next_aangle(t),rand_next_zangle(t),rand_uniform01(t)));
 
 	       if(p.w<1.f){ //weight
                        //random arimuthal angle
@@ -458,24 +413,23 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	  n1=prop.w;
 	  prop=gproperty[mediaid & MED_MASK];
 	  
-	  len=hitgrid(&p, &v, &htime, &flipdir);
-	  slen=len*prop.y;
+	  f.z=hitgrid(&p, &v, &htime, &flipdir);
+	  slen=f.z*prop.y;
 	  slen=fmin(slen,f.x);
-	  len=slen/prop.y;
+	  f.z=slen/prop.y;
 
-          GPUDEBUG(((__constant char*)"p=[%f %f %f] -> <%f %f %f>*%f -> hit=[%f %f %f] flip=%d\n",p.x,p.y,p.z,v.x,v.y,v.z,len,htime.x,htime.y,htime.z,flipdir));
+          GPUDEBUG(((__constant char*)"p=[%f %f %f] -> <%f %f %f>*%f -> hit=[%f %f %f] flip=%d\n",p.x,p.y,p.z,v.x,v.y,v.z,f.z,htime.x,htime.y,htime.z,flipdir));
 
-	  p.xyz = (slen==f.x) ? p.xyz+(float3)(len)*v.xyz : htime.xyz;
-	  p.w*=exp(-prop.x*len);
+	  p.xyz = (slen==f.x) ? p.xyz+(float3)(f.z)*v.xyz : htime.xyz;
+	  p.w*=exp(-prop.x*f.z);
 	  f.x-=slen;
-	  f.y+=len*prop.w*gcfg->oneoverc0;
-	  Lmove+=len;
+	  f.y+=f.z*prop.w*gcfg->oneoverc0;
 
-          GPUDEBUG(((__constant char*)"update p=[%f %f %f] -> len=%f\n",p.x,p.y,p.z,len));
+          GPUDEBUG(((__constant char*)"update p=[%f %f %f] -> f.z=%f\n",p.x,p.y,p.z,f.z));
 
 #ifdef MCX_SAVE_DETECTORS
           if(gcfg->savedet)
-	      ppath[(mediaid & MED_MASK)-1]+=len; //(unit=grid)
+	      ppath[(mediaid & MED_MASK)-1]+=f.z; //(unit=grid)
 #endif
 
           mediaidold=media[idx1d];
@@ -511,12 +465,11 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 #endif
 	     }
 	     w0=p.w;
-	     Lmove=0.f;
 	  }
 
           if((mediaid==0 && (!gcfg->doreflect || (gcfg->doreflect && n1==gproperty[mediaid].w))) || f.y>gcfg->twin1){
                   GPUDEBUG(((__constant char*)"direct relaunch at idx=[%d] mediaid=[%d], ref=[%d]\n",idx1d,mediaid,gcfg->doreflect));
-		  if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),ppath,
+		  if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&w0,(mediaidold & DET_MASK),ppath,
 		      &energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton)){ 
                          break;
 		  }
@@ -534,21 +487,21 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                   cphi=fabs( (flipdir==0) ? v.x : (flipdir==1 ? v.y : v.z)); // cos(si)
                   sphi=1.f-cphi*cphi;            // sin(si)^2
 
-                  len=1.f-tmp0/tmp1*sphi;   //1-[n1/n2*sin(si)]^2
-	          GPUDEBUG(((__constant char*)"ref total ref=%f\n",len));
+                  f.z=1.f-tmp0/tmp1*sphi;   //1-[n1/n2*sin(si)]^2
+	          GPUDEBUG(((__constant char*)"ref total ref=%f\n",f.z));
 
-                  if(len>0.f) {
-                     ctheta=tmp0*cphi*cphi+tmp1*len;
-                     stheta=2.f*n1*prop.w*cphi*sqrt(len);
+                  if(f.z>0.f) {
+                     ctheta=tmp0*cphi*cphi+tmp1*f.z;
+                     stheta=2.f*n1*prop.w*cphi*sqrt(f.z);
                      Rtotal=(ctheta-stheta)/(ctheta+stheta);
-       	       	     ctheta=tmp1*cphi*cphi+tmp0*len;
+       	       	     ctheta=tmp1*cphi*cphi+tmp0*f.z;
        	       	     Rtotal=(Rtotal+(ctheta-stheta)/(ctheta+stheta))*0.5f;
 		     GPUDEBUG(((__constant char*)"Rtotal=%f\n",Rtotal));
                   }
 	          if(Rtotal<1.f && rand_next_reflect(t)>Rtotal){ // do transmission
                         if(mediaid==0){ // transmission to external boundary
                             GPUDEBUG(((__constant char*)"transmit to air, relaunch\n"));
-		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),
+		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&w0,(mediaidold & DET_MASK),
 			        ppath,&energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton)){
                                     break;
 			    }
