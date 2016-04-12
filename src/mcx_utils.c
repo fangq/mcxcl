@@ -44,7 +44,7 @@ void mcx_initcfg(Config *cfg){
      cfg->dim.z=0;
      cfg->nblocksize=64;
      cfg->nphoton=0;
-     cfg->nthread=0;
+     cfg->nthread=(1<<14);
      cfg->seed=0;
      cfg->isrowmajor=0; /* default is Matlab array*/
      cfg->maxgate=1;
@@ -720,10 +720,13 @@ void mcx_usage(char *exename){
      printf("\
 ======================================================================================\n\
 =                      Monte Carlo eXtreme (MCX) -- OpenCL                           =\n\
-=            Copyright (c) 2009-2016 Qianqian Fang <q.fang at neu.edu>               =\n\
+=            Copyright (c) 2010-2016 Qianqian Fang <q.fang at neu.edu>               =\n\
+=                                 http://mcx.space/                                  =\n\
 =                                                                                    =\n\
-=                      Computational Imaging Laboratory (CIL)                        =\n\
+=            Computational Imaging Laboratory (CIL) [http://fanglab.org]             =\n\
 =               Department of Bioengineering, Northeastern University                =\n\
+======================================================================================\n\
+=        The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365         =\n\
 ======================================================================================\n\
 $MCXCL $Rev:: 155$, Last Commit:$Date:: 2009-12-19 18:57:32 -05#$ by $Author:: fangq $\n\
 ======================================================================================\n\
@@ -732,7 +735,7 @@ usage: %s <param1> <param2> ...\n\
 where possible parameters include (the first item in [] is the default value)\n\
  -i 	        (--interactive) interactive mode\n\
  -f config      (--input)	read config from a file\n\
- -t [1024|int]  (--thread)	total thread number\n\
+ -t [16384|int] (--thread)	total thread number\n\
  -T [64|int]    (--blocksize)	thread number per block\n\
  -n [0|int]     (--photon)	total photon number\n\
  -r [1|int]     (--repeat)	number of repeations\n\
@@ -758,5 +761,5 @@ where possible parameters include (the first item in [] is the default value)\n\
  -W '50,30,20'  (--workload)    specify relative workload for each device; total is the sum\n\
  -J '-D MCX'    (--compileropt) specify additional JIT compiler options\n\
 example:\n\
-  %s -t 1024 -T 64 -n 1e7 -f input.inp -s test -r 1 -b 0 -G 1010 -W '50,50' -k ../../src/mcx_core.cl\n",exename,exename);
+  %s -t 16384 -T 64 -n 1e7 -f input.inp -s test -r 1 -b 0 -G 1010 -W '50,50' -k ../../src/mcx_core.cl\n",exename,exename);
 }

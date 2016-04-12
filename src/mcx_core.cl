@@ -342,7 +342,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
      uint idx1d, idx1dold;   //idx1dold is related to reflection
 
-     uint   mediaid=gcfg->mediaidorig,mediaidold=0;
+     uint   mediaid=gcfg->mediaidorig,mediaidold=0,isdet=0;
      float  w0;
      float  n1;   //reflection var
      float4 htime;            //reflection var
@@ -432,14 +432,16 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	      ppath[(mediaid & MED_MASK)-1]+=f.z; //(unit=grid)
 #endif
 
-          mediaidold=media[idx1d];
+          mediaidold=mediaid | isdet;
           idx1dold=idx1d;
           idx1d=((int)floor(p.z)*gcfg->dimlen.y+(int)floor(p.y)*gcfg->dimlen.x+(int)floor(p.x));
           GPUDEBUG(((__constant char*)"idx1d [%d]->[%d]\n",idx1dold,idx1d));
           if(any(isless(p.xyz,(float3)(0.f))) || any(isgreater(p.xyz,(gcfg->maxidx.xyz)))){
 	      mediaid=0;	
 	  }else{
-              mediaid=media[idx1d] & MED_MASK;
+              mediaid=media[idx1d];
+              isdet=mediaid & DET_MASK;
+              mediaid &= MED_MASK;
           }
           GPUDEBUG(((__constant char*)"medium [%d]->[%d]\n",mediaidold,mediaid));
 
