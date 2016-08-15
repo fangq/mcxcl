@@ -188,20 +188,11 @@ float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
 #ifdef USE_ATOMIC
 // OpenCL float atomicadd hack:
 // http://suhorukov.blogspot.co.uk/2011/12/opencl-11-atomic-operations-on-floating.html
+// https://devtalk.nvidia.com/default/topic/458062/atomicadd-float-float-atomicmul-float-float-/
 
-inline void atomicadd(volatile __global float *source, const float operand) {
-    union {
-        unsigned int intVal;
-        float floatVal;
-    } newVal;
-    union {
-        unsigned int intVal;
-        float floatVal;
-    } prevVal;
-    do {
-        prevVal.floatVal = *source;
-        newVal.floatVal = prevVal.floatVal + operand;
-    } while (atomic_cmpxchg((volatile __global unsigned int *)source, prevVal.intVal, newVal.intVal) != prevVal.intVal);
+inline void atomicadd(volatile __global float* address, const float value){
+    float old = value;
+    while ((old = atomic_xchg(address, atomic_xchg(address, 0.0f)+old))!=0.0f);
 }
 #endif
 
@@ -258,7 +249,7 @@ float hitgrid(float4 p0[], float4 v[], float4 htime[], int *id){
 
       //time-of-flight to hit the wall in each direction
 
-      htime[0]=fabs(floor(p0[0])+convert_float4(isgreater(v[0],((float4)(0.f))))-p0[0]);
+      htime[0]=fabs(floor(p0[0])-convert_float4(isgreater(v[0],((float4)(0.f))))-p0[0]);
       htime[0]=fabs(native_divide(htime[0]+(float4)EPS,v[0]));
 
       //get the direction with the smallest time-of-flight
