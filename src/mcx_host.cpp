@@ -439,6 +439,7 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 #endif
                OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetected[devid],CL_FALSE,0,sizeof(uint),
                                             &detected, 0, NULL, waittoread+devid)));
+               OCL_ASSERT((clFlush(mcxqueue[devid])));
            }
            clWaitForEvents(workdev,waittoread);
            tic1=GetTimeMillis();
