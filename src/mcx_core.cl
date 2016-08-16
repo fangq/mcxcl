@@ -67,7 +67,8 @@ typedef struct KernelParams {
 } MCXParam __attribute__ ((aligned (32)));
 
 
-#ifndef USE_XORSHIFT128P_RAND
+//#ifndef USE_XORSHIFT128P_RAND     // xorshift128+ is the default RNG
+#ifdef USE_LL5_RAND                 //enable the legacy Logistic Lattic RNG
 
 #define RAND_BUF_LEN       5        //register arrays
 #define RAND_SEED_LEN      5        //32bit seed length (32*5=160bits)
