@@ -22,13 +22,15 @@
 #include "mcx_utils.h"
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','G','W','z',
-                 'd','r','S','p','e','U','R','l','L','M','I','o','c','k','v','J','\0'};
+                 'd','r','S','p','e','U','R','l','L','M','I','o','c','k','v','J',
+                 'A','\0'};
 const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--thread","--blocksize","--session","--array","--gategroup",
                  "--reflect","--reflect3","--device","--devicelist","--workload","--srcfrom0",
 		 "--savedet","--repeat","--save2pt","--printlen","--minenergy",
                  "--normalize","--skipradius","--log","--listgpu","--dumpmask",
-                 "--printgpu","--root","--cpu","--kernel","--verbose","--compileropt",""};
+                 "--printgpu","--root","--cpu","--kernel","--verbose","--compileropt",
+                 "--autopilot",""};
 #ifdef WIN32
          char pathsep='\\';
 #else
@@ -71,6 +73,7 @@ void mcx_initcfg(Config *cfg){
      cfg->clsource='\0';
      cfg->maxdetphoton=1000000; 
      cfg->isdumpmask=0;
+     cfg->autopilot=0;
 
      memset(cfg->deviceid,0,MAX_DEVICE);
      memset(cfg->compileropt,0,MAX_PATH_LENGTH);
@@ -642,6 +645,9 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                      case 'R':
                                 i=mcx_readarg(argc,argv,i,&(cfg->sradius),"float");
                                 break;
+                     case 'A':
+                                i=mcx_readarg(argc,argv,i,&(cfg->autopilot),"char");
+                                break;
                      case 'l':
                                 issavelog=1;
                                 break;
@@ -735,6 +741,7 @@ usage: %s <param1> <param2> ...\n\
 where possible parameters include (the first item in [] is the default value)\n\
  -i 	        (--interactive) interactive mode\n\
  -f config      (--input)	read config from a file\n\
+ -A [0|int]     (--autopilot)   auto thread config:1 dedicated GPU;2 non-dedica.\n\
  -t [16384|int] (--thread)	total thread number\n\
  -T [64|int]    (--blocksize)	thread number per block\n\
  -n [0|int]     (--photon)	total photon number\n\
@@ -760,6 +767,8 @@ where possible parameters include (the first item in [] is the default value)\n\
  -G '0111'      (--devicelist)  specify the active OpenCL devices (1 enable, 0 disable)\n\
  -W '50,30,20'  (--workload)    specify relative workload for each device; total is the sum\n\
  -J '-D MCX'    (--compileropt) specify additional JIT compiler options\n\
-example:\n\
-  %s -t 16384 -T 64 -n 1e7 -f input.inp -s test -r 1 -b 0 -G 1010 -W '50,50' -k ../../src/mcx_core.cl\n",exename,exename);
+example: (autopilot mode)\n\
+  %s -A -n 1e7 -f input.inp -G 1 \n\
+or (manual mode)\n\
+  %s -t 16384 -T 64 -n 1e7 -f input.inp -s test -r 1 -b 0 -G 1010 -W '50,50' -k ../../src/mcx_core.cl\n",exename,exename,exename);
 }

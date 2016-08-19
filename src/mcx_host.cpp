@@ -90,15 +90,28 @@ void ocl_assess(int cuerr,const char *file,const int linenum){
      }
 }
 
+/**
+  obtain GPU core number per MP, this replaces 
+  ConvertSMVer2Cores() in libcudautils to avoid 
+  extra dependency.
+*/
+int mcx_nv_corecount(int v1, int v2){  
+     int v=v1*10+v2;
+     if(v<20)      return 8;
+     else if(v<21) return 32;
+     else if(v<30) return 48;
+     else if(v<50) return 192;
+     else          return 128;
+}
+
 
 /*
   query GPU info and set active GPU
 */
-cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *activedevlist){
+cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *activedevlist,GPUInfo **info){
 
     uint i,j,k,cuid=0,devnum;
-    cl_uint numPlatforms,devparam,clockspeed;
-    cl_ulong devmem,constmem;
+    cl_uint numPlatforms;
     cl_platform_id platform = NULL, activeplatform=NULL;
     cl_device_type devtype[]={CL_DEVICE_TYPE_GPU,CL_DEVICE_TYPE_CPU};
     cl_context context;                 // compute context
@@ -111,16 +124,20 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
     clGetPlatformIDs(0, NULL, &numPlatforms);
     if(activedev) *activedev=0;
 
+    *info=(GPUInfo *)calloc(MAX_DEVICE,sizeof(GPUInfo));
+
     if (numPlatforms>0) {
         cl_platform_id* platforms =(cl_platform_id*)malloc(sizeof(cl_platform_id)*numPlatforms);
         OCL_ASSERT((clGetPlatformIDs(numPlatforms, platforms, NULL)));
         for (i = 0; i < numPlatforms; ++i) {
+
             platform = platforms[i];
 	    if(1){
                 OCL_ASSERT((clGetPlatformInfo(platforms[i],
                           CL_PLATFORM_NAME,sizeof(pbuf),pbuf,NULL)));
 	        if(cfg->isgpuinfo) printf("Platform [%d] Name %s\n",i,pbuf);
                 cps[1]=(cl_context_properties)platform;
+
         	for(j=0; j<2; j++){
 		    cl_device_id * devices;
 		    context=clCreateContextFromType(cps,devtype[j],NULL,NULL,&status);
@@ -132,8 +149,43 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
                     devices = (cl_device_id*)malloc(deviceListSize);
                     OCL_ASSERT((clGetContextInfo(context,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL)));
 		    devnum=deviceListSize/sizeof(cl_device_id);
+
                     for(k=0;k<devnum;k++){
-		         if(cfg->deviceid[cuid++]=='1'){
+		          GPUInfo cuinfo={0};
+                          cuinfo.platformid=i;
+        		  cuinfo.id=cuid+1;
+
+        	          OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_NAME,100,(void*)cuinfo.name,NULL)));
+			  OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),(void*)&cuinfo.sm,NULL)));
+                	  OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GLOBAL_MEM_SIZE,sizeof(cl_ulong),(void*)&cuinfo.globalmem,NULL)));
+                          OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_LOCAL_MEM_SIZE,sizeof(cl_ulong),(void*)&cuinfo.sharedmem,NULL)));
+                	  OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,sizeof(cl_ulong),(void*)&cuinfo.constmem,NULL)));
+                	  OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CLOCK_FREQUENCY,sizeof(cl_uint),(void*)&cuinfo.clock,NULL)));
+			  cuinfo.core=cuinfo.sm;
+                          if(strstr(pbuf,"NVIDIA")){
+                               OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_COMPUTE_CAPABILITY_MAJOR_NV,sizeof(cl_uint),(void*)&cuinfo.major,NULL)));
+                               OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_COMPUTE_CAPABILITY_MINOR_NV,sizeof(cl_uint),(void*)&cuinfo.minor,NULL)));
+                               cuinfo.core=cuinfo.sm*mcx_nv_corecount(cuinfo.major,cuinfo.minor);
+                          }
+        		  cuinfo.maxgate=cfg->maxgate;
+        		  cuinfo.autoblock=32;
+        		  cuinfo.autothread=cuinfo.autoblock * cuinfo.core;
+
+			  if(1 && cfg->isgpuinfo){
+                		printf("============ %s device ID %d [%d of %d]: %s  ============\n",devname[j],cuid,k+1,devnum,cuinfo.name);
+                		printf(" Compute units   :\t%d core(s)\n",(uint)cuinfo.sm);
+                		printf(" Global memory   :\t%ld B\n",(unsigned long)cuinfo.globalmem);
+                		printf(" Local memory    :\t%ld B\n",(unsigned long)cuinfo.sharedmem);
+                		printf(" Constant memory :\t%ld B\n",(unsigned long)cuinfo.constmem);
+                		printf(" Clock speed     :\t%d MHz\n",cuinfo.clock);
+
+                                if(strstr(pbuf,"NVIDIA")){
+                                     printf(" Compute Capacity:\t%d.%d\n",cuinfo.major,cuinfo.minor);
+                                     printf(" Stream Processor:\t%d\n",cuinfo.sm*mcx_nv_corecount(cuinfo.major,cuinfo.minor));
+                                }
+                      	  }
+		          if(cfg->deviceid[cuid++]=='1'){
+			        memcpy((*info)+(*activedev),&cuinfo,sizeof(GPUInfo));
 				activedevlist[(*activedev)++]=devices[k];
 				if(activeplatform && activeplatform!=platform){
 					fprintf(stderr,"Error: one can not mix devices between different platforms\n");
@@ -141,26 +193,13 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
 				}
 				activeplatform=platform;
                           }
-			  if(cfg->isgpuinfo){
-        	        	OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_NAME,100,(void*)&pbuf,NULL)));
-                		printf("============ %s device ID %d [%d of %d]: %s  ============\n",devname[j],cuid,k+1,devnum,pbuf);
-				OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),(void*)&devparam,NULL)));
-                		OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GLOBAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL)));
-                		printf(" Compute units   :\t%d core(s)\n",(uint)devparam);
-                		printf(" Global memory   :\t%ld B\n",(unsigned long)devmem);
-                		OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_LOCAL_MEM_SIZE,sizeof(cl_ulong),(void*)&devmem,NULL)));
-                		printf(" Local memory    :\t%ld B\n",(unsigned long)devmem);
-                		OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,sizeof(cl_ulong),(void*)&constmem,NULL)));
-                		printf(" Constant memory :\t%ld B\n",(unsigned long)constmem);
-                		OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CLOCK_FREQUENCY,sizeof(cl_uint),(void*)&clockspeed,NULL)));
-                		printf(" Clock speed     :\t%d MHz\n",clockspeed);
-                      	  }
                     }
                     free(devices);
                     clReleaseContext(context);
                }
 	    }
         }
+	*info=(GPUInfo *)realloc(*info,(*activedev)*sizeof(GPUInfo));
         free(platforms);
     }
     if(cfg->isgpuinfo==2) exit(0);
@@ -196,13 +235,11 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cl_event * waittoread;
      cl_platform_id platform = NULL;
 
-     cl_uint *cucount,totalcucore;
+     cl_uint  totalcucore;
      cl_uint  devid=0;
      cl_mem gmedia,gproperty,gparam;
      cl_mem *gfield,*gdetphoton,*gseed,*genergy;
      cl_mem *gstopsign,*gdetected,*gdetpos;
-
-     size_t mcgrid[1], mcblock[1];
 
      cl_uint dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z;
 
@@ -213,6 +250,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      float  *Pdet;
      char opt[MAX_PATH_LENGTH]={'\0'};
      cl_uint detreclen=cfg->medianum+1;
+     GPUInfo *gpu=NULL;
 
      MCXParam param={{{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}},
 		     {{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f}},
@@ -223,7 +261,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                      cfg->sradius*cfg->sradius,minstep*R_C0*cfg->unitinmm,cfg->maxdetphoton,
                      cfg->medianum-1,cfg->detnum,0,0};
 
-     platform=mcx_list_gpu(cfg,&workdev,devices);
+     platform=mcx_list_gpu(cfg,&workdev,devices,&gpu);
 
      if(workdev>MAX_DEVICE)
          workdev=MAX_DEVICE;
@@ -240,7 +278,6 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      mcxqueue= (cl_command_queue*)malloc(workdev*sizeof(cl_command_queue));
      waittoread=(cl_event *)malloc(workdev*sizeof(cl_event));
-     cucount=(cl_uint *)calloc(workdev,sizeof(cl_uint));
 
      gseed=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gfield=(cl_mem *)malloc(workdev*sizeof(cl_mem));
@@ -255,16 +292,15 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      totalcucore=0;
      for(i=0;i<workdev;i++){
-         char pbuf[100]={'\0'};
          OCL_ASSERT(((mcxqueue[i]=clCreateCommandQueue(mcxcontext,devices[i],prop,&status),status)));
-         OCL_ASSERT((clGetDeviceInfo(devices[i],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),(void*)(cucount+i),NULL)));
-         OCL_ASSERT((clGetDeviceInfo(devices[i],CL_DEVICE_NAME,100,(void*)&pbuf,NULL)));
-         if(strstr(pbuf,"ATI")){
-            cucount[i]*=(80/5); // an ati core typically has 80 SP, and 80/5=16 VLIW
-	 }else if(strstr(pbuf,"GeForce") || strstr(pbuf,"Quadro") || strstr(pbuf,"Tesla")){
-            cucount[i]*=8;  // an nvidia MP typically has 8 SP
-         }
-         totalcucore+=cucount[i];
+         totalcucore+=gpu[i].core;
+	 if(!cfg->autopilot){
+	    gpu[i].autothread=cfg->nthread;
+	    gpu[i].autoblock=cfg->nblocksize;
+	    gpu[i].maxgate=cfg->maxgate;
+	 }
+	 if(gpu[i].autothread%gpu[i].autoblock)
+     	    gpu[i].autothread=(gpu[i].autothread/gpu[i].autoblock)*gpu[i].autoblock;
      }
      fullload=0.f;
      for(i=0;i<workdev;i++)
@@ -272,7 +308,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      if(fullload<EPS){
 	for(i=0;i<workdev;i++)
-     	    cfg->workload[i]=cucount[i];
+     	    cfg->workload[i]=gpu[i].core;
 	fullload=totalcucore;
      }
 
@@ -281,14 +317,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      }else{
          field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate);
      }
-     if(cfg->nthread%cfg->nblocksize)
-        cfg->nthread=(cfg->nthread/cfg->nblocksize)*cfg->nblocksize;
 
-     mcgrid[0]=cfg->nthread;
-     mcblock[0]=cfg->nblocksize;
-
-     Pseed=(cl_uint*)malloc(sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN);
-     energy=(cl_float*)calloc(sizeof(cl_float),cfg->nthread*3);
      Pdet=(float*)calloc(cfg->maxdetphoton,sizeof(float)*(cfg->medianum+1));
 
      cachebox.x=(cp1.x-cp0.x+1);
@@ -314,15 +343,19 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      OCL_ASSERT(((gparam=clCreateBuffer(mcxcontext,RO_MEM, sizeof(MCXParam),&param,&status),status)));
 
      for(i=0;i<workdev;i++){
-       for (j=0; j<cfg->nthread*RAND_SEED_LEN;j++)
+       Pseed=(cl_uint*)malloc(sizeof(cl_uint)*gpu[i].autothread*RAND_SEED_LEN);
+       energy=(cl_float*)calloc(sizeof(cl_float),gpu[i].autothread<<1);
+       for (j=0; j<gpu[i].autothread*RAND_SEED_LEN;j++)
 	   Pseed[j]=rand();
-       OCL_ASSERT(((gseed[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,Pseed,&status),status)));
+       OCL_ASSERT(((gseed[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint)*gpu[i].autothread*RAND_SEED_LEN,Pseed,&status),status)));
        OCL_ASSERT(((gfield[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_float)*(dimxyz)*cfg->maxgate,field,&status),status)));
        OCL_ASSERT(((gdetphoton[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),Pdet,&status),status)));
-       OCL_ASSERT(((genergy[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*(cfg->nthread<<1),energy,&status),status)));
+       OCL_ASSERT(((genergy[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*(gpu[i].autothread<<1),energy,&status),status)));
        OCL_ASSERT(((gstopsign[i]=clCreateBuffer(mcxcontext,RW_PTR, sizeof(cl_uint),&stopsign,&status),status)));
        OCL_ASSERT(((gdetected[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint),&detected,&status),status)));
        OCL_ASSERT(((gdetpos[i]=clCreateBuffer(mcxcontext,RO_MEM, cfg->detnum*sizeof(float4),cfg->detpos,&status),status)));
+       free(Pseed);
+       free(energy);
      }
 
      fprintf(cfg->flog,"\
@@ -380,10 +413,10 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
      for(i=0;i<workdev;i++){
          cl_int threadphoton, oddphotons;
 
-         threadphoton=(int)(cfg->nphoton*cfg->workload[i]/(fullload*cfg->nthread*cfg->respin));
-         oddphotons=(int)(cfg->nphoton*cfg->workload[i]/(fullload*cfg->respin)-threadphoton*cfg->nthread);
-         fprintf(cfg->flog,"- [device %d] threadph=%d oddphotons=%d np=%.1f nthread=%d repetition=%d\n",i,threadphoton,oddphotons,
-               cfg->nphoton*cfg->workload[i]/fullload,cfg->nthread,cfg->respin);
+         threadphoton=(int)(cfg->nphoton*cfg->workload[i]/(fullload*gpu[i].autothread*cfg->respin));
+         oddphotons=(int)(cfg->nphoton*cfg->workload[i]/(fullload*cfg->respin)-threadphoton*gpu[i].autothread);
+         fprintf(cfg->flog,"- [device %d(%d): %s] threadph=%d oddphotons=%d np=%.1f nthread=%d repetition=%d\n",i, gpu[i].id, gpu[i].name,threadphoton,oddphotons,
+               cfg->nphoton*cfg->workload[i]/fullload,(int)gpu[i].autothread,cfg->respin);
 
 	 OCL_ASSERT(((mcxkernel[i] = clCreateKernel(mcxprogram, "mcx_main_loop", &status),status)));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 0, sizeof(cl_uint),(void*)&threadphoton)));
@@ -433,9 +466,9 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
                OCL_ASSERT((clSetKernelArg(mcxkernel[devid],12, sizeof(cl_mem), (void*)&gparam)));
                // launch mcxkernel
 #ifndef USE_OS_TIMER
-               OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, &kernelevent)));
+               OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,&gpu[devid].autothread,&gpu[devid].autoblock, 0, NULL, &kernelevent)));
 #else
-               OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,mcgrid,mcblock, 0, NULL, NULL)));
+               OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,&gpu[devid].autothread,&gpu[devid].autoblock, 0, NULL, NULL)));
 #endif
                OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetected[devid],CL_FALSE,0,sizeof(uint),
                                             &detected, 0, NULL, waittoread+devid)));
@@ -467,32 +500,33 @@ is more than what your have specified (%d), please use the -H option to specify 
 	     }
 	     //handling the 2pt distributions
              if(cfg->issave2pt){
-               OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gfield[devid],CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,
-	                                        field, 0, NULL, NULL)));
-               fprintf(cfg->flog,"transfer complete:\t%d ms\n",GetTimeMillis()-tic);  fflush(cfg->flog);
+        	OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gfield[devid],CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,
+	                                         field, 0, NULL, NULL)));
+        	fprintf(cfg->flog,"transfer complete:        %d ms\n",GetTimeMillis()-tic);  fflush(cfg->flog);
 
-               if(cfg->respin>1){
-                   for(i=0;i<fieldlen;i++)  //accumulate field, can be done in the GPU
-                      field[fieldlen+i]+=field[i];
-               }
-               if(iter+1==cfg->respin){ 
-                   if(cfg->respin>1)  //copy the accumulated fields back
-                       memcpy(field,field+fieldlen,sizeof(cl_float)*fieldlen);
-               }
-                   if(cfg->isnormalized){
-
-                       OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*(cfg->nthread<<1),
-	                                        energy, 0, NULL, NULL)));
-                       for(i=0;i<cfg->nthread;i++){
-                           cfg->energyesc+=energy[(i<<1)];
-       	       	       	   cfg->energytot+=energy[(i<<1)+1];
-                           //eabsorp+=Plen[i].z;  // the accumulative absorpted energy near the source
-                       }
-                   }
-	           if(cfg->exportfield){
-	               for(i=0;i<fieldlen;i++)
-		           cfg->exportfield[i]+=field[i];
-                   }
+        	if(cfg->respin>1){
+                    for(i=0;i<fieldlen;i++)  //accumulate field, can be done in the GPU
+                       field[fieldlen+i]+=field[i];
+        	}
+        	if(iter+1==cfg->respin){ 
+                    if(cfg->respin>1)  //copy the accumulated fields back
+                	memcpy(field,field+fieldlen,sizeof(cl_float)*fieldlen);
+        	}
+        	if(cfg->isnormalized){
+                    energy=(cl_float*)calloc(sizeof(cl_float),gpu[devid].autothread<<1);
+                    OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*(gpu[devid].autothread<<1),
+	                                     energy, 0, NULL, NULL)));
+                    for(i=0;i<gpu[devid].autothread;i++){
+                	cfg->energyesc+=energy[(i<<1)];
+       	       		cfg->energytot+=energy[(i<<1)+1];
+                	//eabsorp+=Plen[i].z;  // the accumulative absorpted energy near the source
+                    }
+		    free(energy);
+        	}
+		if(cfg->exportfield){
+	            for(i=0;i<fieldlen;i++)
+			cfg->exportfield[i]+=field[i];
+        	}
              }
 	     //initialize the next simulation
 	     if(twindow1<cfg->tend && iter<cfg->respin){
@@ -502,22 +536,24 @@ is more than what your have specified (%d), please use the -H option to specify 
 		  OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 3, sizeof(cl_mem), (void*)(gfield+devid))));
 	     }
 	     if(cfg->respin>1 && RAND_SEED_LEN>1){
-               for (i=0; i<cfg->nthread*RAND_SEED_LEN; i++)
+               Pseed=(cl_uint*)malloc(sizeof(cl_uint)*gpu[devid].autothread*RAND_SEED_LEN);
+               for (i=0; i<gpu[devid].autothread*RAND_SEED_LEN; i++)
 		   Pseed[i]=rand();
-               OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],gseed[devid],CL_TRUE,0,sizeof(cl_uint)*cfg->nthread*RAND_SEED_LEN,
+               OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],gseed[devid],CL_TRUE,0,sizeof(cl_uint)*gpu[devid].autothread*RAND_SEED_LEN,
 	                                        Pseed, 0, NULL, NULL)));
 	       OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 5, sizeof(cl_mem), (void*)(gseed+devid))));
+	       free(Pseed);
 	     }
              OCL_ASSERT((clFinish(mcxqueue[devid])));
+	     if(twindow1<cfg->tend){
+		  cl_float *tmpenergy=(cl_float*)calloc(sizeof(cl_float),gpu[devid].autothread*3);
+        	  OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*(gpu[devid].autothread<<1),
+                                              tmpenergy, 0, NULL, NULL)));
+		  OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 4, sizeof(cl_mem), (void*)(genergy+devid))));	
+		  free(tmpenergy);
+	     }
            }// loop over work devices
        }// iteration
-       if(twindow1<cfg->tend){
-	    cl_float *tmpenergy=(cl_float*)calloc(sizeof(cl_float),cfg->nthread*3);
-            OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*(cfg->nthread<<1),
-                                        tmpenergy, 0, NULL, NULL)));
-	    OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 4, sizeof(cl_mem), (void*)(genergy+devid))));	
-	    free(tmpenergy);
-       }
      }// time gates
 
      if(cfg->isnormalized){
@@ -551,8 +587,8 @@ is more than what your have specified (%d), please use the -H option to specify 
      }
 
      // total energy here equals total simulated photons+unfinished photons for all threads
-     fprintf(cfg->flog,"simulated %d photons (%d) with %d CUs with %d threads (repeat x%d)\nMCX simulation speed: %.2f photon/ms\n",
-             cfg->nphoton,cfg->nphoton,workdev,cfg->nthread, cfg->respin,(double)cfg->nphoton/toc); fflush(cfg->flog);
+     fprintf(cfg->flog,"simulated %d photons (%d) with %d CUs (repeat x%d)\nMCX simulation speed: %.2f photon/ms\n",
+             cfg->nphoton,cfg->nphoton,workdev, cfg->respin,(double)cfg->nphoton/toc); fflush(cfg->flog);
      fprintf(cfg->flog,"total simulated energy: %.2f\tabsorbed: %5.5f%%\n(loss due to initial specular reflection is excluded in the total)\n",
              cfg->energytot,(cfg->energytot-cfg->energyesc)/cfg->energytot*100.f);fflush(cfg->flog);
      fflush(cfg->flog);
@@ -580,6 +616,9 @@ is more than what your have specified (%d), please use the -H option to specify 
 
      free(waittoread);
 
+     if(gpu)
+        free(gpu);
+
      for(devid=0;devid<workdev;devid++)
         clReleaseCommandQueue(mcxqueue[devid]);
 
@@ -589,7 +628,5 @@ is more than what your have specified (%d), please use the -H option to specify 
 #ifndef USE_OS_TIMER
      clReleaseEvent(kernelevent);
 #endif
-     free(Pseed);
-     free(energy);
      free(field);
 }

@@ -19,6 +19,14 @@ extern "C" {
 
 #define OCL_ASSERT(x)  ocl_assess((x),__FILE__,__LINE__)
 
+#define CL_DEVICE_COMPUTE_CAPABILITY_MAJOR_NV           0x4000
+#define CL_DEVICE_COMPUTE_CAPABILITY_MINOR_NV           0x4001
+#define CL_DEVICE_REGISTERS_PER_BLOCK_NV                0x4002
+#define CL_DEVICE_WARP_SIZE_NV                          0x4003
+#define CL_DEVICE_GPU_OVERLAP_NV                        0x4004
+#define CL_DEVICE_KERNEL_EXEC_TIMEOUT_NV                0x4005
+#define CL_DEVICE_INTEGRATED_MEMORY_NV                  0x4006
+
 
 typedef struct KernelParams {
   cl_float4 ps,c0;
@@ -43,7 +51,7 @@ typedef struct KernelParams {
 }MCXParam __attribute__ ((aligned (16)));
 
 void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy);
-cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *activedevlist);
+cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *activedevlist,GPUInfo **info);
 void ocl_assess(int cuerr,const char *file,const int linenum);
 
 #ifdef  __cplusplus

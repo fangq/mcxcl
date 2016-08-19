@@ -55,6 +55,20 @@ typedef struct PhotonReplay{
 	float *tof;
 } Replay;
 
+typedef struct MCXGPUInfo {
+        char name[MAX_SESSION_LENGTH];
+        int id;
+        int platformid;
+        int major, minor;
+        size_t globalmem, constmem, sharedmem;
+        int regcount;
+        int clock;
+        int sm, core;
+        size_t autoblock, autothread;
+        int maxgate;
+        int maxmpthread;  /**< maximum thread number per multi-processor */
+} GPUInfo;
+
 typedef struct MCXConfig{
 	int nphoton;      /*(total simulated photon number) we now use this to 
 	                     temporarily alias totalmove, as to specify photon
@@ -103,6 +117,7 @@ typedef struct MCXConfig{
 	char isverbose;     /*1 print debug info, 0 do not*/
 	char issrcfrom0;    /*1 do not subtract 1 from src/det positions, 0 subtract 1*/
         char isdumpmask;    /*1 dump detector mask; 0 not*/
+        char autopilot;     /**<1 optimal setting for dedicated card, 2, for non dedicated card*/
         char outputtype;    /**<'X' output is flux, 'F' output is fluence, 'E' energy deposit*/
         float minenergy;    /*minimum energy to propagate photon*/
         float unitinmm;     /*defines the length unit in mm for grid*/
