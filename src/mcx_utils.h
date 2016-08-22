@@ -2,28 +2,18 @@
 #define _MCEXTREME_UTILITIES_H
 
 #include <stdio.h>
-#ifndef MCX_OPENCL
-  #include <vector_types.h>
-#else
-  #include <CL/cl.h>
-/* #ifdef CL_PLATFORM_NVIDIA*/
-  typedef struct vec_float4{
-       float x,y,z,w;
-  }float4;
-  typedef struct vec_uint4{
-       unsigned int x,y,z,w;
-  }uint4;
-  typedef struct vec_uint2{
-       unsigned int x,y;
-  }uint2;
-/* #endif*/
-#endif
+
+#include "vector_types.h"
+#include "cjson/cJSON.h"
 
 #define MAX_PATH_LENGTH     1024
 #define MAX_SESSION_LENGTH  256
 #define MAX_DEVICE          256
 
 #define MCX_ASSERT(x)  mcx_assess((x),"assert error",__FILE__,__LINE__)
+#define MCX_ERROR(id,msg)   mcx_error(id,msg,__FILE__,__LINE__)
+#define MIN(a,b)           ((a)<(b)?(a):(b))
+#define MAX(a,b)           ((a)>(b)?(a):(b))
 
 enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otTaylor};
 enum TMCXParent  {mpStandalone, mpMATLAB};
@@ -73,7 +63,6 @@ typedef struct MCXConfig{
 	int nphoton;      /*(total simulated photon number) we now use this to 
 	                     temporarily alias totalmove, as to specify photon
 			     number is causing some troubles*/
-	//int totalmove;   /* [depreciated] total move per photon*/
         unsigned int nblocksize;   /*thread block size*/
 	unsigned int nthread;      /*num of total threads, multiple of 128*/
 	int seed;         /*random number generator seed*/
@@ -127,6 +116,7 @@ typedef struct MCXConfig{
         char rootpath[MAX_PATH_LENGTH];
         char kernelfile[MAX_SESSION_LENGTH];
 	char compileropt[MAX_PATH_LENGTH];
+        char *shapedata;    /**<a pointer points to a string defining the JSON-formatted shape data*/
 	char *clsource;
         char deviceid[MAX_DEVICE];
 	float workload[MAX_DEVICE];
@@ -162,6 +152,10 @@ void mcx_createfluence(float **fluence, Config *cfg);
 void mcx_clearfluence(float **fluence);
 void mcx_convertrow2col(unsigned char **vol, uint4 *dim);
 void mcx_savedetphoton(float *ppath, void *seeds, int count, int seedbyte, Config *cfg);
+int  mcx_loadjson(cJSON *root, Config *cfg);
+int  mcx_keylookup(char *key, const char *table[]);
+int  mcx_lookupindex(char *key, const char *index);
+int  mcx_parsedebugopt(char *debugopt,const char *debugflag);
 
 #ifdef	__cplusplus
 }

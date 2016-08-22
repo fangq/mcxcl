@@ -4,8 +4,9 @@
 #  2009/04/02
 #################################################################
 
-CUDACC=g++
-CCC=g++
+#CXX=g++
+AR=g++
+
 BINARY=mcxcl
 OUTPUT_DIR=../bin
 INCLUDEDIRS=#-I/home/fangq/Download/ati-stream-sdk-v2.0-lnx32/include
@@ -14,7 +15,8 @@ LIBOPENCLDIR ?=$(AMDAPPSDKROOT)/lib/x86_64
 LINKOPT=-g -L$(LIBOPENCLDIR) -lOpenCL
 
 CUCCOPT=-I/usr/local/cuda/include #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
-CPPOPT=-g -pedantic -Wall -O3 -DMCX_OPENCL -DUSE_OS_TIMER -I/usr/local/cuda/include #-O3
+CCOPT=-g -pedantic -Wall -O3 -DMCX_OPENCL -DUSE_OS_TIMER -I/usr/local/cuda/include  -std=c99#-O3
+CPPOPT=$(CCOPT)
 
 OBJSUFFIX=.o
 EXESUFFIX=
@@ -23,7 +25,7 @@ MAKE       := make
 ECHO       := echo
 MKDIR      := mkdir
 
-FILES=mcx_host mcx_utils tictoc mcxcl
+FILES=mcx_host mcx_utils tictoc mcxcl mcx_shapes cjson/cJSON
 
 ARCH = $(shell uname -m)
 PLATFORM = $(shell uname -o)
@@ -61,13 +63,13 @@ makedirs:
 	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) $(OUTPUT_DIR); fi
 
 $(OUTPUT_DIR)/$(BINARY): makedirs $(OBJS)
-	$(CCC) $(OBJS) $(LINKOPT) -o $(OUTPUT_DIR)/$(BINARY)
+	$(AR) $(OBJS) $(LINKOPT) -o $(OUTPUT_DIR)/$(BINARY)
 
 %$(OBJSUFFIX): %.c
-	$(CCC) $(INCLUDEDIRS) $(CPPOPT) -c -o $@  $<
+	$(CC) $(INCLUDEDIRS) $(CCOPT) -c -o $@  $<
 
 %$(OBJSUFFIX): %.cpp
-	$(CUDACC) $(INCLUDEDIRS) $(CPPOPT) -c $(CUCCOPT) -o $@  $<
+	$(CXX) $(INCLUDEDIRS) $(CPPOPT) -c $(CUCCOPT) -o $@  $<
 
 clean:
 	-rm -f $(OBJS) $(OUTPUT_DIR)/$(BINARY)$(EXESUFFIX) $(OUTPUT_DIR)/$(BINARY)_atomic$(EXESUFFIX)

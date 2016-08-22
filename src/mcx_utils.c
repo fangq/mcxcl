@@ -19,18 +19,33 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <ctype.h>
 #include "mcx_utils.h"
+#include "mcx_shapes.h"
+#include "mcx_const.h"
+
+
+#define FIND_JSON_KEY(id,idfull,parent,fallback,val) \
+                    ((tmp=cJSON_GetObjectItem(parent,id))==0 ? \
+                                ((tmp=cJSON_GetObjectItem(root,idfull))==0 ? fallback : tmp->val) \
+                     : tmp->val)
+
+#define FIND_JSON_OBJ(id,idfull,parent) \
+                    ((tmp=cJSON_GetObjectItem(parent,id))==0 ? \
+                                ((tmp=cJSON_GetObjectItem(root,idfull))==0 ? NULL : tmp) \
+                     : tmp)
+
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','G','W','z',
                  'd','r','S','p','e','U','R','l','L','M','I','o','c','k','v','J',
-                 'A','\0'};
+                 'A','P','\0'};
 const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--thread","--blocksize","--session","--array","--gategroup",
                  "--reflect","--reflect3","--device","--devicelist","--workload","--srcfrom0",
 		 "--savedet","--repeat","--save2pt","--printlen","--minenergy",
                  "--normalize","--skipradius","--log","--listgpu","--dumpmask",
                  "--printgpu","--root","--cpu","--kernel","--verbose","--compileropt",
-                 "--autopilot",""};
+                 "--autopilot","--shapes",""};
 #ifdef WIN32
          char pathsep='\\';
 #else
@@ -74,6 +89,7 @@ void mcx_initcfg(Config *cfg){
      cfg->maxdetphoton=1000000; 
      cfg->isdumpmask=0;
      cfg->autopilot=0;
+     cfg->shapedata=NULL;
 
      memset(cfg->deviceid,0,MAX_DEVICE);
      memset(cfg->compileropt,0,MAX_PATH_LENGTH);
@@ -165,7 +181,7 @@ void mcx_savedetphoton(float *ppath, void *seeds, int count, int doappend, Confi
 }
 
 void mcx_printlog(Config *cfg, const char *str){
-     if(cfg->flog>0){ /*stdout is 1*/
+     if(cfg->flog!=NULL){ /*stdout is 1*/
          fprintf(cfg->flog,"%s\n",str);
      }
 }
@@ -211,7 +227,43 @@ void mcx_readconfig(const char *fname, Config *cfg){
      else{
      	FILE *fp=fopen(fname,"rt");
 	if(fp==NULL) mcx_error(-2,"can not load the specified config file",__FILE__,__LINE__);
-	mcx_loadconfig(fp,cfg); 
+        if(strstr(fname,".json")!=NULL){
+            char *jbuf;
+            int len;
+            cJSON *jroot;
+
+            fclose(fp);
+            fp=fopen(fname,"rb");
+            fseek (fp, 0, SEEK_END);
+            len=ftell(fp)+1;
+            jbuf=(char *)malloc(len);
+            rewind(fp);
+            if(fread(jbuf,len-1,1,fp)!=1)
+                mcx_error(-2,"reading input file is terminated",__FILE__,__LINE__);
+            jbuf[len-1]='\0';
+            jroot = cJSON_Parse(jbuf);
+            if(jroot){
+                mcx_loadjson(jroot,cfg);
+                cJSON_Delete(jroot);
+            }else{
+                char *ptrold, *ptr=(char*)cJSON_GetErrorPtr();
+                if(ptr) ptrold=strstr(jbuf,ptr);
+                fclose(fp);
+                if(ptr && ptrold){
+                   char *offs=(ptrold-jbuf>=50) ? ptrold-50 : jbuf;
+                   while(offs<ptrold){
+                      fprintf(stderr,"%c",*offs);
+                      offs++;
+                   }
+                   fprintf(stderr,"<error>%.50s\n",ptrold);
+                }
+                free(jbuf);
+                mcx_error(-9,"invalid JSON input file",__FILE__,__LINE__);
+            }
+            free(jbuf);
+        }else{
+	    mcx_loadconfig(fp,cfg); 
+        }
 	fclose(fp);
         if(cfg->session[0]=='\0'){
 		strcpy(cfg->session,fname);
@@ -228,6 +280,36 @@ void mcx_writeconfig(const char *fname, Config *cfg){
 	mcx_saveconfig(fp,cfg);     
 	fclose(fp);
      }
+}
+
+void mcx_prepdomain(char *filename, Config *cfg){
+     int i;
+     if(filename[0] || cfg->vol){
+        if(cfg->vol==NULL){
+	     mcx_loadvolume(filename,cfg);
+	     if(cfg->shapedata && strstr(cfg->shapedata,":")!=NULL){
+	          int status;
+     		  Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
+        	  if(cfg->issrcfrom0) memset(&(grid.orig.x),0,sizeof(float3));
+		  status=mcx_parse_shapestring(&grid,cfg->shapedata);
+		  if(status){
+		      MCX_ERROR(status,mcx_last_shapeerror());
+		  }
+	     }
+	}
+	if(cfg->isrowmajor){
+		/*from here on, the array is always col-major*/
+		mcx_convertrow2col(&(cfg->vol), &(cfg->dim));
+		cfg->isrowmajor=0;
+	}
+	if(cfg->issavedet)
+		mcx_maskdet(cfg);
+     }else{
+     	mcx_error(-4,"one must specify a binary volume file in order to run the simulation",__FILE__,__LINE__);
+     }
+     for(i=0;i<MAX_DEVICE;i++)
+        if(cfg->deviceid[i]=='0')
+           cfg->deviceid[i]='\0';
 }
 
 void mcx_loadconfig(FILE *in, Config *cfg){
@@ -383,6 +465,277 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      }
 }
 
+int mcx_loadjson(cJSON *root, Config *cfg){
+     unsigned int i;
+     cJSON *Domain, *Optode, *Forward, *Session, *Shapes, *tmp, *subitem;
+     char filename[MAX_PATH_LENGTH]={'\0'};
+     Domain  = cJSON_GetObjectItem(root,"Domain");
+     Optode  = cJSON_GetObjectItem(root,"Optode");
+     Session = cJSON_GetObjectItem(root,"Session");
+     Forward = cJSON_GetObjectItem(root,"Forward");
+     Shapes  = cJSON_GetObjectItem(root,"Shapes");
+
+     if(Domain){
+        char volfile[MAX_PATH_LENGTH];
+	cJSON *meds,*val;
+	val=FIND_JSON_OBJ("VolumeFile","Domain.VolumeFile",Domain);
+	if(val){
+          strncpy(volfile, val->valuestring, MAX_PATH_LENGTH);
+          if(cfg->rootpath[0]){
+#ifdef WIN32
+           sprintf(filename,"%s\\%s",cfg->rootpath,volfile);
+#else
+           sprintf(filename,"%s/%s",cfg->rootpath,volfile);
+#endif
+          }else{
+	     strncpy(filename,volfile,MAX_PATH_LENGTH);
+	  }
+	}
+        if(cfg->unitinmm==1.f)
+	    cfg->unitinmm=FIND_JSON_KEY("LengthUnit","Domain.LengthUnit",Domain,1.f,valuedouble);
+        meds=FIND_JSON_OBJ("Media","Domain.Media",Domain);
+        if(meds){
+           cJSON *med=meds->child;
+           if(med){
+             cfg->medianum=cJSON_GetArraySize(meds);
+             if(cfg->medianum>MAX_PROP)
+                 MCX_ERROR(-4,"input media types exceed the maximum (255)");
+             cfg->prop=(Medium*)malloc(sizeof(Medium)*cfg->medianum);
+             for(i=0;i<cfg->medianum;i++){
+               cJSON *val=FIND_JSON_OBJ("mua",(MCX_ERROR(-1,"You must specify absorption coeff, default in 1/mm"),""),med);
+               if(val) cfg->prop[i].mua=val->valuedouble;
+	       val=FIND_JSON_OBJ("mus",(MCX_ERROR(-1,"You must specify scattering coeff, default in 1/mm"),""),med);
+               if(val) cfg->prop[i].mus=val->valuedouble;
+	       val=FIND_JSON_OBJ("g",(MCX_ERROR(-1,"You must specify anisotropy [0-1]"),""),med);
+               if(val) cfg->prop[i].g=val->valuedouble;
+	       val=FIND_JSON_OBJ("n",(MCX_ERROR(-1,"You must specify refractive index"),""),med);
+	       if(val) cfg->prop[i].n=val->valuedouble;
+
+               med=med->next;
+               if(med==NULL) break;
+             }
+	     if(cfg->unitinmm!=1.f){
+        	 for(i=0;i<cfg->medianum;i++){
+			cfg->prop[i].mus*=cfg->unitinmm;
+			cfg->prop[i].mua*=cfg->unitinmm;
+        	 }
+	     }
+           }
+        }
+	val=FIND_JSON_OBJ("Dim","Domain.Dim",Domain);
+	if(val && cJSON_GetArraySize(val)>=3){
+	   cfg->dim.x=val->child->valueint;
+           cfg->dim.y=val->child->next->valueint;
+           cfg->dim.z=val->child->next->next->valueint;
+	}else{
+	   MCX_ERROR(-1,"You must specify the dimension of the volume");
+	}
+	val=FIND_JSON_OBJ("Step","Domain.Step",Domain);
+	if(val){
+	   if(cJSON_GetArraySize(val)>=3){
+	       cfg->steps.x=val->child->valuedouble;
+               cfg->steps.y=val->child->next->valuedouble;
+               cfg->steps.z=val->child->next->next->valuedouble;
+           }else{
+	       MCX_ERROR(-1,"Domain::Step has incorrect element numbers");
+           }
+	}
+	if(cfg->steps.x!=cfg->steps.y || cfg->steps.y!=cfg->steps.z)
+           mcx_error(-9,"MCX currently does not support anisotropic voxels",__FILE__,__LINE__);
+
+	if(cfg->steps.x!=1.f && cfg->unitinmm==1.f)
+           cfg->unitinmm=cfg->steps.x;
+
+	if(cfg->unitinmm!=1.f){
+           cfg->steps.x=cfg->unitinmm; cfg->steps.y=cfg->unitinmm; cfg->steps.z=cfg->unitinmm;
+	}
+	val=FIND_JSON_OBJ("CacheBoxP0","Domain.CacheBoxP0",Domain);
+	if(val){
+	   if(cJSON_GetArraySize(val)>=3){
+	       cfg->crop0.x=val->child->valueint;
+               cfg->crop0.y=val->child->next->valueint;
+               cfg->crop0.z=val->child->next->next->valueint;
+           }else{
+	       MCX_ERROR(-1,"Domain::CacheBoxP0 has incorrect element numbers");
+           }
+	}
+	val=FIND_JSON_OBJ("CacheBoxP1","Domain.CacheBoxP1",Domain);
+	if(val){
+	   if(cJSON_GetArraySize(val)>=3){
+	       cfg->crop1.x=val->child->valueint;
+               cfg->crop1.y=val->child->next->valueint;
+               cfg->crop1.z=val->child->next->next->valueint;
+           }else{
+	       MCX_ERROR(-1,"Domain::CacheBoxP1 has incorrect element numbers");
+           }
+	}
+	val=FIND_JSON_OBJ("OriginType","Domain.OriginType",Domain);
+	if(val && cfg->issrcfrom0==0) cfg->issrcfrom0=val->valueint;
+
+	if(cfg->sradius>0.f){
+     	   cfg->crop0.x=MAX((uint)(cfg->srcpos.x-cfg->sradius),0);
+     	   cfg->crop0.y=MAX((uint)(cfg->srcpos.y-cfg->sradius),0);
+     	   cfg->crop0.z=MAX((uint)(cfg->srcpos.z-cfg->sradius),0);
+     	   cfg->crop1.x=MIN((uint)(cfg->srcpos.x+cfg->sradius),cfg->dim.x-1);
+     	   cfg->crop1.y=MIN((uint)(cfg->srcpos.y+cfg->sradius),cfg->dim.y-1);
+     	   cfg->crop1.z=MIN((uint)(cfg->srcpos.z+cfg->sradius),cfg->dim.z-1);
+	}else if(cfg->sradius==0.f){
+     	   memset(&(cfg->crop0),0,sizeof(uint3));
+     	   memset(&(cfg->crop1),0,sizeof(uint3));
+	}else{
+           /*
+              if -R is followed by a negative radius, mcx uses crop0/crop1 to set the cachebox
+           */
+           if(!cfg->issrcfrom0){
+               cfg->crop0.x--;cfg->crop0.y--;cfg->crop0.z--;  /*convert to C index*/
+               cfg->crop1.x--;cfg->crop1.y--;cfg->crop1.z--;
+           }
+	}
+     }
+     if(Optode){
+        cJSON *dets, *src=FIND_JSON_OBJ("Source","Optode.Source",Optode);
+        if(src){
+           subitem=FIND_JSON_OBJ("Pos","Optode.Source.Pos",src);
+           if(subitem){
+              cfg->srcpos.x=subitem->child->valuedouble;
+              cfg->srcpos.y=subitem->child->next->valuedouble;
+              cfg->srcpos.z=subitem->child->next->next->valuedouble;
+           }
+           subitem=FIND_JSON_OBJ("Dir","Optode.Source.Dir",src);
+           if(subitem){
+              cfg->srcdir.x=subitem->child->valuedouble;
+              cfg->srcdir.y=subitem->child->next->valuedouble;
+              cfg->srcdir.z=subitem->child->next->next->valuedouble;
+           }
+	   if(!cfg->issrcfrom0){
+              cfg->srcpos.x--;cfg->srcpos.y--;cfg->srcpos.z--; /*convert to C index, grid center*/
+	   }
+/*
+           cfg->srctype=mcx_keylookup((char*)FIND_JSON_KEY("Type","Optode.Source.Type",src,"pencil",valuestring),srctypeid);
+           subitem=FIND_JSON_OBJ("Param1","Optode.Source.Param1",src);
+           if(subitem){
+              cfg->srcparam1.x=subitem->child->valuedouble;
+              cfg->srcparam1.y=subitem->child->next->valuedouble;
+              cfg->srcparam1.z=subitem->child->next->next->valuedouble;
+              cfg->srcparam1.w=subitem->child->next->next->next->valuedouble;
+           }
+           subitem=FIND_JSON_OBJ("Param2","Optode.Source.Param2",src);
+           if(subitem){
+              cfg->srcparam2.x=subitem->child->valuedouble;
+              cfg->srcparam2.y=subitem->child->next->valuedouble;
+              cfg->srcparam2.z=subitem->child->next->next->valuedouble;
+              cfg->srcparam2.w=subitem->child->next->next->next->valuedouble;
+           }
+           subitem=FIND_JSON_OBJ("Pattern","Optode.Source.Pattern",src);
+           if(subitem){
+              int nx=FIND_JSON_KEY("Nx","Optode.Source.Pattern.Nx",subitem,0,valueint);
+              int ny=FIND_JSON_KEY("Ny","Optode.Source.Pattern.Ny",subitem,0,valueint);
+              if(nx>0 || ny>0){
+                 cJSON *pat=FIND_JSON_OBJ("Data","Optode.Source.Pattern.Data",subitem);
+                 if(pat && pat->child){
+                     int i;
+                     pat=pat->child;
+                     if(cfg->srcpattern) free(cfg->srcpattern);
+                     cfg->srcpattern=(float*)calloc(nx*ny,sizeof(float));
+                     for(i=0;i<nx*ny;i++){
+                         cfg->srcpattern[i]=pat->valuedouble;
+                         if((pat=pat->next)==NULL){
+                             MCX_ERROR(-1,"Incomplete pattern data");
+                         }
+                     }
+                 }
+              }
+           }
+*/
+        }
+        dets=FIND_JSON_OBJ("Detector","Optode.Detector",Optode);
+        if(dets){
+           cJSON *det=dets->child;
+           if(det){
+             cfg->detnum=cJSON_GetArraySize(dets);
+             cfg->detpos=(float4*)malloc(sizeof(float4)*cfg->detnum);
+	     if(cfg->issavedet && cfg->detnum==0) 
+      		cfg->issavedet=0;
+             for(i=0;i<cfg->detnum;i++){
+               cJSON *pos=dets, *rad=NULL;
+               rad=FIND_JSON_OBJ("R","Optode.Detector.R",det);
+               if(cJSON_GetArraySize(det)==2){
+                   pos=FIND_JSON_OBJ("Pos","Optode.Detector.Pos",det);
+               }
+               if(pos){
+	           cfg->detpos[i].x=pos->child->valuedouble;
+                   cfg->detpos[i].y=pos->child->next->valuedouble;
+	           cfg->detpos[i].z=pos->child->next->next->valuedouble;
+               }
+               if(rad){
+                   cfg->detpos[i].w=rad->valuedouble;
+               }
+               if(!cfg->issrcfrom0){
+		   cfg->detpos[i].x--;cfg->detpos[i].y--;cfg->detpos[i].z--;  /*convert to C index*/
+	       }
+               det=det->next;
+               if(det==NULL) break;
+             }
+           }
+        }
+     }
+     if(Session){
+/*        char val[1];*/
+	if(cfg->seed==0)      cfg->seed=FIND_JSON_KEY("RNGSeed","Session.RNGSeed",Session,-1,valueint);
+        if(cfg->nphoton==0)   cfg->nphoton=FIND_JSON_KEY("Photons","Session.Photons",Session,0,valuedouble);
+        if(cfg->session[0]=='\0')  strncpy(cfg->session, FIND_JSON_KEY("ID","Session.ID",Session,"default",valuestring), MAX_SESSION_LENGTH);
+        if(cfg->rootpath[0]=='\0') strncpy(cfg->rootpath, FIND_JSON_KEY("RootPath","Session.RootPath",Session,"",valuestring), MAX_PATH_LENGTH);
+
+        if(!cfg->isreflect)   cfg->isreflect=FIND_JSON_KEY("DoMismatch","Session.DoMismatch",Session,cfg->isreflect,valueint);
+        if(cfg->issave2pt)    cfg->issave2pt=FIND_JSON_KEY("DoSaveVolume","Session.DoSaveVolume",Session,cfg->issave2pt,valueint);
+        if(cfg->isnormalized) cfg->isnormalized=FIND_JSON_KEY("DoNormalize","Session.DoNormalize",Session,cfg->isnormalized,valueint);
+        if(!cfg->issavedet)   cfg->issavedet=FIND_JSON_KEY("DoPartialPath","Session.DoPartialPath",Session,cfg->issavedet,valueint);
+/*
+	if(!cfg->issaveseed)  cfg->issaveseed=FIND_JSON_KEY("DoSaveSeed","Session.DoSaveSeed",Session,cfg->issaveseed,valueint);
+	cfg->reseedlimit=FIND_JSON_KEY("ReseedLimit","Session.ReseedLimit",Session,cfg->reseedlimit,valueint);
+	strncpy(val,FIND_JSON_KEY("OutputType","Session.OutputType",Session,outputtype+cfg->outputtype,valuestring),1);
+	if(mcx_lookupindex(val, outputtype)){
+		mcx_error(-2,"the specified output data type is not recognized",__FILE__,__LINE__);
+	}
+	cfg->outputtype=val[0];
+*/
+     }
+     if(Forward){
+        uint gates;
+        cfg->tstart=FIND_JSON_KEY("T0","Forward.T0",Forward,0.0,valuedouble);
+        cfg->tend  =FIND_JSON_KEY("T1","Forward.T1",Forward,0.0,valuedouble);
+        cfg->tstep =FIND_JSON_KEY("Dt","Forward.Dt",Forward,0.0,valuedouble);
+	if(cfg->tstart>cfg->tend || cfg->tstep==0.f)
+            mcx_error(-9,"incorrect time gate settings",__FILE__,__LINE__);
+
+        gates=(uint)((cfg->tend-cfg->tstart)/cfg->tstep+0.5);
+        if(cfg->maxgate==0)
+            cfg->maxgate=gates;
+        else if(cfg->maxgate>gates)
+            cfg->maxgate=gates;
+     }
+     if(filename[0]=='\0'){
+         if(Shapes){
+             int status;
+             Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
+             if(cfg->issrcfrom0) memset(&(grid.orig.x),0,sizeof(float3));
+	     status=mcx_parse_jsonshapes(root, &grid);
+	     if(status){
+	         MCX_ERROR(status,mcx_last_shapeerror());
+	     }
+	 }else{
+	     MCX_ERROR(-1,"You must either define Domain.VolumeFile, or define a Shapes section");
+	 }
+     }else if(Shapes){
+         MCX_ERROR(-1,"You can not specify both Domain.VolumeFile and Shapes sections");
+     }
+     mcx_prepdomain(filename,cfg);
+     cfg->his.maxmedia=cfg->medianum-1; /*skip media 0*/
+     cfg->his.detnum=cfg->detnum;
+     cfg->his.colcount=cfg->medianum+1; /*column count=maxmedia+2*/
+     return 0;
+}
+
 void mcx_saveconfig(FILE *out, Config *cfg){
      unsigned int i;
 
@@ -405,8 +758,19 @@ void mcx_saveconfig(FILE *out, Config *cfg){
 }
 
 void mcx_loadvolume(char *filename,Config *cfg){
-     int datalen,res;
-     FILE *fp=fopen(filename,"rb");
+     unsigned int i, datalen,res;
+     FILE *fp;
+     if(strstr(filename,".json")!=NULL){
+         int status;
+         Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
+	 if(cfg->issrcfrom0) memset(&(grid.orig.x),0,sizeof(float3));
+         status=mcx_load_jsonshapes(&grid,filename);
+	 if(status){
+	     MCX_ERROR(status,mcx_last_shapeerror());
+	 }
+	 return;
+     }
+     fp=fopen(filename,"rb");
      if(fp==NULL){
      	     mcx_error(-5,"the specified binary volume file does not exist",__FILE__,__LINE__);
      }
@@ -420,6 +784,10 @@ void mcx_loadvolume(char *filename,Config *cfg){
      fclose(fp);
      if(res!=datalen){
      	 mcx_error(-6,"file size does not match specified dimensions",__FILE__,__LINE__);
+     }
+     for(i=0;i<datalen;i++){
+         if(cfg->vol[i]>=cfg->medianum)
+            mcx_error(-6,"medium index exceeds the specified medium types",__FILE__,__LINE__);
      }
 }
 
@@ -687,6 +1055,9 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     case 'M':
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->isdumpmask),"char");
 		     	        break;
+                     case 'P':
+                                cfg->shapedata=argv[++i];
+                                break;
 		}
 	    }
 	    i++;
@@ -720,6 +1091,50 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
      	  mcx_readconfig(filename,cfg);
        }
      }
+}
+
+int mcx_parsedebugopt(char *debugopt,const char *debugflag){
+    char *c=debugopt,*p;
+    int debuglevel=0;
+
+    while(*c){
+       p=(char *)strchr(debugflag, ((*c<='z' && *c>='a') ? *c-'a'+'A' : *c) );
+       if(p!=NULL)
+          debuglevel |= (1 << (p-debugflag));
+       c++;
+    }
+    return debuglevel;
+}
+
+int mcx_keylookup(char *origkey, const char *table[]){
+    int i=0;
+    char *key=(char *)malloc(strlen(origkey)+1);
+    memcpy(key,origkey,strlen(origkey)+1);
+    while(key[i]){
+        key[i]=tolower(key[i]);
+	i++;
+    }
+    i=0;
+    while(table[i]!='\0'){
+	if(strcmp(key,table[i])==0){
+		return i;
+	}
+	i++;
+    }
+    free(key);
+    return -1;
+}
+
+int mcx_lookupindex(char *key, const char *index){
+    int i=0;
+    while(index[i]!='\0'){
+        if(tolower(*key)==index[i]){
+                *key=i;
+                return 0;
+        }
+        i++;
+    }
+    return 1;
 }
 
 void mcx_usage(char *exename){
@@ -767,6 +1182,7 @@ where possible parameters include (the first item in [] is the default value)\n\
  -G '0111'      (--devicelist)  specify the active OpenCL devices (1 enable, 0 disable)\n\
  -W '50,30,20'  (--workload)    specify relative workload for each device; total is the sum\n\
  -J '-D MCX'    (--compileropt) specify additional JIT compiler options\n\
+ -P '{...}'    (--shapes)      a JSON string for additional shapes in the grid\n\
 example: (autopilot mode)\n\
   %s -A -n 1e7 -f input.inp -G 1 \n\
 or (manual mode)\n\
