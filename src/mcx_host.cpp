@@ -162,17 +162,25 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
                           OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_LOCAL_MEM_SIZE,sizeof(cl_ulong),(void*)&cuinfo.sharedmem,NULL)));
                 	  OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,sizeof(cl_ulong),(void*)&cuinfo.constmem,NULL)));
                 	  OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CLOCK_FREQUENCY,sizeof(cl_uint),(void*)&cuinfo.clock,NULL)));
+        		  cuinfo.maxgate=cfg->maxgate;
+        		  cuinfo.autoblock=32;
 			  cuinfo.core=cuinfo.sm;
-                          if(strstr(pbuf,"NVIDIA")){
+                          if(strstr(pbuf,"NVIDIA") && j==0){
                                OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_COMPUTE_CAPABILITY_MAJOR_NV,sizeof(cl_uint),(void*)&cuinfo.major,NULL)));
                                OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_COMPUTE_CAPABILITY_MINOR_NV,sizeof(cl_uint),(void*)&cuinfo.minor,NULL)));
                                cuinfo.core=cuinfo.sm*mcx_nv_corecount(cuinfo.major,cuinfo.minor);
+                          }else if(strstr(pbuf,"AMD") && j==0){
+                               int corepersm=0;
+                               OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GFXIP_MAJOR_AMD,sizeof(cl_uint),(void*)&cuinfo.major,NULL)));
+                               OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GFXIP_MINOR_AMD,sizeof(cl_uint),(void*)&cuinfo.minor,NULL)));
+                               OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_BOARD_NAME_AMD,100,(void*)cuinfo.name,NULL)));
+                               OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_SIMD_PER_COMPUTE_UNIT_AMD,sizeof(cl_uint),(void*)&corepersm,NULL)));
+                               cuinfo.core=(cuinfo.sm*corepersm<<4);
+                               cuinfo.autoblock=64;
                           }
-        		  cuinfo.maxgate=cfg->maxgate;
-        		  cuinfo.autoblock=32;
         		  cuinfo.autothread=cuinfo.autoblock * cuinfo.core;
 
-			  if(1 && cfg->isgpuinfo){
+			  if(cfg->isgpuinfo){
                 		printf("============ %s device ID %d [%d of %d]: %s  ============\n",devname[j],cuid,k+1,devnum,cuinfo.name);
                 		printf(" Compute units   :\t%d core(s)\n",(uint)cuinfo.sm);
                 		printf(" Global memory   :\t%ld B\n",(unsigned long)cuinfo.globalmem);
@@ -182,7 +190,10 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
 
                                 if(strstr(pbuf,"NVIDIA")){
                                      printf(" Compute Capacity:\t%d.%d\n",cuinfo.major,cuinfo.minor);
-                                     printf(" Stream Processor:\t%d\n",cuinfo.sm*mcx_nv_corecount(cuinfo.major,cuinfo.minor));
+                                     printf(" Stream Processor:\t%d\n",cuinfo.core);
+                                }else if(strstr(pbuf,"AMD") && j==0){
+                                     printf(" GFXIP version:   \t%d.%d\n",cuinfo.major,cuinfo.minor);
+                                     printf(" Stream Processor:\t%d\n",cuinfo.core);
                                 }
                       	  }
 		          if(cfg->deviceid[cuid++]=='1'){

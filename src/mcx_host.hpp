@@ -27,6 +27,11 @@ extern "C" {
 #define CL_DEVICE_KERNEL_EXEC_TIMEOUT_NV                0x4005
 #define CL_DEVICE_INTEGRATED_MEMORY_NV                  0x4006
 
+#define CL_DEVICE_BOARD_NAME_AMD                        0x4038
+#define CL_DEVICE_SIMD_PER_COMPUTE_UNIT_AMD             0x4040
+#define CL_DEVICE_WAVEFRONT_WIDTH_AMD                   0x4043
+#define CL_DEVICE_GFXIP_MAJOR_AMD                       0x404A
+#define CL_DEVICE_GFXIP_MINOR_AMD                       0x404B
 
 typedef struct KernelParams {
   cl_float4 ps,c0;
