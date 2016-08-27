@@ -483,17 +483,20 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 #else
                OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,&gpu[devid].autothread,&gpu[devid].autoblock, 0, NULL, NULL)));
 #endif
-               OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetected[devid],CL_FALSE,0,sizeof(uint),
-                                            &detected, 0, NULL, waittoread+devid)));
                OCL_ASSERT((clFlush(mcxqueue[devid])));
            }
-           clWaitForEvents(workdev,waittoread);
+           //clWaitForEvents(workdev,waittoread);
+           for(devid=0;devid<workdev;devid++)
+               OCL_ASSERT((clFinish(mcxqueue[devid])));
+
            tic1=GetTimeMillis();
 	   toc+=tic1-tic0;
            fprintf(cfg->flog,"kernel complete:  \t%d ms\nretrieving flux ... \t",tic1-tic);
 
            for(devid=0;devid<workdev;devid++){
              if(cfg->issavedet){
+                OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetected[devid],CL_FALSE,0,sizeof(uint),
+                                            &detected, 0, NULL, waittoread+devid)));
                 OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetphoton[devid],CL_TRUE,0,sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),
 	                                        Pdet, 0, NULL, NULL)));
 		if(detected>cfg->maxdetphoton){
