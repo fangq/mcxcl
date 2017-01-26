@@ -423,12 +423,8 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
 
      mcxkernel=(cl_kernel*)malloc(workdev*sizeof(cl_kernel));
 
-	 int photons_per_blk;
      for(i=0;i<workdev;i++){
          cl_int threadphoton, oddphotons;
-
-		 int blocks = ((gpu[i].autothread + gpu[i].autoblock - 1 ) / gpu[i].autoblock);
-		 photons_per_blk = ((cfg->nphoton + blocks - 1 ) /  blocks);
 
          threadphoton=(int)(cfg->nphoton*cfg->workload[i]/(fullload*gpu[i].autothread*cfg->respin));
          oddphotons=(int)(cfg->nphoton*cfg->workload[i]/(fullload*cfg->respin)-threadphoton*gpu[i].autothread);
@@ -436,8 +432,8 @@ $MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\
                cfg->nphoton*cfg->workload[i]/fullload,(int)gpu[i].autothread,cfg->respin);
 
 	 OCL_ASSERT(((mcxkernel[i] = clCreateKernel(mcxprogram, "mcx_main_loop", &status),status)));
-	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 0, sizeof(cl_int), (void*)&photons_per_blk)));
-     OCL_ASSERT((clSetKernelArg(mcxkernel[i], 1, sizeof(cl_uint),(void*)&oddphotons)));
+	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 0, sizeof(cl_uint),(void*)&threadphoton)));
+         OCL_ASSERT((clSetKernelArg(mcxkernel[i], 1, sizeof(cl_uint),(void*)&oddphotons)));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 2, sizeof(cl_mem), (void*)&gmedia)));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 3, sizeof(cl_mem), (void*)(gfield+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 4, sizeof(cl_mem), (void*)(genergy+i))));
