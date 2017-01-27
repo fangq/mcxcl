@@ -12,8 +12,7 @@ OUTPUT_DIR=../bin
 INCLUDEDIRS=#-I/home/fangq/Download/ati-stream-sdk-v2.0-lnx32/include
 AMDAPPSDKROOT ?=/opt/AMDAPPSDK-2.9-1
 LIBOPENCLDIR ?=$(AMDAPPSDKROOT)/lib/x86_64
-CUDAOPENCLDIR ?=/usr/local/cuda/lib64
-LINKOPT=-g -L$(LIBOPENCLDIR) -L$(CUDAOPENCLDIR) -lOpenCL
+LINKOPT=-g -L$(LIBOPENCLDIR) -lOpenCL
 
 CUCCOPT=-I/usr/local/cuda/include #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
 CCOPT=-g -pedantic -Wall -O3 -DMCX_OPENCL -DUSE_OS_TIMER -I/usr/local/cuda/include  -std=c99#-O3
