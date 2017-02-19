@@ -575,7 +575,6 @@ is more than what your have specified (%d), please use the -H option to specify 
      if(cfg->isnormalized){
 	   float scale=0.f;
            fprintf(cfg->flog,"normalizing raw data ...\t");
-
            if(cfg->outputtype==otFlux || cfg->outputtype==otFluence){
                scale=1.f/(cfg->energytot*Vvox*cfg->tstep);
 	       if(cfg->unitinmm!=1.f)
