@@ -2,7 +2,7 @@
 #define _MCEXTREME_GPU_LAUNCH_H
 
 #define CL_USE_DEPRECATED_OPENCL_2_0_APIS
-#include <CL/cl.h>
+#include <cl.h>
 #include "mcx_utils.h"
 
 #ifdef  __cplusplus

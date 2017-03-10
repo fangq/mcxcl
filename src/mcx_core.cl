@@ -105,7 +105,7 @@ void rand_need_more(__private RandType t[RAND_BUF_LEN]){
     logistic_step(tnew,t,RAND_BUF_LEN-1);
 }
 
-void logistic_init(__private RandType *t,__global uint seed[],uint idx){
+void logistic_init(__private RandType *t,__global uint *seed,uint idx){
      int i;
      for(i=0;i<RAND_BUF_LEN;i++)
            t[i]=(RandType)seed[idx*RAND_BUF_LEN+i]*R_MAX_C_RAND;
@@ -133,7 +133,7 @@ void gpu_rng_init(__private RandType t[RAND_BUF_LEN],__global uint *n_seed,int i
 
 typedef ulong  RandType;
 
-float xorshift128p_nextf (__private RandType t[RAND_BUF_LEN]){
+static float xorshift128p_nextf (__private RandType t[RAND_BUF_LEN]){
    union {
         double d;
         ulong  i;
@@ -149,29 +149,29 @@ float xorshift128p_nextf (__private RandType t[RAND_BUF_LEN]){
    return (float)s1.d - 1.0f;
 }
 
-void copystate(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN]){
+static void copystate(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN]){
     tnew[0]=t[0];
     tnew[1]=t[1];
 }
 
 // generate random number for the next zenith angle
-void rand_need_more(__private RandType t[RAND_BUF_LEN]){
+static void rand_need_more(__private RandType t[RAND_BUF_LEN]){
 }
 
-float rand_uniform01(__private RandType t[RAND_BUF_LEN]){
+static float rand_uniform01(__private RandType t[RAND_BUF_LEN]){
     return xorshift128p_nextf(t);
 }
 
-void xorshift128p_seed (__global uint seed[4],RandType t[RAND_BUF_LEN])
+static void xorshift128p_seed (__global uint *seed,RandType t[RAND_BUF_LEN])
 {
     t[0] = (ulong)seed[0] << 32 | seed[1] ;
     t[1] = (ulong)seed[2] << 32 | seed[3];
 }
 
-void gpu_rng_init(__private RandType t[RAND_BUF_LEN], __global uint *n_seed, int idx){
+static void gpu_rng_init(__private RandType t[RAND_BUF_LEN], __global uint *n_seed, int idx){
     xorshift128p_seed((n_seed+idx*RAND_SEED_LEN),t);
 }
-void gpu_rng_reseed(__private RandType t[RAND_BUF_LEN],__global uint cpuseed[],uint idx,float reseed){
+static void gpu_rng_reseed(__private RandType t[RAND_BUF_LEN],__global uint *cpuseed,uint idx,float reseed){
 }
 
 #endif
@@ -197,14 +197,14 @@ inline void atomicadd(volatile __global float* address, const float value){
 }
 #endif
 
-void clearpath(__local float *p, __constant MCXParam gcfg[]){
+void clearpath(__local float *p, __constant MCXParam *gcfg){
       uint i;
       for(i=0;i<gcfg->maxmedia;i++)
       	   p[i]=0.f;
 }
 
 #ifdef MCX_SAVE_DETECTORS
-uint finddetector(float4 p0[],__constant float4 gdetpos[],__constant MCXParam gcfg[]){
+uint finddetector(float4 *p0,__constant float4 *gdetpos,__constant MCXParam *gcfg){
       uint i;
       for(i=0;i<gcfg->detnum;i++){
       	if((gdetpos[i].x-p0[0].x)*(gdetpos[i].x-p0[0].x)+
@@ -216,8 +216,8 @@ uint finddetector(float4 p0[],__constant float4 gdetpos[],__constant MCXParam gc
       return 0;
 }
 
-void savedetphoton(__global float n_det[],__global uint *detectedphoton,float nscat,
-                   __local float *ppath,float4 p0[],__constant float4 gdetpos[],__constant MCXParam gcfg[]){
+void savedetphoton(__global float *n_det,__global uint *detectedphoton,float nscat,
+                   __local float *ppath,float4 *p0,__constant float4 *gdetpos,__constant MCXParam *gcfg){
       uint detid;
       detid=finddetector(p0,gdetpos,gcfg);
       if(detid){
@@ -245,7 +245,7 @@ float mcx_nextafterf(float a, int dir){
       return num.f-1000.f;
 }
 
-float hitgrid(float4 p0[], float4 v[], float4 htime[], int *id){
+float hitgrid(float4 *p0, float4 *v, float4 *htime, int *id){
       float dist;
 
       //time-of-flight to hit the wall in each direction
@@ -268,7 +268,7 @@ float hitgrid(float4 p0[], float4 v[], float4 htime[], int *id){
 }
 
 
-void rotatevector(float4 v[], float stheta, float ctheta, float sphi, float cphi){
+void rotatevector(float4 *v, float stheta, float ctheta, float sphi, float cphi){
       if( v[0].z>-1.f+EPS && v[0].z<1.f-EPS ) {
    	  float tmp0=1.f-v[0].z*v[0].z;
    	  float tmp1=stheta*rsqrt(tmp0);
@@ -284,10 +284,10 @@ void rotatevector(float4 v[], float stheta, float ctheta, float sphi, float cphi
       GPUDEBUG(((__constant char*)"new dir: %10.5e %10.5e %10.5e\n",v[0].x,v[0].y,v[0].z));
 }
 
-int launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
-           uint *mediaid,float *w0,uchar isdet, __local float ppath[],float *energyloss,float *energylaunched,
-	   __global float n_det[],__global uint *dpnum, __constant float4 gproperty[],
-	   __constant float4 gdetpos[],__constant MCXParam gcfg[],int threadid, int threadphoton, int oddphotons){
+int launchnewphoton(float4 *p,float4 *v,float4 *f,float4 *prop,uint *idx1d,
+           uint *mediaid,float *w0,uchar isdet, __local float *ppath,float *energyloss,float *energylaunched,
+	   __global float *n_det,__global uint *dpnum, __constant float4 *gproperty,
+	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, int threadphoton, int oddphotons){
       
       if(p[0].w>=0.f){
           *energyloss+=p[0].w;  // sum all the remaining energy
@@ -318,11 +318,11 @@ int launchnewphoton(float4 p[],float4 v[],float4 f[],float4 prop[],uint *idx1d,
 /*
    this is the core Monte Carlo simulation kernel, please see Fig. 1 in Fang2009
 */
-__kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const uchar media[],
-     __global float field[], __global float genergy[], __global uint n_seed[],
-     __global float n_det[],__constant float4 gproperty[],
-     __constant float4 gdetpos[], __global uint stopsign[1],__global uint detectedphoton[1],
-     __local float *sharedmem, __constant MCXParam gcfg[]){
+__kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const uchar *media,
+     __global float *field, __global float *genergy, __global uint *n_seed,
+     __global float *n_det,__constant float4 *gproperty,
+     __constant float4 *gdetpos, __global uint *stopsign,__global uint *detectedphoton,
+     __local float *sharedmem, __constant MCXParam *gcfg){
 
      int idx= get_global_id(0);
 

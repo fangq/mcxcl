@@ -9,10 +9,10 @@ AR=g++
 
 BINARY=mcxcl
 OUTPUT_DIR=../bin
-INCLUDEDIRS=#-I/home/fangq/Download/ati-stream-sdk-v2.0-lnx32/include
-AMDAPPSDKROOT ?=/opt/AMDAPPSDK-2.9-1
+INCLUDEDIRS=
+AMDAPPSDKROOT ?=/opt/AMDAPPSDK-3.0
 LIBOPENCLDIR ?=$(AMDAPPSDKROOT)/lib/x86_64
-LINKOPT=-g -L$(LIBOPENCLDIR) -lOpenCL
+LINKOPT=-g -L$(LIBOPENCLDIR)
 
 CUCCOPT=-I/usr/local/cuda/include #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
 CCOPT=-g -pedantic -Wall -O3 -DMCX_OPENCL -DUSE_OS_TIMER -I/usr/local/cuda/include  -std=c99#-O3
@@ -28,7 +28,7 @@ MKDIR      := mkdir
 FILES=mcx_host mcx_utils tictoc mcxcl mcx_shapes cjson/cJSON
 
 ARCH = $(shell uname -m)
-PLATFORM = $(shell uname -o)
+PLATFORM = $(shell uname -s)
 ifeq ($(findstring Msys,$(PLATFORM)), Msys)
   CCC=nvcc
   LINKOPT=-L/c/CUDA/lib -lcudart --link
@@ -36,6 +36,9 @@ ifeq ($(findstring Msys,$(PLATFORM)), Msys)
   CPPOPT =-c  -D_CRT_SECURE_NO_DEPRECATE -DWIN32
   OBJSUFFIX=.obj
   EXESUFFIX=.exe
+else ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
+  INCLUDEDIRS=-I/System/Library/Frameworks/OpenCL.framework/Headers
+  LINKOPT+=-framework OpenCL
 endif
 
 ifdef AMDAPPSDKROOT

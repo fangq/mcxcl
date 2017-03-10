@@ -88,7 +88,7 @@ void mcx_initcfg(Config *cfg){
      cfg->rootpath[0]='\0';
      cfg->iscpu=0;
      cfg->isverbose=0;
-     cfg->clsource='\0';
+     cfg->clsource=NULL;;
      cfg->maxdetphoton=1000000; 
      cfg->isdumpmask=0;
      cfg->autopilot=0;
@@ -1065,7 +1065,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 	    }
 	    i++;
      }
-     if(issavelog && cfg->session){
+     if(issavelog && cfg->session[0]){
           sprintf(logfile,"%s.log",cfg->session);
           cfg->flog=fopen(logfile,"wt");
           if(cfg->flog==NULL){
