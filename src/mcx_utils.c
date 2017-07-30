@@ -36,25 +36,29 @@
                      : tmp)
 
 
-char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','G','W','z',
+char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W','z',
                  'd','r','S','p','e','U','R','l','L','M','I','o','c','k','v','J',
-                 'A','P','\0'};
+                 'A','P','E','F','H','-','u','\0'};
 const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--thread","--blocksize","--session","--array","--gategroup",
-                 "--reflect","--reflect3","--device","--devicelist","--workload","--srcfrom0",
+                 "--reflect","--reflect3","--device","--devicelist","--gpu","--workload","--srcfrom0",
 		 "--savedet","--repeat","--save2pt","--printlen","--minenergy",
                  "--normalize","--skipradius","--log","--listgpu","--dumpmask",
                  "--printgpu","--root","--cpu","--kernel","--verbose","--compileropt",
-                 "--autopilot","--shapes",""};
+                 "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
+		 "--mediabyte","--unitinmm",""};
 #ifdef WIN32
          char pathsep='\\';
 #else
          char pathsep='/';
 #endif
 
+const char outputtype[]={'x','f','e','j','p','\0'};
+const char *outputformat[]={"mc2","nii","hdr","ubj",""};
 
 void mcx_initcfg(Config *cfg){
      cfg->medianum=0;
+     cfg->mediabyte=1;
      cfg->detnum=0;
      cfg->dim.x=0;
      cfg->dim.y=0;
@@ -65,7 +69,7 @@ void mcx_initcfg(Config *cfg){
      cfg->nblocksize=64;
      cfg->nphoton=0;
      cfg->nthread=(1<<14);
-     cfg->seed=0;
+     cfg->seed=0x623F9A9E;
      cfg->isrowmajor=0; /* default is Matlab array*/
      cfg->maxgate=1;
      cfg->isreflect=1;
@@ -123,6 +127,7 @@ void mcx_initcfg(Config *cfg){
 #endif
      cfg->seeddata=NULL;
      cfg->outputtype=otFlux;
+     cfg->outputformat=ofMC2;
 }
 
 void mcx_clearcfg(Config *cfg){
@@ -144,20 +149,108 @@ void mcx_clearcfg(Config *cfg){
      mcx_initcfg(cfg);
 }
 
-void mcx_savedata(float *dat, int len, int doappend, const char *suffix, Config *cfg){
+void mcx_savenii(float *dat, int len, char* name, int type32bit, int outputformatid, Config *cfg){
+     FILE *fp;
+     char fname[MAX_PATH_LENGTH]={'\0'};
+     nifti_1_header hdr;
+     nifti1_extender pad={{0,0,0,0}};
+     float *logval=dat;
+     int i;
+
+     memset((void *)&hdr, 0, sizeof(hdr));
+     hdr.sizeof_hdr = MIN_HEADER_SIZE;
+     hdr.dim[0] = 4;
+     hdr.dim[1] = cfg->dim.x;
+     hdr.dim[2] = cfg->dim.y;
+     hdr.dim[3] = cfg->dim.z;
+     hdr.dim[4] = len/(cfg->dim.x*cfg->dim.y*cfg->dim.z);
+     hdr.datatype = type32bit;
+     hdr.bitpix = 32;
+     hdr.pixdim[1] = cfg->unitinmm;
+     hdr.pixdim[2] = cfg->unitinmm;
+     hdr.pixdim[3] = cfg->unitinmm;
+     hdr.intent_code=NIFTI_INTENT_NONE;
+     logval=(float *)malloc(sizeof(float)*len);
+
+     if(type32bit==NIFTI_TYPE_FLOAT32){
+	 for(i=0;i<len;i++)
+	    logval[i]=log10f(dat[i]);
+	 hdr.intent_code=NIFTI_INTENT_LOG10PVAL;
+         hdr.pixdim[4] = cfg->tstep*1e6f;
+     }else{
+         short *mask=(short*)logval;
+	 for(i=0;i<len;i++){
+	    mask[i]    =(((unsigned int *)dat)[i] & MED_MASK);
+	    mask[i+len]=(((unsigned int *)dat)[i] & DET_MASK)>>16;
+	 }
+	 hdr.datatype = NIFTI_TYPE_UINT16;
+	 hdr.bitpix = 16;
+         hdr.dim[4] = 2;
+         hdr.pixdim[4] = 1.f;
+     }
+     if (outputformatid==ofNifti){
+	strncpy(hdr.magic, "n+1\0", 4);
+	hdr.vox_offset = (float) NII_HEADER_SIZE;
+     }else{
+	strncpy(hdr.magic, "ni1\0", 4);
+	hdr.vox_offset = (float)0;
+     }
+     hdr.scl_slope = 0.f;
+     hdr.xyzt_units = NIFTI_UNITS_MM | NIFTI_UNITS_USEC;
+
+     sprintf(fname,"%s.%s",name,outputformat[outputformatid]);
+
+     if (( fp = fopen(fname,"wb")) == NULL)
+             mcx_error(-9, "Error opening header file for write",__FILE__,__LINE__);
+
+     if (fwrite(&hdr, MIN_HEADER_SIZE, 1, fp) != 1)
+             mcx_error(-9, "Error writing header file",__FILE__,__LINE__);
+
+     if (outputformatid==ofNifti) {
+         if (fwrite(&pad, 4, 1, fp) != 1)
+             mcx_error(-9, "Error writing header file extension pad",__FILE__,__LINE__);
+
+         if (fwrite(logval, (size_t)(hdr.bitpix>>3), hdr.dim[1]*hdr.dim[2]*hdr.dim[3]*hdr.dim[4], fp) !=
+	          hdr.dim[1]*hdr.dim[2]*hdr.dim[3]*hdr.dim[4])
+             mcx_error(-9, "Error writing data to file",__FILE__,__LINE__);
+	 fclose(fp);
+     }else if(outputformatid==ofAnalyze){
+         fclose(fp);  /* close .hdr file */
+
+         sprintf(fname,"%s.img",name);
+
+         fp = fopen(fname,"wb");
+         if (fp == NULL)
+             mcx_error(-9, "Error opening img file for write",__FILE__,__LINE__);
+         if (fwrite(logval, (size_t)(hdr.bitpix>>3), hdr.dim[1]*hdr.dim[2]*hdr.dim[3]*hdr.dim[4], fp) != 
+	       hdr.dim[1]*hdr.dim[2]*hdr.dim[3]*hdr.dim[4])
+             mcx_error(-9, "Error writing img file",__FILE__,__LINE__);
+
+         fclose(fp);
+     }else
+         mcx_error(-9, "Output format is not supported",__FILE__,__LINE__);
+     free(logval);
+}
+
+void mcx_savedata(float *dat, int len, Config *cfg){
      FILE *fp;
      char name[MAX_PATH_LENGTH];
-     sprintf(name,"%s.%s",cfg->session,suffix);
-     if(doappend){
-        fp=fopen(name,"ab");
-     }else{
-        fp=fopen(name,"wb");
+     char fname[MAX_PATH_LENGTH];
+
+     if(cfg->rootpath[0])
+         sprintf(name,"%s%c%s",cfg->rootpath,pathsep,cfg->session);
+     else
+         sprintf(name,"%s",cfg->session);
+
+     if(cfg->outputformat==ofNifti || cfg->outputformat==ofAnalyze){
+         mcx_savenii(dat, len, name, NIFTI_TYPE_FLOAT32, cfg->outputformat, cfg);
+         return;
      }
+     sprintf(fname,"%s.%s",name,outputformat[(int)cfg->outputformat]);
+     fp=fopen(fname,"wb");
+
      if(fp==NULL){
 	mcx_error(-2,"can not save data to disk",__FILE__,__LINE__);
-     }
-     if(strcmp(suffix,"mch")==0){
-	fwrite(&(cfg->his),sizeof(History),1,fp);
      }
      fwrite(dat,sizeof(float),len,fp);
      fclose(fp);
@@ -307,6 +400,8 @@ void mcx_prepdomain(char *filename, Config *cfg){
 	}
 	if(cfg->issavedet)
 		mcx_maskdet(cfg);
+	if(cfg->isdumpmask)
+	        mcx_dumpmask(cfg);
      }else{
      	mcx_error(-4,"one must specify a binary volume file in order to run the simulation",__FILE__,__LINE__);
      }
@@ -531,7 +626,8 @@ int mcx_loadjson(cJSON *root, Config *cfg){
            cfg->dim.y=val->child->next->valueint;
            cfg->dim.z=val->child->next->next->valueint;
 	}else{
-	   MCX_ERROR(-1,"You must specify the dimension of the volume");
+	   if(!Shapes)
+	      MCX_ERROR(-1,"You must specify the dimension of the volume");
 	}
 	val=FIND_JSON_OBJ("Step","Domain.Step",Domain);
 	if(val){
@@ -609,6 +705,8 @@ int mcx_loadjson(cJSON *root, Config *cfg){
               cfg->srcdir.x=subitem->child->valuedouble;
               cfg->srcdir.y=subitem->child->next->valuedouble;
               cfg->srcdir.z=subitem->child->next->next->valuedouble;
+	      if(subitem->child->next->next->next)
+	         cfg->srcdir.w=subitem->child->next->next->next->valuedouble;
            }
 	   if(!cfg->issrcfrom0){
               cfg->srcpos.x--;cfg->srcpos.y--;cfg->srcpos.z--; /*convert to C index, grid center*/
@@ -683,7 +781,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
         }
      }
      if(Session){
-/*        char val[1];*/
+        char val[1];
 	if(cfg->seed==0)      cfg->seed=FIND_JSON_KEY("RNGSeed","Session.RNGSeed",Session,-1,valueint);
         if(cfg->nphoton==0)   cfg->nphoton=FIND_JSON_KEY("Photons","Session.Photons",Session,0,valuedouble);
         if(cfg->session[0]=='\0')  strncpy(cfg->session, FIND_JSON_KEY("ID","Session.ID",Session,"default",valuestring), MAX_SESSION_LENGTH);
@@ -696,12 +794,12 @@ int mcx_loadjson(cJSON *root, Config *cfg){
 /*
 	if(!cfg->issaveseed)  cfg->issaveseed=FIND_JSON_KEY("DoSaveSeed","Session.DoSaveSeed",Session,cfg->issaveseed,valueint);
 	cfg->reseedlimit=FIND_JSON_KEY("ReseedLimit","Session.ReseedLimit",Session,cfg->reseedlimit,valueint);
+*/
 	strncpy(val,FIND_JSON_KEY("OutputType","Session.OutputType",Session,outputtype+cfg->outputtype,valuestring),1);
 	if(mcx_lookupindex(val, outputtype)){
 		mcx_error(-2,"the specified output data type is not recognized",__FILE__,__LINE__);
 	}
 	cfg->outputtype=val[0];
-*/
      }
      if(Forward){
         uint gates;
@@ -761,8 +859,10 @@ void mcx_saveconfig(FILE *out, Config *cfg){
 }
 
 void mcx_loadvolume(char *filename,Config *cfg){
-     unsigned int i, datalen,res;
+     unsigned int i,datalen,res;
+     unsigned char *inputvol=NULL;
      FILE *fp;
+     
      if(strstr(filename,".json")!=NULL){
          int status;
          Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
@@ -782,27 +882,42 @@ void mcx_loadvolume(char *filename,Config *cfg){
      	     cfg->vol=NULL;
      }
      datalen=cfg->dim.x*cfg->dim.y*cfg->dim.z;
-     cfg->vol=(unsigned char*)malloc(sizeof(unsigned char)*datalen);
-     res=fread(cfg->vol,sizeof(unsigned char),datalen,fp);
+     cfg->vol=(unsigned int*)malloc(sizeof(unsigned int)*datalen);
+     if(cfg->mediabyte==4)
+         inputvol=(unsigned char*)(cfg->vol);
+     else
+         inputvol=(unsigned char*)malloc(sizeof(unsigned char)*cfg->mediabyte*datalen);
+     res=fread(inputvol,sizeof(unsigned char)*cfg->mediabyte,datalen,fp);
      fclose(fp);
      if(res!=datalen){
      	 mcx_error(-6,"file size does not match specified dimensions",__FILE__,__LINE__);
+     }
+     if(cfg->mediabyte==1){  /*convert all format into 4-byte int index*/
+       unsigned char *val=inputvol;
+       for(i=0;i<datalen;i++)
+         cfg->vol[i]=val[i];
+     }else if(cfg->mediabyte==2){
+       unsigned short *val=(unsigned short *)inputvol;
+       for(i=0;i<datalen;i++)
+         cfg->vol[i]=val[i];
      }
      for(i=0;i<datalen;i++){
          if(cfg->vol[i]>=cfg->medianum)
             mcx_error(-6,"medium index exceeds the specified medium types",__FILE__,__LINE__);
      }
+     if(cfg->mediabyte<4)
+         free(inputvol);
 }
 
-void  mcx_convertrow2col(unsigned char **vol, uint4 *dim){
+void  mcx_convertrow2col(unsigned int **vol, uint4 *dim){
      uint x,y,z;
      unsigned int dimxy,dimyz;
-     unsigned char *newvol=NULL;
+     unsigned int *newvol=NULL;
      
      if(*vol==NULL || dim->x==0 || dim->y==0 || dim->z==0){
         return;
      }     
-     newvol=(unsigned char*)malloc(sizeof(unsigned char)*dim->x*dim->y*dim->z);
+     newvol=(unsigned int*)malloc(sizeof(unsigned int)*dim->x*dim->y*dim->z);
      dimxy=dim->x*dim->y;
      dimyz=dim->y*dim->z;
      for(x=0;x<dim->x;x++)
@@ -815,36 +930,58 @@ void  mcx_convertrow2col(unsigned char **vol, uint4 *dim){
 }
 
 void  mcx_maskdet(Config *cfg){
-     uint d,dx,dy,dz,idx1d,zi,yi;
-     float x,y,z,ix,iy,iz;
-     unsigned char *padvol;
+     uint d,dx,dy,dz,idx1d,zi,yi,c,count;
+     float x,y,z,ix,iy,iz,rx,ry,rz,d2,mind2,d2max;
+     unsigned int *padvol;
+     const float corners[8][3]={{0.f,0.f,0.f},{1.f,0.f,0.f},{0.f,1.f,0.f},{0.f,0.f,1.f},
+                                {1.f,1.f,0.f},{1.f,0.f,1.f},{0.f,1.f,1.f},{1.f,1.f,1.f}};
      
      dx=cfg->dim.x+2;
      dy=cfg->dim.y+2;
      dz=cfg->dim.z+2;
-
+     
      /*handling boundaries in a volume search is tedious, I first pad vol by a layer of zeros,
        then I don't need to worry about boundaries any more*/
 
-     padvol=(unsigned char*)calloc(dx*dy,dz);
+     padvol=(unsigned int*)calloc(dx*dy*sizeof(unsigned int),dz);
 
      for(zi=1;zi<=cfg->dim.z;zi++)
         for(yi=1;yi<=cfg->dim.y;yi++)
-	        memcpy(padvol+zi*dy*dx+yi*dx+1,cfg->vol+(zi-1)*cfg->dim.y*cfg->dim.x+(yi-1)*cfg->dim.x,cfg->dim.x);
+	        memcpy(padvol+zi*dy*dx+yi*dx+1,cfg->vol+(zi-1)*cfg->dim.y*cfg->dim.x+(yi-1)*cfg->dim.x,cfg->dim.x*sizeof(int));
 
-     for(d=0;d<cfg->detnum;d++)                              /*loop over each detector*/
-        for(z=-cfg->detpos[d].w;z<=cfg->detpos[d].w;z++){   /*search in a sphere*/
-           iz=z+cfg->detpos[d].z; /*1.5=1+0.5, 1 comes from the padding layer, 0.5 move to voxel center*/
-           for(y=-cfg->detpos[d].w;y<=cfg->detpos[d].w;y++){
+     /**
+        The goal here is to find a set of voxels for each 
+	detector so that the intersection between a sphere
+	of R=cfg->detradius,c0=cfg->detpos[d] and the object 
+	surface (or bounding box) is fully covered.
+     */
+     for(d=0;d<cfg->detnum;d++){                             /*loop over each detector*/
+        count=0;
+        d2max=(cfg->detpos[d].w+1.7321f)*(cfg->detpos[d].w+1.7321f);
+        for(z=-cfg->detpos[d].w-1.f;z<=cfg->detpos[d].w+1.f;z+=0.5f){   /*search in a cube with edge length 2*R+3*/
+           iz=z+cfg->detpos[d].z;
+           for(y=-cfg->detpos[d].w-1.f;y<=cfg->detpos[d].w+1.f;y+=0.5f){
               iy=y+cfg->detpos[d].y;
-              for(x=-cfg->detpos[d].w;x<=cfg->detpos[d].w;x++){
+              for(x=-cfg->detpos[d].w-1.f;x<=cfg->detpos[d].w+1.f;x+=0.5f){
 	         ix=x+cfg->detpos[d].x;
 
 		 if(iz<0||ix<0||iy<0||ix>=cfg->dim.x||iy>=cfg->dim.y||iz>=cfg->dim.z||
 		    x*x+y*y+z*z > (cfg->detpos[d].w+1.f)*(cfg->detpos[d].w+1.f))
-		    continue;
-
-		 idx1d=(int)((iz+1.f)*dy*dx+(iy+1.f)*dx+(ix+1.f));
+		     continue;
+		 mind2=VERY_BIG;
+                 for(c=0;c<8;c++){ /*test each corner of a voxel*/
+			rx=(int)ix-cfg->detpos[d].x+corners[c][0];
+			ry=(int)iy-cfg->detpos[d].y+corners[c][1];
+			rz=(int)iz-cfg->detpos[d].z+corners[c][2];
+			d2=rx*rx+ry*ry+rz*rz;
+		 	if(d2>d2max){ /*R+sqrt(3) to make sure the circle is fully corvered*/
+				mind2=VERY_BIG;
+		     		break;
+			}
+			if(d2<mind2) mind2=d2;
+		 }
+		 if(mind2==VERY_BIG || mind2>=cfg->detpos[d].w*cfg->detpos[d].w) continue;
+		 idx1d=((int)(iz+1.f)*dy*dx+(int)(iy+1.f)*dx+(int)(ix+1.f)); /*1.f comes from the padded layer*/
 
 		 if(padvol[idx1d])  /*looking for a voxel on the interface or bounding box*/
                   if(!(padvol[idx1d+1]&&padvol[idx1d-1]&&padvol[idx1d+dx]&&padvol[idx1d-dx]&&padvol[idx1d+dy*dx]&&padvol[idx1d-dy*dx]&&
@@ -853,27 +990,37 @@ void  mcx_maskdet(Config *cfg){
 		     padvol[idx1d+dy*dx+dx]&&padvol[idx1d+dy*dx-dx]&&padvol[idx1d-dy*dx+dx]&&padvol[idx1d-dy*dx-dx]&&
 		     padvol[idx1d+dy*dx+dx+1]&&padvol[idx1d+dy*dx+dx-1]&&padvol[idx1d+dy*dx-dx+1]&&padvol[idx1d+dy*dx-dx-1]&&
 		     padvol[idx1d-dy*dx+dx+1]&&padvol[idx1d-dy*dx+dx-1]&&padvol[idx1d-dy*dx-dx+1]&&padvol[idx1d-dy*dx-dx-1])){
-		          cfg->vol[(int)(iz*cfg->dim.y*cfg->dim.x+iy*cfg->dim.x+ix)]|=(1<<7);/*set the highest bit to 1*/
+		          cfg->vol[((int)iz*cfg->dim.y*cfg->dim.x+(int)iy*cfg->dim.x+(int)ix)] |= ((d+1)<<16);/*set the highest bit to 1*/
+                          count++;
 	          }
-	      }
-	  }
+	       }
+	   }
+        }
+        if(cfg->issavedet && count==0)
+              fprintf(stderr,"MCX WARNING: detector %d is not located on an interface, please check coordinates.\n",d+1);
      }
 
-     if(cfg->isdumpmask){
-     	 char fname[MAX_PATH_LENGTH];
-	 FILE *fp;
-	 sprintf(fname,"%s.mask",cfg->session);
-	 if((fp=fopen(fname,"wb"))==NULL){
-	 	mcx_error(-10,"can not save mask file",__FILE__,__LINE__);
-	 }
-	 if(fwrite(cfg->vol,cfg->dim.x*cfg->dim.y,cfg->dim.z,fp)!=cfg->dim.z){
-	 	mcx_error(-10,"can not save mask file",__FILE__,__LINE__);
-	 }
-	 fclose(fp);
-         free(padvol);
-	 exit(0);
-     }
      free(padvol);
+}
+
+void mcx_dumpmask(Config *cfg){
+     /**
+         To test the results, you should use -M to dump the det-mask, load 
+	 it in matlab, and plot the interface containing the detector with
+	 pcolor() (has the matching index), and then draw a circle with the
+	 radius and center set in the input file. the pixels should completely
+	 cover the circle.
+     */
+
+     char fname[MAX_PATH_LENGTH];
+     if(cfg->rootpath[0])
+         sprintf(fname,"%s%c%s_vol",cfg->rootpath,pathsep,cfg->session);
+     else
+         sprintf(fname,"%s_vol",cfg->session);
+
+     mcx_savenii((float *)cfg->vol, cfg->dim.x*cfg->dim.y*cfg->dim.z, fname, NIFTI_TYPE_UINT32, ofNifti, cfg);
+     if(cfg->isdumpmask==1) /*if dumpmask>1, simulation will also run*/
+         exit(0);
 }
 
 int mcx_readarg(int argc, char *argv[], int id, void *output,const char *type){
@@ -928,7 +1075,8 @@ int mcx_remap(char *opt){
     while(shortopt[i]!='\0'){
 	if(strcmp(opt,fullopt[i])==0){
 		opt[1]=shortopt[i];
-		opt[2]='\0';
+		if(shortopt[i]!='-')
+                    opt[2]='\0';
 		return 0;
 	}
 	i++;
@@ -942,19 +1090,21 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
      float np=0.f;
 
      if(argc<=1){
-     	mcx_usage(argv[0]);
+     	mcx_usage(cfg,argv[0]);
      	exit(0);
      }
      while(i<argc){
      	    if(argv[i][0]=='-'){
 		if(argv[i][1]=='-'){
 			if(mcx_remap(argv[i])){
-				mcx_error(-2,"unknown verbose option",__FILE__,__LINE__);
+				fprintf(cfg->flog,"unknown verbose option %s\n", argv[i]);
+				i+=2;
+				continue;
 			}
 		}
 	        switch(argv[i][1]){
 		     case 'h': 
-		                mcx_usage(argv[0]);
+		                mcx_usage(cfg,argv[0]);
 				exit(0);
 		     case 'i':
 				if(filename[0]){
@@ -1013,6 +1163,9 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     case 'U':
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->isnormalized),"char");
 		     	        break;
+                     case 'u':
+                                i=mcx_readarg(argc,argv,i,&(cfg->unitinmm),"float");
+                                break;
                      case 'R':
                                 i=mcx_readarg(argc,argv,i,&(cfg->sradius),"float");
                                 break;
@@ -1061,6 +1214,20 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                      case 'P':
                                 cfg->shapedata=argv[++i];
                                 break;
+                     case 'E':
+				i=mcx_readarg(argc,argv,i,&(cfg->seed),"int");
+		     	        break;
+		     case 'H':
+		     	        i=mcx_readarg(argc,argv,i,&(cfg->maxdetphoton),"int");
+		     	        break;
+		     case '-':  /*additional verbose parameters*/
+                                if(strcmp(argv[i]+2,"devicelist")==0)
+                                     i=mcx_readarg(argc,argv,i,cfg->deviceid,"string");
+                                else if(strcmp(argv[i]+2,"mediabyte")==0)
+                                     i=mcx_readarg(argc,argv,i,&(cfg->mediabyte),"int");
+                                else
+                                     fprintf(cfg->flog,"unknown verbose option: --%s\n",argv[i]+2);
+		     	        break;
 		}
 	    }
 	    i++;
@@ -1140,21 +1307,25 @@ int mcx_lookupindex(char *key, const char *index){
     return 1;
 }
 
-void mcx_usage(char *exename){
-     printf("\
+void mcx_printheader(Config *cfg){
+    fprintf(cfg->flog,"\
 ======================================================================================\n\
 =                      Monte Carlo eXtreme (MCX) -- OpenCL                           =\n\
-=            Copyright (c) 2010-2016 Qianqian Fang <q.fang at neu.edu>               =\n\
+=            Copyright (c) 2010-2017 Qianqian Fang <q.fang at neu.edu>               =\n\
 =                                 http://mcx.space/                                  =\n\
 =                                                                                    =\n\
-=            Computational Imaging Laboratory (CIL) [http://fanglab.org]             =\n\
+= Computational Optics & Translational Imaging (COTI) Lab- http://fanglab.org        =\n\
 =               Department of Bioengineering, Northeastern University                =\n\
 ======================================================================================\n\
 =        The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365         =\n\
 ======================================================================================\n\
-$MCXCL $Rev:: 155$, Last Commit:$Date:: 2009-12-19 18:57:32 -05#$ by $Author:: fangq $\n\
-======================================================================================\n\
-\n\
+$Rev::6e839e $ Last $Date::2017-07-20 12:46:23 -04    $ by $Author::Qianqian Fang    $\n\
+======================================================================================\n");
+}
+
+void mcx_usage(Config *cfg,char *exename){
+     mcx_printheader(cfg);     
+     printf("\n\
 usage: %s <param1> <param2> ...\n\
 where possible parameters include (the first item in [] is the default value)\n\
  -i 	        (--interactive) interactive mode\n\

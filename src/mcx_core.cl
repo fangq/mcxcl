@@ -204,22 +204,18 @@ void clearpath(__local float *p, __constant MCXParam *gcfg){
 }
 
 #ifdef MCX_SAVE_DETECTORS
-uint finddetector(float4 *p0,__constant float4 *gdetpos,__constant MCXParam *gcfg){
-      uint i;
-      for(i=0;i<gcfg->detnum;i++){
-      	if((gdetpos[i].x-p0[0].x)*(gdetpos[i].x-p0[0].x)+
-	   (gdetpos[i].y-p0[0].y)*(gdetpos[i].y-p0[0].y)+
-	   (gdetpos[i].z-p0[0].z)*(gdetpos[i].z-p0[0].z) < gdetpos[i].w){
-	        return i+1;
-	   }
+uint finddetector(float4 *p0,__constant float4 *gdetpos,uint id){
+      if((gdetpos[id].x-p0[0].x)*(gdetpos[id].x-p0[0].x)+
+	   (gdetpos[id].y-p0[0].y)*(gdetpos[id].y-p0[0].y)+
+	   (gdetpos[id].z-p0[0].z)*(gdetpos[id].z-p0[0].z) < gdetpos[id].w){
+	        return id+1;
       }
       return 0;
 }
 
-void savedetphoton(__global float *n_det,__global uint *detectedphoton,float nscat,
+void savedetphoton(uint detid,__global float *n_det,__global uint *detectedphoton,float nscat,
                    __local float *ppath,float4 *p0,__constant float4 *gdetpos,__constant MCXParam *gcfg){
-      uint detid;
-      detid=finddetector(p0,gdetpos,gcfg);
+      detid=finddetector(p0,gdetpos,detid-1);
       if(detid){
 	 uint baseaddr=atomic_inc(detectedphoton);
 	 if(baseaddr<gcfg->maxdetphoton){
@@ -285,7 +281,7 @@ void rotatevector(float4 *v, float stheta, float ctheta, float sphi, float cphi)
 }
 
 int launchnewphoton(float4 *p,float4 *v,float4 *f,float4 *prop,uint *idx1d,
-           uint *mediaid,float *w0,uchar isdet, __local float *ppath,float *energyloss,float *energylaunched,
+           uint *mediaid,float *w0,uint isdet, __local float *ppath,float *energyloss,float *energylaunched,
 	   __global float *n_det,__global uint *dpnum, __constant float4 *gproperty,
 	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, int threadphoton, int oddphotons){
       
@@ -295,7 +291,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,float4 *prop,uint *idx1d,
           // let's handle detectors here
           if(gcfg->savedet){
              if(*mediaid==0 && isdet){
-	          savedetphoton(n_det,dpnum,v[0].w,ppath,p,gdetpos,gcfg);
+	          savedetphoton(isdet>>16, n_det,dpnum,v[0].w,ppath,p,gdetpos,gcfg);
 	     }
 	     clearpath(ppath,gcfg);
           }
@@ -318,7 +314,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,float4 *prop,uint *idx1d,
 /*
    this is the core Monte Carlo simulation kernel, please see Fig. 1 in Fang2009
 */
-__kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const uchar *media,
+__kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const uint *media,
      __global float *field, __global float *genergy, __global uint *n_seed,
      __global float *n_det,__constant float4 *gproperty,
      __constant float4 *gdetpos, __global uint *stopsign,__global uint *detectedphoton,
@@ -429,7 +425,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           idx1d=((int)floor(p.z)*gcfg->dimlen.y+(int)floor(p.y)*gcfg->dimlen.x+(int)floor(p.x));
           GPUDEBUG(((__constant char*)"idx1d [%d]->[%d]\n",idx1dold,idx1d));
           if(any(isless(p.xyz,(float3)(0.f))) || any(isgreater(p.xyz,(gcfg->maxidx.xyz)))){
-	      mediaid=0;	
+	      mediaid=0;
 	  }else{
               mediaid=media[idx1d];
               isdet=mediaid & DET_MASK;
@@ -461,7 +457,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	     w0=p.w;
 	  }
 
-          if((mediaid==0 && (!gcfg->doreflect || (gcfg->doreflect && n1==gproperty[mediaid].w))) || f.y>gcfg->twin1){
+          if((mediaid==0 && (!gcfg->doreflect || (gcfg->doreflect && n1==gproperty[mediaid & MED_MASK].w))) || f.y>gcfg->twin1){
                   GPUDEBUG(((__constant char*)"direct relaunch at idx=[%d] mediaid=[%d], ref=[%d]\n",idx1d,mediaid,gcfg->doreflect));
 		  if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&w0,(mediaidold & DET_MASK),ppath,
 		      &energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton)){ 
@@ -471,10 +467,10 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           }
 #ifdef MCX_DO_REFLECTION
           //if hit the boundary, exceed the max time window or exit the domain, rebound or launch a new one
-          if(gcfg->doreflect && n1!=gproperty[mediaid].w){
+          if(gcfg->doreflect && n1!=gproperty[mediaid & MED_MASK].w){
 	          float Rtotal=1.f;
 
-                  *((float4*)(&prop))=gproperty[mediaid]; // optical property across the interface
+                  *((float4*)(&prop))=gproperty[mediaid & MED_MASK]; // optical property across the interface
 
                   tmp0=n1*n1;
                   tmp1=prop.w*prop.w;

@@ -183,6 +183,7 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
 
 			  if(cfg->isgpuinfo){
                 		printf("============ %s device ID %d [%d of %d]: %s  ============\n",devname[j],cuid,k+1,devnum,cuinfo.name);
+                		printf(" Device %d of %d:\t\t%s\n",cuid+1,devnum,cuinfo.name);
                 		printf(" Compute units   :\t%d core(s)\n",(uint)cuinfo.sm);
                 		printf(" Global memory   :\t%ld B\n",(unsigned long)cuinfo.globalmem);
                 		printf(" Local memory    :\t%ld B\n",(unsigned long)cuinfo.sharedmem);
@@ -256,7 +257,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      cl_uint dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z;
 
-     cl_uchar  *media=(cl_uchar *)(cfg->vol);
+     cl_uint  *media=(cl_uint *)(cfg->vol);
      cl_float  *field;
 
      cl_uint   *Pseed;
@@ -351,7 +352,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      else
         srand(time(0));
 
-     OCL_ASSERT(((gmedia=clCreateBuffer(mcxcontext,RO_MEM, sizeof(cl_uchar)*(dimxyz),media,&status),status)));
+     OCL_ASSERT(((gmedia=clCreateBuffer(mcxcontext,RO_MEM, sizeof(cl_uint)*(dimxyz),media,&status),status)));
      OCL_ASSERT(((gproperty=clCreateBuffer(mcxcontext,RO_MEM, cfg->medianum*sizeof(Medium),cfg->prop,&status),status)));
      OCL_ASSERT(((gparam=clCreateBuffer(mcxcontext,RO_MEM, sizeof(MCXParam),&param,&status),status)));
 
@@ -371,16 +372,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
        free(energy);
      }
 
-     fprintf(cfg->flog,"\
-===============================================================================\n\
-=                     Monte Carlo eXtreme (MCX) -- OpenCL                     =\n\
-=           Copyright (c) 2009-2016 Qianqian Fang <q.fang at neu.edu>         =\n\
-=                                                                             =\n\
-=                    Computational Imaging Laboratory (CIL)                   =\n\
-=             Department of Bioengineering, Northeastern University           =\n\
-===============================================================================\n\
-$MCXCL$Rev::    $ Last Commit $Date::                     $ by $Author:: fangq$\n\
-===============================================================================\n");
+     mcx_printheader(cfg);
 
      tic=StartTimer();
      if(cfg->issavedet)
@@ -590,7 +582,7 @@ is more than what your have specified (%d), please use the -H option to specify 
      }
      if(cfg->issave2pt && cfg->parentid==mpStandalone){
          fprintf(cfg->flog,"saving data to file ... %d %d\t",fieldlen,cfg->maxgate);
-         mcx_savedata(cfg->exportfield,fieldlen,0,"mc2",cfg);
+         mcx_savedata(cfg->exportfield,fieldlen,cfg);
          fprintf(cfg->flog,"saving data complete : %d ms\n\n",GetTimeMillis()-tic);
          fflush(cfg->flog);
      }

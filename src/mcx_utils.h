@@ -5,6 +5,7 @@
 
 #include "vector_types.h"
 #include "cjson/cJSON.h"
+#include "nifti1.h"
 
 #define MAX_PATH_LENGTH     1024
 #define MAX_SESSION_LENGTH  256
@@ -15,8 +16,12 @@
 #define MIN(a,b)           ((a)<(b)?(a):(b))
 #define MAX(a,b)           ((a)>(b)?(a):(b))
 
+#define MIN_HEADER_SIZE 348
+#define NII_HEADER_SIZE 352
+
 enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otTaylor};
 enum TMCXParent  {mpStandalone, mpMATLAB};
+enum TOutputFormat {ofMC2, ofNifti, ofAnalyze, ofUBJSON};
 
 typedef struct MCXMedium{
 	float mua;
@@ -92,7 +97,7 @@ typedef struct MCXConfig{
 	unsigned int respin;         /*number of repeatitions*/
 	int printnum;       /*number of printed threads (for debugging)*/
 
-	unsigned char *vol; /*pointer to the volume*/
+	unsigned int *vol; /*pointer to the volume*/
 	char session[MAX_SESSION_LENGTH]; /*session id, a string*/
 	char isrowmajor;    /*1 for C-styled array in vol, 0 for matlab-styled array*/
 	char isreflect;     /*1 for reflecting photons at boundary,0 for exiting*/
@@ -108,6 +113,7 @@ typedef struct MCXConfig{
         char isdumpmask;    /*1 dump detector mask; 0 not*/
         char autopilot;     /**<1 optimal setting for dedicated card, 2, for non dedicated card*/
         char outputtype;    /**<'X' output is flux, 'F' output is fluence, 'E' energy deposit*/
+        char outputformat;  /**<'mc2' output is text, 'nii': binary, 'img': regular json, 'ubj': universal binary json*/
         float minenergy;    /*minimum energy to propagate photon*/
         float unitinmm;     /*defines the length unit in mm for grid*/
         FILE *flog;         /*stream handle to print log information*/
@@ -126,12 +132,14 @@ typedef struct MCXConfig{
 	unsigned int runtime;
 	int parentid;
 	void *seeddata;
+	uint mediabyte;
 } Config;
 
 #ifdef	__cplusplus
 extern "C" {
 #endif
-void mcx_savedata(float *dat,int len,int doappend, const char *suffix, Config *cfg);
+void mcx_savedata(float *dat, int len, Config *cfg);
+void mcx_savenii(float *dat, int len, char* name, int type32bit, int outputformatid, Config *cfg);
 void mcx_error(const int id,const char *msg,const char *file,const int linenum);
 void mcx_assess(const int id,const char *msg,const char *file,const int linenum);
 void mcx_loadconfig(FILE *in, Config *cfg);
@@ -141,7 +149,7 @@ void mcx_writeconfig(const char *fname, Config *cfg);
 void mcx_initcfg(Config *cfg);
 void mcx_clearcfg(Config *cfg);
 void mcx_parsecmd(int argc, char* argv[], Config *cfg);
-void mcx_usage(char *exename);
+void mcx_usage(Config *cfg,char *exename);
 void mcx_loadvolume(char *filename,Config *cfg);
 void mcx_normalize(float field[], float scale, int fieldlen);
 int  mcx_readarg(int argc, char *argv[], int id, void *output,const char *type);
@@ -150,12 +158,14 @@ int  mcx_remap(char *opt);
 void mcx_maskdet(Config *cfg);
 void mcx_createfluence(float **fluence, Config *cfg);
 void mcx_clearfluence(float **fluence);
-void mcx_convertrow2col(unsigned char **vol, uint4 *dim);
+void mcx_convertrow2col(unsigned int **vol, uint4 *dim);
 void mcx_savedetphoton(float *ppath, void *seeds, int count, int seedbyte, Config *cfg);
 int  mcx_loadjson(cJSON *root, Config *cfg);
 int  mcx_keylookup(char *key, const char *table[]);
 int  mcx_lookupindex(char *key, const char *index);
 int  mcx_parsedebugopt(char *debugopt,const char *debugflag);
+void mcx_printheader(Config *cfg);
+void mcx_dumpmask(Config *cfg);
 
 #ifdef	__cplusplus
 }
