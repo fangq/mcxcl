@@ -1,9 +1,10 @@
-function Phi = cwdiffusion(mua, musp, Reff, srcpos,detpos)
-%  Phi = cwdiffusion(mua, musp, Reff, srcpos,detpos)
+function [Phi r]= cwdiffusion(mua, musp, Reff, srcpos,detpos)
+%
+%  [Phi r] = cwdiffusion(mua, musp, Reff, srcpos,detpos)
 %
 %  semi-infinite medium analytical solution to diffusion model
 %
-%    author: Qianqian Fang (fangq <at> nmr.mgh.harvard.edu)
+%    author: Qianqian Fang (q.fang <at> neu.edu)
 %
 %    input:
 %        mua:   the absorption coefficients in 1/mm
@@ -14,11 +15,12 @@ function Phi = cwdiffusion(mua, musp, Reff, srcpos,detpos)
 %
 %    output:
 %        Phi:  the output fluence for all source/detector pairs
+%        r: (optional) source detector separations
 %
 %    this file is part of Monte Carlo eXtreme (MCX)
 %    License: GPLv3, see http://mcx.sf.net for details
-%    see Boas2002, Heskell1996
-
+%    see Boas2002, Haskell1994
+%
 
 D = 1/(3*(mua+musp));
 zb = (1+Reff)/(1-Reff)*2*D;

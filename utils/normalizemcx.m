@@ -1,9 +1,10 @@
 function phi=normalizemcx(data,mua,Vvox,dt,energyabsorbed,energytotal)
+%
 % phi=normalizemcx(data,mua,Vvox,dt,energyabsorbed,energytotal)
 % 
 % Normalization of fluence distributions from Monte-Carlo simulations
 %
-% Author: Qianqian Fang <fangq at nmr.mgh.harvard.edu>
+% author: Qianqian Fang (q.fang <at> neu.edu)
 %
 % input: 
 %    data: a 3D or 4D array for the raw output from MCX (probability)

@@ -1,9 +1,10 @@
 function Phi = tddiffusion(mua, musp, v, Reff, srcpos,detpos, t)
+%
 %  Phi = tddiffusion(mua, musp, v, Reff, srcpos,detpos, t)
 %    
 %  semi-infinite medium analytical solution to diffusion model
 %
-%    author: Qianqian Fang (fangq <at> nmr.mgh.harvard.edu)
+%    author: Qianqian Fang (q.fang <at> neu.edu)
 %
 %    input:
 %        mua:   the absorption coefficients in 1/mm
@@ -21,6 +22,7 @@ function Phi = tddiffusion(mua, musp, v, Reff, srcpos,detpos, t)
 %    this file is part of Monte Carlo eXtreme (MCX)
 %    License: GPLv3, see http://mcx.sf.net for details
 %    see Boas2002
+%
 
 D = 1/(3*(mua+musp));
 zb = (1+Reff)/(1-Reff)*2*D;

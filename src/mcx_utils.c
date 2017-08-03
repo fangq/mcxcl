@@ -2,7 +2,7 @@
 **
 **  Monte Carlo eXtreme (MCX)  - GPU accelerated Monte Carlo 3D photon migration
 **      -- OpenCL edition
-**  Author: Qianqian Fang <fangq at nmr.mgh.harvard.edu>
+**  Author: Qianqian Fang <q.fang at neu.edu>
 **
 **  Reference (Fang2009):
 **        Qianqian Fang and David A. Boas, "Monte Carlo Simulation of Photon 
@@ -1309,18 +1309,18 @@ int mcx_lookupindex(char *key, const char *index){
 
 void mcx_printheader(Config *cfg){
     fprintf(cfg->flog,"\
-======================================================================================\n\
-=                      Monte Carlo eXtreme (MCX) -- OpenCL                           =\n\
-=            Copyright (c) 2010-2017 Qianqian Fang <q.fang at neu.edu>               =\n\
-=                                 http://mcx.space/                                  =\n\
-=                                                                                    =\n\
-= Computational Optics & Translational Imaging (COTI) Lab- http://fanglab.org        =\n\
-=               Department of Bioengineering, Northeastern University                =\n\
-======================================================================================\n\
-=        The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365         =\n\
-======================================================================================\n\
-$Rev::6e839e $ Last $Date::2017-07-20 12:46:23 -04    $ by $Author::Qianqian Fang    $\n\
-======================================================================================\n");
+==============================================================================\n\
+=                      Monte Carlo eXtreme (MCX) -- OpenCL                   =\n\
+=            Copyright (c) 2010-2017 Qianqian Fang <q.fang at neu.edu>       =\n\
+=                                 http://mcx.space/                          =\n\
+=                                                                            =\n\
+= Computational Optics & Translational Imaging (COTI) Lab- http://fanglab.or =\n\
+=               Department of Bioengineering, Northeastern University        =\n\
+==============================================================================\n\
+=        The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365 =\n\
+==============================================================================\n\
+$Rev::6e839e $ Last $Date::2017-07-20 12:46:23 -04$ by $Author::Qianqian Fang$\n\
+==============================================================================\n");
 }
 
 void mcx_usage(Config *cfg,char *exename){
@@ -1336,10 +1336,12 @@ where possible parameters include (the first item in [] is the default value)\n\
  -n [0|int]     (--photon)	total photon number\n\
  -r [1|int]     (--repeat)	number of repeations\n\
  -a [0|1]       (--array)	0 for Matlab array, 1 for C array\n\
+ -u [1.|float]  (--unitinmm)    defines the length unit for the grid edge\n\
  -z [0|1]       (--srcfrom0)    src/detector coordinates start from 0, otherwise from 1\n\
  -g [1|int]     (--gategroup)	number of time gates per run\n\
  -b [1|0]       (--reflect)	1 to reflect the photons at the boundary, 0 to exit\n\
  -B [0|1]       (--reflect3)	1 to consider maximum 3 reflections, 0 consider only 2\n\
+ -E [0|int]     (--seed)        set random-number-generator seed, -1 to generate\n\
  -e [0.|float]  (--minenergy)	minimum energy level to propagate a photon\n\
  -R [0.|float]  (--skipradius)  minimum distance to source to start accumulation\n\
  -U [1|0]       (--normalize)	1 to normailze the fluence to unitary, 0 to save raw fluence\n\
@@ -1353,10 +1355,15 @@ where possible parameters include (the first item in [] is the default value)\n\
  -I             (--printgpu)	print GPU information and run program\n\
  -c             (--cpu) 	use CPU as the platform for OpenCL backend\n\
  -k mcx_core.cl (--kernel)      specify path to OpenCL kernel source file\n\
- -G '0111'      (--devicelist)  specify the active OpenCL devices (1 enable, 0 disable)\n\
+ -G '0111'      (--gpu)         specify the active OpenCL devices (1 enable, 0 disable)\n\
  -W '50,30,20'  (--workload)    specify relative workload for each device; total is the sum\n\
  -J '-D MCX'    (--compileropt) specify additional JIT compiler options\n\
  -P '{...}'    (--shapes)      a JSON string for additional shapes in the grid\n\
+ -F [mc2|...] (--outputformat) fluence data output format:\n\
+                               mc2 - MCX mc2 format (binary 32bit float)\n\
+                               nii - Nifti format\n\
+                               hdr - Analyze 7.5 hdr/img format\n\
+ -H [1000000] (--maxdetphoton) max number of detected photons\n\
 example: (autopilot mode)\n\
   %s -A -n 1e7 -f input.inp -G 1 \n\
 or (manual mode)\n\
