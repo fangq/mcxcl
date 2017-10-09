@@ -312,6 +312,23 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	    gpu[i].autothread=cfg->nthread;
 	    gpu[i].autoblock=cfg->nblocksize;
 	    gpu[i].maxgate=cfg->maxgate;
+
+            if(cfg->autopilot == 3 || cfg->autopilot == 4){
+                // persistent thread mode
+                if (gpu[i].major == 3) { // kepler 3.x : max 7 blks per SM
+                    gpu[i].autoblock  = 128;
+                    gpu[i].autothread = gpu[i].autoblock * 7 * gpu[i].sm;
+                }else if (gpu[i].major == 5) { // maxwell 5.x
+                    gpu[i].autoblock  = 64;
+                    gpu[i].autothread = gpu[i].autoblock * 16 * gpu[i].sm;
+                }else if (gpu[i].major == 6) { // pascal 6.x : max 32 blks per SM
+                    gpu[i].autoblock  = 32;
+                    gpu[i].autothread = gpu[i].autoblock * 32 * gpu[i].sm;
+                }
+            }
+            if(cfg->autopilot == 4){ // saturate the GPU by launching 50% more thread
+                gpu[i].autothread *= 1.5;
+            }
 	 }
 	 if(gpu[i].autothread%gpu[i].autoblock)
      	    gpu[i].autothread=(gpu[i].autothread/gpu[i].autoblock)*gpu[i].autoblock;
