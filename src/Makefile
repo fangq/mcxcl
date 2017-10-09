@@ -6,6 +6,7 @@
 
 #CXX=g++
 AR=g++
+IOCC=ioc64
 
 BINARY=mcxcl
 OUTPUT_DIR=../bin
@@ -75,6 +76,9 @@ $(OUTPUT_DIR)/$(BINARY): makedirs $(OBJS)
 
 %$(OBJSUFFIX): %.cpp
 	$(CXX) $(INCLUDEDIRS) $(CPPOPT) -c $(CUCCOPT) -o $@  $<
+
+intelcpu:
+	$(IOCC) -cmd=build -input=mcx_core.cl -device=cpu -spir64=mcx_core_intelcpu.bc -bo="-cl-std=CL1.2"
 
 clean:
 	-rm -f $(OBJS) $(OUTPUT_DIR)/$(BINARY)$(EXESUFFIX) $(OUTPUT_DIR)/$(BINARY)_atomic$(EXESUFFIX)

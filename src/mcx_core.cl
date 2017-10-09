@@ -277,7 +277,22 @@ void rotatevector(float4 *v, float stheta, float ctheta, float sphi, float cphi)
       }else{
    	  v[0]=(float4)(stheta*cphi,stheta*sphi,(v[0].z>0.f)?ctheta:-ctheta,v[0].w);
       }
+      v[0].xyz=v[0].xyz*rsqrt(v[0].x*v[0].x+v[0].y*v[0].y+v[0].z*v[0].z);
       GPUDEBUG(((__constant char*)"new dir: %10.5e %10.5e %10.5e\n",v[0].x,v[0].y,v[0].z));
+}
+
+void transmit(float4 *v, float n1, float n2,int flipdir){
+      float tmp0=n1/n2;
+      float4 v0=v[0];
+      v[0].x*=tmp0;
+      v[0].y*=tmp0;
+      v[0].z*=tmp0;
+
+      (flipdir==0) ?
+          (v[0].x=sqrt(1.f - v[0].y*v[0].y - v[0].z*v[0].z)*((v[0].x>0.f)-(v[0].x<0.f))):
+	  ((flipdir==1) ? 
+	      (v[0].y=sqrt(1.f - v[0].x*v[0].x - v[0].z*v[0].z)*((v[0].y>0.f)-(v[0].y<0.f))):
+	      (v[0].z=sqrt(1.f - v[0].x*v[0].x - v[0].y*v[0].y)*((v[0].z>0.f)-(v[0].z<0.f))));
 }
 
 int launchnewphoton(float4 *p,float4 *v,float4 *f,float4 *prop,uint *idx1d,
@@ -489,6 +504,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 		     GPUDEBUG(((__constant char*)"Rtotal=%f\n",Rtotal));
                   }
 	          if(Rtotal<1.f && rand_next_reflect(t)>Rtotal){ // do transmission
+                        transmit(&v,n1,prop.w,flipdir);
                         if(mediaid==0){ // transmission to external boundary
                             GPUDEBUG(((__constant char*)"transmit to air, relaunch\n"));
 		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&w0,(mediaidold & DET_MASK),
@@ -498,26 +514,15 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 			    continue;
 			}
 	                GPUDEBUG(((__constant char*)"do transmission\n"));
-			tmp0=n1/prop.w;
-                	if(flipdir==2) { //transmit through z plane
-                	   v.xy=tmp0*v.xy;
-			   v.z=sqrt(1.f - v.y*v.y - v.x*v.x);
-                	}else if(flipdir==1){ //transmit through y plane
-                	   v.xz=tmp0*v.xz;
-			   v.y=sqrt(1.f - v.x*v.x - v.z*v.z);
-                	}else if(flipdir==0){ //transmit through x plane
-                	   v.yz=tmp0*v.yz;
-			   v.x=sqrt(1.f - v.y*v.y - v.z*v.z);
-                	}
 		  }else{ //do reflection
 	                GPUDEBUG(((__constant char*)"do reflection\n"));
 	                GPUDEBUG(((__constant char*)"ref faceid=%d p=[%f %f %f] v_old=[%f %f %f]\n",flipdir,p.x,p.y,p.z,v.x,v.y,v.z));
                 	(flipdir==0) ? (v.x=-v.x) : ((flipdir==1) ? (v.y=-v.y) : (v.z=-v.z)) ;
 			(flipdir==0) ?
-        		    (p.x=nextafter(convert_int_rte(p.x), p.x+(v.x > 0.f)-0.5f)) :
+        		    (p.x=mcx_nextafterf(convert_int_rte(p.x), (v.x > 0.f)-0.5f)) :
 			    ((flipdir==1) ? 
-				(p.y=nextafter(convert_int_rte(p.y), p.y+(v.y > 0.f)-0.5f)) :
-				(p.z=nextafter(convert_int_rte(p.z), p.z+(v.z > 0.f)-0.5f)) );
+				(p.y=mcx_nextafterf(convert_int_rte(p.y), (v.y > 0.f)-0.5f)) :
+				(p.z=mcx_nextafterf(convert_int_rte(p.z), (v.z > 0.f)-0.5f)) );
 	                GPUDEBUG(((__constant char*)"ref p_new=[%f %f %f] v_new=[%f %f %f]\n",p.x,p.y,p.z,v.x,v.y,v.z));
                 	idx1d=idx1dold;
 		 	mediaid=(media[idx1d] & MED_MASK);
