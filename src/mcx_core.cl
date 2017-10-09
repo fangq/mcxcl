@@ -283,7 +283,6 @@ void rotatevector(float4 *v, float stheta, float ctheta, float sphi, float cphi)
 
 void transmit(float4 *v, float n1, float n2,int flipdir){
       float tmp0=n1/n2;
-      float4 v0=v[0];
       v[0].x*=tmp0;
       v[0].y*=tmp0;
       v[0].z*=tmp0;
