@@ -19,6 +19,14 @@
   #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 #endif
 
+#ifdef MCX_USE_NATIVE
+  #define MCX_MATHFUN(fun)              native_##fun
+  #define MCX_SINCOS(theta,osin,ocos)   {(osin)=native_sin(theta);(ocos)=native_cos(theta);} 
+#else
+  #define MCX_MATHFUN(fun)              fun
+  #define MCX_SINCOS(theta,osin,ocos)   (ocos)=sincos((theta),&(osin))
+#endif
+
 #ifdef MCX_GPU_DEBUG
   #define GPUDEBUG(x)        printf x             // enable debugging in CPU mode
   //#pragma OPENCL EXTENSION cl_amd_printf : enable
@@ -177,7 +185,7 @@ static void gpu_rng_reseed(__private RandType t[RAND_BUF_LEN],__global uint *cpu
 #endif
 
 float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
-    return -log(rand_uniform01(t)+EPS);
+    return -MCX_MATHFUN(log)(rand_uniform01(t)+EPS);
 }
 
 #define rand_next_aangle(t)  rand_uniform01(t)
@@ -384,7 +392,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	       if(p.w<1.f){ //weight
                        //random arimuthal angle
                        tmp0=TWO_PI*rand_next_aangle(t); //next arimuth angle
-                       sphi=sincos(tmp0,&cphi);
+                       MCX_SINCOS(tmp0,sphi,cphi);
                        GPUDEBUG(((__constant char*)"scat phi=%f\n",tmp0));
 
                        //Henyey-Greenstein Phase Function, "Handbook of Optical 
@@ -400,11 +408,11 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                            tmp0=max(-1.f, min(1.f, tmp0));
 
 		           theta=acos(tmp0);
-		           stheta=sin(theta);
+		           stheta=MCX_MATHFUN(sin)(theta);
 		           ctheta=tmp0;
                        }else{
 			   theta=acos(2.f*rand_next_zangle(t)-1.f);
-                           stheta=sincos(theta,&ctheta);
+                           MCX_SINCOS(theta,stheta,ctheta);
                        }
                        GPUDEBUG(((__constant char*)"scat theta=%f\n",theta));
                        rotatevector(&v,stheta,ctheta,sphi,cphi);
@@ -423,7 +431,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           GPUDEBUG(((__constant char*)"p=[%f %f %f] -> <%f %f %f>*%f -> hit=[%f %f %f] flip=%d\n",p.x,p.y,p.z,v.x,v.y,v.z,f.z,htime.x,htime.y,htime.z,flipdir));
 
 	  p.xyz = (slen==f.x) ? p.xyz+(float3)(f.z)*v.xyz : htime.xyz;
-	  p.w*=exp(-prop.x*f.z);
+	  p.w*=MCX_MATHFUN(exp)(-prop.x*f.z);
 	  f.x-=slen;
 	  f.y+=f.z*prop.w*gcfg->oneoverc0;
 
