@@ -1194,7 +1194,8 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     	        i=mcx_readarg(argc,argv,i,cfg->kernelfile,"string");
 				break;
 		     case 'J': 
-		     	        i=mcx_readarg(argc,argv,i,cfg->compileropt,"string");
+		     	        cfg->compileropt[strlen(cfg->compileropt)]=' ';
+				i=mcx_readarg(argc,argv,i,cfg->compileropt+strlen(cfg->compileropt),"string");
 				break;
                      case 'D':
 			        i=mcx_readarg(argc,argv,i,cfg->deviceid,"bytenumlist");

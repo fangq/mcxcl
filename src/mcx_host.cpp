@@ -25,6 +25,8 @@
 #include "tictoc.h"
 #include "mcx_const.h"
 
+#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
+
 extern cl_event kernelevent;
 
 
@@ -411,8 +413,8 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
          sprintf(opt+strlen(opt)," -D MCX_SAVE_DETECTORS");
      if(cfg->isreflect)
          sprintf(opt+strlen(opt)," -D MCX_DO_REFLECTION");
-     sprintf(opt+strlen(opt)," %s",cfg->compileropt);
 
+     fprintf(cfg->flog,"Building kernel with option: %s\n",opt);
      status=clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);
      
      if(status!=CL_SUCCESS){
