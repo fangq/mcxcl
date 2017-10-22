@@ -178,7 +178,7 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
                                OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_SIMD_PER_COMPUTE_UNIT_AMD,sizeof(cl_uint),(void*)&corepersm,NULL)));
                                cuinfo.core=(cuinfo.sm*corepersm<<4);
                                cuinfo.autoblock=64;
-                          }else if(strstr(pbuf,"Intel") && strstr(pbuf,"Graphics") && j==0){
+                          }else if(strstr(pbuf,"Intel") && strstr(cuinfo.name,"Graphics") && j==0){
                                cuinfo.autoblock=64;
                                cuinfo.major=-2;
                                cuinfo.minor=1;
