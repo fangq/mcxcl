@@ -13,12 +13,12 @@ OUTPUT_DIR=../bin
 INCLUDEDIRS=
 AMDAPPSDKROOT ?=/opt/AMDAPPSDK-3.0
 LIBOPENCLDIR ?=$(AMDAPPSDKROOT)/lib/x86_64
-LIBOPENCL=-lOpenCL
+LIBOPENCL=-lOpenCL -fopenmp
 LINKOPT=-g -L$(LIBOPENCLDIR) $(LIBOPENCL)
 
 CUCCOPT=-I/usr/local/cuda/include #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
 CCOPT=-g -pedantic -Wall -O3 -DMCX_OPENCL -DUSE_OS_TIMER -I/usr/local/cuda/include
-CPPOPT:=$(CCOPT)
+CPPOPT:=$(CCOPT) -fopenmp
 CCOPT+=-std=c99
 
 OBJSUFFIX=.o
