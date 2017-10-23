@@ -170,7 +170,7 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
                 	  OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CONSTANT_BUFFER_SIZE,sizeof(cl_ulong),(void*)&cuinfo.constmem,NULL)));
                 	  OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_CLOCK_FREQUENCY,sizeof(cl_uint),(void*)&cuinfo.clock,NULL)));
         		  cuinfo.maxgate=cfg->maxgate;
-        		  cuinfo.autoblock=32;
+        		  cuinfo.autoblock=64;
 			  cuinfo.core=cuinfo.sm;
                           if(strstr(pbuf,"NVIDIA") && j==0){
                                OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_COMPUTE_CAPABILITY_MAJOR_NV,sizeof(cl_uint),(void*)&cuinfo.major,NULL)));
@@ -184,6 +184,10 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
                                OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_SIMD_PER_COMPUTE_UNIT_AMD,sizeof(cl_uint),(void*)&corepersm,NULL)));
                                cuinfo.core=(cuinfo.sm*corepersm<<4);
                                cuinfo.autoblock=64;
+                          }else if(strstr(pbuf,"Intel") && strstr(cuinfo.name,"Graphics") && j==0){
+                               cuinfo.autoblock=64;
+                               cuinfo.major=-2;
+                               cuinfo.minor=1;
                           }
         		  cuinfo.autothread=cuinfo.autoblock * cuinfo.core;
 
@@ -323,21 +327,21 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	    gpu[i].autothread=cfg->nthread;
 	    gpu[i].autoblock=cfg->nblocksize;
 	    gpu[i].maxgate=cfg->maxgate;
-	 }else if(cfg->autopilot == 3 || cfg->autopilot == 4){
+	 }else if(cfg->autopilot == 3){
              // persistent thread mode
-             if (gpu[i].major == 3) { // kepler 3.x : max 7 blks per SM
+             if (gpu[i].major == -2 && gpu[i].minor ==1) { // Intel HD graphics GPU
+                 gpu[i].autoblock  = 64;
+                 gpu[i].autothread = gpu[i].autoblock * 7 * gpu[i].sm; // 7 thread x SIMD-16 per Exec Unit (EU)
+             }else if (gpu[i].major == 2 || gpu[i].major == 3) { // fermi 2.x, kepler 3.x : max 7 blks per SM, 8 works better
                  gpu[i].autoblock  = 128;
-                 gpu[i].autothread = gpu[i].autoblock * 7 * gpu[i].sm;
+                 gpu[i].autothread = gpu[i].autoblock * 8 * gpu[i].sm;
              }else if (gpu[i].major == 5) { // maxwell 5.x
                  gpu[i].autoblock  = 64;
                  gpu[i].autothread = gpu[i].autoblock * 16 * gpu[i].sm;
-             }else if (gpu[i].major == 6) { // pascal 6.x : max 32 blks per SM
+             }else if (gpu[i].major >= 6) { // pascal 6.x : max 32 blks per SM
                  gpu[i].autoblock  = 32;
                  gpu[i].autothread = gpu[i].autoblock * 32 * gpu[i].sm;
              }
-         }
-         if(cfg->autopilot == 4){ // saturate the GPU by launching 50% more thread
-             gpu[i].autothread *= 0.9;
          }
 	 if(gpu[i].autothread%gpu[i].autoblock)
      	    gpu[i].autothread=(gpu[i].autothread/gpu[i].autoblock)*gpu[i].autoblock;
@@ -449,8 +453,8 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
          threadphoton=(int)(cfg->nphoton*cfg->workload[i]/(fullload*gpu[i].autothread*cfg->respin));
          oddphotons=(int)(cfg->nphoton*cfg->workload[i]/(fullload*cfg->respin)-threadphoton*gpu[i].autothread);
-         fprintf(cfg->flog,"- [device %d(%d): %s] threadph=%d oddphotons=%d np=%.1f nthread=%d repetition=%d\n",i, gpu[i].id, gpu[i].name,threadphoton,oddphotons,
-               cfg->nphoton*cfg->workload[i]/fullload,(int)gpu[i].autothread,cfg->respin);
+         fprintf(cfg->flog,"- [device %d(%d): %s] threadph=%d oddphotons=%d np=%.1f nthread=%d nblock=%d repetition=%d\n",i, gpu[i].id, gpu[i].name,threadphoton,oddphotons,
+               cfg->nphoton*cfg->workload[i]/fullload,(int)gpu[i].autothread,(int)gpu[i].autoblock,cfg->respin);
 
 	 OCL_ASSERT(((mcxkernel[i] = clCreateKernel(mcxprogram[i], "mcx_main_loop", &status),status)));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 0, sizeof(cl_uint),(void*)&threadphoton)));
