@@ -22,6 +22,7 @@
 enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otTaylor};
 enum TMCXParent  {mpStandalone, mpMATLAB};
 enum TOutputFormat {ofMC2, ofNifti, ofAnalyze, ofUBJSON};
+enum TDeviceVendor {dvUnknown, dvNVIDIA, dvAMD, dvIntel, dvIntelGPU};
 
 typedef struct MCXMedium{
 	float mua;
@@ -62,6 +63,7 @@ typedef struct MCXGPUInfo {
         size_t autoblock, autothread;
         int maxgate;
         int maxmpthread;  /**< maximum thread number per multi-processor */
+        enum TDeviceVendor vendor;
 } GPUInfo;
 
 typedef struct MCXConfig{
