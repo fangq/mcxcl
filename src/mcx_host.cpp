@@ -178,6 +178,8 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
                                OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_SIMD_PER_COMPUTE_UNIT_AMD,sizeof(cl_uint),(void*)&corepersm,NULL)));
                                cuinfo.core=(cuinfo.sm*corepersm<<4);
                                cuinfo.autoblock=64;
+                               cuinfo.major=-3;
+                               cuinfo.minor=1;
                           }else if(strstr(pbuf,"Intel") && strstr(cuinfo.name,"Graphics") && j==0){
                                cuinfo.autoblock=64;
                                cuinfo.major=-2;
@@ -321,6 +323,9 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
              if (gpu[i].major == -2 && gpu[i].minor ==1) { // Intel HD graphics GPU
                  gpu[i].autoblock  = 64;
                  gpu[i].autothread = gpu[i].autoblock * 7 * gpu[i].sm; // 7 thread x SIMD-16 per Exec Unit (EU)
+	     }else if (gpu[i].major == -3 || gpu[i].minor == 1) { // AMD GPU 
+		 gpu[i].autoblock  = 64;
+		 gpu[i].autothread = 2560 * gpu[i].sm; // 40 wavefronts * 64 threads/wavefront
              }else if (gpu[i].major == 2 || gpu[i].major == 3) { // fermi 2.x, kepler 3.x : max 7 blks per SM, 8 works better
                  gpu[i].autoblock  = 128;
                  gpu[i].autothread = gpu[i].autoblock * 8 * gpu[i].sm;
