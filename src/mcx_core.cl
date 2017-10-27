@@ -263,14 +263,17 @@ float hitgrid(float4 *p0, float4 *v, float4 *htime, int *id){
 
       htime[0]=p0[0]+(float4)(dist)*v[0];
 
+#ifdef MCX_SIMPLIFY_BRANCH
+      ((float*)htime)[*id]=mcx_nextafterf(convert_float_rte(((float*)htime)[*id]),  (((float*)v)[*id] > 0.f)-(((float*)v)[*id] < 0.f));
+#else
       (*id==0) ?
-          (htime[0].x=mcx_nextafterf(convert_int_rte(htime[0].x), (v[0].x > 0.f)-(v[0].x < 0.f))) :
+          (htime[0].x=mcx_nextafterf(convert_float_rte(htime[0].x), (v[0].x > 0.f)-(v[0].x < 0.f))) :
 	  ((*id==1) ? 
-	  	(htime[0].y=mcx_nextafterf(convert_int_rte(htime[0].y), (v[0].y > 0.f)-(v[0].y < 0.f))) :
-		(htime[0].z=mcx_nextafterf(convert_int_rte(htime[0].z), (v[0].z > 0.f)-(v[0].z < 0.f))) );
+	  	(htime[0].y=mcx_nextafterf(convert_float_rte(htime[0].y), (v[0].y > 0.f)-(v[0].y < 0.f))) :
+		(htime[0].z=mcx_nextafterf(convert_float_rte(htime[0].z), (v[0].z > 0.f)-(v[0].z < 0.f))) );
+#endif
       return dist;
 }
-
 
 void rotatevector(float4 *v, float stheta, float ctheta, float sphi, float cphi){
       if( v[0].z>-1.f+EPS && v[0].z<1.f-EPS ) {
@@ -291,9 +294,7 @@ void rotatevector(float4 *v, float stheta, float ctheta, float sphi, float cphi)
 
 void transmit(float4 *v, float n1, float n2,int flipdir){
       float tmp0=n1/n2;
-      v[0].x*=tmp0;
-      v[0].y*=tmp0;
-      v[0].z*=tmp0;
+      v[0].xyz*=tmp0;
 
       (flipdir==0) ?
           (v[0].x=sqrt(1.f - v[0].y*v[0].y - v[0].z*v[0].z)*((v[0].x>0.f)-(v[0].x<0.f))):
@@ -446,6 +447,11 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           idx1dold=idx1d;
           idx1d=((int)floor(p.z)*gcfg->dimlen.y+(int)floor(p.y)*gcfg->dimlen.x+(int)floor(p.x));
           GPUDEBUG(((__constant char*)"idx1d [%d]->[%d]\n",idx1dold,idx1d));
+#ifdef MCX_SIMPLIFY_BRANCH
+	  mediaid=(any(isless(p.xyz,(float3)(0.f))) || any(isgreaterequal(p.xyz,(gcfg->maxidx.xyz)))) ? 0 : media[idx1d];
+          isdet=mediaid & DET_MASK;
+          mediaid &= MED_MASK;
+#else
           if(any(isless(p.xyz,(float3)(0.f))) || any(isgreaterequal(p.xyz,(gcfg->maxidx.xyz)))){
 	      mediaid=0;
 	  }else{
@@ -453,6 +459,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
               isdet=mediaid & DET_MASK;
               mediaid &= MED_MASK;
           }
+#endif
+
           GPUDEBUG(((__constant char*)"medium [%d]->[%d]\n",mediaidold,mediaid));
 
 	  if(idx1d!=idx1dold && idx1dold>0 && mediaidold){
@@ -461,16 +469,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
              if(gcfg->save2pt && f.y>=gcfg->twin0 && f.y<gcfg->twin1){
                   GPUDEBUG(((__constant char*)"deposit to [%d] %e, w=%f\n",idx1dold,w0-p.w,p.w));
 #ifndef USE_ATOMIC
-                  // set gcfg->skipradius2 to only start depositing energy when dist^2>gcfg->skipradius2 
-                  if(gcfg->skipradius2>EPS){
-                      if((p.x-gcfg->ps.x)*(p.x-gcfg->ps.x)+(p.y-gcfg->ps.y)*(p.y-gcfg->ps.y)+(p.z-gcfg->ps.z)*(p.z-gcfg->ps.z)>gcfg->skipradius2){
-                          field[idx1dold+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z]+=w0-p.w;
-                      }else{
-                          accumweight+=p.w*prop.x; // weight*absorption
-                      }
-                  }else{
-                      field[idx1dold+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z]+=w0-p.w;
-                  }
+                  field[idx1dold+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z]+=w0-p.w;
 #else
 		  atomicadd(& field[idx1dold+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z], w0-p.w);
                   GPUDEBUG(((__constant char*)"atomic write to [%d] %e, w=%f\n",idx1dold,weight,p.w));
@@ -526,10 +525,10 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	                GPUDEBUG(((__constant char*)"ref faceid=%d p=[%f %f %f] v_old=[%f %f %f]\n",flipdir,p.x,p.y,p.z,v.x,v.y,v.z));
                 	(flipdir==0) ? (v.x=-v.x) : ((flipdir==1) ? (v.y=-v.y) : (v.z=-v.z)) ;
 			(flipdir==0) ?
-        		    (p.x=mcx_nextafterf(convert_int_rte(p.x), (v.x > 0.f)-0.5f)) :
+        		    (p.x=mcx_nextafterf(convert_float_rte(p.x), (v.x > 0.f)-0.5f)) :
 			    ((flipdir==1) ? 
-				(p.y=mcx_nextafterf(convert_int_rte(p.y), (v.y > 0.f)-0.5f)) :
-				(p.z=mcx_nextafterf(convert_int_rte(p.z), (v.z > 0.f)-0.5f)) );
+				(p.y=mcx_nextafterf(convert_float_rte(p.y), (v.y > 0.f)-0.5f)) :
+				(p.z=mcx_nextafterf(convert_float_rte(p.z), (v.z > 0.f)-0.5f)) );
 	                GPUDEBUG(((__constant char*)"ref p_new=[%f %f %f] v_new=[%f %f %f]\n",p.x,p.y,p.z,v.x,v.y,v.z));
                 	idx1d=idx1dold;
 		 	mediaid=(media[idx1d] & MED_MASK);
