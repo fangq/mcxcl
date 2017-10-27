@@ -430,18 +430,24 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      fprintf(cfg->flog,"Building kernel with option: %s\n",opt);
      status=clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);
-     
-     if(status!=CL_SUCCESS){
-	 size_t len;
-	 char *msg;
-	 // get the details on the error, and store it in buffer
-	 clGetProgramBuildInfo(mcxprogram,devices[devid],CL_PROGRAM_BUILD_LOG,0,NULL,&len); 
-	 msg=new char[len];
-	 clGetProgramBuildInfo(mcxprogram,devices[devid],CL_PROGRAM_BUILD_LOG,len,msg,NULL); 
-	 fprintf(cfg->flog,"Kernel build error:\n%s\n", msg);
-	 mcx_error(-(int)status,(char*)("Error: Failed to build program executable!"),__FILE__,__LINE__);
+
+     size_t len;
+     // get the details on the error, and store it in buffer
+     clGetProgramBuildInfo(mcxprogram,devices[devid],CL_PROGRAM_BUILD_LOG,0,NULL,&len);
+     if(len>0){
+         char *msg;
+         msg=new char[len];
+         clGetProgramBuildInfo(mcxprogram,devices[devid],CL_PROGRAM_BUILD_LOG,len,msg,NULL);
+	 for(int i=0;i<len;i++)
+	     if(msg[i]<='z' && msg[i])>='A'){
+                 fprintf(cfg->flog,"Kernel build log:\n%s\n", msg);
+		 break;
+	     }
 	 delete msg;
      }
+     if(status!=CL_SUCCESS)
+	 mcx_error(-(int)status,(char*)("Error: Failed to build program executable!"),__FILE__,__LINE__);
+
      fprintf(cfg->flog,"build program complete : %d ms\n",GetTimeMillis()-tic);
 
      mcxkernel=(cl_kernel*)malloc(workdev*sizeof(cl_kernel));
