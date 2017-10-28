@@ -438,11 +438,11 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
          char *msg;
          msg=new char[len];
          clGetProgramBuildInfo(mcxprogram,devices[devid],CL_PROGRAM_BUILD_LOG,len,msg,NULL);
-	 for(int i=0;i<len;i++)
-	     if(msg[i]<='z' && msg[i])>='A'){
+         for(int i=0;i<(int)len;i++)
+             if(msg[i]<='z' && msg[i]>='A'){
                  fprintf(cfg->flog,"Kernel build log:\n%s\n", msg);
-		 break;
-	     }
+                 break;
+             }
 	 delete msg;
      }
      if(status!=CL_SUCCESS)
