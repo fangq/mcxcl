@@ -181,6 +181,10 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
                                cuinfo.core=(cuinfo.sm*corepersm<<4);
                                cuinfo.autoblock=64;
                                cuinfo.vendor=dvAMD;
+			       if(cuinfo.sm==14){ // just for the RX480 and R9 nano installed on zodiac
+			           if(k==0) cuinfo.sm=32; // RX480, PCI bus#02:00.0
+			           else     cuinfo.sm=64; // RX480, PCI bus#03:00.0
+			       }
                           }else if(strstr(pbuf,"Intel") && strstr(cuinfo.name,"Graphics") && j==0){
                                cuinfo.autoblock=64;
 			       cuinfo.vendor=dvIntelGPU;
