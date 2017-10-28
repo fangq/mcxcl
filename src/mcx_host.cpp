@@ -339,8 +339,8 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                  gpu[i].autoblock  = 64;
                  gpu[i].autothread = gpu[i].autoblock * 16 * gpu[i].sm;
                }else if (gpu[i].major >= 6) { // pascal 6.x : max 32 blks per SM
-                 gpu[i].autoblock  = 32;
-                 gpu[i].autothread = gpu[i].autoblock * 32 * gpu[i].sm;
+                 gpu[i].autoblock  = 64;
+                 gpu[i].autothread = gpu[i].autoblock * 64 * gpu[i].sm;
 	       }
              }
          }
