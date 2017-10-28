@@ -263,7 +263,7 @@ float hitgrid(float4 *p0, float4 *v, float4 *htime, int *id){
 
       htime[0]=p0[0]+(float4)(dist)*v[0];
 
-#ifdef MCX_SIMPLIFY_BRANCH
+#ifdef MCX_VECTOR_INDEX
       ((float*)htime)[*id]=mcx_nextafterf(convert_float_rte(((float*)htime)[*id]),  (((float*)v)[*id] > 0.f)-(((float*)v)[*id] < 0.f));
 #else
       (*id==0) ?
@@ -356,16 +356,11 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      uint   mediaid=gcfg->mediaidorig,mediaidold=0,isdet=0;
      float  w0;
      float  n1;   //reflection var
-     float4 htime;            //reflection var
      int flipdir=0;
 
      //for MT RNG, these will be zero-length arrays and be optimized out
      RandType t[RAND_BUF_LEN];
      float4 prop;    //can become float2 if no reflection
-
-     float cphi,sphi,theta,stheta,ctheta,tmp0,tmp1;
-     float accumweight=0.f;
-     float slen;
 
      __local float *ppath=sharedmem+get_local_id(0)*gcfg->maxmedia;
 
@@ -392,7 +387,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
 	       if(p.w<1.f){ //weight
                        //random arimuthal angle
-                       tmp0=TWO_PI*rand_next_aangle(t); //next arimuth angle
+                       float cphi,sphi,theta,stheta,ctheta;
+                       float tmp0=TWO_PI*rand_next_aangle(t); //next arimuth angle
                        MCX_SINCOS(tmp0,sphi,cphi);
                        GPUDEBUG(((__constant char*)"scat phi=%f\n",tmp0));
 
@@ -423,11 +419,12 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
 	  n1=prop.w;
 	  prop=gproperty[mediaid & MED_MASK];
-	  
+
+          float4 htime;            //reflection var
 	  f.z=hitgrid(&p, &v, &htime, &flipdir);
-	  slen=f.z*prop.y;
+	  float slen=f.z*prop.y;
 	  slen=fmin(slen,f.x);
-	  f.z=slen/prop.y;
+	  f.z=native_divide(slen,prop.y);
 
           GPUDEBUG(((__constant char*)"p=[%f %f %f] -> <%f %f %f>*%f -> hit=[%f %f %f] flip=%d\n",p.x,p.y,p.z,v.x,v.y,v.z,f.z,htime.x,htime.y,htime.z,flipdir));
 
@@ -448,7 +445,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           idx1d=((int)floor(p.z)*gcfg->dimlen.y+(int)floor(p.y)*gcfg->dimlen.x+(int)floor(p.x));
           GPUDEBUG(((__constant char*)"idx1d [%d]->[%d]\n",idx1dold,idx1d));
 #ifdef MCX_SIMPLIFY_BRANCH
-	  mediaid=(any(isless(p.xyz,(float3)(0.f))) || any(isgreaterequal(p.xyz,(gcfg->maxidx.xyz)))) ? 0 : media[idx1d];
+	  mediaid=(any(isless(p.xyz,(float3)(0.f))) || any(isgreaterequal(p.xyz,(gcfg->maxidx.xyz))));
+	  mediaid=mediaid ? 0 : media[idx1d];
           isdet=mediaid & DET_MASK;
           mediaid &= MED_MASK;
 #else
@@ -490,11 +488,12 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           //if hit the boundary, exceed the max time window or exit the domain, rebound or launch a new one
           if(gcfg->doreflect && n1!=gproperty[mediaid & MED_MASK].w){
 	          float Rtotal=1.f;
+                  float cphi,sphi,stheta,ctheta;
 
                   *((float4*)(&prop))=gproperty[mediaid & MED_MASK]; // optical property across the interface
 
-                  tmp0=n1*n1;
-                  tmp1=prop.w*prop.w;
+                  float tmp0=n1*n1;
+                  float tmp1=prop.w*prop.w;
                   cphi=fabs( (flipdir==0) ? v.x : (flipdir==1 ? v.y : v.z)); // cos(si)
                   sphi=1.f-cphi*cphi;            // sin(si)^2
 
@@ -538,13 +537,6 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
               }
 #endif
      }
-     // accumweight saves the total absorbed energy in the sphere r<sradius.
-     // in non-atomic mode, accumweight is more accurate than saving to the grid
-     // as it is not influenced by race conditions.
-     // now I borrow f.z to pass this value back
-
-     f.z=accumweight;
-
      genergy[idx<<1]=energyloss;
      genergy[(idx<<1)+1]=energylaunched;
 }
