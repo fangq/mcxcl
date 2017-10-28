@@ -330,7 +330,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                  gpu[i].autothread = gpu[i].autoblock * 7 * gpu[i].sm; // 7 thread x SIMD-16 per Exec Unit (EU)
 	     }else if (gpu[i].vendor == dvAMD){ // AMD GPU 
 		 gpu[i].autoblock  = 64;
-		 gpu[i].autothread = 2560 * gpu[i].sm; // 40 wavefronts * 64 threads/wavefront
+		 gpu[i].autothread = 3456 * gpu[i].sm; // 40 wavefronts * 64 threads/wavefront
              }else if(gpu[i].vendor == dvNVIDIA){
 	       if (gpu[i].major == 2 || gpu[i].major == 3) { // fermi 2.x, kepler 3.x : max 7 blks per SM, 8 works better
                  gpu[i].autoblock  = 128;
