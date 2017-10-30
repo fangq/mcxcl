@@ -284,7 +284,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                      (uint)cfg->issave2pt,(uint)cfg->isreflect,(uint)cfg->isrefint,(uint)cfg->issavedet,1.f/cfg->tstep,
                      cfg->minenergy,
                      cfg->sradius*cfg->sradius,minstep*R_C0*cfg->unitinmm,cfg->maxdetphoton,
-                     cfg->medianum-1,cfg->detnum,0,0};
+                     cfg->medianum-1,cfg->detnum,0,0,0,0};
 
      platform=mcx_list_gpu(cfg,&workdev,devices,&gpu);
 
@@ -472,7 +472,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 8, sizeof(cl_mem), (void*)(gdetpos+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 9, sizeof(cl_mem), (void*)(gstopsign+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],10, sizeof(cl_mem), (void*)(gdetected+i))));
-	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],11, cfg->issavedet? sizeof(cl_float)*cfg->nblocksize*param.maxmedia : 1, NULL)));
+	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],11, cfg->issavedet? sizeof(int)+sizeof(cl_float)*cfg->nblocksize*param.maxmedia : sizeof(int), NULL)));
      }
      fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
 
@@ -503,7 +503,12 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
            fprintf(cfg->flog,"simulation run#%2d ... \t",iter+1); fflush(cfg->flog);
 	   param.twin0=twindow0;
 	   param.twin1=twindow1;
+
            for(devid=0;devid<workdev;devid++){
+	       int nblock=gpu[devid].autothread/gpu[devid].autoblock;
+	       int np=cfg->nphoton-gpu[devid].autothread+nblock;
+	       param.blockphoton=(int)(np*cfg->workload[devid]/(fullload*nblock*cfg->respin));;
+	       param.blockextra =(int)(np*cfg->workload[devid]/(fullload*cfg->respin)-param.blockphoton*nblock);
                OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],gparam,CL_TRUE,0,sizeof(MCXParam),&param, 0, NULL, NULL)));
                OCL_ASSERT((clSetKernelArg(mcxkernel[devid],12, sizeof(cl_mem), (void*)&gparam)));
                // launch mcxkernel
@@ -631,7 +636,7 @@ is more than what your have specified (%d), please use the -H option to specify 
      }
 
      // total energy here equals total simulated photons+unfinished photons for all threads
-     fprintf(cfg->flog,"simulated %d photons (%d) with %d CUs (repeat x%d)\nMCX simulation speed: %.2f photon/ms\n",
+     fprintf(cfg->flog,"simulated %d photons (%d) with %d devices (repeat x%d)\nMCX simulation speed: %.2f photon/ms\n",
              cfg->nphoton,cfg->nphoton,workdev, cfg->respin,(double)cfg->nphoton/toc); fflush(cfg->flog);
      fprintf(cfg->flog,"total simulated energy: %.2f\tabsorbed: %5.5f%%\n(loss due to initial specular reflection is excluded in the total)\n",
              cfg->energytot,(cfg->energytot-cfg->energyesc)/cfg->energytot*100.f);fflush(cfg->flog);

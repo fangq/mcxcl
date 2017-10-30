@@ -57,9 +57,9 @@ typedef struct KernelParams {
   cl_uint detnum;
   cl_uint idx1dorig;
   cl_uint mediaidorig;
-  cl_uint threadphoton;
-  cl_uint oddphotons;
-}MCXParam __attribute__ ((aligned (16)));
+  cl_uint blockphoton;
+  cl_uint blockextra;
+} MCXParam __attribute__ ((aligned (16)));
 
 void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy);
 cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *activedevlist,GPUInfo **info);

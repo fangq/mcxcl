@@ -62,16 +62,18 @@ typedef struct KernelParams {
   float  minstep;
   float  twin0,twin1,tmax;
   float  oneoverc0;
-  unsigned int isrowmajor,save2pt,doreflect,dorefint,savedet;
+  uint   isrowmajor,save2pt,doreflect,dorefint,savedet;
   float  Rtstep;
   float  minenergy;
   float  skipradius2;
   float  minaccumtime;
-  unsigned int maxdetphoton;
-  unsigned int maxmedia;
-  unsigned int detnum;
-  unsigned int idx1dorig;
-  unsigned int mediaidorig;
+  uint   maxdetphoton;
+  uint   maxmedia;
+  uint   detnum;
+  uint   idx1dorig;
+  uint   mediaidorig;
+  uint   blockphoton;
+  uint   blockextra;
 } MCXParam __attribute__ ((aligned (32)));
 
 
@@ -306,10 +308,18 @@ void transmit(float4 *v, float n1, float n2,int flipdir){
 int launchnewphoton(float4 *p,float4 *v,float4 *f,float4 *prop,uint *idx1d,
            uint *mediaid,float *w0,uint isdet, __local float *ppath,float *energyloss,float *energylaunched,
 	   __global float *n_det,__global uint *dpnum, __constant float4 *gproperty,
-	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, int threadphoton, int oddphotons){
+	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, int threadphoton, 
+	   int oddphotons, __local int *blockphoton){
       
       if(p[0].w>=0.f){
           *energyloss+=p[0].w;  // sum all the remaining energy
+	  p[0].w=0.f;
+#ifdef GROUP_LOAD_BALANCE
+          if(f[0].w<0.f || atomic_sub(blockphoton,1)<=1)
+              return 1;
+          if(blockphoton[0]<get_local_size(0) && get_local_id(0))
+              f[0].w=-2.f;
+#endif
 #ifdef MCX_SAVE_DETECTORS
           // let's handle detectors here
           if(gcfg->savedet){
@@ -321,8 +331,10 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,float4 *prop,uint *idx1d,
 #endif
       }
 
+#ifndef GROUP_LOAD_BALANCE
       if(f[0].w>=(threadphoton+(threadid<oddphotons)))
          return 1; // all photons complete 
+#endif
       p[0]=gcfg->ps;
       v[0]=gcfg->c0;
       f[0]=(float4)(0.f,0.f,gcfg->minaccumtime,f[0].w+1);
@@ -363,6 +375,13 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      float4 prop;    //can become float2 if no reflection
 
      __local float *ppath=sharedmem+get_local_id(0)*gcfg->maxmedia;
+     __local int   blockphoton[1];
+
+#ifdef GROUP_LOAD_BALANCE
+     if(get_local_id(0) == 0)
+	blockphoton[0] = gcfg->blockphoton + ((int)get_group_id(0) < gcfg->blockextra);
+     barrier(CLK_LOCAL_MEM_FENCE);
+#endif
 
 #ifdef  MCX_SAVE_DETECTORS
      if(gcfg->savedet) clearpath(ppath,gcfg);
@@ -371,13 +390,15 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      gpu_rng_init(t,n_seed,idx);
 
      if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&w0,0,ppath,
-		      &energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton)){
+		      &energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton)){
          n_seed[idx]=NO_LAUNCH;
          return;
      }
-
+#ifdef GROUP_LOAD_BALANCE
+     while(blockphoton[0]>0 || f.w<0.f) {
+#else
      while(f.w<=nphoton + (idx<ophoton)) {
-
+#endif
           GPUDEBUG(((__constant char*)"photonid [%d] L=%f w=%e medium=%d\n",(int)f.w,f.x,p.w,mediaid));
 
 	  if(f.x<=0.f) {  // if this photon has finished the current jump
@@ -479,7 +500,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           if((mediaid==0 && (!gcfg->doreflect || (gcfg->doreflect && n1==gproperty[mediaid & MED_MASK].w))) || f.y>gcfg->twin1){
                   GPUDEBUG(((__constant char*)"direct relaunch at idx=[%d] mediaid=[%d], ref=[%d]\n",idx1d,mediaid,gcfg->doreflect));
 		  if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&w0,(mediaidold & DET_MASK),ppath,
-		      &energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton)){ 
+		      &energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton)){ 
                          break;
 		  }
                   continue;
@@ -513,7 +534,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                         if(mediaid==0){ // transmission to external boundary
                             GPUDEBUG(((__constant char*)"transmit to air, relaunch\n"));
 		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&w0,(mediaidold & DET_MASK),
-			        ppath,&energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton)){
+			        ppath,&energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton)){
                                     break;
 			    }
 			    continue;
@@ -537,7 +558,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
               }
 #endif
      }
-     genergy[idx<<1]=energyloss;
+     genergy[idx<<1]=energyloss+p.w;
      genergy[(idx<<1)+1]=energylaunched;
 }
 
