@@ -607,7 +607,8 @@ is more than what your have specified (%d), please use the -H option to specify 
      }// time gates
 
      if(cfg->isnormalized){
-	   float scale=0.f;
+	   float scale=0.f, mua;
+	   uint t;
            fprintf(cfg->flog,"normalizing raw data ...\t");
            if(cfg->outputtype==otFlux || cfg->outputtype==otFluence){
                scale=1.f/(cfg->energytot*Vvox*cfg->tstep);
@@ -616,6 +617,13 @@ is more than what your have specified (%d), please use the -H option to specify 
 
                if(cfg->outputtype==otFluence)
 		   scale*=cfg->tstep;
+               if(cfg->exportfield)
+	          for(t=0;t<cfg->maxgate;t++)
+	            for(i=0;i<dimxyz;i++){
+		        mua=cfg->prop[media[i] & MED_MASK].mua;
+			if(mua > 0.f)
+			    cfg->exportfield[t*dimxyz+i]/=mua;
+		    }
 	   }else if(cfg->outputtype==otEnergy || cfg->outputtype==otJacobian)
 	       scale=1.f/cfg->energytot;
 

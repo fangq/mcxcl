@@ -503,6 +503,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 		      &energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton)){ 
                          break;
 		  }
+                  isdet=mediaid & DET_MASK;
+                  mediaid &= MED_MASK;
                   continue;
           }
 #ifdef MCX_DO_REFLECTION
@@ -537,6 +539,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 			        ppath,&energyloss,&energylaunched,n_det,detectedphoton,gproperty,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton)){
                                     break;
 			    }
+                            isdet=mediaid & DET_MASK;
+                            mediaid &= MED_MASK;
 			    continue;
 			}
 	                GPUDEBUG(((__constant char*)"do transmission\n"));
