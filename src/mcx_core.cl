@@ -419,7 +419,6 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      float  w0;
      float  n1;   //reflection var
      int flipdir=0;
-     half fx;
 
      //for MT RNG, these will be zero-length arrays and be optimized out
      RandType t[RAND_BUF_LEN];
@@ -454,7 +453,6 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
 	  if(f.x<=0.f) {  // if this photon has finished the current jump
    	       f.x=rand_next_scatlen(t);
-	       fx=convert_half(f.x);
 
                GPUDEBUG(((__constant char*)"scat L=%f RNG=[%e %e %e] \n",f.x,rand_next_aangle(t),rand_next_zangle(t),rand_uniform01(t)));
 
@@ -499,8 +497,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           half4 vhalf=convert_half4(v);
 
 	  half fz=hitgrid(&phalf, &vhalf, &htime, &flipdir);
-	  half slen=fz*prop.y;
-	  slen=fmin(slen,fx);
+	  float slen=fz*prop.y;
+	  slen=fmin(slen,f.x);
 	  fz=slen/prop.y;
 #else
 	  f.z=hitgrid(&p, &v, &htime, &flipdir);
@@ -512,13 +510,12 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           GPUDEBUG(((__constant char*)"p=[%f %f %f] -> <%f %f %f>*%f -> hit=[%f %f %f] flip=%d\n",p.x,p.y,p.z,v.x,v.y,v.z,f.z,htime.x,htime.y,htime.z,flipdir));
 
 #ifdef USE_HALF
-	  p.xyz = (slen==fx) ? p.xyz+(float3)(fz)*v.xyz : convert_float3(htime.xyz);
+	  p.xyz = (slen==convert_half(f.x)) ? p.xyz+(float3)(fz)*v.xyz : convert_float3(htime.xyz);
 	  f.z=convert_float(fz);
-	  f.x-=convert_float(slen);
 #else
 	  p.xyz = (slen==f.x) ? p.xyz+(float3)(f.z)*v.xyz : htime.xyz;
-	  f.x-=slen;
 #endif
+	  f.x-=slen;
 	  p.w*=MCX_MATHFUN(exp)(-prop.x*f.z);
 	  f.y+=f.z*prop.w*gcfg->oneoverc0;
 }
