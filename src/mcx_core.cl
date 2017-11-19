@@ -614,7 +614,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	                GPUDEBUG(((__constant char*)"ref p_new=[%f %f %f] v_new=[%f %f %f]\n",p.x,p.y,p.z,v.x,v.y,v.z));
                 	idx1d=idx1dold;
 		 	mediaid=(media[idx1d] & MED_MASK);
-			prop=gproperty[mediaid];
+			prop=TOFLOAT4(gproperty[mediaid]);
 			n1=prop.w;
 		  }
               }
