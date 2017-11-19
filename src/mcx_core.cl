@@ -299,34 +299,30 @@ half mcx_nextafter_half(const half a, short dir){
       return num.f;
 }
 
-float hitgrid(float4 *p, float4 *v0, half4 *htime, int *id){
+half hitgrid(half4 *p0, half4 *v, half4 *htime, int *id){
       half dist;
-      half4 p0, v;
-
-      p0=convert_half4(p[0]);
-      v=convert_half4(v0[0]);
 
       //time-of-flight to hit the wall in each direction
 
-      htime[0]=fabs(floor(p0)-convert_half4(isgreater(v,((half4)(0.f))))-p0);
-      htime[0]=fabs((htime[0]+(half4)EPS)/v);
+      htime[0]=fabs(floor(p0[0])-convert_half4(isgreater(v[0],((half4)(0.f))))-p0[0]);
+      htime[0]=fabs((htime[0]+(half4)EPS)/v[0]);
 
       //get the direction with the smallest time-of-flight
       dist=fmin(fmin(htime[0].x,htime[0].y),htime[0].z);
       (*id)=(dist==htime[0].x?0:(dist==htime[0].y?1:2));
 
-      htime[0]=p0+(half4)(dist)*v;
+      htime[0]=p0[0]+(half4)(dist)*v[0];
 
 #ifdef MCX_VECTOR_INDEX
-      ((half*)htime)[*id]=mcx_nextafter_half(((half*)htime)[*id], (((half*)&v)[*id] > 0.f)-(((half*)&v)[*id] < 0.f));
+      ((half*)htime)[*id]=mcx_nextafter_half(((half*)htime)[*id], (((half*)v)[*id] > 0.f)-(((half*)v)[*id] < 0.f));
 #else
       (*id==0) ?
-          (htime[0].x=mcx_nextafter_half(htime[0].x, (v.x > 0.f)-(v.x < 0.f))) :
+          (htime[0].x=mcx_nextafter_half(htime[0].x, (v[0].x > 0.f)-(v[0].x < 0.f))) :
 	  ((*id==1) ? 
-	  	(htime[0].y=mcx_nextafter_half(htime[0].y, (v.y > 0.f)-(v.y < 0.f))) :
-		(htime[0].z=mcx_nextafter_half(htime[0].z, (v.z > 0.f)-(v.z < 0.f))) );
+	  	(htime[0].y=mcx_nextafter_half(htime[0].y, (v[0].y > 0.f)-(v[0].y < 0.f))) :
+		(htime[0].z=mcx_nextafter_half(htime[0].z, (v[0].z > 0.f)-(v[0].z < 0.f))) );
 #endif
-      return convert_float(dist);
+      return dist;
 }
 
 #endif
@@ -423,6 +419,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      float  w0;
      float  n1;   //reflection var
      int flipdir=0;
+     half fx;
 
      //for MT RNG, these will be zero-length arrays and be optimized out
      RandType t[RAND_BUF_LEN];
@@ -457,6 +454,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
 	  if(f.x<=0.f) {  // if this photon has finished the current jump
    	       f.x=rand_next_scatlen(t);
+	       fx=convert_half(f.x);
 
                GPUDEBUG(((__constant char*)"scat L=%f RNG=[%e %e %e] \n",f.x,rand_next_aangle(t),rand_next_zangle(t),rand_uniform01(t)));
 
@@ -494,24 +492,36 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
 	  n1=prop.w;
 	  prop=TOFLOAT4(gproperty[mediaid & MED_MASK]);
-
+{
           FLOAT4VEC htime;            //reflection var
+#ifdef USE_HALF
+          half4 phalf=convert_half4(p);
+          half4 vhalf=convert_half4(v);
+
+	  half fz=hitgrid(&phalf, &vhalf, &htime, &flipdir);
+	  half slen=fz*prop.y;
+	  slen=fmin(slen,fx);
+	  fz=slen/prop.y;
+#else
 	  f.z=hitgrid(&p, &v, &htime, &flipdir);
 	  float slen=f.z*prop.y;
 	  slen=fmin(slen,f.x);
 	  f.z=native_divide(slen,prop.y);
+#endif
 
           GPUDEBUG(((__constant char*)"p=[%f %f %f] -> <%f %f %f>*%f -> hit=[%f %f %f] flip=%d\n",p.x,p.y,p.z,v.x,v.y,v.z,f.z,htime.x,htime.y,htime.z,flipdir));
 
 #ifdef USE_HALF
-	  p.xyz = (slen==f.x) ? p.xyz+(float3)(f.z)*v.xyz : convert_float3(htime.xyz);
+	  p.xyz = (slen==fx) ? p.xyz+(float3)(fz)*v.xyz : convert_float3(htime.xyz);
+	  f.z=convert_float(fz);
+	  f.x-=convert_float(slen);
 #else
 	  p.xyz = (slen==f.x) ? p.xyz+(float3)(f.z)*v.xyz : htime.xyz;
+	  f.x-=slen;
 #endif
 	  p.w*=MCX_MATHFUN(exp)(-prop.x*f.z);
-	  f.x-=slen;
 	  f.y+=f.z*prop.w*gcfg->oneoverc0;
-
+}
           GPUDEBUG(((__constant char*)"update p=[%f %f %f] -> f.z=%f\n",p.x,p.y,p.z,f.z));
 
 #ifdef MCX_SAVE_DETECTORS
@@ -614,7 +624,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	                GPUDEBUG(((__constant char*)"ref p_new=[%f %f %f] v_new=[%f %f %f]\n",p.x,p.y,p.z,v.x,v.y,v.z));
                 	idx1d=idx1dold;
 		 	mediaid=(media[idx1d] & MED_MASK);
-			prop=gproperty[mediaid];
+			prop=TOFLOAT4(gproperty[mediaid]);
 			n1=prop.w;
 		  }
               }
