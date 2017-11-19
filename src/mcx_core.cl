@@ -19,6 +19,13 @@
   #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 #endif
 
+#ifdef USE_HALF
+  #pragma OPENCL EXTENSION cl_khr_fp16 : enable
+  #define RAYTRACER half4
+#else
+  #define RAYTRACER float4
+#endif
+
 #ifdef MCX_USE_NATIVE
   #define MCX_MATHFUN(fun)              native_##fun
   #define MCX_SINCOS(theta,osin,ocos)   {(osin)=native_sin(theta);(ocos)=native_cos(theta);} 
@@ -251,6 +258,8 @@ float mcx_nextafterf(float a, int dir){
       return num.f-1000.f;
 }
 
+#ifndef USE_HALF
+
 float hitgrid(float4 *p0, float4 *v, float4 *htime, int *id){
       float dist;
 
@@ -276,6 +285,50 @@ float hitgrid(float4 *p0, float4 *v, float4 *htime, int *id){
 #endif
       return dist;
 }
+
+#else
+
+half mcx_nextafter_half(const half a, short dir){
+      union{
+          half f;
+          short i;
+      } num;
+      num.f=a;
+      num.i = ((num.i & 0x7FFFU)==0) ? (((dir & 0x8000U) ) | 1) : (num.i+(dir ^ (num.i & 0x8000U)));
+      return num.f;
+}
+
+float hitgrid(float4 *p, float4 *v0, half4 *htime, int *id){
+      half dist;
+      half4 p0, v;
+
+      p0=convert_half4(p[0]);
+      v=convert_half4(v0[0]);
+
+      //time-of-flight to hit the wall in each direction
+
+      htime[0]=fabs(floor(p0)-convert_half4(isgreater(v,((half4)(0.f))))-p0);
+      htime[0]=fabs((htime[0]+(half4)EPS)/v);
+
+      //get the direction with the smallest time-of-flight
+      dist=fmin(fmin(htime[0].x,htime[0].y),htime[0].z);
+      (*id)=(dist==htime[0].x?0:(dist==htime[0].y?1:2));
+
+      htime[0]=p0+(half4)(dist)*v;
+
+#ifdef MCX_VECTOR_INDEX
+      ((half*)htime)[*id]=mcx_nextafter_half(((half*)htime)[*id], (((half*)&v)[*id] > 0.f)-(((half*)&v)[*id] < 0.f));
+#else
+      (*id==0) ?
+          (htime[0].x=mcx_nextafter_half(htime[0].x, (v.x > 0.f)-(v.x < 0.f))) :
+	  ((*id==1) ? 
+	  	(htime[0].y=mcx_nextafter_half(htime[0].y, (v.y > 0.f)-(v.y < 0.f))) :
+		(htime[0].z=mcx_nextafter_half(htime[0].z, (v.z > 0.f)-(v.z < 0.f))) );
+#endif
+      return convert_float(dist);
+}
+
+#endif
 
 void rotatevector(float4 *v, float stheta, float ctheta, float sphi, float cphi){
       if( v[0].z>-1.f+EPS && v[0].z<1.f-EPS ) {
@@ -441,7 +494,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	  n1=prop.w;
 	  prop=gproperty[mediaid & MED_MASK];
 
-          float4 htime;            //reflection var
+          RAYTRACER htime;            //reflection var
 	  f.z=hitgrid(&p, &v, &htime, &flipdir);
 	  float slen=f.z*prop.y;
 	  slen=fmin(slen,f.x);
@@ -449,7 +502,11 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
           GPUDEBUG(((__constant char*)"p=[%f %f %f] -> <%f %f %f>*%f -> hit=[%f %f %f] flip=%d\n",p.x,p.y,p.z,v.x,v.y,v.z,f.z,htime.x,htime.y,htime.z,flipdir));
 
+#ifdef USE_HALF
+	  p.xyz = (slen==f.x) ? p.xyz+(float3)(f.z)*v.xyz : convert_float3(htime.xyz);
+#else
 	  p.xyz = (slen==f.x) ? p.xyz+(float3)(f.z)*v.xyz : htime.xyz;
+#endif
 	  p.w*=MCX_MATHFUN(exp)(-prop.x*f.z);
 	  f.x-=slen;
 	  f.y+=f.z*prop.w*gcfg->oneoverc0;

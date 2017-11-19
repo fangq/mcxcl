@@ -178,6 +178,7 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
                                OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GFXIP_MINOR_AMD,sizeof(cl_uint),(void*)&cuinfo.minor,NULL)));
                                OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_BOARD_NAME_AMD,100,(void*)cuinfo.name,NULL)));
                                OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_SIMD_PER_COMPUTE_UNIT_AMD,sizeof(cl_uint),(void*)&corepersm,NULL)));
+                               corepersm=(corepersm==0) ? 2 : corepersm;
                                cuinfo.core=(cuinfo.sm*corepersm<<4);
                                cuinfo.autoblock=64;
                                cuinfo.vendor=dvAMD;
