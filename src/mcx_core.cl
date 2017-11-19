@@ -21,9 +21,11 @@
 
 #ifdef USE_HALF
   #pragma OPENCL EXTENSION cl_khr_fp16 : enable
-  #define RAYTRACER half4
+  #define FLOAT4VEC half4
+  #define TOFLOAT4  convert_half4
 #else
-  #define RAYTRACER float4
+  #define FLOAT4VEC float4
+  #define TOFLOAT4
 #endif
 
 #ifdef MCX_USE_NATIVE
@@ -36,7 +38,6 @@
 
 #ifdef MCX_GPU_DEBUG
   #define GPUDEBUG(x)        printf x             // enable debugging in CPU mode
-  //#pragma OPENCL EXTENSION cl_amd_printf : enable
 #else
   #define GPUDEBUG(x)
 #endif
@@ -358,7 +359,7 @@ void transmit(float4 *v, float n1, float n2,int flipdir){
 	      (v[0].z=sqrt(1.f - v[0].x*v[0].x - v[0].y*v[0].y)*((v[0].z>0.f)-(v[0].z<0.f))));
 }
 
-int launchnewphoton(float4 *p,float4 *v,float4 *f,float4 *prop,uint *idx1d,
+int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
            uint *mediaid,float *w0,uint isdet, __local float *ppath,float *energyloss,float *energylaunched,
 	   __global float *n_det,__global uint *dpnum, __constant float4 *gproperty,
 	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, int threadphoton, 
@@ -393,7 +394,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,float4 *prop,uint *idx1d,
       f[0]=(float4)(0.f,0.f,gcfg->minaccumtime,f[0].w+1);
       *idx1d=gcfg->idx1dorig;
       *mediaid=gcfg->mediaidorig;
-      prop[0]=gproperty[*mediaid & MED_MASK]; //always use mediaid to read gproperty[]
+      prop[0]=TOFLOAT4(gproperty[*mediaid & MED_MASK]); //always use mediaid to read gproperty[]
       *energylaunched+=p[0].w;
       *w0=p[0].w;
       return 0;
@@ -425,7 +426,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
      //for MT RNG, these will be zero-length arrays and be optimized out
      RandType t[RAND_BUF_LEN];
-     float4 prop;    //can become float2 if no reflection
+     FLOAT4VEC prop;    //can become float2 if no reflection
 
      __local float *ppath=sharedmem+get_local_id(0)*gcfg->maxmedia;
      __local int   blockphoton[1];
@@ -492,9 +493,9 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	  }
 
 	  n1=prop.w;
-	  prop=gproperty[mediaid & MED_MASK];
+	  prop=TOFLOAT4(gproperty[mediaid & MED_MASK]);
 
-          RAYTRACER htime;            //reflection var
+          FLOAT4VEC htime;            //reflection var
 	  f.z=hitgrid(&p, &v, &htime, &flipdir);
 	  float slen=f.z*prop.y;
 	  slen=fmin(slen,f.x);
