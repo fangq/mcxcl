@@ -254,9 +254,9 @@ float mcx_nextafterf(float a, int dir){
           float f;
 	  uint  i;
       } num;
-      num.f=a;
-      num.i = ((num.i & 0x7FFFFFFFU)==0) ? (((dir & 0x80000000U) ) | 1) : (num.i+(dir ^ (num.i & 0x80000000U))); //num.i+=dir ^ (num.i & 0x80000000U);
-      return num.f;
+      num.f=a+1000.f;
+      num.i+=dir ^ (num.i & 0x80000000U);
+      return num.f-1000.f;
 }
 
 #ifndef USE_HALF
@@ -276,13 +276,13 @@ float hitgrid(float4 *p0, float4 *v, float4 *htime, int *id){
       htime[0]=p0[0]+(float4)(dist)*v[0];
 
 #ifdef MCX_VECTOR_INDEX
-      ((float*)htime)[*id]=mcx_nextafterf(round(((float*)htime)[*id]),  (((float*)v)[*id] > 0.f)-(((float*)v)[*id] < 0.f));
+      ((float*)htime)[*id]=mcx_nextafterf(convert_float_rte(((float*)htime)[*id]),  (((float*)v)[*id] > 0.f)-(((float*)v)[*id] < 0.f));
 #else
       (*id==0) ?
-          (htime[0].x=mcx_nextafterf(round(htime[0].x), (v[0].x > 0.f)-(v[0].x < 0.f))) :
+          (htime[0].x=mcx_nextafterf(convert_float_rte(htime[0].x), (v[0].x > 0.f)-(v[0].x < 0.f))) :
 	  ((*id==1) ? 
-	  	(htime[0].y=mcx_nextafterf(round(htime[0].y), (v[0].y > 0.f)-(v[0].y < 0.f))) :
-		(htime[0].z=mcx_nextafterf(round(htime[0].z), (v[0].z > 0.f)-(v[0].z < 0.f))) );
+	  	(htime[0].y=mcx_nextafterf(convert_float_rte(htime[0].y), (v[0].y > 0.f)-(v[0].y < 0.f))) :
+		(htime[0].z=mcx_nextafterf(convert_float_rte(htime[0].z), (v[0].z > 0.f)-(v[0].z < 0.f))) );
 #endif
       return dist;
 }
