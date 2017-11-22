@@ -295,7 +295,7 @@ half mcx_nextafter_half(const half a, short dir){
           short i;
       } num;
       num.f=a;
-      num.i = ((num.i & 0x7FFFU)==0) ? (((dir & 0x8000U) ) | 1) : (num.i+(dir ^ (num.i & 0x8000U)));
+      num.i = ((num.i & 0x7FFFU)==0) ? (((dir & 0x8000U) ) | 1) : ((num.i & 0x8000U) ? (num.i-=dir) : (num.i+=dir) );
       return num.f;
 }
 
