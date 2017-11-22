@@ -188,6 +188,7 @@ static void xorshift128p_seed (__global uint *seed,RandType t[RAND_BUF_LEN])
 
 static void gpu_rng_init(__private RandType t[RAND_BUF_LEN], __global uint *n_seed, int idx){
     xorshift128p_seed((n_seed+idx*RAND_SEED_LEN),t);
+if(idx<5) GPUDEBUG(((__constant char*)"seed [%08X %08X %08X %08X]\n",n_seed[idx*RAND_SEED_LEN],n_seed[idx*RAND_SEED_LEN+1],n_seed[idx*RAND_SEED_LEN+2],n_seed[idx*RAND_SEED_LEN+3]));
 }
 static void gpu_rng_reseed(__private RandType t[RAND_BUF_LEN],__global uint *cpuseed,uint idx,float reseed){
 }
@@ -295,7 +296,7 @@ half mcx_nextafter_half(const half a, short dir){
           short i;
       } num;
       num.f=a;
-      num.i = ((num.i & 0x7FFFU)==0) ? (((dir & 0x8000U) ) | 1) : ((num.i & 0x8000U) ? (num.i-=dir) : (num.i+=dir) );
+      ((num.i & 0x7FFFU)==0) ? num.i =(((dir & 0x8000U) ) | 1) : ((num.i & 0x8000U) ? (num.i-=dir) : (num.i+=dir) );
       return num.f;
 }
 

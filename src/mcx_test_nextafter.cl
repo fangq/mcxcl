@@ -49,7 +49,7 @@ float mcx_nextafter2(float a, int dir){
 	  uint  i;
       } num;
       num.f=a;
-      num.i=((num.i & 0x7FFFFFFFU)==0) ? (((dir & 0x80000000U) ) | 1) : ((num.i & 0x80000000U) ? (num.i-=dir) : (num.i+=dir) );
+      ((num.i & 0x7FFFFFFFU)==0) ? num.i=((dir & 0x80000000U) | 1) : ((num.i & 0x80000000U) ? (num.i-=dir) : (num.i+=dir) );
       return num.f;
 }
 
@@ -60,7 +60,7 @@ half mcx_nextafter2_half(const half a, short dir){
           short i;
       } num;
       num.f=a;
-      num.i = ((num.i & 0x7FFFU)==0) ? (((dir & 0x8000U) ) | 1) : ((num.i & 0x8000U) ? (num.i-=dir) : (num.i+=dir) );
+      ((num.i & 0x7FFFU)==0) ? num.i =(((dir & 0x8000U) ) | 1) : ((num.i & 0x8000U) ? (num.i-=dir) : (num.i+=dir) );
       return num.f;
 }
 #endif
