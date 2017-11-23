@@ -1201,8 +1201,19 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 			        i=mcx_readarg(argc,argv,i,cfg->deviceid,"bytenumlist");
                                 break;
                      case 'G':
-                                i=mcx_readarg(argc,argv,i,cfg->deviceid,"string");
-                                break;
+                                if(mcx_isbinstr(argv[i+1])){
+                                    i=mcx_readarg(argc,argv,i,cfg->deviceid,"string");
+                                    break;
+                                }else{
+				    int gpuid;
+                                    i=mcx_readarg(argc,argv,i,&gpuid,"int");
+                                    memset(cfg->deviceid,'0',MAX_DEVICE);
+                                    if(gpuid<MAX_DEVICE)
+                                         cfg->deviceid[gpuid-1]='1';
+                                    else
+                                         mcx_error(-2,"GPU id can not be more than 256",__FILE__,__LINE__);
+                                    break;
+                                }
                      case 'W':
 			        i=mcx_readarg(argc,argv,i,cfg->workload,"floatlist");
                                 break;
@@ -1305,6 +1316,24 @@ int mcx_lookupindex(char *key, const char *index){
         }
         i++;
     }
+    return 1;
+}
+
+void mcx_version(Config *cfg){
+    const char ver[]="$Rev::      $";
+    int v=0;
+    sscanf(ver,"$Rev::%d",&v);
+    fprintf(cfg->flog, "MCXCL Revision %d\n",v);
+    exit(0);
+}
+
+int mcx_isbinstr(const char * str){
+    int i, len=strlen(str);
+    if(len==0)
+        return 0;
+    for(i=0;i<len;i++)
+        if(str[i]!='0' && str[i]!='1')
+	   return 0;
     return 1;
 }
 

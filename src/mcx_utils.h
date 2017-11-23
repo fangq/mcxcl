@@ -168,6 +168,8 @@ int  mcx_lookupindex(char *key, const char *index);
 int  mcx_parsedebugopt(char *debugopt,const char *debugflag);
 void mcx_printheader(Config *cfg);
 void mcx_dumpmask(Config *cfg);
+void mcx_version(Config *cfg);
+int  mcx_isbinstr(const char * str);
 
 #ifdef	__cplusplus
 }
