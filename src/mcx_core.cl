@@ -188,7 +188,6 @@ static void xorshift128p_seed (__global uint *seed,RandType t[RAND_BUF_LEN])
 
 static void gpu_rng_init(__private RandType t[RAND_BUF_LEN], __global uint *n_seed, int idx){
     xorshift128p_seed((n_seed+idx*RAND_SEED_LEN),t);
-if(idx<5) GPUDEBUG(((__constant char*)"seed [%08X %08X %08X %08X]\n",n_seed[idx*RAND_SEED_LEN],n_seed[idx*RAND_SEED_LEN+1],n_seed[idx*RAND_SEED_LEN+2],n_seed[idx*RAND_SEED_LEN+3]));
 }
 static void gpu_rng_reseed(__private RandType t[RAND_BUF_LEN],__global uint *cpuseed,uint idx,float reseed){
 }
