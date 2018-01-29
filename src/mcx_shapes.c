@@ -1,17 +1,16 @@
-/*******************************************************************************
+/***************************************************************************//**
+**  \mainpage Monte Carlo eXtreme - GPU accelerated Monte Carlo Photon Migration \
+**      -- OpenCL edition
+**  \author Qianqian Fang <q.fang at neu.edu>
+**  \copyright Qianqian Fang, 2009-2018
 **
-**  Monte Carlo eXtreme (MCX)  - GPU accelerated 3D Monte Carlo transport simulation
-**  Author: Qianqian Fang <q.fang at neu.edu>
+**  \section sref Reference:
+**  \li \c (\b Yu2018) Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,
+**         "Scalable and massively parallel Monte Carlo photon transport simulations 
+**         for heterogeneous computing platforms," J. Biomed. Optics, 23(1), 010504 (2018)
 **
-**  Reference (Fang2009):
-**        Qianqian Fang and David A. Boas, "Monte Carlo Simulation of Photon 
-**        Migration in 3D Turbid Media Accelerated by Graphics Processing 
-**        Units," Optics Express, vol. 17, issue 22, pp. 20178-20190 (2009)
-**
-**  mcx_shapes.c: 3D shape parsing and rasterization unit
-**
-**  License: GNU General Public License v3, see LICENSE.txt for details
-**
+**  \section slicense License
+**          GPL v3, see LICENSE.txt for details
 *******************************************************************************/
 
 /***************************************************************************//**

@@ -1,18 +1,21 @@
-/*******************************************************************************
-**
-**  Monte Carlo eXtreme (MCX)  - GPU accelerated Monte Carlo 3D photon migration
+/***************************************************************************//**
+**  \mainpage Monte Carlo eXtreme - GPU accelerated Monte Carlo Photon Migration \
 **      -- OpenCL edition
-**  Author: Qianqian Fang <q.fang at neu.edu>
+**  \author Qianqian Fang <q.fang at neu.edu>
+**  \copyright Qianqian Fang, 2009-2018
 **
-**  Reference (Fang2009):
-**        Qianqian Fang and David A. Boas, "Monte Carlo Simulation of Photon 
-**        Migration in 3D Turbid Media Accelerated by Graphics Processing 
-**        Units," Optics Express, vol. 17, issue 22, pp. 20178-20190 (2009)
+**  \section sref Reference:
+**  \li \c (\b Yu2018) Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,
+**         "Scalable and massively parallel Monte Carlo photon transport simulations 
+**         for heterogeneous computing platforms," J. Biomed. Optics, 23(1), 010504 (2018)
 **
-**  mcx_utils.c: configuration and command line option processing unit
-**
-**  Unpublished work, see LICENSE.txt for details
-**
+**  \section slicense License
+**          GPL v3, see LICENSE.txt for details
+*******************************************************************************/
+
+/***************************************************************************//**
+\file    mcx_utils.c
+@brief   mcconfiguration and command line option processing unit
 *******************************************************************************/
 
 #include <stdio.h>
@@ -37,14 +40,14 @@
 
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W','z',
-                 'd','r','S','p','e','U','R','l','L','M','I','o','c','k','v','J',
+                 'd','r','S','p','e','U','R','l','L','M','I','-','o','c','k','v','J',
                  'A','P','E','F','H','-','u','\0'};
 const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--thread","--blocksize","--session","--array","--gategroup",
                  "--reflect","--reflect3","--device","--devicelist","--gpu","--workload","--srcfrom0",
 		 "--savedet","--repeat","--save2pt","--printlen","--minenergy",
                  "--normalize","--skipradius","--log","--listgpu","--dumpmask",
-                 "--printgpu","--root","--cpu","--kernel","--verbose","--compileropt",
+                 "--printgpu","--root","--optlevel","--cpu","--kernel","--verbose","--compileropt",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
 		 "--mediabyte","--unitinmm",""};
 #ifdef WIN32
@@ -97,6 +100,7 @@ void mcx_initcfg(Config *cfg){
      cfg->isdumpmask=0;
      cfg->autopilot=0;
      cfg->shapedata=NULL;
+     cfg->optlevel=3;
 
      memset(cfg->deviceid,0,MAX_DEVICE);
      memset(cfg->compileropt,0,MAX_PATH_LENGTH);
@@ -1188,7 +1192,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		                cfg->isverbose=1;
 		                break;
 		     case 'o':
-		     	        i=mcx_readarg(argc,argv,i,cfg->rootpath,"string");
+		     	        i=mcx_readarg(argc,argv,i,&(cfg->optlevel),"int");
 		     	        break;
 		     case 'k': 
 		     	        i=mcx_readarg(argc,argv,i,cfg->kernelfile,"string");
@@ -1237,6 +1241,8 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                                      i=mcx_readarg(argc,argv,i,cfg->deviceid,"string");
                                 else if(strcmp(argv[i]+2,"mediabyte")==0)
                                      i=mcx_readarg(argc,argv,i,&(cfg->mediabyte),"int");
+                                else if(strcmp(argv[i]+2,"root")==0)
+                                     i=mcx_readarg(argc,argv,i,cfg->rootpath,"string");
                                 else
                                      fprintf(cfg->flog,"unknown verbose option: --%s\n",argv[i]+2);
 		     	        break;
@@ -1340,21 +1346,21 @@ int mcx_isbinstr(const char * str){
 void mcx_printheader(Config *cfg){
     fprintf(cfg->flog,"\
 ==============================================================================\n\
-=                      Monte Carlo eXtreme (MCX) -- OpenCL                   =\n\
-=            Copyright (c) 2010-2017 Qianqian Fang <q.fang at neu.edu>       =\n\
-=                                 http://mcx.space/                          =\n\
+=                       Monte Carlo eXtreme (MCX) -- OpenCL                  =\n\
+=          Copyright (c) 2010-2018 Qianqian Fang <q.fang at neu.edu>         =\n\
+=                             http://mcx.space/                              =\n\
 =                                                                            =\n\
-= Computational Optics & Translational Imaging (COTI) Lab- http://fanglab.or =\n\
-=               Department of Bioengineering, Northeastern University        =\n\
+= Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =\n\
+=            Department of Bioengineering, Northeastern University           =\n\
 ==============================================================================\n\
-=        The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365 =\n\
+=    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =\n\
 ==============================================================================\n\
 $Rev::6e839e $ Last $Date::2017-07-20 12:46:23 -04$ by $Author::Qianqian Fang$\n\
 ==============================================================================\n");
 }
 
 void mcx_usage(Config *cfg,char *exename){
-     mcx_printheader(cfg);     
+     mcx_printheader(cfg);
      printf("\n\
 usage: %s <param1> <param2> ...\n\
 where possible parameters include (the first item in [] is the default value)\n\

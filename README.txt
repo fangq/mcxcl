@@ -313,7 +313,12 @@ all memory transaction from GPU to CPU.
 ---------------------------------------------------------------------------
 VI. Reference
 
-[1] Qianqian Fang and David A. Boas, "Monte Carlo Simulation of Photon \
+
+[1] Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,
+"Scalable and massively parallel Monte Carlo photon transport simulations \
+for heterogeneous computing platforms," J. Biomed. Optics, 23(1), 010504 (2018) .
+
+[2] Qianqian Fang and David A. Boas, "Monte Carlo Simulation of Photon \
 Migration in 3D Turbid Media Accelerated by Graphics Processing Units,"
 Optics Express, vol. 17, issue 22, pp. 20178-20190 (2009).
 

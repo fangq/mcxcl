@@ -133,6 +133,7 @@ typedef struct MCXConfig{
 	unsigned int detectedcount; /**<total number of detected photons*/
 	unsigned int runtime;
 	int parentid;
+        uint optlevel;
 	void *seeddata;
 	uint mediabyte;
 } Config;

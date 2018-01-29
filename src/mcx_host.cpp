@@ -1,18 +1,16 @@
-/*******************************************************************************
-**
-**  Monte Carlo eXtreme (MCX)  - GPU accelerated Monte Carlo 3D photon migration
+/***************************************************************************//**
+**  \mainpage Monte Carlo eXtreme - GPU accelerated Monte Carlo Photon Migration \
 **      -- OpenCL edition
-**  Author: Qianqian Fang <q.fang at neu.edu>
+**  \author Qianqian Fang <q.fang at neu.edu>
+**  \copyright Qianqian Fang, 2009-2018
 **
-**  Reference (Fang2009):
-**        Qianqian Fang and David A. Boas, "Monte Carlo Simulation of Photon 
-**        Migration in 3D Turbid Media Accelerated by Graphics Processing 
-**        Units," Optics Express, vol. 17, issue 22, pp. 20178-20190 (2009)
+**  \section sref Reference:
+**  \li \c (\b Yu2018) Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,
+**         "Scalable and massively parallel Monte Carlo photon transport simulations 
+**         for heterogeneous computing platforms," J. Biomed. Optics, 23(1), 010504 (2018)
 **
-**  mcx_host.cpp: Host code for OpenCL
-**
-**  Unpublished work, see LICENSE.txt for details
-**
+**  \section slicense License
+**          GPL v3, see LICENSE.txt for details
 *******************************************************************************/
 
 #include <string.h>
@@ -423,7 +421,12 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      OCL_ASSERT(((mcxprogram=clCreateProgramWithSource(mcxcontext, 1,(const char **)&(cfg->clsource), NULL, &status),status)));
 
-     sprintf(opt,"-cl-mad-enable %s",cfg->compileropt);
+     if(cfg->optlevel>=1)
+         sprintf(opt,"%s ","-cl-mad-enable -DMCX_USE_NATIVE");
+     if(cfg->optlevel>=3)
+         sprintf(opt+strlen(opt),"%s ","-DMCX_SIMPLIFY_BRANCH -DMCX_VECTOR_INDEX");
+
+     sprintf(opt+strlen(opt),"%s",cfg->compileropt);
      if(cfg->issavedet)
          sprintf(opt+strlen(opt)," -D MCX_SAVE_DETECTORS");
      if(cfg->isreflect)
@@ -444,7 +447,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                  fprintf(cfg->flog,"Kernel build log:\n%s\n", msg);
                  break;
              }
-	 delete msg;
+	 delete [] msg;
      }
      if(status!=CL_SUCCESS)
 	 mcx_error(-(int)status,(char*)("Error: Failed to build program executable!"),__FILE__,__LINE__);
