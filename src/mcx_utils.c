@@ -27,6 +27,9 @@
 #include "mcx_shapes.h"
 #include "mcx_const.h"
 
+#ifdef MCX_EMBED_CL
+    #include "mcx_core.clh"
+#endif
 
 #define FIND_JSON_KEY(id,idfull,parent,fallback,val) \
                     ((tmp=cJSON_GetObjectItem(parent,id))==0 ? \
@@ -95,7 +98,11 @@ void mcx_initcfg(Config *cfg){
      cfg->rootpath[0]='\0';
      cfg->iscpu=0;
      cfg->isverbose=0;
-     cfg->clsource=NULL;;
+#ifdef MCX_EMBED_CL
+     cfg->clsource=(char *)mcx_core_cl;
+#else
+     cfg->clsource=NULL;
+#endif
      cfg->maxdetphoton=1000000; 
      cfg->isdumpmask=0;
      cfg->autopilot=0;
@@ -141,8 +148,10 @@ void mcx_clearcfg(Config *cfg){
      	free(cfg->detpos);
      if(cfg->dim.x && cfg->dim.y && cfg->dim.z)
         free(cfg->vol);
+#ifndef MCX_EMBED_CL
      if(cfg->clsource)
         free(cfg->clsource);
+#endif
      if(cfg->exportfield)
         free(cfg->exportfield);
      if(cfg->exportdetected)
