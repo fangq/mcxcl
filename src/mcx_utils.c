@@ -53,6 +53,16 @@ const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--printgpu","--root","--optlevel","--cpu","--kernel","--verbose","--compileropt",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
 		 "--mediabyte","--unitinmm",""};
+		 
+/**
+ * Source type specifier
+ * User can specify the source type using a string
+ */
+
+const char *srctypeid[]={"pencil","isotropic","cone","gaussian","planar",
+    "pattern","fourier","arcsine","disk","fourierx","fourierx2d","zgaussian",
+    "line","slit","pencilarray","pattern3d",""};
+
 #ifdef WIN32
          char pathsep='\\';
 #else
@@ -98,6 +108,12 @@ void mcx_initcfg(Config *cfg){
      cfg->rootpath[0]='\0';
      cfg->iscpu=0;
      cfg->isverbose=0;
+
+     cfg->srctype=0;;         /** use pencil beam as default source type */
+     cfg->maxvoidstep=1000;
+     cfg->voidtime=1;
+     memset(&(cfg->srcparam1),0,sizeof(float4));
+     memset(&(cfg->srcparam2),0,sizeof(float4));
 #ifdef MCX_EMBED_CL
      cfg->clsource=(char *)mcx_core_cl;
 #else
@@ -113,7 +129,7 @@ void mcx_initcfg(Config *cfg){
      memset(cfg->compileropt,0,MAX_PATH_LENGTH);
      memset(cfg->workload,0,MAX_DEVICE*sizeof(float));
      cfg->deviceid[0]='1'; /*use the first GPU device by default*/
-     strcpy(cfg->kernelfile,"mcx_core.cl");
+     memset(cfg->kernelfile,0,MAX_SESSION_LENGTH);
      cfg->issrcfrom0=0;
 
      cfg->exportfield=NULL;
@@ -149,7 +165,7 @@ void mcx_clearcfg(Config *cfg){
      if(cfg->dim.x && cfg->dim.y && cfg->dim.z)
         free(cfg->vol);
 #ifndef MCX_EMBED_CL
-     if(cfg->clsource)
+     if(cfg->clsource && cfg->clsource!=(char *)mcx_core_cl)
         free(cfg->clsource);
 #endif
      if(cfg->exportfield)
@@ -391,42 +407,10 @@ void mcx_writeconfig(const char *fname, Config *cfg){
      }
 }
 
-void mcx_prepdomain(char *filename, Config *cfg){
-     int i;
-     if(filename[0] || cfg->vol){
-        if(cfg->vol==NULL){
-	     mcx_loadvolume(filename,cfg);
-	     if(cfg->shapedata && strstr(cfg->shapedata,":")!=NULL){
-	          int status;
-     		  Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
-        	  if(cfg->issrcfrom0) memset(&(grid.orig.x),0,sizeof(float3));
-		  status=mcx_parse_shapestring(&grid,cfg->shapedata);
-		  if(status){
-		      MCX_ERROR(status,mcx_last_shapeerror());
-		  }
-	     }
-	}
-	if(cfg->isrowmajor){
-		/*from here on, the array is always col-major*/
-		mcx_convertrow2col(&(cfg->vol), &(cfg->dim));
-		cfg->isrowmajor=0;
-	}
-	if(cfg->issavedet)
-		mcx_maskdet(cfg);
-	if(cfg->isdumpmask)
-	        mcx_dumpmask(cfg);
-     }else{
-     	mcx_error(-4,"one must specify a binary volume file in order to run the simulation",__FILE__,__LINE__);
-     }
-     for(i=0;i<MAX_DEVICE;i++)
-        if(cfg->deviceid[i]=='0')
-           cfg->deviceid[i]='\0';
-}
-
 void mcx_loadconfig(FILE *in, Config *cfg){
-     int i,idx1d;
+     int i;
      unsigned int gates,itmp;
-     char filename[MAX_PATH_LENGTH]={0}, comment[MAX_PATH_LENGTH],*comm;
+     char filename[MAX_PATH_LENGTH]={0}, strtypestr[MAX_SESSION_LENGTH], comment[MAX_PATH_LENGTH],*comm;
      
      if(in==stdin)
      	fprintf(stdout,"Please specify the total number of photons: [1000000]\n\t");
@@ -539,41 +523,108 @@ void mcx_loadconfig(FILE *in, Config *cfg){
         if(in==stdin)
 		fprintf(stdout,"%f %f %f\n",cfg->detpos[i].x,cfg->detpos[i].y,cfg->detpos[i].z);
      }
-     if(filename[0]){
-        mcx_loadvolume(filename,cfg);
-        if(cfg->isrowmajor){
-                /*from here on, the array is always col-major*/
-                mcx_convertrow2col(&(cfg->vol), &(cfg->dim));
-                cfg->isrowmajor=0;
-        }
+     mcx_prepdomain(filename,cfg);
+
+     if(in==stdin)
+     	fprintf(stdout,"Please specify the source type[pencil|cone|gaussian]:\n\t");
+     if(fscanf(in,"%s", strtypestr)==1 && strtypestr[0]){
+        int srctype=mcx_keylookup(strtypestr,srctypeid);
+	if(srctype==-1)
+	   MCX_ERROR(-6,"the specified source type is not supported");
+        if(srctype>=0){
+           comm=fgets(comment,MAX_PATH_LENGTH,in);
+	   cfg->srctype=srctype;
+	   if(in==stdin)
+     	      fprintf(stdout,"Please specify the source parameters set 1 (4 floating-points):\n\t");
+           MCX_ASSERT(fscanf(in, "%f %f %f %f", &(cfg->srcparam1.x),
+	          &(cfg->srcparam1.y),&(cfg->srcparam1.z),&(cfg->srcparam1.w))==4);
+	   if(in==stdin)
+     	      fprintf(stdout,"Please specify the source parameters set 2 (4 floating-points):\n\t");
+           MCX_ASSERT(fscanf(in, "%f %f %f %f", &(cfg->srcparam2.x),
+	          &(cfg->srcparam2.y),&(cfg->srcparam2.z),&(cfg->srcparam2.w))==4);
+           if(cfg->srctype==MCX_SRC_PATTERN && cfg->srcparam1.w*cfg->srcparam2.w>0){
+               char patternfile[MAX_PATH_LENGTH];
+               FILE *fp;
+               if(cfg->srcpattern) free(cfg->srcpattern);
+               cfg->srcpattern=(float*)calloc((cfg->srcparam1.w*cfg->srcparam2.w),sizeof(float));
+               MCX_ASSERT(fscanf(in, "%s", patternfile)==1);
+               fp=fopen(patternfile,"rb");
+               if(fp==NULL)
+                     MCX_ERROR(-6,"pattern file can not be opened");
+               MCX_ASSERT(fread(cfg->srcpattern,cfg->srcparam1.w*cfg->srcparam2.w,sizeof(float),fp)==sizeof(float));
+               fclose(fp);
+           }else if(cfg->srctype==MCX_SRC_PATTERN3D && cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z>0){
+               char patternfile[MAX_PATH_LENGTH];
+               FILE *fp;
+               if(cfg->srcpattern) free(cfg->srcpattern);
+               cfg->srcpattern=(float*)calloc((int)(cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z),sizeof(float));
+               MCX_ASSERT(fscanf(in, "%s", patternfile)==1);
+               fp=fopen(patternfile,"rb");
+               if(fp==NULL)
+                     MCX_ERROR(-6,"pattern file can not be opened");
+               MCX_ASSERT(fread(cfg->srcpattern,cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z,sizeof(float),fp)==sizeof(float));
+               fclose(fp);
+           }
+	}else
+	   return;
+     }else
+        return;
+}
+
+/**
+ * @brief Preprocess user input and prepare the volumetric domain for simulation
+ *
+ * This function preprocess the user input and prepare the domain for the simulation.
+ * It loads the media index array from file, add detector masks for easy detection, and
+ * check inconsistency between the user specified inputs.
+ *
+ * @param[in] filename: the name of the output file
+ * @param[in] cfg: simulation configuration
+ */
+
+void mcx_prepdomain(char *filename, Config *cfg){
+     if(filename[0] || cfg->vol){
+        if(cfg->vol==NULL){
+	     mcx_loadvolume(filename,cfg);
+	     if(cfg->shapedata && strstr(cfg->shapedata,":")!=NULL){
+	          int status;
+     		  Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
+        	  if(cfg->issrcfrom0) memset(&(grid.orig.x),0,sizeof(float3));
+		  status=mcx_parse_shapestring(&grid,cfg->shapedata);
+		  if(status){
+		      MCX_ERROR(status,mcx_last_shapeerror());
+		  }
+	     }
+	}
+	if(cfg->isrowmajor){
+		/*from here on, the array is always col-major*/
+		mcx_convertrow2col(&(cfg->vol), &(cfg->dim));
+		cfg->isrowmajor=0;
+	}
 	if(cfg->issavedet)
 		mcx_maskdet(cfg);
-        if(cfg->srcpos.x<0.f || cfg->srcpos.y<0.f || cfg->srcpos.z<0.f ||
-            cfg->srcpos.x>=cfg->dim.x || cfg->srcpos.y>=cfg->dim.y || cfg->srcpos.z>=cfg->dim.z)
-                mcx_error(-4,"source position is outside of the volume",__FILE__,__LINE__);
-
-	idx1d=((int)floor(cfg->srcpos.z)*cfg->dim.y*cfg->dim.x+(int)floor(cfg->srcpos.y)*cfg->dim.x+(int)floor(cfg->srcpos.x));
-
-        /* if the specified source position is outside the domain, move the source
-	   along the initial vector until it hit the domain */
-	if(cfg->vol && cfg->vol[idx1d]==0){
-                printf("source (%f %f %f) is located outside the domain, vol[%d]=%d\n",
-		      cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,idx1d,cfg->vol[idx1d]);
-		while(cfg->vol[idx1d]==0){
-			cfg->srcpos.x+=cfg->srcdir.x;
-			cfg->srcpos.y+=cfg->srcdir.y;
-			cfg->srcpos.z+=cfg->srcdir.z;
-			printf("fixing source position to (%f %f %f)\n",cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z);
-			idx1d=cfg->isrowmajor?(int)(floor(cfg->srcpos.x)*cfg->dim.y*cfg->dim.z+floor(cfg->srcpos.y)*cfg->dim.z+floor(cfg->srcpos.z)):\
-                		      (int)(floor(cfg->srcpos.z)*cfg->dim.y*cfg->dim.x+floor(cfg->srcpos.y)*cfg->dim.x+floor(cfg->srcpos.x));
-		}
-	}
-        cfg->his.maxmedia=cfg->medianum-1; /*skip media 0*/
-        cfg->his.detnum=cfg->detnum;
-        cfg->his.colcount=cfg->medianum+1; /*column count=maxmedia+2*/
+	if(cfg->isdumpmask)
+	        mcx_dumpmask(cfg);
      }else{
      	mcx_error(-4,"one must specify a binary volume file in order to run the simulation",__FILE__,__LINE__);
      }
+/*
+     if(cfg->seed==SEED_FROM_FILE && cfg->seedfile[0]){
+        if(cfg->respin>1){
+	   cfg->respin=1;
+	   fprintf(stderr,"Warning: respin is disabled in the replay mode\n");
+	}
+        mcx_loadseedfile(cfg);
+     }
+*/  
+     if(cfg->medianum){
+        for(int i=0;i<cfg->medianum;i++)
+             if(cfg->prop[i].mus==0.f)
+	         cfg->prop[i].mus=EPS;
+     }
+     for(int i=0;i<MAX_DEVICE;i++)
+        if(cfg->deviceid[i]=='0')
+           cfg->deviceid[i]='\0';
 }
 
 int mcx_loadjson(cJSON *root, Config *cfg){
@@ -724,7 +775,6 @@ int mcx_loadjson(cJSON *root, Config *cfg){
 	   if(!cfg->issrcfrom0){
               cfg->srcpos.x--;cfg->srcpos.y--;cfg->srcpos.z--; /*convert to C index, grid center*/
 	   }
-/*
            cfg->srctype=mcx_keylookup((char*)FIND_JSON_KEY("Type","Optode.Source.Type",src,"pencil",valuestring),srctypeid);
            subitem=FIND_JSON_OBJ("Param1","Optode.Source.Param1",src);
            if(subitem){
@@ -744,14 +794,15 @@ int mcx_loadjson(cJSON *root, Config *cfg){
            if(subitem){
               int nx=FIND_JSON_KEY("Nx","Optode.Source.Pattern.Nx",subitem,0,valueint);
               int ny=FIND_JSON_KEY("Ny","Optode.Source.Pattern.Ny",subitem,0,valueint);
-              if(nx>0 || ny>0){
+              int nz=FIND_JSON_KEY("Nz","Optode.Source.Pattern.Nz",subitem,1,valueint);
+              if(nx>0 && ny>0){
                  cJSON *pat=FIND_JSON_OBJ("Data","Optode.Source.Pattern.Data",subitem);
                  if(pat && pat->child){
                      int i;
                      pat=pat->child;
                      if(cfg->srcpattern) free(cfg->srcpattern);
-                     cfg->srcpattern=(float*)calloc(nx*ny,sizeof(float));
-                     for(i=0;i<nx*ny;i++){
+                     cfg->srcpattern=(float*)calloc(nx*ny*nz,sizeof(float));
+                     for(i=0;i<nx*ny*nz;i++){
                          cfg->srcpattern[i]=pat->valuedouble;
                          if((pat=pat->next)==NULL){
                              MCX_ERROR(-1,"Incomplete pattern data");
@@ -760,7 +811,6 @@ int mcx_loadjson(cJSON *root, Config *cfg){
                  }
               }
            }
-*/
         }
         dets=FIND_JSON_OBJ("Detector","Optode.Detector",Optode);
         if(dets){
@@ -1267,7 +1317,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		fprintf(cfg->flog,"unable to save to log file, will print from stdout\n");
           }
      }
-     if(cfg->clsource==NULL && cfg->isgpuinfo!=2){
+     if(cfg->kernelfile[0]!='\0' && cfg->isgpuinfo!=2){
      	  FILE *fp=fopen(cfg->kernelfile,"rb");
 	  int srclen;
 	  if(fp==NULL){
@@ -1275,6 +1325,8 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 	  }
 	  fseek(fp,0,SEEK_END);
 	  srclen=ftell(fp);
+	  if(cfg->clsource!=(char *)mcx_core_cl)
+	      free(cfg->clsource);
 	  cfg->clsource=(char *)malloc(srclen+1);
 	  fseek(fp,0,SEEK_SET);
 	  MCX_ASSERT((fread(cfg->clsource,srclen,1,fp)==1));

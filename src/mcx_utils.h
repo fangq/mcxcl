@@ -113,6 +113,8 @@ typedef struct MCXConfig{
 	char isverbose;     /*1 print debug info, 0 do not*/
 	char issrcfrom0;    /*1 do not subtract 1 from src/det positions, 0 subtract 1*/
         char isdumpmask;    /*1 dump detector mask; 0 not*/
+	char srctype;                /**<0:pencil,1:isotropic,2:cone,3:gaussian,4:planar,5:pattern,\
+                                         6:fourier,7:arcsine,8:disk,9:fourierx,10:fourierx2d,11:zgaussian,12:line,13:slit*/
         char autopilot;     /**<1 optimal setting for dedicated card, 2, for non dedicated card*/
         char outputtype;    /**<'X' output is flux, 'F' output is fluence, 'E' energy deposit*/
         char outputformat;  /**<'mc2' output is text, 'nii': binary, 'img': regular json, 'ubj': universal binary json*/
@@ -126,6 +128,11 @@ typedef struct MCXConfig{
 	char compileropt[MAX_PATH_LENGTH];
         char *shapedata;    /**<a pointer points to a string defining the JSON-formatted shape data*/
 	char *clsource;
+	int maxvoidstep;             /**< max number of steps that a photon can advance before reaching a non-zero voxel*/
+	int voidtime;                /**<1 start counting photon time when moves inside 0 voxels; 0: count time only after enters non-zero voxel*/
+	float4 srcparam1;            /**<a quadruplet {x,y,z,w} for additional source parameters*/
+	float4 srcparam2;            /**<a quadruplet {x,y,z,w} for additional source parameters*/
+        float* srcpattern;           /**<a string for the source form, options include "pencil","isotropic", etc*/
         char deviceid[MAX_DEVICE];
 	float workload[MAX_DEVICE];
 	float *exportfield;     /*memory buffer when returning the flux to external programs such as matlab*/
@@ -159,6 +166,7 @@ int  mcx_readarg(int argc, char *argv[], int id, void *output,const char *type);
 void mcx_printlog(Config *cfg, const char *str);
 int  mcx_remap(char *opt);
 void mcx_maskdet(Config *cfg);
+void mcx_prepdomain(char *filename, Config *cfg);
 void mcx_createfluence(float **fluence, Config *cfg);
 void mcx_clearfluence(float **fluence);
 void mcx_convertrow2col(unsigned int **vol, uint4 *dim);

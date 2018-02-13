@@ -27,6 +27,13 @@ extern cl_event kernelevent;
 
 const char *VendorList[]={"Unknown","NVIDIA","AMD","Intel","IntelGPU"};
 
+const char *sourceflag[]={"-DMCX_SRC_PENCIL","-DMCX_SRC_ISOTROPIC","-DMCX_SRC_CONE",
+    "-DMCX_SRC_GAUSSIAN","-DMCX_SRC_PLANAR","-DMCX_SRC_PATTERN","-DMCX_SRC_FOURIER",
+    "-DMCX_SRC_ARCSINE","-DMCX_SRC_DISK","-DMCX_SRC_FOURIERX","-DMCX_SRC_FOURIERX2D",
+    "-DMCX_SRC_ZGAUSSIAN","-DMCX_SRC_LINE","-DMCX_SRC_SLIT","-DMCX_SRC_PENCILARRAY",
+    "-DMCX_SRC_PATTERN3D"};
+
+
 char *print_cl_errstring(cl_int err) {
     switch (err) {
         case CL_SUCCESS:                          return strdup("Success!");
@@ -263,7 +270,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cl_uint  devid=0;
      cl_mem gmedia,gproperty,gparam;
      cl_mem *gfield,*gdetphoton,*gseed,*genergy;
-     cl_mem *gstopsign,*gdetected,*gdetpos;
+     cl_mem *gstopsign,*gdetected,*gdetpos, *gsrcpattern;
 
      cl_uint dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z;
 
@@ -283,7 +290,9 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                      (uint)cfg->issave2pt,(uint)cfg->isreflect,(uint)cfg->isrefint,(uint)cfg->issavedet,1.f/cfg->tstep,
                      cfg->minenergy,
                      cfg->sradius*cfg->sradius,minstep*R_C0*cfg->unitinmm,cfg->maxdetphoton,
-                     cfg->medianum-1,cfg->detnum,0,0,0,0};
+                     cfg->medianum-1,cfg->detnum,0,0,0,0,(uint)cfg->voidtime,(uint)cfg->srctype,
+		     {{cfg->srcparam1.x,cfg->srcparam1.y,cfg->srcparam1.z,cfg->srcparam1.w}},
+		     {{cfg->srcparam2.x,cfg->srcparam2.y,cfg->srcparam2.z,cfg->srcparam2.w}},(uint)cfg->maxvoidstep};
 
      platform=mcx_list_gpu(cfg,&workdev,devices,&gpu);
 
@@ -310,6 +319,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      gstopsign=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gdetected=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gdetpos=(cl_mem *)malloc(workdev*sizeof(cl_mem));
+     gsrcpattern=(cl_mem *)malloc(workdev*sizeof(cl_mem));
 
      /* The block is to move the declaration of prop closer to its use */
      cl_command_queue_properties prop = CL_QUEUE_PROFILING_ENABLE;
@@ -398,6 +408,12 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
        OCL_ASSERT(((gstopsign[i]=clCreateBuffer(mcxcontext,RW_PTR, sizeof(cl_uint),&stopsign,&status),status)));
        OCL_ASSERT(((gdetected[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint),&detected,&status),status)));
        OCL_ASSERT(((gdetpos[i]=clCreateBuffer(mcxcontext,RO_MEM, cfg->detnum*sizeof(float4),cfg->detpos,&status),status)));
+       if(cfg->srctype==MCX_SRC_PATTERN)
+           OCL_ASSERT(((gsrcpattern[i]=clCreateBuffer(mcxcontext,RO_MEM, sizeof(float)*(int)(cfg->srcparam1.w*cfg->srcparam2.w),cfg->srcpattern,&status),status)));
+       else if(cfg->srctype==MCX_SRC_PATTERN3D)
+           OCL_ASSERT(((gsrcpattern[i]=clCreateBuffer(mcxcontext,RO_MEM, sizeof(float)*(int)(cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z),cfg->srcpattern,&status),status)));
+       else
+           gsrcpattern[i]=NULL;
        free(Pseed);
        free(energy);
      }
@@ -425,6 +441,9 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
          sprintf(opt,"%s ","-cl-mad-enable -DMCX_USE_NATIVE");
      if(cfg->optlevel>=3)
          sprintf(opt+strlen(opt),"%s ","-DMCX_SIMPLIFY_BRANCH -DMCX_VECTOR_INDEX");
+     
+     if((uint)cfg->srctype<sizeof(sourceflag)/sizeof(sourceflag[0]))
+         sprintf(opt+strlen(opt),"%s ",sourceflag[(uint)cfg->srctype]);
 
      sprintf(opt+strlen(opt),"%s",cfg->compileropt);
      if(cfg->issavedet)
@@ -473,10 +492,11 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 5, sizeof(cl_mem), (void*)(gseed+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 6, sizeof(cl_mem), (void*)(gdetphoton+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 7, sizeof(cl_mem), (void*)&gproperty)));
-	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 8, sizeof(cl_mem), (void*)(gdetpos+i))));
-	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 9, sizeof(cl_mem), (void*)(gstopsign+i))));
-	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],10, sizeof(cl_mem), (void*)(gdetected+i))));
-	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],11, cfg->issavedet? sizeof(int)+sizeof(cl_float)*cfg->nblocksize*param.maxmedia : sizeof(int), NULL)));
+	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 8, sizeof(cl_mem), (void*)(gsrcpattern+i))));
+	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 9, sizeof(cl_mem), (void*)(gdetpos+i))));
+	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],10, sizeof(cl_mem), (void*)(gstopsign+i))));
+	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],11, sizeof(cl_mem), (void*)(gdetected+i))));
+	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],12, cfg->issavedet? sizeof(int)+sizeof(cl_float)*cfg->nblocksize*param.maxmedia : sizeof(int), NULL)));
      }
      fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
 
@@ -514,7 +534,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	       param.blockphoton=(int)(np*cfg->workload[devid]/(fullload*nblock*cfg->respin));;
 	       param.blockextra =(int)(np*cfg->workload[devid]/(fullload*cfg->respin)-param.blockphoton*nblock);
                OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],gparam,CL_TRUE,0,sizeof(MCXParam),&param, 0, NULL, NULL)));
-               OCL_ASSERT((clSetKernelArg(mcxkernel[devid],12, sizeof(cl_mem), (void*)&gparam)));
+               OCL_ASSERT((clSetKernelArg(mcxkernel[devid],13, sizeof(cl_mem), (void*)&gparam)));
                // launch mcxkernel
 #ifndef USE_OS_TIMER
                OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,&gpu[devid].autothread,&gpu[devid].autoblock, 0, NULL, &kernelevent)));

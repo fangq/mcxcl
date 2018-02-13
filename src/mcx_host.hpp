@@ -59,6 +59,11 @@ typedef struct KernelParams {
   cl_uint mediaidorig;
   cl_uint blockphoton;
   cl_uint blockextra;
+  cl_uint voidtime;
+  cl_uint srctype;                    /**< type of the source */
+  cl_float4 srcparam1;                  /**< source parameters set 1 */
+  cl_float4 srcparam2;                  /**< source parameters set 2 */
+  cl_uint   maxvoidstep;
 } MCXParam __attribute__ ((aligned (16)));
 
 void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy);
