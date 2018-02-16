@@ -382,10 +382,13 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      memcpy(&(param.dimlen.x),&(dimlen.x),sizeof(uint4));
      memcpy(&(param.cachebox.x),&(cachebox.x),sizeof(uint2));
-     param.idx1dorig=(int(floorf(param.ps.z))*dimlen.y+
-                      int(floorf(param.ps.y))*dimlen.x+
-		      int(floorf(param.ps.x)));
-     param.mediaidorig=(cfg->vol[param.idx1dorig] & MED_MASK);
+     if(param.ps.x<0.f || param.ps.y<0.f || param.ps.z<0.f || param.ps.x>=cfg->dim.x || param.ps.y>=cfg->dim.y || param.ps.z>=cfg->dim.z){
+         param.idx1dorig=0;
+         param.mediaidorig=0;
+     }else{
+         param.idx1dorig=(int(floorf(param.ps.z))*dimlen.y+int(floorf(param.ps.y))*dimlen.x+int(floorf(param.ps.x)));
+         param.mediaidorig=(cfg->vol[param.idx1dorig] & MED_MASK);
+     }
 
      if(cfg->seed>0)
      	srand(cfg->seed);

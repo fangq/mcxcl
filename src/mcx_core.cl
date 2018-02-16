@@ -225,18 +225,21 @@ void clearpath(__local float *p, __constant MCXParam *gcfg){
 }
 
 #ifdef MCX_SAVE_DETECTORS
-uint finddetector(float4 *p0,__constant float4 *gdetpos,uint id){
-      if((gdetpos[id].x-p0[0].x)*(gdetpos[id].x-p0[0].x)+
-	   (gdetpos[id].y-p0[0].y)*(gdetpos[id].y-p0[0].y)+
-	   (gdetpos[id].z-p0[0].z)*(gdetpos[id].z-p0[0].z) < gdetpos[id].w){
-	        return id+1;
+uint finddetector(float4 *p0,__constant float4 *gdetpos,__constant MCXParam *gcfg){
+      uint i;
+      for(i=0;i<gcfg->detnum;i++){
+      	if((gdetpos[i].x-p0[0].x)*(gdetpos[i].x-p0[0].x)+
+	   (gdetpos[i].y-p0[0].y)*(gdetpos[i].y-p0[0].y)+
+	   (gdetpos[i].z-p0[0].z)*(gdetpos[i].z-p0[0].z) < gdetpos[i].w){
+	        return i+1;
+	   }
       }
       return 0;
 }
 
 void savedetphoton(__global float *n_det,__global uint *detectedphoton,float nscat,
                    __local float *ppath,float4 *p0,__constant float4 *gdetpos,__constant MCXParam *gcfg){
-      detid=finddetector(p0,gdetpos,detid-1);
+      uint detid=finddetector(p0,gdetpos,gcfg);
       if(detid){
 	 uint baseaddr=atomic_inc(detectedphoton);
 	 if(baseaddr<gcfg->maxdetphoton){
@@ -409,7 +412,7 @@ float reflectcoeff(float4 *v, float n1, float n2, int flipdir){
  * @return the reflection coefficient R=(Rs+Rp)/2, Rs: R of the perpendicularly polarized light, Rp: parallelly polarized light
  */
 
-int skipvoid(float4 *p,float4 *v,float4 *f,uint media[], __constant float4 *gproperty, __constant MCXParam *gcfg){
+int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint media[], __constant float4 *gproperty, __constant MCXParam *gcfg){
       int count=1,idx1d;
       while(1){
           if(!(any(isless(p[0].xyz,(float3)(0.f))) || any(isgreaterequal(p[0].xyz,(gcfg->maxidx.xyz))))){
@@ -499,7 +502,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
            __global float *field, uint *mediaid,float *w0,float *Lmove,uint isdet, 
 	   __local float *ppath,float *energyloss,float *energylaunched,
 	   __global float *n_det,__global uint *dpnum, __private RandType t[RAND_BUF_LEN],
-	   __constant float4 *gproperty, uint media[], __global float srcpattern[],
+	   __constant float4 *gproperty, __global const uint media[], __global float srcpattern[],
 	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, int threadphoton, 
 	   int oddphotons, __local int *blockphoton){
 
@@ -822,8 +825,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      float4 p={0.f,0.f,0.f,-1.f};  //{x,y,z}: x,y,z coordinates,{w}:packet weight
      float4 v=gcfg->c0;  //{x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event
      float4 f={0.f,0.f,0.f,0.f};  //f.w can be dropped to save register
-     float  energyloss=0.f;
-     float  energylaunched=0.f;
+     float  energyloss=genergy[idx<<1];
+     float  energylaunched=genergy[(idx<<1)+1];
 
      uint idx1d, idx1dold;   //idx1dold is related to reflection
 
@@ -869,7 +872,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
                GPUDEBUG(((__constant char*)"scat L=%f RNG=[%e %e %e] \n",f.x,rand_next_aangle(t),rand_next_zangle(t),rand_uniform01(t)));
 
-	       if(p.w<1.f){ //weight
+	       if(v.w!=EPS){ //weight
                        //random arimuthal angle
                        float cphi,sphi,theta,stheta,ctheta;
                        float tmp0=TWO_PI*rand_next_aangle(t); //next arimuth angle
@@ -899,6 +902,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                        rotatevector(&v,stheta,ctheta,sphi,cphi);
                        v.w+=1.f;
 	       }
+	       v.w=(int)v.w;
 	  }
 
 	  n1=prop.w;
@@ -1002,7 +1006,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                         transmit(&v,n1,prop.w,flipdir);
                         if(mediaid==0){ // transmission to external boundary
                             GPUDEBUG(((__constant char*)"transmit to air, relaunch\n"));
-		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,&mediaid,&Lmove,&w0,(mediaidold & DET_MASK),
+		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),
 			        ppath,&energyloss,&energylaunched,n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton)){
                                     break;
 			    }
@@ -1029,7 +1033,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
               }
 #endif
      }
-     genergy[idx<<1]=energyloss+p.w;
+     genergy[idx<<1]=energyloss;
      genergy[(idx<<1)+1]=energylaunched;
 }
 
