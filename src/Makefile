@@ -50,7 +50,7 @@ ifdef AMDAPPSDKROOT
   INCLUDEDIRS +=-I$(AMDAPPSDKROOT)/include
 endif
   
-all logfast:CUCCOPT+=
+all static: CUCCOPT+=
 mt:         CUCCOPT+=-DUSE_MT_RAND
 fast:       CUCCOPT+=-DUSE_MT_RAND
 log:        CUCCOPT+=
@@ -66,7 +66,7 @@ mtatomic logatomic:	BINARY:=$(BINARY)_atomic
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 CLSOURCE  := $(addsuffix $(CLHEADER), $(CLPROGRAM))
 
-all mt fast log logfast racing mtatomic logatomic mtbox logbox debugmt debuglog det: $(OUTPUT_DIR)/$(BINARY)
+all mt fast log logfast racing mtatomic logatomic mtbox logbox debugmt debuglog det static : $(OUTPUT_DIR)/$(BINARY)
 
 makedirs:
 	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) $(OUTPUT_DIR); fi
@@ -85,6 +85,8 @@ $(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(OBJS)
 
 intelcpu:
 	$(IOCC) -cmd=build -input=mcx_core.cl -device=cpu -spir64=mcx_core_intelcpu.bc -bo="-cl-std=CL1.2"
+
+static: LINKOPT:=-Wl,-Bstatic -lm -Wl,-Bdynamic -static-libgcc -static-libstdc++ $(LINKOPT) -Wl,-Bstatic -lm -Wl,-Bdynamic
 
 clean:
 	-rm -f $(OBJS) $(CLSOURCE) $(OUTPUT_DIR)/$(BINARY)$(EXESUFFIX) $(OUTPUT_DIR)/$(BINARY)_atomic$(EXESUFFIX)
