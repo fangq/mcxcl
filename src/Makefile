@@ -11,15 +11,34 @@ IOCC=ioc64
 BINARY=mcxcl
 OUTPUT_DIR=../bin
 INCLUDEDIRS=
-AMDAPPSDKROOT ?=/opt/AMDAPPSDK-3.0
-LIBOPENCLDIR ?=$(AMDAPPSDKROOT)/lib/x86_64
-LIBOPENCL=-lOpenCL
-LINKOPT=-g -L$(LIBOPENCLDIR) $(LIBOPENCL)
 
-CUCCOPT=-I/usr/local/cuda/include #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
-CCOPT=-g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -I/usr/local/cuda/include
+CUCCOPT:=
+CCOPT=-g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER 
 CPPOPT:=$(CCOPT)
 CCOPT+=-std=c99
+
+LIBOPENCLDIR:=
+
+# setup for amd
+AMDAPPSDKROOT ?=/opt/AMDAPPSDK-3.0
+HAS_AMD := $(shell [ -d $(AMDAPPSDKROOT) ] && echo "1" )
+ifeq ($(HAS_AMD), 1)                                                        
+  LIBOPENCLDIR=$(AMDAPPSDKROOT)/lib/x86_64
+  INCLUDEDIRS +=-I$(AMDAPPSDKROOT)/include
+endif
+
+# setup for cuda
+CUDA_PATH ?= /usr/local/cuda
+HAS_CUDA := $(shell [ -d $(CUDA_PATH) ] && echo "1" )
+ifeq ($(HAS_CUDA), 1)                                                        
+  CUCCOPT +=-I$(CUDA_PATH)/include #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
+  CCOPT += -I$(CUDA_PATH)/include
+  LIBOPENCLDIR=$(CUDA_PATH)/lib64
+  INCLUDEDIRS +=-I$(CUDA_PATH)/include
+endif
+
+LIBOPENCL=-lOpenCL
+LINKOPT=-g -L$(LIBOPENCLDIR) $(LIBOPENCL)
 
 OBJSUFFIX=.o
 EXESUFFIX=
@@ -44,10 +63,6 @@ ifeq ($(findstring Msys,$(PLATFORM)), Msys)
 else ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
   INCLUDEDIRS=-I/System/Library/Frameworks/OpenCL.framework/Headers
   LIBOPENCL=-framework OpenCL
-endif
-
-ifdef AMDAPPSDKROOT
-  INCLUDEDIRS +=-I$(AMDAPPSDKROOT)/include
 endif
   
 all static: CUCCOPT+=
