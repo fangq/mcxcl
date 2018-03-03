@@ -156,8 +156,9 @@ typedef ulong  RandType;
 
 static float xorshift128p_nextf (__private RandType t[RAND_BUF_LEN]){
    union {
-        double d;
         ulong  i;
+	float f[2];
+	uint  u[2];
    } s1;
    const ulong s0 = t[1];
    s1.i = t[0];
@@ -165,9 +166,9 @@ static float xorshift128p_nextf (__private RandType t[RAND_BUF_LEN]){
    s1.i ^= s1.i << 23; // a
    t[1] = s1.i ^ s0 ^ (s1.i >> 18) ^ (s0 >> 5); // b, c
    s1.i = t[1] + s0;
-   s1.i = (s1.i >> 12) | IEEE754_DOUBLE_BIAS;
+   s1.u[0] = 0x3F800000U | (s1.u[0] >> 9);
 
-   return (float)s1.d - 1.0f;
+   return s1.f[0] - 1.0f;
 }
 
 static void copystate(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN]){
