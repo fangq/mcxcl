@@ -7,6 +7,7 @@
 #CXX=g++
 AR=g++
 IOCC=ioc64
+MEX=mex
 
 BINARY=mcxcl
 OUTPUT_DIR=../bin
@@ -18,6 +19,9 @@ CPPOPT:=$(CCOPT)
 CCOPT+=-std=c99
 
 LIBOPENCLDIR:=
+
+DLLFLAG=-fPIC
+OMP=-fopenmp
 
 # setup for amd
 AMDAPPSDKROOT ?=/opt/AMDAPPSDK-3.0
@@ -53,35 +57,39 @@ CLPROGRAM=mcx_core
 
 ARCH = $(shell uname -m)
 PLATFORM = $(shell uname -s)
-ifeq ($(findstring Msys,$(PLATFORM)), Msys)
+ifeq ($(findstring Msys,$(PLATFORM)), CYGWIN)
   CCC=nvcc
   LINKOPT=-L/c/CUDA/lib -lcudart --link
   INCLUDEDIRS +=-I/c/CUDA/include
   CPPOPT =-c  -D_CRT_SECURE_NO_DEPRECATE -DWIN32
   OBJSUFFIX=.obj
   EXESUFFIX=.exe
+  MEX=cmd /c mex
+  DLLFLAG=
 else ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
   INCLUDEDIRS=-I/System/Library/Frameworks/OpenCL.framework/Headers
   LIBOPENCL=-framework OpenCL
 endif
   
 all static: CUCCOPT+=
-mt:         CUCCOPT+=-DUSE_MT_RAND
-fast:       CUCCOPT+=-DUSE_MT_RAND
-log:        CUCCOPT+=
-debugmt:    CUCCOPT+=-DUSE_MT_RAND
-debuglog:   CUCCOPT+=
-racing:     CUCCOPT+=-DTEST_RACING
-mtatomic:   CUCCOPT+=-DUSE_MT_RAND -DUSE_ATOMIC -use_fast_math -arch compute_11
-logatomic:  CUCCOPT+=-DUSE_ATOMIC -use_fast_math -arch compute_11
-mtbox logbox:		CUCCOPT+=-DCACHE_NON_ATOMIC
-debugmt debuglog:	CUCCOPT+=-deviceemu
-mtatomic logatomic:	BINARY:=$(BINARY)_atomic
+
+mex:        AR=$(MEX)
+mex:        LINKOPT+= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER  $(MEXCCOPT) $(USERCCOPT)' LDFLAGS='-L$$TMW_ROOT$$MATLABROOT/sys/os/$$ARCH $$LDFLAGS  $(USERLINKOPT)' 
+mex oct:    OUTPUT_DIR=../mcxlabcl
+mex:        BINARY=mcxcl
+mex oct:    CUCCOPT+=$(DLLFLAG) -DMCX_CONTAINER
+mex oct:    CCOPT+=$(DLLFLAG) -DMCX_CONTAINER
+mex oct:    CPPOPT+=$(DLLFLAG) -DMCX_CONTAINER
+mex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
+
+oct:        BINARY=mcxcl.mex
+oct:        AR= CXXFLAGS='$(MEXCCOPT) $(USERCCOPT)' LFLAGS=' $(USERLINKOPT)' LDFLAGS='$(LFLAGS)' mkoctfile
+oct:        LINKOPT+=--mex mcxlabcl.cpp $(INCLUDEDIRS)
 
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 CLSOURCE  := $(addsuffix $(CLHEADER), $(CLPROGRAM))
 
-all mt fast log logfast racing mtatomic logatomic mtbox logbox debugmt debuglog det static : $(OUTPUT_DIR)/$(BINARY)
+all mex oct static : $(OUTPUT_DIR)/$(BINARY)
 
 makedirs:
 	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) $(OUTPUT_DIR); fi

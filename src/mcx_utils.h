@@ -19,7 +19,7 @@
 #define MIN_HEADER_SIZE 348
 #define NII_HEADER_SIZE 352
 
-enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otTaylor};
+enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP};   /**< types of output */
 enum TMCXParent  {mpStandalone, mpMATLAB};
 enum TOutputFormat {ofMC2, ofNifti, ofAnalyze, ofUBJSON};
 enum TDeviceVendor {dvUnknown, dvNVIDIA, dvAMD, dvIntel, dvIntelGPU};
@@ -42,7 +42,8 @@ typedef struct MCXHistoryHeader{
 	unsigned int  savedphoton;
 	float unitinmm;
 	unsigned int  seedbyte;
-	int reserved[6];
+        float normalizer;              /**< what is the normalization factor */
+	int reserved[5];
 } History;
 
 typedef struct PhotonReplay{
@@ -54,6 +55,7 @@ typedef struct PhotonReplay{
 typedef struct MCXGPUInfo {
         char name[MAX_SESSION_LENGTH];
         int id;
+	int devcount;
         int platformid;
         int major, minor;
         size_t globalmem, constmem, sharedmem;
@@ -98,6 +100,8 @@ typedef struct MCXConfig{
 	unsigned int maxgate;        /*simultaneous recording gates*/
 	unsigned int respin;         /*number of repeatitions*/
 	int printnum;       /*number of printed threads (for debugging)*/
+	unsigned int reseedlimit;     /**<number of scattering events per thread before the RNG is reseeded*/
+	int gpuid;                    /**<the ID of the GPU to use, starting from 1, 0 for auto*/
 
 	unsigned int *vol; /*pointer to the volume*/
 	char session[MAX_SESSION_LENGTH]; /*session id, a string*/
@@ -113,6 +117,9 @@ typedef struct MCXConfig{
 	char isverbose;     /*1 print debug info, 0 do not*/
 	char issrcfrom0;    /*1 do not subtract 1 from src/det positions, 0 subtract 1*/
         char isdumpmask;    /*1 dump detector mask; 0 not*/
+	char issaveseed;             /**<1 save the seed for a detected photon, 0 do not save*/
+	char issaveexit;             /**<1 save the exit position and dir of a detected photon, 0 do not save*/
+	char issaveref;              /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
 	char srctype;                /**<0:pencil,1:isotropic,2:cone,3:gaussian,4:planar,5:pattern,\
                                          6:fourier,7:arcsine,8:disk,9:fourierx,10:fourierx2d,11:zgaussian,12:line,13:slit*/
         char autopilot;     /**<1 optimal setting for dedicated card, 2, for non dedicated card*/
@@ -137,11 +144,24 @@ typedef struct MCXConfig{
 	float workload[MAX_DEVICE];
 	float *exportfield;     /*memory buffer when returning the flux to external programs such as matlab*/
 	float *exportdetected;  /*memory buffer when returning the partial length info to external programs such as matlab*/
+        unsigned int debuglevel;     /**<a flag to control the printing of the debug information*/
+	char faststep;               /**<1 use tMCimg-like approximated photon stepping (obsolete) */
+	float normalizer;            /**<normalization factor*/
+
+	Replay replay;               /**<a structure to prepare for photon replay*/
+	void *seeddata;              /**<poiinter to a buffer where detected photon seeds are stored*/
+        int replaydet;               /**<the detector id for which to replay the detected photons, start from 1*/
+        char seedfile[MAX_PATH_LENGTH];/**<if the seed is specified as a file (mch), mcx will replay the photons*/
+
+	unsigned int maxjumpdebug;   /**<num of  photon scattering events to save when saving photon trajectory is enabled*/
+	unsigned int debugdatalen;   /**<max number of photon trajectory position length*/
+	unsigned int gscatter;       /**<after how many scattering events that we can use mus' instead of mus */
+	float *exportdebugdata;      /**<pointer to the buffer where the photon trajectory data are stored*/
+
 	unsigned int detectedcount; /**<total number of detected photons*/
 	unsigned int runtime;
 	int parentid;
         uint optlevel;
-	void *seeddata;
 	uint mediabyte;
 } Config;
 
@@ -152,6 +172,7 @@ void mcx_savedata(float *dat, int len, Config *cfg);
 void mcx_savenii(float *dat, int len, char* name, int type32bit, int outputformatid, Config *cfg);
 void mcx_error(const int id,const char *msg,const char *file,const int linenum);
 void mcx_assess(const int id,const char *msg,const char *file,const int linenum);
+void mcx_cleargpuinfo(GPUInfo **gpuinfo);
 void mcx_loadconfig(FILE *in, Config *cfg);
 void mcx_saveconfig(FILE *in, Config *cfg);
 void mcx_readconfig(const char *fname, Config *cfg);
@@ -179,6 +200,29 @@ void mcx_printheader(Config *cfg);
 void mcx_dumpmask(Config *cfg);
 void mcx_version(Config *cfg);
 int  mcx_isbinstr(const char * str);
+void mcx_flush(Config *cfg);
+
+
+#ifdef MCX_CONTAINER
+#ifdef __cplusplus
+extern "C"
+#endif
+ int  mcx_throw_exception(const int id, const char *msg, const char *filename, const int linenum);
+ void mcx_matlab_flush(void);
+#endif
+
+#ifdef MCX_CONTAINER
+  #define MCX_FPRINTF(fp,...) mexPrintf(__VA_ARGS__)
+#else
+  #define MCX_FPRINTF(fp,...) fprintf(fp,__VA_ARGS__)
+#endif
+
+#if defined(MATLAB_MEX_FILE) || defined(OCTAVE_API_VERSION_NUMBER)
+    int mexPrintf(const char * format, ... );
+#else
+    int mexPrintf(const char * format, ... );
+#endif
+int mexEvalString(const char *command);
 
 #ifdef	__cplusplus
 }

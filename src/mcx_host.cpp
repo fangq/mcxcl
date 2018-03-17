@@ -112,10 +112,16 @@ int mcx_nv_corecount(int v1, int v2){
      else          return 128;
 }
 
+/**
+ * @brief Utility function to query GPU info and set active GPU
+ *
+ * This function query and list all available GPUs on the system and print
+ * their parameters. This is used when -L or -I is used.
+ *
+ * @param[in,out] cfg: the simulation configuration structure
+ * @param[out] info: the GPU information structure
+ */
 
-/*
-  query GPU info and set active GPU
-*/
 cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *activedevlist,GPUInfo **info){
 
     uint i,j,k,cuid=0,devnum;
@@ -128,6 +134,7 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
     cl_context_properties cps[3]={CL_CONTEXT_PLATFORM, 0, 0};
     cl_int status = 0;
     size_t deviceListSize;
+    int totaldevice=0;
 
     clGetPlatformIDs(0, NULL, &numPlatforms);
     if(activedev) *activedev=0;
@@ -147,7 +154,7 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
                 cps[1]=(cl_context_properties)platform;
 
         	for(j=0; j<2; j++){
-		    cl_device_id * devices;
+		    cl_device_id * devices=NULL;
 		    context=clCreateContextFromType(cps,devtype[j],NULL,NULL,&status);
 		    if(status!=CL_SUCCESS){
 		            clReleaseContext(context);
@@ -158,10 +165,13 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
                     OCL_ASSERT((clGetContextInfo(context,CL_CONTEXT_DEVICES,deviceListSize,devices,NULL)));
 		    devnum=deviceListSize/sizeof(cl_device_id);
 
+                    totaldevice+=devnum;
+
                     for(k=0;k<devnum;k++){
 		          GPUInfo cuinfo={0};
                           cuinfo.platformid=i;
         		  cuinfo.id=cuid+1;
+			  cuinfo.devcount=devnum;
 
         	          OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_NAME,100,(void*)cuinfo.name,NULL)));
 			  OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_MAX_COMPUTE_UNITS,sizeof(cl_uint),(void*)&cuinfo.sm,NULL)));
@@ -215,25 +225,34 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
                 		printf(" Auto-thread    :\t%ld\n",cuinfo.autothread);
                 		printf(" Auto-block     :\t%ld\n",cuinfo.autoblock);
                       	  }
-		          if(cfg->deviceid[cuid++]=='1'){
+		          if(activedevlist!=NULL){
+			     if(cfg->deviceid[cuid++]=='1'){
 			        memcpy((*info)+(*activedev),&cuinfo,sizeof(GPUInfo));
 				activedevlist[(*activedev)++]=devices[k];
 				if(activeplatform && activeplatform!=platform){
-					fprintf(stderr,"Error: one can not mix devices between different platforms\n");
+					MCX_FPRINTF(stderr,"Error: one can not mix devices between different platforms\n");
 					exit(-1);
 				}
 				activeplatform=platform;
-                          }
+			     }
+                          }else{
+			        cuid++;
+			        memcpy((*info)+((*activedev)++),&cuinfo,sizeof(GPUInfo));
+			  }
                     }
-                    free(devices);
+                    if(devices) free(devices);
                     clReleaseContext(context);
                }
 	    }
         }
 	*info=(GPUInfo *)realloc(*info,(*activedev)*sizeof(GPUInfo));
+	for (i=0;i<*activedev;i++)
+	     (*info)[i].devcount=totaldevice;
         free(platforms);
     }
-    if(cfg->isgpuinfo==2) exit(0);
+    if(cfg->isgpuinfo==2 && cfg->parentid==mpStandalone)
+        exit(0);
+
     return activeplatform;
 }
 
@@ -318,7 +337,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      genergy=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gstopsign=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gdetected=(cl_mem *)malloc(workdev*sizeof(cl_mem));
-     gdetpos=(cl_mem *)malloc(workdev*sizeof(cl_mem));
+     gdetpos=(cl_mem *)calloc(workdev,sizeof(cl_mem));
      gsrcpattern=(cl_mem *)malloc(workdev*sizeof(cl_mem));
 
      /* The block is to move the declaration of prop closer to its use */
@@ -355,7 +374,14 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
          }
 	 if(gpu[i].autothread%gpu[i].autoblock)
      	    gpu[i].autothread=(gpu[i].autothread/gpu[i].autoblock)*gpu[i].autoblock;
+         if(gpu[i].maxgate==0 && dimxyz>0){
+             int needmem=dimxyz+gpu[i].autothread*sizeof(float4)*4+sizeof(float)*cfg->maxdetphoton*detreclen+10*1024*1024; /*keep 10M for other things*/
+             gpu[i].maxgate=(gpu[i].globalmem-needmem)/dimxyz;
+             gpu[i].maxgate=MIN(((cfg->tend-cfg->tstart)/cfg->tstep+0.5),gpu[i].maxgate);     
+	 }
      }
+     cfg->maxgate=(int)((cfg->tend-cfg->tstart)/cfg->tstep+0.5);
+
      fullload=0.f;
      for(i=0;i<workdev;i++)
      	fullload+=cfg->workload[i];
@@ -410,7 +436,8 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
        OCL_ASSERT(((genergy[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*(gpu[i].autothread<<1),energy,&status),status)));
        OCL_ASSERT(((gstopsign[i]=clCreateBuffer(mcxcontext,RW_PTR, sizeof(cl_uint),&stopsign,&status),status)));
        OCL_ASSERT(((gdetected[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint),&detected,&status),status)));
-       OCL_ASSERT(((gdetpos[i]=clCreateBuffer(mcxcontext,RO_MEM, cfg->detnum*sizeof(float4),cfg->detpos,&status),status)));
+       if(cfg->detpos)
+           OCL_ASSERT(((gdetpos[i]=clCreateBuffer(mcxcontext,RO_MEM, cfg->detnum*sizeof(float4),cfg->detpos,&status),status)));
        if(cfg->srctype==MCX_SRC_PATTERN)
            OCL_ASSERT(((gsrcpattern[i]=clCreateBuffer(mcxcontext,RO_MEM, sizeof(float)*(int)(cfg->srcparam1.w*cfg->srcparam2.w),cfg->srcpattern,&status),status)));
        else if(cfg->srctype==MCX_SRC_PATTERN3D)
@@ -425,18 +452,18 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      tic=StartTimer();
      if(cfg->issavedet)
-         fprintf(cfg->flog,"- variant name: [%s] compiled with OpenCL version [%d]\n",
+         MCX_FPRINTF(cfg->flog,"- variant name: [%s] compiled with OpenCL version [%d]\n",
              "Detective MCXCL",CL_VERSION_1_0);
      else
-         fprintf(cfg->flog,"- code name: [Vanilla MCXCL] compiled with OpenCL version [%d]\n",
+         MCX_FPRINTF(cfg->flog,"- code name: [Vanilla MCXCL] compiled with OpenCL version [%d]\n",
              CL_VERSION_1_0);
 
-     fprintf(cfg->flog,"- compiled with: [RNG] %s [Seed Length] %d\n",MCX_RNG_NAME,RAND_SEED_LEN);
-     fprintf(cfg->flog,"initializing streams ...\t");
+     MCX_FPRINTF(cfg->flog,"- compiled with: [RNG] %s [Seed Length] %d\n",MCX_RNG_NAME,RAND_SEED_LEN);
+     MCX_FPRINTF(cfg->flog,"initializing streams ...\t");
      fflush(cfg->flog);
      fieldlen=dimxyz*cfg->maxgate;
 
-     fprintf(cfg->flog,"init complete : %d ms\n",GetTimeMillis()-tic);
+     MCX_FPRINTF(cfg->flog,"init complete : %d ms\n",GetTimeMillis()-tic);
 
      OCL_ASSERT(((mcxprogram=clCreateProgramWithSource(mcxcontext, 1,(const char **)&(cfg->clsource), NULL, &status),status)));
 
@@ -454,7 +481,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      if(cfg->isreflect)
          sprintf(opt+strlen(opt)," -D MCX_DO_REFLECTION");
 
-     fprintf(cfg->flog,"Building kernel with option: %s\n",opt);
+     MCX_FPRINTF(cfg->flog,"Building kernel with option: %s\n",opt);
      status=clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);
 
      size_t len;
@@ -466,7 +493,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
          clGetProgramBuildInfo(mcxprogram,devices[devid],CL_PROGRAM_BUILD_LOG,len,msg,NULL);
          for(int i=0;i<(int)len;i++)
              if(msg[i]<='z' && msg[i]>='A'){
-                 fprintf(cfg->flog,"Kernel build log:\n%s\n", msg);
+                 MCX_FPRINTF(cfg->flog,"Kernel build log:\n%s\n", msg);
                  break;
              }
 	 delete [] msg;
@@ -474,7 +501,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      if(status!=CL_SUCCESS)
 	 mcx_error(-(int)status,(char*)("Error: Failed to build program executable!"),__FILE__,__LINE__);
 
-     fprintf(cfg->flog,"build program complete : %d ms\n",GetTimeMillis()-tic);
+     MCX_FPRINTF(cfg->flog,"build program complete : %d ms\n",GetTimeMillis()-tic);
 
      mcxkernel=(cl_kernel*)malloc(workdev*sizeof(cl_kernel));
 
@@ -483,7 +510,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
          threadphoton=(int)(cfg->nphoton*cfg->workload[i]/(fullload*gpu[i].autothread*cfg->respin));
          oddphotons=(int)(cfg->nphoton*cfg->workload[i]/(fullload*cfg->respin)-threadphoton*gpu[i].autothread);
-         fprintf(cfg->flog,"- [device %d(%d): %s] threadph=%d oddphotons=%d np=%.1f nthread=%d nblock=%d repetition=%d\n",i, gpu[i].id, gpu[i].name,threadphoton,oddphotons,
+         MCX_FPRINTF(cfg->flog,"- [device %d(%d): %s] threadph=%d oddphotons=%d np=%.1f nthread=%d nblock=%d repetition=%d\n",i, gpu[i].id, gpu[i].name,threadphoton,oddphotons,
                cfg->nphoton*cfg->workload[i]/fullload,(int)gpu[i].autothread,(int)gpu[i].autoblock,cfg->respin);
 
 	 OCL_ASSERT(((mcxkernel[i] = clCreateKernel(mcxprogram, "mcx_main_loop", &status),status)));
@@ -501,7 +528,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],11, sizeof(cl_mem), (void*)(gdetected+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],12, cfg->issavedet? sizeof(int)+sizeof(cl_float)*cfg->nblocksize*param.maxmedia : sizeof(int), NULL)));
      }
-     fprintf(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
+     MCX_FPRINTF(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
 
      if(cfg->exportfield==NULL)
          cfg->exportfield=(float *)calloc(sizeof(float)*cfg->dim.x*cfg->dim.y*cfg->dim.z,cfg->maxgate*2);
@@ -522,12 +549,12 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
        twindow0=t;
        twindow1=t+cfg->tstep*cfg->maxgate;
 
-       fprintf(cfg->flog,"lauching mcx_main_loop for time window [%.1fns %.1fns] ...\n"
+       MCX_FPRINTF(cfg->flog,"lauching mcx_main_loop for time window [%.1fns %.1fns] ...\n"
            ,twindow0*1e9,twindow1*1e9);
 
        //total number of repetition for the simulations, results will be accumulated to field
        for(iter=0;iter<cfg->respin;iter++){
-           fprintf(cfg->flog,"simulation run#%2d ... \t",iter+1); fflush(cfg->flog);
+           MCX_FPRINTF(cfg->flog,"simulation run#%2d ... \t",iter+1); fflush(cfg->flog);
 	   param.twin0=twindow0;
 	   param.twin1=twindow1;
 
@@ -552,7 +579,10 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
            tic1=GetTimeMillis();
 	   toc+=tic1-tic0;
-           fprintf(cfg->flog,"kernel complete:  \t%d ms\nretrieving flux ... \t",tic1-tic);
+           MCX_FPRINTF(cfg->flog,"kernel complete:  \t%d ms\nretrieving flux ... \t",tic1-tic);
+
+           if(cfg->runtime<tic1-tic)
+               cfg->runtime=tic1-tic;
 
            for(devid=0;devid<workdev;devid++){
              if(cfg->issavedet){
@@ -561,11 +591,11 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                 OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetphoton[devid],CL_TRUE,0,sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),
 	                                        Pdet, 0, NULL, NULL)));
 		if(detected>cfg->maxdetphoton){
-			fprintf(cfg->flog,"WARNING: the detected photon (%d) \
+			MCX_FPRINTF(cfg->flog,"WARNING: the detected photon (%d) \
 is more than what your have specified (%d), please use the -H option to specify a greater number\t"
                            ,detected,cfg->maxdetphoton);
 		}else{
-			fprintf(cfg->flog,"detected %d photons, total: %d\t",detected,cfg->detectedcount+detected);
+			MCX_FPRINTF(cfg->flog,"detected %d photons, total: %d\t",detected,cfg->detectedcount+detected);
 		}
                 cfg->his.detected+=detected;
                 detected=MIN(detected,cfg->maxdetphoton);
@@ -579,7 +609,7 @@ is more than what your have specified (%d), please use the -H option to specify 
              if(cfg->issave2pt){
         	OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gfield[devid],CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,
 	                                         field, 0, NULL, NULL)));
-        	fprintf(cfg->flog,"transfer complete:        %d ms\n",GetTimeMillis()-tic);  fflush(cfg->flog);
+        	MCX_FPRINTF(cfg->flog,"transfer complete:        %d ms\n",GetTimeMillis()-tic);  fflush(cfg->flog);
 
         	if(cfg->respin>1){
                     for(i=0;i<fieldlen;i++)  //accumulate field, can be done in the GPU
@@ -634,9 +664,9 @@ is more than what your have specified (%d), please use the -H option to specify 
      }// time gates
 
      if(cfg->isnormalized){
-	   float scale=0.f, mua;
+	   float scale=1.f, mua;
 	   uint t;
-           fprintf(cfg->flog,"normalizing raw data ...\t");
+           MCX_FPRINTF(cfg->flog,"normalizing raw data ...\t");
            if(cfg->outputtype==otFlux || cfg->outputtype==otFluence){
                scale=1.f/(cfg->energytot*Vvox*cfg->tstep);
 	       if(cfg->unitinmm!=1.f)
@@ -654,13 +684,17 @@ is more than what your have specified (%d), please use the -H option to specify 
 	   }else if(cfg->outputtype==otEnergy || cfg->outputtype==otJacobian)
 	       scale=1.f/cfg->energytot;
 
-	 fprintf(cfg->flog,"normalization factor alpha=%f\n",scale);  fflush(cfg->flog);
+         cfg->normalizer=scale;
+	 cfg->his.normalizer=scale;
+         cfg->energyabs+=cfg->energytot-cfg->energyesc;
+
+	 MCX_FPRINTF(cfg->flog,"normalization factor alpha=%f\n",scale);  fflush(cfg->flog);
          mcx_normalize(cfg->exportfield,scale,fieldlen);
      }
      if(cfg->issave2pt && cfg->parentid==mpStandalone){
-         fprintf(cfg->flog,"saving data to file ... %d %d\t",fieldlen,cfg->maxgate);
+         MCX_FPRINTF(cfg->flog,"saving data to file ... %d %d\t",fieldlen,cfg->maxgate);
          mcx_savedata(cfg->exportfield,fieldlen,cfg);
-         fprintf(cfg->flog,"saving data complete : %d ms\n\n",GetTimeMillis()-tic);
+         MCX_FPRINTF(cfg->flog,"saving data complete : %d ms\n\n",GetTimeMillis()-tic);
          fflush(cfg->flog);
      }
      if(cfg->issavedet && cfg->parentid==mpStandalone && cfg->exportdetected){
@@ -671,9 +705,9 @@ is more than what your have specified (%d), please use the -H option to specify 
      }
 
      // total energy here equals total simulated photons+unfinished photons for all threads
-     fprintf(cfg->flog,"simulated %d photons (%d) with %d devices (repeat x%d)\nMCX simulation speed: %.2f photon/ms\n",
+     MCX_FPRINTF(cfg->flog,"simulated %d photons (%d) with %d devices (repeat x%d)\nMCX simulation speed: %.2f photon/ms\n",
              cfg->nphoton,cfg->nphoton,workdev, cfg->respin,(double)cfg->nphoton/toc); fflush(cfg->flog);
-     fprintf(cfg->flog,"total simulated energy: %.2f\tabsorbed: %5.5f%%\n(loss due to initial specular reflection is excluded in the total)\n",
+     MCX_FPRINTF(cfg->flog,"total simulated energy: %.2f\tabsorbed: %5.5f%%\n(loss due to initial specular reflection is excluded in the total)\n",
              cfg->energytot,(cfg->energytot-cfg->energyesc)/cfg->energytot*100.f);fflush(cfg->flog);
      fflush(cfg->flog);
 

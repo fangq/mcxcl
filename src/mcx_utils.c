@@ -87,7 +87,7 @@ void mcx_initcfg(Config *cfg){
      cfg->nthread=(1<<14);
      cfg->seed=0x623F9A9E;
      cfg->isrowmajor=0; /* default is Matlab array*/
-     cfg->maxgate=1;
+     cfg->maxgate=0;
      cfg->isreflect=1;
      cfg->isref3=0;
      cfg->isnormalized=1;
@@ -134,15 +134,33 @@ void mcx_initcfg(Config *cfg){
 
      cfg->exportfield=NULL;
      cfg->exportdetected=NULL;
+     cfg->exportdebugdata=NULL;
+     cfg->maxjumpdebug=1000000;
+
+     cfg->seeddata=NULL;
+     cfg->reseedlimit=10000000;
+     cfg->issaveseed=0;
+     cfg->issaveexit=0;
+     cfg->issaveref=0;
+
+     cfg->replay.seed=NULL;
+     cfg->replay.weight=NULL;
+     cfg->replay.tof=NULL;
+     cfg->replaydet=0;
+     cfg->seedfile[0]='\0';
+
      cfg->energytot=0.f;
      cfg->energyabs=0.f;
      cfg->energyesc=0.f;
      cfg->runtime=0;
+     cfg->debuglevel=0;
+     cfg->gpuid=0;
 
      memset(&cfg->his,0,sizeof(History));
      memcpy(cfg->his.magic,"MCXH",4);
      cfg->his.version=1;
      cfg->his.unitinmm=1.f;
+     cfg->his.normalizer=1.f;
      cfg->exportfield=NULL;
      cfg->exportdetected=NULL;
      cfg->detectedcount=0;
@@ -176,6 +194,20 @@ void mcx_clearcfg(Config *cfg){
         free(cfg->seeddata);
 
      mcx_initcfg(cfg);
+}
+
+
+/**
+ * @brief Reset and clear the GPU information data structure
+ *
+ * Clearing the GPU information data structure
+ */
+
+void mcx_cleargpuinfo(GPUInfo **gpuinfo){
+    if(*gpuinfo){
+	free(*gpuinfo);
+	*gpuinfo=NULL;
+    }
 }
 
 void mcx_savenii(float *dat, int len, char* name, int type32bit, int outputformatid, Config *cfg){
@@ -307,7 +339,7 @@ void mcx_savedetphoton(float *ppath, void *seeds, int count, int doappend, Confi
 
 void mcx_printlog(Config *cfg, const char *str){
      if(cfg->flog!=NULL){ /*stdout is 1*/
-         fprintf(cfg->flog,"%s\n",str);
+         MCX_FPRINTF(cfg->flog,"%s\n",str);
      }
 }
 
@@ -449,7 +481,9 @@ void mcx_loadconfig(FILE *in, Config *cfg){
          mcx_error(-9,"incorrect time gate settings",__FILE__,__LINE__);
      }
      gates=(unsigned int)((cfg->tend-cfg->tstart)/cfg->tstep+0.5);
-     if(cfg->maxgate>gates)
+     if(cfg->maxgate==0)
+	 cfg->maxgate=gates;
+     else if(cfg->maxgate>gates)
 	 cfg->maxgate=gates;
 
      MCX_ASSERT(fscanf(in,"%s", filename)==1);
@@ -1160,7 +1194,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
      	    if(argv[i][0]=='-'){
 		if(argv[i][1]=='-'){
 			if(mcx_remap(argv[i])){
-				fprintf(cfg->flog,"unknown verbose option %s\n", argv[i]);
+				MCX_FPRINTF(cfg->flog,"unknown verbose option %s\n", argv[i]);
 				i+=2;
 				continue;
 			}
@@ -1303,7 +1337,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                                 else if(strcmp(argv[i]+2,"root")==0)
                                      i=mcx_readarg(argc,argv,i,cfg->rootpath,"string");
                                 else
-                                     fprintf(cfg->flog,"unknown verbose option: --%s\n",argv[i]+2);
+                                     MCX_FPRINTF(cfg->flog,"unknown verbose option: --%s\n",argv[i]+2);
 		     	        break;
 		}
 	    }
@@ -1314,7 +1348,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
           cfg->flog=fopen(logfile,"wt");
           if(cfg->flog==NULL){
 		cfg->flog=stdout;
-		fprintf(cfg->flog,"unable to save to log file, will print from stdout\n");
+		MCX_FPRINTF(cfg->flog,"unable to save to log file, will print from stdout\n");
           }
      }
      if(cfg->kernelfile[0]!='\0' && cfg->isgpuinfo!=2){
@@ -1390,7 +1424,7 @@ void mcx_version(Config *cfg){
     const char ver[]="$Rev::      $";
     int v=0;
     sscanf(ver,"$Rev::%d",&v);
-    fprintf(cfg->flog, "MCXCL Revision %d\n",v);
+    MCX_FPRINTF(cfg->flog, "MCXCL Revision %d\n",v);
     exit(0);
 }
 
@@ -1404,8 +1438,23 @@ int mcx_isbinstr(const char * str){
     return 1;
 }
 
+
+/**
+ * @brief Force flush the command line to print the message
+ *
+ * @param[in] cfg: simulation configuration
+ */
+
+void mcx_flush(Config *cfg){
+#ifdef MCX_CONTAINER
+    mcx_matlab_flush();
+#else
+    fflush(cfg->flog);
+#endif
+}
+
 void mcx_printheader(Config *cfg){
-    fprintf(cfg->flog,"\
+    MCX_FPRINTF(cfg->flog,"\
 ==============================================================================\n\
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =\n\
 =          Copyright (c) 2010-2018 Qianqian Fang <q.fang at neu.edu>         =\n\

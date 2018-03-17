@@ -15,6 +15,12 @@
 extern "C" {
 #endif
 
+#define ABS(a)  ((a)<0?-(a):(a))
+
+#define MCX_DEBUG_RNG       1                   /**< MCX debug flags */
+#define MCX_DEBUG_MOVE      2
+#define MCX_DEBUG_PROGRESS  4
+
 #define MIN(a,b)           ((a)<(b)?(a):(b))
 #define MCX_RNG_NAME       "Logistic-Lattice"
 #define RAND_SEED_LEN      5        //32bit seed length (32*5=160bits)
