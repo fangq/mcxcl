@@ -9,12 +9,18 @@ function varargout=mcxlabcl(varargin)
 %
 % Format:
 %    [fluence,detphoton,vol,seed,trajectory]=mcxlabcl(cfg);
+%       or
+%    [fluence,detphoton,vol,seed,trajectory]=mcxlabcl(cfg, option);
 %
 % Input:
 %    cfg: a struct, or struct array. Each element of cfg defines 
 %         the parameters associated with a simulation. 
+%    option: (optional), options is a string, specifying additional options
+%         option='preview': this plots the domain configuration using mcxpreview(cfg)
+%         option='mcxcl':   this calls mcxcl.mex* instead of mcx.mex* on non-NVIDIA hardware
 %
-%    It may contain the following fields:
+%
+%    cfg may contain the following fields:
 %
 %== Required ==
 %     *cfg.nphoton:    the total number of photons to be simulated (integer)
@@ -158,7 +164,7 @@ function varargout=mcxlabcl(varargin)
 %              detphoton.p or .v: exit position and direction, when cfg.issaveexit=1
 %              detphoton.data: a concatenated and transposed array in the order of
 %                    [detid nscat ppath p v]'
-%              "data" is the is the only subfield in all MCXLAB before 2018
+%              "data" is the is the only subfield in all MCXLAB-CL before 2018
 %      vol: (optional) a struct array, each element is a preprocessed volume
 %            corresponding to each instance of cfg. Each volume is a 3D int32 array.
 %      seeds: (optional), if give, mcxlabcl returns the seeds, in the form of
@@ -205,14 +211,28 @@ function varargout=mcxlabcl(varargin)
 % License: GNU General Public License version 3, please read LICENSE.txt for details
 %
 
+try
+    defaultocl=evalin('base','USE_MCXCL');
+catch
+    defaultocl=1;
+end
+
+useopencl=defaultocl;
+
 if(nargin==2 && ischar(varargin{2}))
     if(strcmp(varargin{2},'preview'))
         [varargout{1:nargout}]=mcxpreview(varargin{1});
-	return;
+	    return;
+    elseif(strcmp(varargin{2},'opencl'))
+        useopencl=1;
     end
 end
 
-[varargout{1:nargout}]=mcxcl(varargin{:});
+if(useopencl==0)
+    [varargout{1:nargout}]=mcx(varargin{:});
+else
+    [varargout{1:nargout}]=mcxcl(varargin{:});
+end
 
 if(nargin==0)
     return;
