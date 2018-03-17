@@ -44,7 +44,7 @@
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W','z',
                  'd','r','S','p','e','U','R','l','L','M','I','-','o','c','k','v','J',
-                 'A','P','E','F','H','-','u','\0'};
+                 'A','P','E','F','H','-','u','-','\0'};
 const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--thread","--blocksize","--session","--array","--gategroup",
                  "--reflect","--reflect3","--device","--devicelist","--gpu","--workload","--srcfrom0",
@@ -52,7 +52,7 @@ const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--normalize","--skipradius","--log","--listgpu","--dumpmask",
                  "--printgpu","--root","--optlevel","--cpu","--kernel","--verbose","--compileropt",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
-		 "--mediabyte","--unitinmm",""};
+		 "--mediabyte","--unitinmm","--atomic",""};
 		 
 /**
  * Source type specifier
@@ -142,6 +142,7 @@ void mcx_initcfg(Config *cfg){
      cfg->issaveseed=0;
      cfg->issaveexit=0;
      cfg->issaveref=0;
+     cfg->isatomic=1;
 
      cfg->replay.seed=NULL;
      cfg->replay.weight=NULL;
@@ -1336,6 +1337,8 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                                      i=mcx_readarg(argc,argv,i,&(cfg->mediabyte),"int");
                                 else if(strcmp(argv[i]+2,"root")==0)
                                      i=mcx_readarg(argc,argv,i,cfg->rootpath,"string");
+                                else if(strcmp(argv[i]+2,"atomic")==0)
+		                     i=mcx_readarg(argc,argv,i,&(cfg->isatomic),"int");
                                 else
                                      MCX_FPRINTF(cfg->flog,"unknown verbose option: --%s\n",argv[i]+2);
 		     	        break;

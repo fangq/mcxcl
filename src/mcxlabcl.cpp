@@ -165,7 +165,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
   /**
    * If a structure is passed to this function, a simulation will be launched.
    */
-  printf("Launching MCXLAB - Monte Carlo eXtreme for MATLAB & GNU Octave ...\n");
+  printf("Launching MCXLAB-CL - Monte Carlo eXtreme (OpenCL) for MATLAB & GNU Octave ...\n");
   if (!mxIsStruct(prhs[0]))
      mexErrMsgTxt("Input must be a structure.");
 
@@ -442,6 +442,7 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
     GET_ONE_FIELD(cfg,issaveseed)
     GET_ONE_FIELD(cfg,issaveref)
     GET_ONE_FIELD(cfg,issaveexit)
+    GET_ONE_FIELD(cfg,isatomic)
     GET_ONE_FIELD(cfg,replaydet)
     GET_ONE_FIELD(cfg,faststep)
     GET_ONE_FIELD(cfg,maxvoidstep)

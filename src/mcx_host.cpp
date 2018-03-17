@@ -230,7 +230,7 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
 			        memcpy((*info)+(*activedev),&cuinfo,sizeof(GPUInfo));
 				activedevlist[(*activedev)++]=devices[k];
 				if(activeplatform && activeplatform!=platform){
-					MCX_FPRINTF(stderr,"Error: one can not mix devices between different platforms\n");
+					MCX_FPRINTF(stderr,"Error: one can not mix devices between different platforms\n");fflush(cfg->flog);
 					exit(-1);
 				}
 				activeplatform=platform;
@@ -460,10 +460,9 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      MCX_FPRINTF(cfg->flog,"- compiled with: [RNG] %s [Seed Length] %d\n",MCX_RNG_NAME,RAND_SEED_LEN);
      MCX_FPRINTF(cfg->flog,"initializing streams ...\t");
-     fflush(cfg->flog);
      fieldlen=dimxyz*cfg->maxgate;
 
-     MCX_FPRINTF(cfg->flog,"init complete : %d ms\n",GetTimeMillis()-tic);
+     MCX_FPRINTF(cfg->flog,"init complete : %d ms\n",GetTimeMillis()-tic);fflush(cfg->flog);
 
      OCL_ASSERT(((mcxprogram=clCreateProgramWithSource(mcxcontext, 1,(const char **)&(cfg->clsource), NULL, &status),status)));
 
@@ -476,6 +475,8 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
          sprintf(opt+strlen(opt),"%s ",sourceflag[(uint)cfg->srctype]);
 
      sprintf(opt+strlen(opt),"%s",cfg->compileropt);
+     if(cfg->isatomic)
+         sprintf(opt+strlen(opt)," -DUSE_ATOMIC");
      if(cfg->issavedet)
          sprintf(opt+strlen(opt)," -D MCX_SAVE_DETECTORS");
      if(cfg->isreflect)
@@ -501,7 +502,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      if(status!=CL_SUCCESS)
 	 mcx_error(-(int)status,(char*)("Error: Failed to build program executable!"),__FILE__,__LINE__);
 
-     MCX_FPRINTF(cfg->flog,"build program complete : %d ms\n",GetTimeMillis()-tic);
+     MCX_FPRINTF(cfg->flog,"build program complete : %d ms\n",GetTimeMillis()-tic);fflush(cfg->flog);
 
      mcxkernel=(cl_kernel*)malloc(workdev*sizeof(cl_kernel));
 
@@ -528,7 +529,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],11, sizeof(cl_mem), (void*)(gdetected+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],12, cfg->issavedet? sizeof(int)+sizeof(cl_float)*cfg->nblocksize*param.maxmedia : sizeof(int), NULL)));
      }
-     MCX_FPRINTF(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);
+     MCX_FPRINTF(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);fflush(cfg->flog);
 
      if(cfg->exportfield==NULL)
          cfg->exportfield=(float *)calloc(sizeof(float)*cfg->dim.x*cfg->dim.y*cfg->dim.z,cfg->maxgate*2);
@@ -550,11 +551,11 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
        twindow1=t+cfg->tstep*cfg->maxgate;
 
        MCX_FPRINTF(cfg->flog,"lauching mcx_main_loop for time window [%.1fns %.1fns] ...\n"
-           ,twindow0*1e9,twindow1*1e9);
+           ,twindow0*1e9,twindow1*1e9);fflush(cfg->flog);
 
        //total number of repetition for the simulations, results will be accumulated to field
        for(iter=0;iter<cfg->respin;iter++){
-           MCX_FPRINTF(cfg->flog,"simulation run#%2d ... \t",iter+1); fflush(cfg->flog);
+           MCX_FPRINTF(cfg->flog,"simulation run#%2d ... \t",iter+1); fflush(cfg->flog);fflush(cfg->flog);
 	   param.twin0=twindow0;
 	   param.twin1=twindow1;
 
@@ -579,7 +580,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
            tic1=GetTimeMillis();
 	   toc+=tic1-tic0;
-           MCX_FPRINTF(cfg->flog,"kernel complete:  \t%d ms\nretrieving flux ... \t",tic1-tic);
+           MCX_FPRINTF(cfg->flog,"kernel complete:  \t%d ms\nretrieving flux ... \t",tic1-tic);fflush(cfg->flog);
 
            if(cfg->runtime<tic1-tic)
                cfg->runtime=tic1-tic;
@@ -666,7 +667,7 @@ is more than what your have specified (%d), please use the -H option to specify 
      if(cfg->isnormalized){
 	   float scale=1.f, mua;
 	   uint t;
-           MCX_FPRINTF(cfg->flog,"normalizing raw data ...\t");
+           MCX_FPRINTF(cfg->flog,"normalizing raw data ...\t");fflush(cfg->flog);
            if(cfg->outputtype==otFlux || cfg->outputtype==otFluence){
                scale=1.f/(cfg->energytot*Vvox*cfg->tstep);
 	       if(cfg->unitinmm!=1.f)
@@ -706,9 +707,9 @@ is more than what your have specified (%d), please use the -H option to specify 
 
      // total energy here equals total simulated photons+unfinished photons for all threads
      MCX_FPRINTF(cfg->flog,"simulated %d photons (%d) with %d devices (repeat x%d)\nMCX simulation speed: %.2f photon/ms\n",
-             cfg->nphoton,cfg->nphoton,workdev, cfg->respin,(double)cfg->nphoton/toc); fflush(cfg->flog);
+             cfg->nphoton,cfg->nphoton,workdev, cfg->respin,(double)cfg->nphoton/toc);
      MCX_FPRINTF(cfg->flog,"total simulated energy: %.2f\tabsorbed: %5.5f%%\n(loss due to initial specular reflection is excluded in the total)\n",
-             cfg->energytot,(cfg->energytot-cfg->energyesc)/cfg->energytot*100.f);fflush(cfg->flog);
+             cfg->energytot,(cfg->energytot-cfg->energyesc)/cfg->energytot*100.f);
      fflush(cfg->flog);
 
      clReleaseMemObject(gmedia);
