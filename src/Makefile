@@ -42,8 +42,9 @@ ifeq ($(HAS_CUDA), 1)
   INCLUDEDIRS +=-I$(CUDA_PATH)/include
 endif
 
+LIBOPENCLDIR ?= /usr/lib/x86_64-linux-gnu
+
 LIBOPENCL=-lOpenCL
-LINKOPT=-g -L$(LIBOPENCLDIR) $(LIBOPENCL)
 
 OBJSUFFIX=.o
 EXESUFFIX=
@@ -70,12 +71,15 @@ ifeq ($(findstring Msys,$(PLATFORM)), CYGWIN)
 else ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
   INCLUDEDIRS=-I/System/Library/Frameworks/OpenCL.framework/Headers
   LIBOPENCL=-framework OpenCL
+  LINKOPT=
+else
+  LINKOPT=-g -L$(LIBOPENCLDIR) $(LIBOPENCL)
 endif
-  
+
 all static: CUCCOPT+=
 
 mex:        AR=$(MEX)
-mex:        LINKOPT= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER  $(MEXCCOPT) $(USERCCOPT)' LDFLAGS='-L$$TMW_ROOT$$MATLABROOT/sys/os/$$ARCH $$LDFLAGS -g -L$(LIBOPENCLDIR) $(LIBOPENCL) $(USERLINKOPT)' 
+mex:        LINKOPT+= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER  $(MEXCCOPT) $(USERCCOPT)' LDFLAGS='-L$$TMW_ROOT$$MATLABROOT/sys/os/$$ARCH $$LDFLAGS -g -L$(LIBOPENCLDIR) $(LIBOPENCL) $(USERLINKOPT)'
 mex oct:    OUTPUT_DIR=../mcxlabcl
 mex:        OUTPUTFLAG:=-output
 mex:        BINARY=mcxcl
