@@ -75,9 +75,9 @@ endif
 all static: CUCCOPT+=
 
 mex:        AR=$(MEX)
-mex:        LINKOPT+= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER  $(MEXCCOPT) $(USERCCOPT)' LDFLAGS='-L$$TMW_ROOT$$MATLABROOT/sys/os/$$ARCH $$LDFLAGS  $(USERLINKOPT)' 
+mex:        LINKOPT= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER  $(MEXCCOPT) $(USERCCOPT)' LDFLAGS='-L$$TMW_ROOT$$MATLABROOT/sys/os/$$ARCH $$LDFLAGS -g -L$(LIBOPENCLDIR) $(LIBOPENCL) $(USERLINKOPT)' 
 mex oct:    OUTPUT_DIR=../mcxlabcl
-mex oct:    OUTPUTFLAG:=-output
+mex:        OUTPUTFLAG:=-output
 mex:        BINARY=mcxcl
 mex oct:    CUCCOPT+=$(DLLFLAG) -DMCX_CONTAINER
 mex oct:    CCOPT+=$(DLLFLAG) -DMCX_CONTAINER
@@ -85,8 +85,8 @@ mex oct:    CPPOPT+=$(DLLFLAG) -DMCX_CONTAINER
 mex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
 
 oct:        BINARY=mcxcl.mex
-oct:        AR= CXXFLAGS='$(MEXCCOPT) $(USERCCOPT)' LFLAGS=' $(USERLINKOPT)' LDFLAGS='$(LFLAGS)' mkoctfile
-oct:        LINKOPT+=--mex mcxlabcl.cpp $(INCLUDEDIRS)
+oct:        AR= CXXFLAGS='$(MEXCCOPT) $(USERCCOPT)' LFLAGS='-g -L$(LIBOPENCLDIR) $(LIBOPENCL) $(USERLINKOPT)' LDFLAGS='$(LFLAGS)' mkoctfile
+oct:        LINKOPT=--mex mcxlabcl.cpp $(INCLUDEDIRS)
 
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 CLSOURCE  := $(addsuffix $(CLHEADER), $(CLPROGRAM))
