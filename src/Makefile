@@ -22,6 +22,7 @@ LIBOPENCLDIR:=
 
 DLLFLAG=-fPIC
 OMP=-fopenmp
+OUTPUTFLAG:=-o
 
 # setup for amd
 AMDAPPSDKROOT ?=/opt/AMDAPPSDK-3.0
@@ -76,6 +77,7 @@ all static: CUCCOPT+=
 mex:        AR=$(MEX)
 mex:        LINKOPT+= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER  $(MEXCCOPT) $(USERCCOPT)' LDFLAGS='-L$$TMW_ROOT$$MATLABROOT/sys/os/$$ARCH $$LDFLAGS  $(USERLINKOPT)' 
 mex oct:    OUTPUT_DIR=../mcxlabcl
+mex oct:    OUTPUTFLAG:=-output
 mex:        BINARY=mcxcl
 mex oct:    CUCCOPT+=$(DLLFLAG) -DMCX_CONTAINER
 mex oct:    CCOPT+=$(DLLFLAG) -DMCX_CONTAINER
@@ -95,7 +97,7 @@ makedirs:
 	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) $(OUTPUT_DIR); fi
 
 $(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(OBJS)
-	$(AR) $(OBJS) $(LINKOPT) -o $(OUTPUT_DIR)/$(BINARY)
+	$(AR) $(OBJS) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY)
 
 %$(CLHEADER): %.cl
 	xxd -i $(CLPROGRAM).cl | sed 's/\([0-9a-f]\)$$/\0, 0x00/' > $(CLPROGRAM).clh
