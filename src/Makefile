@@ -71,7 +71,7 @@ ifeq ($(findstring Msys,$(PLATFORM)), CYGWIN)
 else ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
   INCLUDEDIRS=-I/System/Library/Frameworks/OpenCL.framework/Headers
   LIBOPENCL=-framework OpenCL
-  LINKOPT=
+  AR+=-g -L$(LIBOPENCLDIR) $(LIBOPENCL)
 else
   LINKOPT=-g -L$(LIBOPENCLDIR) $(LIBOPENCL)
 endif
