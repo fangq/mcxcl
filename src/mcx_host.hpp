@@ -27,7 +27,7 @@ extern "C" {
 #define RO_MEM             (CL_MEM_READ_ONLY  | CL_MEM_COPY_HOST_PTR)
 #define WO_MEM             (CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR)
 #define RW_MEM             (CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR)
-#define RW_PTR             (CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR)
+#define RW_PTR             (CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR)
 
 #define OCL_ASSERT(x)  ocl_assess((x),__FILE__,__LINE__)
 
@@ -70,6 +70,8 @@ typedef struct KernelParams {
   cl_float4 srcparam1;                  /**< source parameters set 1 */
   cl_float4 srcparam2;                  /**< source parameters set 2 */
   cl_uint   maxvoidstep;
+  cl_uint threadphoton;                  /**< how many photons to be simulated in a thread */
+  cl_uint debuglevel;           /**< debug flags */
 } MCXParam __attribute__ ((aligned (16)));
 
 void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy);

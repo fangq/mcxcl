@@ -23,6 +23,11 @@
 #include <string.h>
 #include <math.h>
 #include <ctype.h>
+
+#ifndef WIN32
+  #include <sys/ioctl.h>
+#endif
+
 #include "mcx_utils.h"
 #include "mcx_shapes.h"
 #include "mcx_const.h"
@@ -41,19 +46,39 @@
                                 ((tmp=cJSON_GetObjectItem(root,idfull))==0 ? NULL : tmp) \
                      : tmp)
 
+/**
+ * Short command line options
+ * If a short command line option is '-' that means it only has long/verbose option.
+ * Array terminates with '\0'.
+ */
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W','z',
                  'd','r','S','p','e','U','R','l','L','M','I','-','o','c','k','v','J',
                  'A','P','E','F','H','-','u','-','\0'};
+
+/**
+ * Long command line options
+ * The length of this array must match the length of shortopt[], terminates with ""
+ */
+
 const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--thread","--blocksize","--session","--array","--gategroup",
-                 "--reflect","--reflect3","--device","--devicelist","--gpu","--workload","--srcfrom0",
+                 "--reflect","--reflect3","--debuglevel","--devicelist","--gpu","--workload","--srcfrom0",
 		 "--savedet","--repeat","--save2pt","--printlen","--minenergy",
                  "--normalize","--skipradius","--log","--listgpu","--dumpmask",
                  "--printgpu","--root","--optlevel","--cpu","--kernel","--verbose","--compileropt",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
 		 "--mediabyte","--unitinmm","--atomic",""};
-		 
+
+/**
+ * Debug flags
+ * R: debug random number generator
+ * M: record photon movement and trajectory
+ * P: show progress bar
+ */
+
+const char debugflag[]={'R','M','P','\0'};
+
 /**
  * Source type specifier
  * User can specify the source type using a string
@@ -1121,6 +1146,50 @@ void mcx_dumpmask(Config *cfg){
          exit(0);
 }
 
+/**
+ * @brief Print a progress bar
+ *
+ * When -D P is specified, this function prints and update a progress bar.
+ *
+ * @param[in] percent: the percentage value from 1 to 100
+ * @param[in] cfg: simulation configuration
+ */
+
+void mcx_progressbar(float percent, Config *cfg){
+    unsigned int percentage, j,colwidth=79;
+    static unsigned int oldmarker=0xFFFFFFFF;
+
+#ifndef MCX_CONTAINER
+  #ifdef TIOCGWINSZ
+    struct winsize ttys={0,0,0,0};
+    ioctl(0, TIOCGWINSZ, &ttys);
+    colwidth=ttys.ws_col;
+    if(colwidth==0)
+         colwidth=79;
+  #endif
+#endif
+    percent=MIN(percent,1.f);
+
+    percentage=percent*(colwidth-18);
+
+    if(percentage != oldmarker){
+        if(percent!=-0.f)
+	    for(j=0;j<colwidth;j++)     MCX_FPRINTF(stdout,"\b");
+        oldmarker=percentage;
+        MCX_FPRINTF(stdout,"Progress: [");
+        for(j=0;j<percentage;j++)      MCX_FPRINTF(stdout,"=");
+        MCX_FPRINTF(stdout,(percentage<colwidth-18) ? ">" : "=");
+        for(j=percentage;j<colwidth-18;j++) MCX_FPRINTF(stdout," ");
+        MCX_FPRINTF(stdout,"] %3d%%",(int)(percent*100));
+#ifdef MCX_CONTAINER
+        mcx_matlab_flush();
+#else
+        fflush(stdout);
+#endif
+    }
+}
+
+
 int mcx_readarg(int argc, char *argv[], int id, void *output,const char *type){
      /*
          when a binary option is given without a following number (0~1), 
@@ -1296,7 +1365,10 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 				i=mcx_readarg(argc,argv,i,cfg->compileropt+strlen(cfg->compileropt),"string");
 				break;
                      case 'D':
-			        i=mcx_readarg(argc,argv,i,cfg->deviceid,"bytenumlist");
+                                if(i+1<argc && isalpha(argv[i+1][0]) )
+                                        cfg->debuglevel=mcx_parsedebugopt(argv[++i],debugflag);
+                                else
+                                        i=mcx_readarg(argc,argv,i,&(cfg->debuglevel),"int");
                                 break;
                      case 'G':
                                 if(mcx_isbinstr(argv[i+1])){

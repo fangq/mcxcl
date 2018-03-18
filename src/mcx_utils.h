@@ -201,6 +201,7 @@ void mcx_printheader(Config *cfg);
 void mcx_dumpmask(Config *cfg);
 void mcx_version(Config *cfg);
 int  mcx_isbinstr(const char * str);
+void mcx_progressbar(float percent, Config *cfg);
 void mcx_flush(Config *cfg);
 
 

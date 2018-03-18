@@ -60,6 +60,10 @@
 #define MED_MASK           0x7F
 #define NULL               0
 
+#define MCX_DEBUG_RNG       1                   /**< MCX debug flags */
+#define MCX_DEBUG_MOVE      2
+#define MCX_DEBUG_PROGRESS  4
+
 typedef struct KernelParams {
   float4 ps,c0;
   float4 maxidx;
@@ -85,6 +89,8 @@ typedef struct KernelParams {
   float4 srcparam1;                  /**< source parameters set 1 */
   float4 srcparam2;                  /**< source parameters set 2 */
   uint   maxvoidstep;
+  uint   threadphoton;                  /**< how many photons to be simulated in a thread */
+  uint   debuglevel;           /**< debug flags */
 } MCXParam __attribute__ ((aligned (32)));
 
 
@@ -505,7 +511,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	   __global float *n_det,__global uint *dpnum, __private RandType t[RAND_BUF_LEN],
 	   __constant float4 *gproperty, __global const uint media[], __global float srcpattern[],
 	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, int threadphoton, 
-	   int oddphotons, __local int *blockphoton){
+	   int oddphotons, __local int *blockphoton, __global uint *gprogress){
 
 /*
 __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,float4 *prop,uint *idx1d, float *field,
@@ -803,12 +809,11 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
       /**
        * If a progress bar is needed, only sum completed photons from the 1st, last and middle threads to determine progress bar
        */
-/*
-      if((gcfg->debuglevel & MCX_DEBUG_PROGRESS) && ((int)(f[0].w) & 1) && (threadid==0 || threadid==blockDim.x * gridDim.x - 1 
-          || threadid==((blockDim.x * gridDim.x)>>1))) { ///< use the 1st, middle and last thread for progress report
+
+      if((gcfg->debuglevel & MCX_DEBUG_PROGRESS) && ((int)(f[0].w) & 1) && (threadid==0 || threadid==(get_local_size(0) * get_global_size(0) - 1)
+          || threadid==((get_local_size(0) * get_global_size(0))>>1))) { ///< use the 1st, middle and last thread for progress report
           gprogress[0]++;
       }
-*/
       return 0;
 }
 
@@ -818,7 +823,7 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
 __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const uint *media,
      __global float *field, __global float *genergy, __global uint *n_seed,
      __global float *n_det,__constant float4 *gproperty,__global float *srcpattern,
-     __constant float4 *gdetpos, __global uint *stopsign,__global uint *detectedphoton,
+     __constant float4 *gdetpos, __global uint *gprogress,__global uint *detectedphoton,
      __local float *sharedmem, __constant MCXParam *gcfg){
 
      int idx= get_global_id(0);
@@ -857,7 +862,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
      if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,0,ppath,
 		      &energyloss,&energylaunched,n_det,detectedphoton,t,gproperty,
-		      media,srcpattern,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton)){
+		      media,srcpattern,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton,gprogress)){
          n_seed[idx]=NO_LAUNCH;
          return;
      }
@@ -972,7 +977,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           if((mediaid==0 && (!gcfg->doreflect || (gcfg->doreflect && n1==gproperty[mediaid & MED_MASK].w))) || f.y>gcfg->twin1){
                   GPUDEBUG(((__constant char*)"direct relaunch at idx=[%d] mediaid=[%d], ref=[%d]\n",idx1d,mediaid,gcfg->doreflect));
 		  if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),ppath,
-		      &energyloss,&energylaunched,n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton)){ 
+		      &energyloss,&energylaunched,n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton,gprogress)){ 
                          break;
 		  }
                   isdet=mediaid & DET_MASK;
@@ -1008,7 +1013,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                         if(mediaid==0){ // transmission to external boundary
                             GPUDEBUG(((__constant char*)"transmit to air, relaunch\n"));
 		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),
-			        ppath,&energyloss,&energylaunched,n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton)){
+			        ppath,&energyloss,&energylaunched,n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton,gprogress)){
                                     break;
 			    }
                             isdet=mediaid & DET_MASK;
