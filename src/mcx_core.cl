@@ -511,7 +511,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	   __global float *n_det,__global uint *dpnum, __private RandType t[RAND_BUF_LEN],
 	   __constant float4 *gproperty, __global const uint media[], __global float srcpattern[],
 	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, int threadphoton, 
-	   int oddphotons, __local int *blockphoton, __global uint *gprogress){
+	   int oddphotons, __local int *blockphoton, volatile __global uint *gprogress){
 
 /*
 __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,float4 *prop,uint *idx1d, float *field,
@@ -810,8 +810,8 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
        * If a progress bar is needed, only sum completed photons from the 1st, last and middle threads to determine progress bar
        */
 
-      if((gcfg->debuglevel & MCX_DEBUG_PROGRESS) && ((int)(f[0].w) & 1) && (threadid==0 || threadid==(get_local_size(0) * get_global_size(0) - 1)
-          || threadid==((get_local_size(0) * get_global_size(0))>>1))) { ///< use the 1st, middle and last thread for progress report
+      if((gcfg->debuglevel & MCX_DEBUG_PROGRESS) && ((int)(f[0].w) & 1) && (threadid==0 || threadid==(get_global_size(0) - 1)
+          || threadid==(get_global_size(0)>>1))) { ///< use the 1st, middle and last thread for progress report
           gprogress[0]++;
       }
       return 0;
@@ -823,7 +823,7 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
 __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const uint *media,
      __global float *field, __global float *genergy, __global uint *n_seed,
      __global float *n_det,__constant float4 *gproperty,__global float *srcpattern,
-     __constant float4 *gdetpos, __global uint *gprogress,__global uint *detectedphoton,
+     __constant float4 *gdetpos, volatile __global uint *gprogress,__global uint *detectedphoton,
      __local float *sharedmem, __constant MCXParam *gcfg){
 
      int idx= get_global_id(0);

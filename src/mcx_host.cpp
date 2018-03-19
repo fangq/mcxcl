@@ -267,7 +267,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cl_float t,twindow0,twindow1;
      cl_float fullload=0.f;
      cl_float *energy;
-     cl_uint progress[1];
+     cl_uint *progress=NULL;
      cl_uint detected=0,workdev;
 
      cl_uint tic,tic0,tic1,toc=0,fieldlen;
@@ -425,6 +425,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      OCL_ASSERT(((gmedia=clCreateBuffer(mcxcontext,RO_MEM, sizeof(cl_uint)*(dimxyz),media,&status),status)));
      OCL_ASSERT(((gproperty=clCreateBuffer(mcxcontext,RO_MEM, cfg->medianum*sizeof(Medium),cfg->prop,&status),status)));
      OCL_ASSERT(((gparam=clCreateBuffer(mcxcontext,RO_MEM, sizeof(MCXParam),&param,&status),status)));
+     OCL_ASSERT(((gprogress[0]=clCreateBuffer(mcxcontext,RW_PTR, sizeof(cl_uint),progress,&status),status)));
 
      for(i=0;i<workdev;i++){
        Pseed=(cl_uint*)malloc(sizeof(cl_uint)*gpu[i].autothread*RAND_SEED_LEN);
@@ -435,7 +436,6 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
        OCL_ASSERT(((gfield[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_float)*(dimxyz)*cfg->maxgate,field,&status),status)));
        OCL_ASSERT(((gdetphoton[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),Pdet,&status),status)));
        OCL_ASSERT(((genergy[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*(gpu[i].autothread<<1),energy,&status),status)));
-       OCL_ASSERT(((gprogress[i]=clCreateBuffer(mcxcontext,RW_PTR, sizeof(cl_uint),progress,&status),status)));
        OCL_ASSERT(((gdetected[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint),&detected,&status),status)));
        if(cfg->detpos)
            OCL_ASSERT(((gdetpos[i]=clCreateBuffer(mcxcontext,RO_MEM, cfg->detnum*sizeof(float4),cfg->detpos,&status),status)));
@@ -527,7 +527,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 7, sizeof(cl_mem), (void*)&gproperty)));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 8, sizeof(cl_mem), (void*)(gsrcpattern+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 9, sizeof(cl_mem), (void*)(gdetpos+i))));
-	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],10, sizeof(cl_mem), (void*)(gprogress+i))));
+	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],10, sizeof(cl_mem), (void*)(gprogress))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],11, sizeof(cl_mem), (void*)(gdetected+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],12, cfg->issavedet? sizeof(int)+sizeof(cl_float)*cfg->nblocksize*param.maxmedia : sizeof(int), NULL)));
      }
@@ -580,7 +580,11 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
            }
            if((param.debuglevel & MCX_DEBUG_PROGRESS)){
 	     int p0 = 0, ndone=-1;
+	     int threadphoton=(int)(cfg->nphoton*cfg->workload[0]/(fullload*gpu[0].autothread*cfg->respin));
+
 	     mcx_progressbar(-0.f,cfg);
+
+             progress = (cl_uint *)clEnqueueMapBuffer(mcxqueue[0], gprogress[0], CL_FALSE, CL_MAP_READ, 0, sizeof(cl_uint), 0, NULL, NULL, NULL);
 
 	     do{
                ndone = *progress;
@@ -588,15 +592,16 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                MCX_FPRINTF(cfg->flog,"progress=%d\n",ndone);  // debug progress bar, will remove
 
 	       if (ndone > p0){
-		  mcx_progressbar(ndone/(param.threadphoton*1.45f),cfg);
+		  mcx_progressbar(ndone/(threadphoton*1.45f),cfg);
 		  p0 = ndone;
 	       }
                sleep_ms(100);
 	     }while (p0 < (param.threadphoton*1.45f));
              mcx_progressbar(1.0f,cfg);
              MCX_FPRINTF(cfg->flog,"\n");
+
+             clEnqueueUnmapMemObject(mcxqueue[0], gprogress[0], progress, 0, NULL, NULL);
            }
-           clEnqueueUnmapMemObject(mcxqueue[0], gprogress[0], progress, 0, NULL, NULL);
 
            //clWaitForEvents(workdev,waittoread);
            for(devid=0;devid<workdev;devid++)
