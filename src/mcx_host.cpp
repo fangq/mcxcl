@@ -23,7 +23,9 @@
 #include "tictoc.h"
 #include "mcx_const.h"
 
-extern cl_event kernelevent;
+#ifndef USE_OS_TIMER
+    extern cl_event kernelevent;
+#endif
 
 const char *VendorList[]={"Unknown","NVIDIA","AMD","Intel","IntelGPU"};
 
