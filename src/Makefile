@@ -34,12 +34,13 @@ endif
 
 # setup for cuda
 CUDA_PATH ?= /usr/local/cuda
-HAS_CUDA := $(shell [ -d $(CUDA_PATH) ] && echo "1" )
+CUDA_LIB:=$(shell echo $$CUDA_PATH | sed 's:\\:/:g')
+HAS_CUDA := $(shell [ -d $(CUDA_LIB) ] && echo "1" )
 ifeq ($(HAS_CUDA), 1)                                                        
-  CUCCOPT +=-I$(CUDA_PATH)/include #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
-  CCOPT += -I$(CUDA_PATH)/include
-  LIBOPENCLDIR=$(CUDA_PATH)/lib64
-  INCLUDEDIRS +=-I$(CUDA_PATH)/include
+  CUCCOPT +=-I$(CUDA_LIB)/include -DUSE_OS_TIMER #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
+  CCOPT += -I$(CUDA_LIB)/include -DUSE_OS_TIMER
+  LIBOPENCLDIR=$(CUDA_LIB)/lib/x64
+  INCLUDEDIRS +=-I$(CUDA_LIB)/include
 endif
 
 LIBOPENCLDIR ?= /usr/lib/x86_64-linux-gnu
@@ -59,9 +60,9 @@ CLPROGRAM=mcx_core
 
 ARCH = $(shell uname -m)
 PLATFORM = $(shell uname -s)
-ifeq ($(findstring Msys,$(PLATFORM)), CYGWIN)
+ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   CCC=nvcc
-  LINKOPT=-L/c/CUDA/lib -lcudart --link
+  LINKOPT=-L$(LIBOPENCLDIR) -lOpenCL
   INCLUDEDIRS +=-I/c/CUDA/include
   CPPOPT =-c  -D_CRT_SECURE_NO_DEPRECATE -DWIN32
   OBJSUFFIX=.obj
