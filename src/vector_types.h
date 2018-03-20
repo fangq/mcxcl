@@ -7,6 +7,10 @@
 #ifndef _MMC_VECTOR_H
 #define _MMC_VECTOR_H
 
+#ifdef _WIN32
+    #define __attribute__(A) /* do nothing */
+#endif
+
 /**
  \struct MMC_float4 vector_types.h
  \brief  floating-point quadraplet {x,y,z,w}

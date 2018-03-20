@@ -34,9 +34,15 @@ endif
 
 # setup for cuda
 CUDA_PATH ?= /usr/local/cuda
-CUDA_LIB:=$(shell echo $$CUDA_PATH | sed 's:\\:/:g')
+
+ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
+  CUDA_LIB:="$(shell echo $$CUDA_PATH | sed 's:\\:/:g')"
+else
+  CUDA_LIB:="$(shell echo $(CUDA_PATH) | sed 's:\\:/:g')"
+endif
+
 HAS_CUDA := $(shell [ -d $(CUDA_LIB) ] && echo "1" )
-ifeq ($(HAS_CUDA), 1)                                                        
+ifeq ($(HAS_CUDA), 1)
   CUCCOPT +=-I$(CUDA_LIB)/include -DUSE_OS_TIMER #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
   CCOPT += -I$(CUDA_LIB)/include -DUSE_OS_TIMER
   LIBOPENCLDIR=$(CUDA_LIB)/lib/x64
@@ -96,7 +102,7 @@ oct:        LINKOPT=--mex mcxlabcl.cpp $(INCLUDEDIRS)
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 CLSOURCE  := $(addsuffix $(CLHEADER), $(CLPROGRAM))
 
-all mex oct static : $(OUTPUT_DIR)/$(BINARY)
+all mex oct intelcpu static : $(OUTPUT_DIR)/$(BINARY)
 
 makedirs:
 	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) $(OUTPUT_DIR); fi
