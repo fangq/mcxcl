@@ -32,6 +32,9 @@ ifeq ($(HAS_AMD), 1)
   INCLUDEDIRS +=-I$(AMDAPPSDKROOT)/include
 endif
 
+ARCH = $(shell uname -m)
+PLATFORM = $(shell uname -s)
+
 # setup for cuda
 CUDA_PATH ?= /usr/local/cuda
 
@@ -64,8 +67,6 @@ MKDIR      := mkdir
 FILES=mcx_host mcx_utils tictoc mcxcl mcx_shapes cjson/cJSON
 CLPROGRAM=mcx_core
 
-ARCH = $(shell uname -m)
-PLATFORM = $(shell uname -s)
 ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   CCC=nvcc
   LINKOPT=-L$(LIBOPENCLDIR) -lOpenCL
