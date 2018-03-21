@@ -419,7 +419,7 @@ float reflectcoeff(float4 *v, float n1, float n2, int flipdir){
  * @return the reflection coefficient R=(Rs+Rp)/2, Rs: R of the perpendicularly polarized light, Rp: parallelly polarized light
  */
 
-int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint media[], __constant float4 *gproperty, __constant MCXParam *gcfg){
+int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constant float4 *gproperty, __constant MCXParam *gcfg){
       int count=1,idx1d;
       while(1){
           if(!(any(isless(p[0].xyz,(float3)(0.f))) || any(isgreaterequal(p[0].xyz,(gcfg->maxidx.xyz))))){
@@ -509,7 +509,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
            __global float *field, uint *mediaid,float *w0,float *Lmove,uint isdet, 
 	   __local float *ppath,float *energyloss,float *energylaunched,
 	   __global float *n_det,__global uint *dpnum, __private RandType t[RAND_BUF_LEN],
-	   __constant float4 *gproperty, __global const uint media[], __global float srcpattern[],
+	   __constant float4 *gproperty, __global const uint *media, __global float *srcpattern,
 	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, int threadphoton, 
 	   int oddphotons, __local int *blockphoton, volatile __global uint *gprogress){
 
