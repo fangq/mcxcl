@@ -63,7 +63,7 @@ char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W'
 
 const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--thread","--blocksize","--session","--array","--gategroup",
-                 "--reflect","--reflect3","--debuglevel","--devicelist","--gpu","--workload","--srcfrom0",
+                 "--reflect","--reflect3","--debug","--devicelist","--gpu","--workload","--srcfrom0",
 		 "--savedet","--repeat","--save2pt","--printlen","--minenergy",
                  "--normalize","--skipradius","--log","--listgpu","--dumpmask",
                  "--printgpu","--root","--optlevel","--cpu","--kernel","--verbose","--compileropt",
@@ -116,7 +116,7 @@ void mcx_initcfg(Config *cfg){
      cfg->isreflect=1;
      cfg->isref3=0;
      cfg->isnormalized=1;
-     cfg->issavedet=0;
+     cfg->issavedet=1;
      cfg->respin=1;
      cfg->issave2pt=1;
      cfg->isgpuinfo=0;
@@ -199,6 +199,7 @@ void mcx_initcfg(Config *cfg){
      cfg->seeddata=NULL;
      cfg->outputtype=otFlux;
      cfg->outputformat=ofMC2;
+     cfg->srcdir.w=0.f;
 }
 
 void mcx_clearcfg(Config *cfg){
@@ -468,6 +469,7 @@ void mcx_writeconfig(const char *fname, Config *cfg){
 void mcx_loadconfig(FILE *in, Config *cfg){
      int i;
      unsigned int gates,itmp;
+     float dtmp;
      char filename[MAX_PATH_LENGTH]={0}, strtypestr[MAX_SESSION_LENGTH], comment[MAX_PATH_LENGTH],*comm;
      
      if(in==stdin)
@@ -494,6 +496,9 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      }
      MCX_ASSERT(fscanf(in,"%f %f %f", &(cfg->srcdir.x),&(cfg->srcdir.y),&(cfg->srcdir.z) )==3);
      comm=fgets(comment,MAX_PATH_LENGTH,in);
+     if(comm!=NULL && sscanf(comm,"%f",&dtmp)==1)
+         cfg->srcdir.w=dtmp;
+
      if(in==stdin)
      	fprintf(stdout,"%f %f %f\nPlease specify the time gates in seconds (start end and step) [0.0 1e-9 1e-10]\n\t",
                                    cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z);
@@ -1548,45 +1553,76 @@ void mcx_usage(Config *cfg,char *exename){
      mcx_printheader(cfg);
      printf("\n\
 usage: %s <param1> <param2> ...\n\
-where possible parameters include (the first item in [] is the default value)\n\
- -i 	        (--interactive) interactive mode\n\
- -f config      (--input)	read config from a file\n\
- -A [0|int]     (--autopilot)   auto thread config:1 dedicated GPU;2 non-dedica.\n\
- -t [16384|int] (--thread)	total thread number\n\
- -T [64|int]    (--blocksize)	thread number per block\n\
- -n [0|int]     (--photon)	total photon number\n\
- -r [1|int]     (--repeat)	number of repeations\n\
- -a [0|1]       (--array)	0 for Matlab array, 1 for C array\n\
- -u [1.|float]  (--unitinmm)    defines the length unit for the grid edge\n\
- -z [0|1]       (--srcfrom0)    src/detector coordinates start from 0, otherwise from 1\n\
- -g [1|int]     (--gategroup)	number of time gates per run\n\
- -b [1|0]       (--reflect)	1 to reflect the photons at the boundary, 0 to exit\n\
- -B [0|1]       (--reflect3)	1 to consider maximum 3 reflections, 0 consider only 2\n\
- -E [0|int]     (--seed)        set random-number-generator seed, -1 to generate\n\
- -e [0.|float]  (--minenergy)	minimum energy level to propagate a photon\n\
- -R [0.|float]  (--skipradius)  minimum distance to source to start accumulation\n\
- -U [1|0]       (--normalize)	1 to normailze the fluence to unitary, 0 to save raw fluence\n\
- -d [0|1]       (--savedet)	1 to save photon info at detectors, 0 not to save\n\
- -S [1|0]       (--save2pt)	1 to save the fluence field, 0 do not save\n\
- -s sessionid   (--session)	a string to identify this specific simulation (and output files)\n\
- -p [0|int]     (--printlen)	number of threads to print (debug)\n\
- -h             (--help)	print this message\n\
- -l             (--log) 	print messages to a log file instead\n\
- -L             (--listgpu)	print GPU information only\n\
- -I             (--printgpu)	print GPU information and run program\n\
- -c             (--cpu) 	use CPU as the platform for OpenCL backend\n\
- -k mcx_core.cl (--kernel)      specify path to OpenCL kernel source file\n\
- -G '0111'      (--gpu)         specify the active OpenCL devices (1 enable, 0 disable)\n\
- -W '50,30,20'  (--workload)    specify relative workload for each device; total is the sum\n\
- -J '-D MCX'    (--compileropt) specify additional JIT compiler options\n\
+where possible parameters include (the first value in [*|*] is the default)\n\
+\n\
+== Required option ==\n\
+ -f config     (--input)       read an input file in .json or .inp format\n\
+\n\
+== MC options ==\n\
+\n\
+ -n [0|int]    (--photon)      total photon number (exponential form accepted)\n\
+ -r [1|int]    (--repeat)      divide photons into r groups (1 per GPU call)\n\
+ -b [1|0]      (--reflect)     1 to reflect photons at ext. boundary;0 to exit\n\
+ -u [1.|float] (--unitinmm)    defines the length unit for the grid edge\n\
+ -U [1|0]      (--normalize)   1 to normalize flux to unitary; 0 save raw\n\
+ -E [0|int]    (--seed)        set random-number-generator seed, -1 to generate\n\
+ -z [0|1]      (--srcfrom0)    1 volume origin is [0 0 0]; 0: origin at [1 1 1]\n\
+ -k [1|0]      (--voidtime)    when src is outside, 1 enables timer inside void\n\
  -P '{...}'    (--shapes)      a JSON string for additional shapes in the grid\n\
+ -e [0.|float] (--minenergy)   minimum energy level to terminate a photon\n\
+ -g [1|int]    (--gategroup)   number of time gates per run\n\
+ -a [0|1]      (--array)       1 for C array (row-major); 0 for Matlab array\n\
+\n\
+== GPU options ==\n\
+ -L            (--listgpu)     print GPU information only\n\
+ -t [16384|int](--thread)      total thread number\n\
+ -T [64|int]   (--blocksize)   thread number per block\n\
+ -A [0|int]    (--autopilot)   auto thread config:1 dedicated GPU;2 non-dedica.\n\
+ -G [0|int]    (--gpu)         specify which GPU to use, list GPU by -L; 0 auto\n\
+      or\n\
+ -G '1101'     (--gpu)         using multiple devices (1 enable, 0 disable)\n\
+ -W '50,30,20' (--workload)    workload for active devices; normalized by sum\n\
+ -I            (--printgpu)    print GPU information and run program\n\
+ -o [3|int]    (--optlevel)    optimization level 0-no opt;1,2,3 more optimized\n\
+ -J '-D MCX'   (--compileropt) specify additional JIT compiler options\n\
+ -k my_simu.cl (--kernel)      user specified OpenCL kernel source file\n\
+\n\
+== Output options ==\n\
+ -s sessionid  (--session)     a string to label all output file names\n\
+ -d [1|0]      (--savedet)     1 to save photon info at detectors; 0 not save\n\
+ -M [0|1]      (--dumpmask)    1 to dump detector volume masks; 0 do not save\n\
+ -H [1000000] (--maxdetphoton) max number of detected photons\n\
+ -S [1|0]      (--save2pt)     1 to save the flux field; 0 do not save\n\
  -F [mc2|...] (--outputformat) fluence data output format:\n\
                                mc2 - MCX mc2 format (binary 32bit float)\n\
                                nii - Nifti format\n\
                                hdr - Analyze 7.5 hdr/img format\n\
- -H [1000000] (--maxdetphoton) max number of detected photons\n\
+ -O [X|XFEJP]  (--outputtype)  X - output flux, F - fluence, E - energy deposit\n\
+                               J - Jacobian (replay mode),   P - scattering\n\
+                               event counts at each voxel (replay mode only)\n\
+\n\
+== User IO options ==\n\
+ -h            (--help)        print this message\n\
+ -v            (--version)     print MCX revision number\n\
+ -l            (--log)         print messages to a log file instead\n\
+ -i 	       (--interactive) interactive mode\n\
+\n\
+== Debug options ==\n\
+ -D [0|int]    (--debug)       print debug information (you can use an integer\n\
+  or                           or a string by combining the following flags)\n\
+ -D [''|RMP]                   4 P  print progress bar\n\
+      combine multiple items by using a string, or add selected numbers together\n\
+\n\
+== Additional options ==\n\
+ --atomic       [1|0]          1: use atomic operations; 0: do not use atomics\n\
+ --root         [''|string]    full path to the folder storing the input files\n\
+ --maxvoidstep  [1000|int]     maximum distance (in voxel unit) of a photon that\n\
+                               can travel before entering the domain, if \n\
+                               launched outside (i.e. a widefield source)\n\
+\n\
+== Example ==\n\
 example: (autopilot mode)\n\
   %s -A -n 1e7 -f input.inp -G 1 \n\
 or (manual mode)\n\
-  %s -t 16384 -T 64 -n 1e7 -f input.inp -s test -r 1 -b 0 -G 1010 -W '50,50' -k ../../src/mcx_core.cl\n",exename,exename,exename);
+  %s -t 16384 -T 64 -n 1e7 -f input.inp -s test -r 1 -b 0 -G 1010 -W '50,50'\n",exename,exename,exename);
 }

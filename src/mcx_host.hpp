@@ -22,8 +22,15 @@ extern "C" {
 #define MCX_DEBUG_PROGRESS  4
 
 #define MIN(a,b)           ((a)<(b)?(a):(b))
-#define MCX_RNG_NAME       "Logistic-Lattice"
-#define RAND_SEED_LEN      5        //32bit seed length (32*5=160bits)
+
+#ifdef USE_LL5_RAND
+  #define MCX_RNG_NAME       "Logistic-Lattice"
+  #define RAND_SEED_LEN      5        //32bit seed length (32*5=160bits)
+#else
+  #define MCX_RNG_NAME       "xoroshiro128+"
+  #define RAND_SEED_LEN      4        //32bit seed length (32*5=160bits)
+#endif
+
 #define RO_MEM             (CL_MEM_READ_ONLY  | CL_MEM_COPY_HOST_PTR)
 #define WO_MEM             (CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR)
 #define RW_MEM             (CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR)
