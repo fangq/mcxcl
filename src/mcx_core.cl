@@ -93,6 +93,16 @@ typedef struct KernelParams {
   uint   debuglevel;           /**< debug flags */
 } MCXParam __attribute__ ((aligned (32)));
 
+/* function prototypes */
+
+void clearpath(__local float *p, __constant MCXParam *gcfg);
+float mcx_nextafterf(float a, int dir);
+float hitgrid(float4 *p0, float4 *v, float4 *htime, int *id);
+void rotatevector(float4 *v, float stheta, float ctheta, float sphi, float cphi);
+void transmit(float4 *v, float n1, float n2,int flipdir);
+float reflectcoeff(float4 *v, float n1, float n2, int flipdir);
+int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constant float4 *gproperty, __constant MCXParam *gcfg);
+
 
 //#ifndef USE_XORSHIFT128P_RAND     // xorshift128+ is the default RNG
 #ifdef USE_LL5_RAND                 //enable the legacy Logistic Lattic RNG
@@ -203,6 +213,8 @@ static void gpu_rng_reseed(__private RandType t[RAND_BUF_LEN],__global uint *cpu
 }
 
 #endif
+
+float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]);
 
 float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
     return -MCX_MATHFUN(log)(rand_uniform01(t)+EPS);
@@ -810,8 +822,8 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
        * If a progress bar is needed, only sum completed photons from the 1st, last and middle threads to determine progress bar
        */
 
-      if((gcfg->debuglevel & MCX_DEBUG_PROGRESS) && ((int)(f[0].w) & 1) && (threadid==0 || threadid==(get_global_size(0) - 1)
-          || threadid==(get_global_size(0)>>1))) { ///< use the 1st, middle and last thread for progress report
+      if((gcfg->debuglevel & MCX_DEBUG_PROGRESS) && ((int)(f[0].w) & 1) && (threadid==0 || threadid==(int)(get_global_size(0) - 1)
+          || threadid==(int)(get_global_size(0)>>1))) { ///< use the 1st, middle and last thread for progress report
           gprogress[0]++;
       }
       return 0;
