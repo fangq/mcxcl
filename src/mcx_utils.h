@@ -176,7 +176,7 @@ void mcx_assess(const int id,const char *msg,const char *file,const int linenum)
 void mcx_cleargpuinfo(GPUInfo **gpuinfo);
 void mcx_loadconfig(FILE *in, Config *cfg);
 void mcx_saveconfig(FILE *in, Config *cfg);
-void mcx_readconfig(const char *fname, Config *cfg);
+void mcx_readconfig(char *fname, Config *cfg);
 void mcx_writeconfig(const char *fname, Config *cfg);
 void mcx_initcfg(Config *cfg);
 void mcx_clearcfg(Config *cfg);

@@ -23,10 +23,12 @@
 #include <string.h>
 #include <math.h>
 #include <ctype.h>
+#include <errno.h>
 
 #ifndef WIN32
   #include <sys/ioctl.h>
 #endif
+#include <sys/stat.h>
 
 #include "mcx_utils.h"
 #include "mcx_shapes.h"
@@ -384,12 +386,36 @@ void mcx_assess(const int err,const char *msg,const char *file,const int linenum
 }
 
 void mcx_error(const int id,const char *msg,const char *file,const int linenum){
-     fprintf(stdout,"\nMCX ERROR(%d):%s in unit %s:%d\n",id,msg,file,linenum);
+     fprintf(stdout,"\nMCXCL ERROR(%d):%s in unit %s:%d\n",id,msg,file,linenum);
 #ifdef MCX_CONTAINER
      mcx_throw_exception(id,msg,file,linenum);
 #else
      exit(id);
 #endif
+}
+
+/**
+ * @brief Function to recursively create output folder
+ *
+ * Source: https://stackoverflow.com/questions/2336242/recursive-mkdir-system-call-on-unix
+ * @param[in] dir_path: folder name to be created
+ * @param[in] mode: mode of the created folder
+ */
+
+int mkpath(char* dir_path, int mode){
+    char* p=dir_path;
+    p[strlen(p)+1]='\0';
+    p[strlen(p)]=pathsep;
+    for (p=strchr(dir_path+1, pathsep); p; p=strchr(p+1, pathsep)) {
+      *p='\0';
+      if (mkdir(dir_path, mode)==-1) {
+          if (errno!=EEXIST) { *p=pathsep; return -1; }
+      }
+      *p=pathsep;
+    }
+    if(dir_path[strlen(p)-1]==pathsep)
+        dir_path[strlen(p)-1]='\0';
+    return 0;
 }
 
 void mcx_createfluence(float **fluence, Config *cfg){
@@ -401,56 +427,63 @@ void mcx_clearfluence(float **fluence){
      if(*fluence) free(*fluence);
 }
 
-void mcx_readconfig(const char *fname, Config *cfg){
+void mcx_readconfig(char *fname, Config *cfg){
      if(fname[0]==0){
      	mcx_loadconfig(stdin,cfg);
-        if(cfg->session[0]=='\0'){
-		strcpy(cfg->session,"default");
-	}
-     }
-     else{
-     	FILE *fp=fopen(fname,"rt");
-	if(fp==NULL) mcx_error(-2,"can not load the specified config file",__FILE__,__LINE__);
-        if(strstr(fname,".json")!=NULL){
+     }else{
+        FILE *fp=fopen(fname,"rt");
+        if(fp==NULL && fname[0]!='{') mcx_error(-2,"can not load the specified config file",__FILE__,__LINE__);
+        if(strstr(fname,".json")!=NULL || fname[0]=='{'){
             char *jbuf;
             int len;
             cJSON *jroot;
 
-            fclose(fp);
-            fp=fopen(fname,"rb");
-            fseek (fp, 0, SEEK_END);
-            len=ftell(fp)+1;
-            jbuf=(char *)malloc(len);
-            rewind(fp);
-            if(fread(jbuf,len-1,1,fp)!=1)
-                mcx_error(-2,"reading input file is terminated",__FILE__,__LINE__);
-            jbuf[len-1]='\0';
+            if(fp!=NULL){
+                fclose(fp);
+                fp=fopen(fname,"rb");
+                fseek (fp, 0, SEEK_END);
+                len=ftell(fp)+1;
+                jbuf=(char *)malloc(len);
+                rewind(fp);
+                if(fread(jbuf,len-1,1,fp)!=1)
+                    mcx_error(-2,"reading input file is terminated",__FILE__,__LINE__);
+                jbuf[len-1]='\0';
+            }else
+		jbuf=fname;
             jroot = cJSON_Parse(jbuf);
             if(jroot){
                 mcx_loadjson(jroot,cfg);
                 cJSON_Delete(jroot);
             }else{
-                char *ptrold, *ptr=(char*)cJSON_GetErrorPtr();
+	    printf("input=\n%s\n",jbuf);
+                char *ptrold=NULL, *ptr=(char*)cJSON_GetErrorPtr();
                 if(ptr) ptrold=strstr(jbuf,ptr);
-                fclose(fp);
+                if(fp!=NULL) fclose(fp);
                 if(ptr && ptrold){
                    char *offs=(ptrold-jbuf>=50) ? ptrold-50 : jbuf;
                    while(offs<ptrold){
-                      fprintf(stderr,"%c",*offs);
+                      MCX_FPRINTF(stderr,"%c",*offs);
                       offs++;
                    }
-                   fprintf(stderr,"<error>%.50s\n",ptrold);
+                   MCX_FPRINTF(stderr,"<error>%.50s\n",ptrold);
                 }
-                free(jbuf);
+                if(fp!=NULL) free(jbuf);
                 mcx_error(-9,"invalid JSON input file",__FILE__,__LINE__);
             }
-            free(jbuf);
+            if(fp!=NULL) free(jbuf);
         }else{
 	    mcx_loadconfig(fp,cfg); 
         }
-	fclose(fp);
-        if(cfg->session[0]=='\0'){
-		strcpy(cfg->session,fname);
+        if(fp!=NULL) fclose(fp);
+	if(cfg->session[0]=='\0'){
+	    strncpy(cfg->session,fname,MAX_SESSION_LENGTH);
+	}
+     }
+     if(cfg->rootpath[0]!='\0'){
+	struct stat st = {0};
+	if (stat((const char *)cfg->rootpath, &st) == -1) {
+	    if(mkpath(cfg->rootpath, 0755))
+	       mcx_error(-9,"can not create output folder",__FILE__,__LINE__);
 	}
      }
 }
@@ -1257,7 +1290,7 @@ int mcx_remap(char *opt){
 }
 void mcx_parsecmd(int argc, char* argv[], Config *cfg){
      int i=1,isinteractive=1,issavelog=0;
-     char filename[MAX_PATH_LENGTH]={0};
+     char filename[MAX_PATH_LENGTH]={0}, *jsoninput=NULL;
      char logfile[MAX_PATH_LENGTH]={0};
      float np=0.f;
 
@@ -1286,7 +1319,11 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 				break;
 		     case 'f': 
 		     		isinteractive=0;
-		     	        i=mcx_readarg(argc,argv,i,filename,"string");
+				if(argc>i && argv[i+1][0]=='{'){
+					jsoninput=argv[i+1];
+					i++;
+				}else
+		     	        	i=mcx_readarg(argc,argv,i,filename,"string");
 				break;
 		     case 'm':
 				mcx_error(-2,"specifying photon move is not supported any more, please use -n",__FILE__,__LINE__);
@@ -1448,11 +1485,13 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 	  fclose(fp);
      }
      if(cfg->isgpuinfo!=2){ /*print gpu info only*/
-       if(isinteractive){
-          mcx_readconfig("",cfg);
-       }else{
-     	  mcx_readconfig(filename,cfg);
-       }
+	  if(isinteractive){
+             mcx_readconfig((char*)"",cfg);
+	  }else if(jsoninput){
+     	     mcx_readconfig(jsoninput,cfg);
+	  }else{
+             mcx_readconfig(filename,cfg);
+          }
      }
 }
 
