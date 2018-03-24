@@ -455,7 +455,6 @@ void mcx_readconfig(char *fname, Config *cfg){
                 mcx_loadjson(jroot,cfg);
                 cJSON_Delete(jroot);
             }else{
-	    printf("input=\n%s\n",jbuf);
                 char *ptrold=NULL, *ptr=(char*)cJSON_GetErrorPtr();
                 if(ptr) ptrold=strstr(jbuf,ptr);
                 if(fp!=NULL) fclose(fp);
@@ -956,6 +955,10 @@ int mcx_loadjson(cJSON *root, Config *cfg){
 	if(!cfg->issaveseed)  cfg->issaveseed=FIND_JSON_KEY("DoSaveSeed","Session.DoSaveSeed",Session,cfg->issaveseed,valueint);
 	cfg->reseedlimit=FIND_JSON_KEY("ReseedLimit","Session.ReseedLimit",Session,cfg->reseedlimit,valueint);
 */
+        if(!cfg->outputformat)  cfg->outputformat=mcx_keylookup((char *)FIND_JSON_KEY("OutputFormat","Session.OutputFormat",Session,"mc2",valuestring),outputformat);
+        if(cfg->outputformat<0)
+                mcx_error(-2,"the specified output format is not recognized",__FILE__,__LINE__);
+
 	strncpy(val,FIND_JSON_KEY("OutputType","Session.OutputType",Session,outputtype+cfg->outputtype,valuestring),1);
 	if(mcx_lookupindex(val, outputtype)){
 		mcx_error(-2,"the specified output data type is not recognized",__FILE__,__LINE__);
@@ -1411,6 +1414,12 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                                         cfg->debuglevel=mcx_parsedebugopt(argv[++i],debugflag);
                                 else
                                         i=mcx_readarg(argc,argv,i,&(cfg->debuglevel),"int");
+                                break;
+		     case 'F':
+                                if(i>=argc)
+                                        mcx_error(-1,"incomplete input",__FILE__,__LINE__);
+                                if((cfg->outputformat=mcx_keylookup(argv[++i], outputformat))<0)
+                                        mcx_error(-2,"the specified output data type is not recognized",__FILE__,__LINE__);
                                 break;
                      case 'G':
                                 if(mcx_isbinstr(argv[i+1])){

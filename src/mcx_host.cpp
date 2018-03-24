@@ -138,7 +138,7 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
     size_t deviceListSize;
     int totaldevice=0;
 
-    clGetPlatformIDs(0, NULL, &numPlatforms);
+    OCL_ASSERT((clGetPlatformIDs(0, NULL, &numPlatforms)));
     if(activedev) *activedev=0;
 
     *info=(GPUInfo *)calloc(MAX_DEVICE,sizeof(GPUInfo));
