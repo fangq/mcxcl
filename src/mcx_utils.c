@@ -56,7 +56,7 @@
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W','z',
                  'd','r','S','p','e','U','R','l','L','M','I','-','o','c','k','v','J',
-                 'A','P','E','F','H','-','u','-','\0'};
+                 'A','P','E','F','H','-','u','-','x','\0'};
 
 /**
  * Long command line options
@@ -70,7 +70,7 @@ const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--normalize","--skipradius","--log","--listgpu","--dumpmask",
                  "--printgpu","--root","--optlevel","--cpu","--kernel","--verbose","--compileropt",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
-		 "--mediabyte","--unitinmm","--atomic",""};
+		 "--mediabyte","--unitinmm","--atomic","-saveexit",""};
 
 /**
  * Debug flags
@@ -621,6 +621,9 @@ void mcx_loadconfig(FILE *in, Config *cfg){
 		fprintf(stdout,"%f %f %f\n",cfg->detpos[i].x,cfg->detpos[i].y,cfg->detpos[i].z);
      }
      mcx_prepdomain(filename,cfg);
+     cfg->his.maxmedia=cfg->medianum-1; /*skip media 0*/
+     cfg->his.detnum=cfg->detnum;
+     cfg->his.colcount=cfg->medianum+1+(cfg->issaveexit)*6; /*column count=maxmedia+2*/
 
      if(in==stdin)
      	fprintf(stdout,"Please specify the source type[pencil|cone|gaussian]:\n\t");
@@ -951,6 +954,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
         if(cfg->issave2pt)    cfg->issave2pt=FIND_JSON_KEY("DoSaveVolume","Session.DoSaveVolume",Session,cfg->issave2pt,valueint);
         if(cfg->isnormalized) cfg->isnormalized=FIND_JSON_KEY("DoNormalize","Session.DoNormalize",Session,cfg->isnormalized,valueint);
         if(!cfg->issavedet)   cfg->issavedet=FIND_JSON_KEY("DoPartialPath","Session.DoPartialPath",Session,cfg->issavedet,valueint);
+        if(!cfg->issaveexit)  cfg->issaveexit=FIND_JSON_KEY("DoSaveExit","Session.DoSaveExit",Session,cfg->issaveexit,valueint);
 /*
 	if(!cfg->issaveseed)  cfg->issaveseed=FIND_JSON_KEY("DoSaveSeed","Session.DoSaveSeed",Session,cfg->issaveseed,valueint);
 	cfg->reseedlimit=FIND_JSON_KEY("ReseedLimit","Session.ReseedLimit",Session,cfg->reseedlimit,valueint);
@@ -997,7 +1001,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
      mcx_prepdomain(filename,cfg);
      cfg->his.maxmedia=cfg->medianum-1; /*skip media 0*/
      cfg->his.detnum=cfg->detnum;
-     cfg->his.colcount=cfg->medianum+1; /*column count=maxmedia+2*/
+     cfg->his.colcount=cfg->medianum+1+(cfg->issaveexit)*6; /*column count=maxmedia+2*/
      return 0;
 }
 
@@ -1421,6 +1425,10 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                                 if((cfg->outputformat=mcx_keylookup(argv[++i], outputformat))<0)
                                         mcx_error(-2,"the specified output data type is not recognized",__FILE__,__LINE__);
                                 break;
+		     case 'x':
+ 		                i=mcx_readarg(argc,argv,i,&(cfg->issaveexit),"char");
+ 				if (cfg->issaveexit) cfg->issavedet=1;
+ 				break;
                      case 'G':
                                 if(mcx_isbinstr(argv[i+1])){
                                     i=mcx_readarg(argc,argv,i,cfg->deviceid,"string");
@@ -1638,6 +1646,8 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 == Output options ==\n\
  -s sessionid  (--session)     a string to label all output file names\n\
  -d [1|0]      (--savedet)     1 to save photon info at detectors; 0 not save\n\
+ -x [0|1]      (--saveexit)    1 to save photon exit positions and directions\n\
+                               setting -x to 1 also implies setting '-d' to 1\n\
  -M [0|1]      (--dumpmask)    1 to dump detector volume masks; 0 do not save\n\
  -H [1000000] (--maxdetphoton) max number of detected photons\n\
  -S [1|0]      (--save2pt)     1 to save the flux field; 0 do not save\n\

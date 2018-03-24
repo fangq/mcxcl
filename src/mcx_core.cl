@@ -89,6 +89,7 @@ typedef struct KernelParams {
   float4 srcparam1;                  /**< source parameters set 1 */
   float4 srcparam2;                  /**< source parameters set 2 */
   uint   maxvoidstep;
+  uint   issaveexit;
   uint   threadphoton;                  /**< how many photons to be simulated in a thread */
   uint   debuglevel;           /**< debug flags */
 } MCXParam __attribute__ ((aligned (32)));
@@ -257,17 +258,25 @@ uint finddetector(float4 *p0,__constant float4 *gdetpos,__constant MCXParam *gcf
 }
 
 void savedetphoton(__global float *n_det,__global uint *detectedphoton,float nscat,
-                   __local float *ppath,float4 *p0,__constant float4 *gdetpos,__constant MCXParam *gcfg){
+                   __local float *ppath,float4 *p0,float4 *v,__constant float4 *gdetpos,__constant MCXParam *gcfg){
       uint detid=finddetector(p0,gdetpos,gcfg);
       if(detid){
 	 uint baseaddr=atomic_inc(detectedphoton);
 	 if(baseaddr<gcfg->maxdetphoton){
 	    uint i;
-	    baseaddr*=gcfg->maxmedia+2;
+	    baseaddr*=gcfg->maxmedia+2+gcfg->issaveexit*6;
 	    n_det[baseaddr++]=detid;
 	    n_det[baseaddr++]=nscat;
-	    for(i=0;i<gcfg->maxmedia;i++){
+	    for(i=0;i<gcfg->maxmedia;i++)
 		n_det[baseaddr+i]=ppath[i]; // save partial pathlength to the memory
+	    if(gcfg->issaveexit){
+                baseaddr+=gcfg->maxmedia;
+	        n_det[baseaddr++]=p0->x;
+		n_det[baseaddr++]=p0->y;
+		n_det[baseaddr++]=p0->z;
+		n_det[baseaddr++]=v->x;
+		n_det[baseaddr++]=v->y;
+		n_det[baseaddr++]=v->z;
 	    }
 	 }
       }
@@ -551,7 +560,7 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
       // let's handle detectors here
           if(gcfg->savedet){
              if(isdet>0 && *mediaid==0)
-	         savedetphoton(n_det,dpnum,v[0].w,ppath,p,gdetpos,gcfg);
+	         savedetphoton(n_det,dpnum,v[0].w,ppath,p,v,gdetpos,gcfg);
              clearpath(ppath,gcfg);
           }
 #endif

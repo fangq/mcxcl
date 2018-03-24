@@ -301,7 +301,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cl_uint   *Pseed;
      float  *Pdet;
      char opt[MAX_PATH_LENGTH]={'\0'};
-     cl_uint detreclen=cfg->medianum+1;
+     cl_uint detreclen=cfg->medianum+1+(cfg->issaveexit>0)*6;
      GPUInfo *gpu=NULL;
 
      MCXParam param={{{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}},
@@ -314,7 +314,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                      cfg->medianum-1,cfg->detnum,0,0,0,0,(uint)cfg->voidtime,(uint)cfg->srctype,
 		     {{cfg->srcparam1.x,cfg->srcparam1.y,cfg->srcparam1.z,cfg->srcparam1.w}},
 		     {{cfg->srcparam2.x,cfg->srcparam2.y,cfg->srcparam2.z,cfg->srcparam2.w}},
-		     (uint)cfg->maxvoidstep,0,(uint)cfg->debuglevel};
+		     (uint)cfg->maxvoidstep,cfg->issaveexit>0,0,(uint)cfg->debuglevel};
 
      platform=mcx_list_gpu(cfg,&workdev,devices,&gpu);
 

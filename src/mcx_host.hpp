@@ -77,6 +77,7 @@ typedef struct KernelParams {
   cl_float4 srcparam1;                  /**< source parameters set 1 */
   cl_float4 srcparam2;                  /**< source parameters set 2 */
   cl_uint   maxvoidstep;
+  cl_uint   issaveexit;
   cl_uint threadphoton;                  /**< how many photons to be simulated in a thread */
   cl_uint debuglevel;           /**< debug flags */
 } MCXParam __attribute__ ((aligned (16)));
