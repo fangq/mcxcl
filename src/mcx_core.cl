@@ -65,6 +65,8 @@
 #define MCX_DEBUG_MOVE      2
 #define MCX_DEBUG_PROGRESS  4
 
+#define MIN(a,b)           ((a)<(b)?(a):(b))
+
 typedef struct KernelParams {
   float4 ps,c0;
   float4 maxidx;
@@ -567,7 +569,7 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
           }
 #endif
           if(gcfg->issaveref && *mediaid==0 && *idx1d!=OUTSIDE_VOLUME){
-	       int tshift=min(gcfg->maxgate-1,(int)(floor((f[0].y-gcfg->twin0)*gcfg->Rtstep)));
+	       int tshift=MIN(gcfg->maxgate-1,(int)(floor((f[0].y-gcfg->twin0)*gcfg->Rtstep)));
 #ifdef USE_ATOMIC
                atomicadd(& field[*idx1d+tshift*gcfg->dimlen.z],-p[0].w);	       
 #else
