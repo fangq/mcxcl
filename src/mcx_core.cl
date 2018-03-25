@@ -55,6 +55,7 @@
 #define SAME_VOXEL         -9999.f                 //scatter within a voxel
 #define NO_LAUNCH          9999                    //when fail to launch, for debug
 #define MAX_PROP           2000                     /*maximum property number*/
+#define OUTSIDE_VOLUME     0xFFFFFFFF              /**< flag indicating the index is outside of the volume */
 
 #define DET_MASK           0xFFFF0000
 #define MED_MASK           0x0000FFFF
@@ -89,7 +90,9 @@ typedef struct KernelParams {
   float4 srcparam1;                  /**< source parameters set 1 */
   float4 srcparam2;                  /**< source parameters set 2 */
   uint   maxvoidstep;
-  uint   issaveexit;
+  uint   issaveexit;    /**<1 save the exit position and dir of a detected photon, 0 do not save*/
+  uint   issaveref;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
+  uint   maxgate;
   uint   threadphoton;                  /**< how many photons to be simulated in a thread */
   uint   debuglevel;           /**< debug flags */
 } MCXParam __attribute__ ((aligned (32)));
@@ -542,14 +545,13 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
 */
       *w0=1.f;     ///< reuse to count for launchattempt
       *Lmove=-1.f; ///< reuse as "canfocus" flag for each source: non-zero: focusable, zero: not focusable
-//      *rv=float3(gcfg->ps.x,gcfg->ps.y,gcfg->ps.z); ///< reuse as the origin of the src, needed for focusable sources
+      *prop=(float4)(gcfg->ps.x,gcfg->ps.y,gcfg->ps.z,0); ///< reuse as the origin of the src, needed for focusable sources
 
       /**
        * First, let's terminate the current photon and perform detection calculations
        */
       if(p[0].w>=0.f){
           *energyloss+=p[0].w;  ///< sum all the remaining energy
-	  p[0].w=0.f;
 #ifdef GROUP_LOAD_BALANCE
           if(f[0].w<0.f || atomic_sub(blockphoton,1)<=1)
               return 1;
@@ -564,18 +566,15 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
              clearpath(ppath,gcfg);
           }
 #endif
-/*
-          if(*mediaid==0 && *idx1d!=OUTSIDE_VOLUME && gcfg->issaveref){
-	       int tshift=(int)(floor((f[0].y-gcfg->twin0)*gcfg->Rtstep));
+          if(gcfg->issaveref && *mediaid==0 && *idx1d!=OUTSIDE_VOLUME){
+	       int tshift=min(gcfg->maxgate-1,(int)(floor((f[0].y-gcfg->twin0)*gcfg->Rtstep)));
 #ifdef USE_ATOMIC
                atomicadd(& field[*idx1d+tshift*gcfg->dimlen.z],-p[0].w);	       
 #else
 	       field[*idx1d+tshift*gcfg->dimlen.z]+=-p[0].w;
 #endif
 	  }
-*/
       }
-
       /**
        * If the thread completes all assigned photons, terminate this thread.
        */
@@ -646,10 +645,9 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
 	      }else{
 		  *mediaid=media[*idx1d];
 	      }
-/*              *rv=float3(rv[0].x+(gcfg->srcparam1.x+gcfg->srcparam2.x)*0.5f,
-	                 rv[0].y+(gcfg->srcparam1.y+gcfg->srcparam2.y)*0.5f,
-			 rv[0].z+(gcfg->srcparam1.z+gcfg->srcparam2.z)*0.5f);
-*/
+              *prop=(float4)(prop[0].x+(gcfg->srcparam1.x+gcfg->srcparam2.x)*0.5f,
+	                 prop[0].y+(gcfg->srcparam1.y+gcfg->srcparam2.y)*0.5f,
+			 prop[0].z+(gcfg->srcparam1.z+gcfg->srcparam2.z)*0.5f,0.f);
 #elif defined(MCX_SRC_FOURIERX) || defined(MCX_SRC_FOURIERX2D) // [v1x][v1y][v1z][|v2|]; [kx][ky][phi0][M], unit(v0) x unit(v1)=unit(v2)
 	      float rx=rand_uniform01(t);
 	      float ry=rand_uniform01(t);
@@ -675,10 +673,9 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
 	      }else{
 		  *mediaid=media[*idx1d];
 	      }
-/*              *rv=float3(rv[0].x+(gcfg->srcparam1.x+v2.x)*0.5f,
-	                 rv[0].y+(gcfg->srcparam1.y+v2.y)*0.5f,
-			 rv[0].z+(gcfg->srcparam1.z+v2.z)*0.5f);
-*/
+              *prop=(float4)(prop[0].x+(gcfg->srcparam1.x+v2.x)*0.5f,
+	                 prop[0].y+(gcfg->srcparam1.y+v2.y)*0.5f,
+			 prop[0].z+(gcfg->srcparam1.z+v2.z)*0.5f,0.f);
 #elif defined(MCX_SRC_DISK) || defined(MCX_SRC_GAUSSIAN) // uniform disk distribution or Gaussian-beam
 	      // Uniform disk point picking
 	      // http://mathworld.wolfram.com/DiskPointPicking.html
@@ -760,29 +757,27 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
     #else
               *Lmove=-1.f;
     #endif
-/*              *rv=float3(rv[0].x+(gcfg->srcparam1.x)*0.5f,
-	                 rv[0].y+(gcfg->srcparam1.y)*0.5f,
-			 rv[0].z+(gcfg->srcparam1.z)*0.5f);
-*/
+              *prop=(float4)(prop[0].x+(gcfg->srcparam1.x)*0.5f,
+	                 prop[0].y+(gcfg->srcparam1.y)*0.5f,
+			 prop[0].z+(gcfg->srcparam1.z)*0.5f,0.f);
 #endif
           /**
            * If beam focus is set, determine the incident angle
            */
-/*
           if(*Lmove<0.f && gcfg->c0.w!=0.f){
 	        float Rn2=(gcfg->c0.w > 0.f) - (gcfg->c0.w < 0.f);
-	        rv[0].x+=gcfg->c0.w*v[0].x;
-		rv[0].y+=gcfg->c0.w*v[0].y;
-		rv[0].z+=gcfg->c0.w*v[0].z;
-                v[0].x=Rn2*(rv[0].x-p[0].x);
-                v[0].y=Rn2*(rv[0].y-p[0].y);
-                v[0].z=Rn2*(rv[0].z-p[0].z);
-		Rn2=rsqrtf(v[0].x*v[0].x+v[0].y*v[0].y+v[0].z*v[0].z); // normalize
+	        prop[0].x+=gcfg->c0.w*v[0].x;
+		prop[0].y+=gcfg->c0.w*v[0].y;
+		prop[0].z+=gcfg->c0.w*v[0].z;
+                v[0].x=Rn2*(prop[0].x-p[0].x);
+                v[0].y=Rn2*(prop[0].y-p[0].y);
+                v[0].z=Rn2*(prop[0].z-p[0].z);
+		Rn2=rsqrt(v[0].x*v[0].x+v[0].y*v[0].y+v[0].z*v[0].z); // normalize
                 v[0].x*=Rn2;
                 v[0].y*=Rn2;
                 v[0].z*=Rn2;
 	  }
-*/
+
           /**
            * Compute the reciprocal of the velocity vector
            */
@@ -965,12 +960,14 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           GPUDEBUG(((__constant char*)"idx1d [%d]->[%d]\n",idx1dold,idx1d));
 #ifdef MCX_SIMPLIFY_BRANCH
 	  mediaid=(any(isless(p.xyz,(float3)(0.f))) || any(isgreaterequal(p.xyz,(gcfg->maxidx.xyz))));
+	  idx1d=mediaid ? OUTSIDE_VOLUME : idx1d;
 	  mediaid=mediaid ? 0 : media[idx1d];
           isdet=mediaid & DET_MASK;
           mediaid &= MED_MASK;
 #else
           if(any(isless(p.xyz,(float3)(0.f))) || any(isgreaterequal(p.xyz,(gcfg->maxidx.xyz)))){
 	      mediaid=0;
+	      idx1d=OUTSIDE_VOLUME;
 	  }else{
               mediaid=media[idx1d];
               isdet=mediaid & DET_MASK;
@@ -989,7 +986,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                   field[idx1dold+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z]+=w0-p.w;
 #else
 		  atomicadd(& field[idx1dold+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z], w0-p.w);
-                  GPUDEBUG(((__constant char*)"atomic write to [%d] %e, w=%f\n",idx1dold,weight,p.w));
+                  GPUDEBUG(((__constant char*)"atomic write to [%d] %e, w=%f\n",idx1dold,w0,p.w));
 #endif
 	     }
 	     w0=p.w;

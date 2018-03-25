@@ -314,7 +314,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                      cfg->medianum-1,cfg->detnum,0,0,0,0,(uint)cfg->voidtime,(uint)cfg->srctype,
 		     {{cfg->srcparam1.x,cfg->srcparam1.y,cfg->srcparam1.z,cfg->srcparam1.w}},
 		     {{cfg->srcparam2.x,cfg->srcparam2.y,cfg->srcparam2.z,cfg->srcparam2.w}},
-		     (uint)cfg->maxvoidstep,cfg->issaveexit>0,0,(uint)cfg->debuglevel};
+		     (uint)cfg->maxvoidstep,cfg->issaveexit>0,cfg->issaveref>0,cfg->maxgate,0,(uint)cfg->debuglevel};
 
      platform=mcx_list_gpu(cfg,&workdev,devices,&gpu);
 
@@ -354,7 +354,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	    gpu[i].autothread=cfg->nthread;
 	    gpu[i].autoblock=cfg->nblocksize;
 	    gpu[i].maxgate=cfg->maxgate;
-	 }else if(cfg->autopilot == 3){
+	 }else{
              // persistent thread mode
              if (gpu[i].vendor == dvIntelGPU){ // Intel HD graphics GPU
                  gpu[i].autoblock  = 64;
@@ -384,6 +384,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	 }
      }
      cfg->maxgate=(int)((cfg->tend-cfg->tstart)/cfg->tstep+0.5);
+     param.maxgate=cfg->maxgate;
 
      fullload=0.f;
      for(i=0;i<workdev;i++)
@@ -484,9 +485,9 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      if(cfg->isatomic)
          sprintf(opt+strlen(opt)," -DUSE_ATOMIC");
      if(cfg->issavedet)
-         sprintf(opt+strlen(opt)," -D MCX_SAVE_DETECTORS");
+         sprintf(opt+strlen(opt)," -DMCX_SAVE_DETECTORS");
      if(cfg->isreflect)
-         sprintf(opt+strlen(opt)," -D MCX_DO_REFLECTION");
+         sprintf(opt+strlen(opt)," -DMCX_DO_REFLECTION");
 
      MCX_FPRINTF(cfg->flog,"Building kernel with option: %s\n",opt);
      status=clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);
@@ -724,7 +725,7 @@ is more than what your have specified (%d), please use the -H option to specify 
          cfg->energyabs+=cfg->energytot-cfg->energyesc;
 
 	 MCX_FPRINTF(cfg->flog,"normalization factor alpha=%f\n",scale);  fflush(cfg->flog);
-         mcx_normalize(cfg->exportfield,scale,fieldlen);
+         mcx_normalize(cfg->exportfield,scale,fieldlen,cfg->isnormalized);
      }
      if(cfg->issave2pt && cfg->parentid==mpStandalone){
          MCX_FPRINTF(cfg->flog,"saving data to file ... %d %d\t",fieldlen,cfg->maxgate);

@@ -183,7 +183,7 @@ void mcx_clearcfg(Config *cfg);
 void mcx_parsecmd(int argc, char* argv[], Config *cfg);
 void mcx_usage(Config *cfg,char *exename);
 void mcx_loadvolume(char *filename,Config *cfg);
-void mcx_normalize(float field[], float scale, int fieldlen);
+void mcx_normalize(float field[], float scale, int fieldlen, int option);
 int  mcx_readarg(int argc, char *argv[], int id, void *output,const char *type);
 void mcx_printlog(Config *cfg, const char *str);
 int  mcx_remap(char *opt);

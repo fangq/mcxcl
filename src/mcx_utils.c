@@ -56,7 +56,7 @@
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W','z',
                  'd','r','S','p','e','U','R','l','L','M','I','-','o','c','k','v','J',
-                 'A','P','E','F','H','-','u','-','x','\0'};
+                 'A','P','E','F','H','-','u','-','x','X','\0'};
 
 /**
  * Long command line options
@@ -70,7 +70,7 @@ const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--normalize","--skipradius","--log","--listgpu","--dumpmask",
                  "--printgpu","--root","--optlevel","--cpu","--kernel","--verbose","--compileropt",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
-		 "--mediabyte","--unitinmm","--atomic","-saveexit",""};
+		 "--mediabyte","--unitinmm","--atomic","--saveexit","--saveref",""};
 
 /**
  * Debug flags
@@ -372,9 +372,11 @@ void mcx_printlog(Config *cfg, const char *str){
      }
 }
 
-void mcx_normalize(float field[], float scale, int fieldlen){
+void mcx_normalize(float field[], float scale, int fieldlen, int option){
      int i;
      for(i=0;i<fieldlen;i++){
+         if(option==2 && field[i]<0.f)
+	     continue;
          field[i]*=scale;
      }
 }
@@ -1429,6 +1431,10 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
  		                i=mcx_readarg(argc,argv,i,&(cfg->issaveexit),"char");
  				if (cfg->issaveexit) cfg->issavedet=1;
  				break;
+		     case 'X':
+ 		                i=mcx_readarg(argc,argv,i,&(cfg->issaveref),"char");
+ 				if (cfg->issaveref) cfg->issaveref=1;
+ 				break;
                      case 'G':
                                 if(mcx_isbinstr(argv[i+1])){
                                     i=mcx_readarg(argc,argv,i,cfg->deviceid,"string");
@@ -1633,7 +1639,7 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -L            (--listgpu)     print GPU information only\n\
  -t [16384|int](--thread)      total thread number\n\
  -T [64|int]   (--blocksize)   thread number per block\n\
- -A [0|int]    (--autopilot)   auto thread config:1 dedicated GPU;2 non-dedica.\n\
+ -A [0|int]    (--autopilot)   auto thread config:1 enable;0 disable\n\
  -G [0|int]    (--gpu)         specify which GPU to use, list GPU by -L; 0 auto\n\
       or\n\
  -G '1101'     (--gpu)         using multiple devices (1 enable, 0 disable)\n\
@@ -1648,6 +1654,9 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -d [1|0]      (--savedet)     1 to save photon info at detectors; 0 not save\n\
  -x [0|1]      (--saveexit)    1 to save photon exit positions and directions\n\
                                setting -x to 1 also implies setting '-d' to 1\n\
+ -X [0|1]      (--saveref)     1 to save diffuse reflectance at the air-voxels\n\
+                               right outside of the domain; if non-zero voxels\n\
+			       appear at the boundary, pad 0s before using -X\n\
  -M [0|1]      (--dumpmask)    1 to dump detector volume masks; 0 do not save\n\
  -H [1000000] (--maxdetphoton) max number of detected photons\n\
  -S [1|0]      (--save2pt)     1 to save the flux field; 0 do not save\n\
