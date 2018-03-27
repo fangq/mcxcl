@@ -99,16 +99,6 @@ typedef struct KernelParams {
   uint   debuglevel;           /**< debug flags */
 } MCXParam __attribute__ ((aligned (32)));
 
-/* function prototypes */
-
-void clearpath(__local float *p, __constant MCXParam *gcfg);
-float mcx_nextafterf(float a, int dir);
-float hitgrid(float4 *p0, float4 *v, float4 *htime, int *id);
-void rotatevector(float4 *v, float stheta, float ctheta, float sphi, float cphi);
-void transmit(float4 *v, float n1, float n2,int flipdir);
-float reflectcoeff(float4 *v, float n1, float n2, int flipdir);
-int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constant float4 *gproperty, __constant MCXParam *gcfg);
-
 
 //#ifndef USE_XORSHIFT128P_RAND     // xorshift128+ is the default RNG
 #ifdef USE_LL5_RAND                 //enable the legacy Logistic Lattic RNG
@@ -231,6 +221,28 @@ float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
 #define rand_next_reflect(t) rand_uniform01(t)
 #define rand_do_roulette(t)  rand_uniform01(t) 
 
+
+/* function prototypes */
+
+void clearpath(__local float *p, __constant MCXParam *gcfg);
+float mcx_nextafterf(float a, int dir);
+float hitgrid(float4 *p0, float4 *v, float4 *htime, int *id);
+void rotatevector(float4 *v, float stheta, float ctheta, float sphi, float cphi);
+void transmit(float4 *v, float n1, float n2,int flipdir);
+float reflectcoeff(float4 *v, float n1, float n2, int flipdir);
+int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constant float4 *gproperty, __constant MCXParam *gcfg);
+#ifdef MCX_SAVE_DETECTORS
+uint finddetector(float4 *p0,__constant float4 *gdetpos,__constant MCXParam *gcfg);
+void savedetphoton(__global float *n_det,__global uint *detectedphoton,float nscat,
+                   __local float *ppath,float4 *p0,float4 *v,__constant float4 *gdetpos,__constant MCXParam *gcfg);
+#endif
+int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
+           __global float *field, uint *mediaid,float *w0,float *Lmove,uint isdet, 
+	   __local float *ppath,float *energyloss,float *energylaunched,
+	   __global float *n_det,__global uint *dpnum, __private RandType t[RAND_BUF_LEN],
+	   __constant float4 *gproperty, __global const uint *media, __global float *srcpattern,
+	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, int threadphoton, 
+	   int oddphotons, __local int *blockphoton, volatile __global uint *gprogress);
 
 #ifdef USE_ATOMIC
 // OpenCL float atomicadd hack:
@@ -569,7 +581,7 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
           }
 #endif
           if(gcfg->issaveref && *mediaid==0 && *idx1d!=OUTSIDE_VOLUME){
-	       int tshift=MIN(gcfg->maxgate-1,(int)(floor((f[0].y-gcfg->twin0)*gcfg->Rtstep)));
+	       int tshift=MIN((int)gcfg->maxgate-1,(int)(floor((f[0].y-gcfg->twin0)*gcfg->Rtstep)));
 #ifdef USE_ATOMIC
                atomicadd(& field[*idx1d+tshift*gcfg->dimlen.z],-p[0].w);	       
 #else
