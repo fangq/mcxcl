@@ -503,7 +503,7 @@ int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constan
 	  p[0]=(float4)(p[0].x+v[0].x,p[0].y+v[0].y,p[0].z+v[0].z,p[0].w);
           GPUDEBUG(("inside void [%f %f %f]\n",p[0].x,p[0].y,p[0].z));
           f[0].y+=gcfg->minaccumtime;
-	  if(count++>gcfg->maxvoidstep)
+	  if((uint)count++>gcfg->maxvoidstep)
 	      return -1;
       }
 }
