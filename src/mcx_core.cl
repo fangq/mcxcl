@@ -698,18 +698,18 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
 	      MCX_SINCOS(phi,sphi,cphi);
 	      float r;
     #if defined(MCX_SRC_DISK)
-		  r=sqrtf(rand_uniform01(t))*gcfg->srcparam1.x;
+		  r=sqrt(rand_uniform01(t))*gcfg->srcparam1.x;
     #else
 	      if(fabs(gcfg->c0.w) < 1e-5f || fabs(gcfg->srcparam1.y) < 1e-5f)
-	          r=sqrtf(-0.5f*logf(rand_uniform01(t)))*gcfg->srcparam1.x;
+	          r=sqrt(-0.5f*log(rand_uniform01(t)))*gcfg->srcparam1.x;
 	      else{
 	          r=gcfg->srcparam1.x*gcfg->srcparam1.x*M_PI/gcfg->srcparam1.y; //Rayleigh range
-	          r=sqrtf(-0.5f*logf(rand_uniform01(t))*(1.f+(gcfg->c0.w*gcfg->c0.w/(r*r))))*gcfg->srcparam1.x;
+	          r=sqrt(-0.5f*log(rand_uniform01(t))*(1.f+(gcfg->c0.w*gcfg->c0.w/(r*r))))*gcfg->srcparam1.x;
               }
     #endif
 	      if( v[0].z>-1.f+EPS && v[0].z<1.f-EPS ) {
 		  float tmp0=1.f-v[0].z*v[0].z;
-		  float tmp1=r*rsqrtf(tmp0);
+		  float tmp1=r*rsqrt(tmp0);
 		  p[0]=(float4)(
 		       p[0].x+tmp1*(v[0].x*v[0].z*cphi - v[0].y*sphi),
 		       p[0].y+tmp1*(v[0].y*v[0].z*cphi + v[0].x*sphi),
@@ -751,7 +751,7 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
 	      float ang,stheta,ctheta,sphi,cphi;
 	      ang=TWO_PI*rand_uniform01(t); //next arimuth angle
 	      MCX_SINCOS(ang,sphi,cphi);
-	      ang=sqrtf(-2.f*logf(rand_uniform01(t)))*(1.f-2.f*rand_uniform01(t))*gcfg->srcparam1.x;
+	      ang=sqrt(-2.f*log(rand_uniform01(t)))*(1.f-2.f*rand_uniform01(t))*gcfg->srcparam1.x;
 	      MCX_SINCOS(ang,stheta,ctheta);
 	      rotatevector(v,stheta,ctheta,sphi,cphi);
               *Lmove=0.f;
