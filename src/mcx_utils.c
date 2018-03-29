@@ -410,7 +410,11 @@ int mkpath(char* dir_path, int mode){
     p[strlen(p)]=pathsep;
     for (p=strchr(dir_path+1, pathsep); p; p=strchr(p+1, pathsep)) {
       *p='\0';
+#ifdef __MINGW32__
+      if (mkdir(dir_path)==-1) {
+#else
       if (mkdir(dir_path, mode)==-1) {
+#endif
           if (errno!=EEXIST) { *p=pathsep; return -1; }
       }
       *p=pathsep;
@@ -1565,7 +1569,7 @@ int mcx_lookupindex(char *key, const char *index){
 }
 
 void mcx_version(Config *cfg){
-    const char ver[]="$Rev::      $";
+    const char ver[]="$Rev::4fdc45$";
     int v=0;
     sscanf(ver,"$Rev::%d",&v);
     MCX_FPRINTF(cfg->flog, "MCXCL Revision %d\n",v);
@@ -1609,7 +1613,7 @@ void mcx_printheader(Config *cfg){
 ==============================================================================\n\
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =\n\
 ==============================================================================\n\
-$Rev::6e839e $ Last $Date::2017-07-20 12:46:23 -04$ by $Author::Qianqian Fang$\n\
+$Rev::4fdc45 $ Last $Date::2018-03-29 00:35:53 -04$ by $Author::Qianqian Fang$\n\
 ==============================================================================\n");
 }
 
