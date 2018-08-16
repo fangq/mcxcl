@@ -60,6 +60,7 @@
 #define DET_MASK           0xFFFF0000
 #define MED_MASK           0x0000FFFF
 #define NULL               0
+#define MAX_ACCUM          1000.f
 
 #define MCX_DEBUG_RNG       1                   /**< MCX debug flags */
 #define MCX_DEBUG_MOVE      2
@@ -249,9 +250,10 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 // http://suhorukov.blogspot.co.uk/2011/12/opencl-11-atomic-operations-on-floating.html
 // https://devtalk.nvidia.com/default/topic/458062/atomicadd-float-float-atomicmul-float-float-/
 
-inline void atomicadd(volatile __global float* address, const float value){
+inline float atomicadd(volatile __global float* address, const float value){
     float old = value;
     while ((old = atomic_xchg(address, atomic_xchg(address, 0.0f)+old))!=0.0f);
+    return old;
 }
 #endif
 
@@ -999,7 +1001,14 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 #ifndef USE_ATOMIC
                   field[idx1dold+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z]+=w0-p.w;
 #else
-		  atomicadd(& field[idx1dold+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z], w0-p.w);
+                  int tshift=(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep));
+		  float oldval=atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], w0-p.w);
+		  if(oldval>MAX_ACCUM){
+			if(atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], -oldval)<0.f)
+			    atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], oldval);
+			else
+			    atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z+gcfg->dimlen.w], oldval);
+		  }
                   GPUDEBUG(((__constant char*)"atomic write to [%d] %e, w=%f\n",idx1dold,w0,p.w));
 #endif
 	     }

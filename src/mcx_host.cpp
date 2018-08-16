@@ -404,11 +404,13 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      Pdet=(float*)calloc(cfg->maxdetphoton,sizeof(float)*(cfg->medianum+1));
 
+     fieldlen=dimxyz*cfg->maxgate;
      cachebox.x=(cp1.x-cp0.x+1);
      cachebox.y=(cp1.y-cp0.y+1)*(cp1.x-cp0.x+1);
      dimlen.x=cfg->dim.x;
      dimlen.y=cfg->dim.x*cfg->dim.y;
-     dimlen.z=cfg->dim.x*cfg->dim.y*cfg->dim.z;
+     dimlen.z=dimxyz;
+     dimlen.w=fieldlen;
 
      memcpy(&(param.dimlen.x),&(dimlen.x),sizeof(uint4));
      memcpy(&(param.cachebox.x),&(cachebox.x),sizeof(uint2));
@@ -439,7 +441,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
        for (j=0; j<gpu[i].autothread*RAND_SEED_LEN;j++)
 	   Pseed[j]=rand();
        OCL_ASSERT(((gseed[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint)*gpu[i].autothread*RAND_SEED_LEN,Pseed,&status),status)));
-       OCL_ASSERT(((gfield[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_float)*(dimxyz)*cfg->maxgate,field,&status),status)));
+       OCL_ASSERT(((gfield[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_float)*fieldlen*2,field,&status),status)));
        OCL_ASSERT(((gdetphoton[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),Pdet,&status),status)));
        OCL_ASSERT(((genergy[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*(gpu[i].autothread<<1),energy,&status),status)));
        OCL_ASSERT(((gdetected[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint),&detected,&status),status)));
@@ -467,7 +469,6 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      MCX_FPRINTF(cfg->flog,"- compiled with: [RNG] %s [Seed Length] %d\n",MCX_RNG_NAME,RAND_SEED_LEN);
      MCX_FPRINTF(cfg->flog,"initializing streams ...\t");
-     fieldlen=dimxyz*cfg->maxgate;
 
      MCX_FPRINTF(cfg->flog,"init complete : %d ms\n",GetTimeMillis()-tic);fflush(cfg->flog);
 
@@ -643,9 +644,14 @@ is more than what your have specified (%d), please use the -H option to specify 
 	     }
 	     //handling the 2pt distributions
              if(cfg->issave2pt){
-        	OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gfield[devid],CL_TRUE,0,sizeof(cl_float)*dimxyz*cfg->maxgate,
-	                                         field, 0, NULL, NULL)));
+                float *rawfield=(float*)malloc(sizeof(float)*fieldlen*2);
+
+        	OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gfield[devid],CL_TRUE,0,sizeof(cl_float)*fieldlen*2,
+	                                         rawfield, 0, NULL, NULL)));
         	MCX_FPRINTF(cfg->flog,"transfer complete:        %d ms\n",GetTimeMillis()-tic);  fflush(cfg->flog);
+	        for(i=0;i<fieldlen;i++)  //accumulate field, can be done in the GPU
+	           field[i]=rawfield[i]+rawfield[i+fieldlen];
+	        free(rawfield);
 
         	if(cfg->respin>1){
                     for(i=0;i<fieldlen;i++)  //accumulate field, can be done in the GPU
