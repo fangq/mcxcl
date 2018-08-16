@@ -396,12 +396,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	fullload=totalcucore;
      }
 
-     if(cfg->respin>1){
-         field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate*2); //the second half will be used to accumul$
-     }else{
-         field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate);
-     }
-
+     field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate*2);
      Pdet=(float*)calloc(cfg->maxdetphoton,sizeof(float)*(cfg->medianum+1));
 
      fieldlen=dimxyz*cfg->maxgate;
