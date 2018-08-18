@@ -124,7 +124,7 @@ $(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(OBJS)
 intelcpu:
 	$(IOCC) -cmd=build -input=mcx_core.cl -device=cpu -spir64=mcx_core_intelcpu.bc -bo="-cl-std=CL1.2"
 
-static: LINKOPT:=-Wl,-Bstatic -lm -Wl,-Bdynamic -static-libgcc -static-libstdc++ $(LINKOPT) -Wl,-Bstatic -lm -Wl,-Bdynamic
+static: LINKOPT:=-Wl,-Bstatic  -Wl,-Bdynamic -static-libgcc -static-libstdc++ $(LINKOPT) -Wl,-Bstatic -lm -Wl,-Bdynamic
 
 clean:
 	-rm -f $(OBJS) $(CLSOURCE) $(OUTPUT_DIR)/$(BINARY)$(EXESUFFIX) $(OUTPUT_DIR)/$(BINARY)_atomic$(EXESUFFIX)
