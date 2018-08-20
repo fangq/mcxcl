@@ -130,8 +130,11 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
         if(strcmp(shortcmd,"gpuinfo")==0){
             mcx_initcfg(&cfg);
             cfg.isgpuinfo=3;
-            mcx_list_gpu(&cfg,&workdev,NULL,&gpuinfo);
-
+	    try{
+              mcx_list_gpu(&cfg,&workdev,NULL,&gpuinfo);
+            }catch(...){
+	      mexErrMsgTxt("OpenCL is not supported or not fully installed on your system");
+	    }
             if(!workdev){
                 mexErrMsgTxt("no active GPU device found");
             }
