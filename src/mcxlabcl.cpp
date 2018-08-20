@@ -133,7 +133,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
             mcx_list_gpu(&cfg,&workdev,NULL,&gpuinfo);
 
             if(!workdev){
-                mexWarnMsgTxt("no active GPU device found");
+                mexErrMsgTxt("no active GPU device found");
             }
             if(workdev>MAX_DEVICE)
                 workdev=MAX_DEVICE;
