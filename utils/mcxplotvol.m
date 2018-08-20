@@ -31,6 +31,7 @@ if(nargin>=1)
         fname=varargin{1};
         data=mcxloadfile(fname, varargin{2:end});
     else
+        fname='';
         data=varargin{1};
     end
 else
@@ -74,11 +75,13 @@ set(hfig,'name',fname);
 set(hfig,'NumberTitle','off');
 set(gca,'UserData',guidata);
 
-title({'Drag slices using mouse left-key;',
- 'Click and drag mouse mid-key to rotate;',
- 'Drag right-key up-down to change color level',
- 'Up-arrow:next time-gate;Down-arrow:prev time-gate'
-},'fontweight','normal');
+
+helpinfo=sprintf('Drag mouse left-btn  to move slices;\r Click and drag mouse mid-btn to rotate; \rDrag right-key up-down to change color level;\rUp-arrow key :next time-gate; \rDown-arrow key:prev time-gate');
+
+helpbtn=uicontrol('Parent',hfig,'Style','pushbutton','String','Help','Units','points','Position',[10 10 50 20],'Visible','on','Callback',@showhelp);
+
+set(helpbtn,'TooltipString',helpinfo);
+
 
 xlabel(sprintf('x (frame=%d of %d)',1,size(data,4)));
 ylabel('y');
@@ -95,6 +98,7 @@ if(isempty(guidata) || ~isfield(guidata,'frame'))
     return;
 end
 
+newframe=-1;
 switch(event.Key)
     case 'uparrow'
          newframe=min(guidata.frame+1,size(guidata.data,4));
@@ -102,10 +106,13 @@ switch(event.Key)
          newframe=max(guidata.frame-1,1);
 end
 
-if(newframe~=guidata.frame)
+if(newframe>0 && newframe~=guidata.frame)
     delete(guidata.handles);
     guidata.handles=islicer(guidata.data(:,:,:,newframe));
     xlabel(sprintf('x (frame=%d of %d)',newframe,size(guidata.data,4)));
     guidata.frame=newframe;
     set(gca,'UserData',guidata);
 end
+
+function showhelp(source,event)
+msgbox(get(source,'TooltipString'),'Help info');
