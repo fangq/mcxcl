@@ -3,9 +3,9 @@
                          OpenCL Edition
 ---------------------------------------------------------------------
 
-Author: Qianqian Fang <fangq at nmr.mgh.harvard.edu>
+Author: Qianqian Fang <q.fang at neu.edu>
 License: GNU General Public License version 3 (GPLv3)
-Version: 0.7.9.pre (Charm Quarks)
+Version: 0.8 (Duality)
 
 ---------------------------------------------------------------------
 
@@ -84,37 +84,98 @@ index). Typing the name of the executable without any parameters,
 will print the help information and a list of supported parameters, 
 such as the following:
 
- usage: mcxcl <param1> <param2> ...
- where possible parameters include (the first item in [] is the default value)
-  -i 	        (--interactive) interactive mode
-  -f config      (--input)	read config from a file
-  -t [1024|int]  (--thread)	total thread number
-  -T [64|int]    (--blocksize)	thread number per block
-  -n [0|int]     (--photon)	total photon number
-  -r [1|int]     (--repeat)	number of repeations
-  -a [0|1]       (--array)	0 for Matlab array, 1 for C array
-  -z [0|1]       (--srcfrom0)    src/detector coordinates start from 0, otherwise from 1
-  -g [1|int]     (--gategroup)	number of time gates per run
-  -b [1|0]       (--reflect)	1 to reflect the photons at the boundary, 0 to exit
-  -B [0|1]       (--reflect3)	1 to consider maximum 3 reflections, 0 consider only 2
-  -e [0.|float]  (--minenergy)	minimum energy level to propagate a photon
-  -R [0.|float]  (--skipradius)  minimum distance to source to start accumulation
-  -U [1|0]       (--normalize)	1 to normailze the fluence to unitary, 0 to save raw fluence
-  -d [1|0]       (--savedet)	1 to save photon info at detectors, 0 not to save
-  -S [1|0]       (--save2pt)	1 to save the fluence field, 0 do not save
-  -s sessionid   (--session)	a string to identify this specific simulation (and output files)
-  -p [0|int]     (--printlen)	number of threads to print (debug)
-  -h             (--help)	print this message
-  -l             (--log) 	print messages to a log file instead
-  -L             (--listgpu)	print GPU information only
-  -I             (--printgpu)	print GPU information and run program
-  -c             (--cpu) 	use CPU as the platform for OpenCL backend
-  -k mcx_core.cl (--kernel)      specify path to OpenCL kernel source file
-  -G '0111'      (--devicelist)  specify the active OpenCL devices (1 enable, 0 disable)
-  -W '50,30,20'  (--workload)    specify relative workload for each device; total is the sum
-  -J '-D MCX'    (--compileropt) specify additional JIT compiler options
- example:
-  mcxcl -t 1024 -T 64 -n 1e7 -f input.inp -s test -r 1 -b 0 -G 1010 -W '50,50' -k ../../src/mcx_core.cl
+<pre>==============================================================================
+=                       Monte Carlo eXtreme (MCX) -- OpenCL                  =
+=          Copyright (c) 2010-2018 Qianqian Fang <q.fang at neu.edu>         =
+=                             http://mcx.space/                              =
+=                                                                            =
+= Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =
+=            Department of Bioengineering, Northeastern University           =
+==============================================================================
+=    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =
+==============================================================================
+$Rev::4fdc45 $ Last $Date::2018-03-29 00:35:53 -04$ by $Author::Qianqian Fang$
+==============================================================================
+
+usage: mcxcl <param1> <param2> ...
+where possible parameters include (the first value in [*|*] is the default)
+
+== Required option ==
+ -f config     (--input)       read an input file in .json or .inp format
+
+== MC options ==
+
+ -n [0|int]    (--photon)      total photon number (exponential form accepted)
+ -r [1|int]    (--repeat)      divide photons into r groups (1 per GPU call)
+ -b [1|0]      (--reflect)     1 to reflect photons at ext. boundary;0 to exit
+ -u [1.|float] (--unitinmm)    defines the length unit for the grid edge
+ -U [1|0]      (--normalize)   1 to normalize flux to unitary; 0 save raw
+ -E [0|int]    (--seed)        set random-number-generator seed, -1 to generate
+ -z [0|1]      (--srcfrom0)    1 volume origin is [0 0 0]; 0: origin at [1 1 1]
+ -k [1|0]      (--voidtime)    when src is outside, 1 enables timer inside void
+ -P '{...}'    (--shapes)      a JSON string for additional shapes in the grid
+ -e [0.|float] (--minenergy)   minimum energy level to terminate a photon
+ -g [1|int]    (--gategroup)   number of time gates per run
+ -a [0|1]      (--array)       1 for C array (row-major); 0 for Matlab array
+
+== GPU options ==
+ -L            (--listgpu)     print GPU information only
+ -t [16384|int](--thread)      total thread number
+ -T [64|int]   (--blocksize)   thread number per block
+ -A [0|int]    (--autopilot)   auto thread config:1 enable;0 disable
+ -G [0|int]    (--gpu)         specify which GPU to use, list GPU by -L; 0 auto
+      or
+ -G '1101'     (--gpu)         using multiple devices (1 enable, 0 disable)
+ -W '50,30,20' (--workload)    workload for active devices; normalized by sum
+ -I            (--printgpu)    print GPU information and run program
+ -o [3|int]    (--optlevel)    optimization level 0-no opt;1,2,3 more optimized
+ -J '-D MCX'   (--compileropt) specify additional JIT compiler options
+ -k my_simu.cl (--kernel)      user specified OpenCL kernel source file
+
+== Output options ==
+ -s sessionid  (--session)     a string to label all output file names
+ -d [1|0]      (--savedet)     1 to save photon info at detectors; 0 not save
+ -x [0|1]      (--saveexit)    1 to save photon exit positions and directions
+                               setting -x to 1 also implies setting '-d' to 1
+ -X [0|1]      (--saveref)     1 to save diffuse reflectance at the air-voxels
+                               right outside of the domain; if non-zero voxels
+			       appear at the boundary, pad 0s before using -X
+ -M [0|1]      (--dumpmask)    1 to dump detector volume masks; 0 do not save
+ -H [1000000] (--maxdetphoton) max number of detected photons
+ -S [1|0]      (--save2pt)     1 to save the flux field; 0 do not save
+ -F [mc2|...] (--outputformat) fluence data output format:
+                               mc2 - MCX mc2 format (binary 32bit float)
+                               nii - Nifti format
+                               hdr - Analyze 7.5 hdr/img format
+ -O [X|XFEJP]  (--outputtype)  X - output flux, F - fluence, E - energy deposit
+                               J - Jacobian (replay mode),   P - scattering
+                               event counts at each voxel (replay mode only)
+
+== User IO options ==
+ -h            (--help)        print this message
+ -v            (--version)     print MCX revision number
+ -l            (--log)         print messages to a log file instead
+ -i 	       (--interactive) interactive mode
+
+== Debug options ==
+ -D [0|int]    (--debug)       print debug information (you can use an integer
+  or                           or a string by combining the following flags)
+ -D [''|RMP]                   4 P  print progress bar
+      combine multiple items by using a string, or add selected numbers together
+
+== Additional options ==
+ --atomic       [1|0]          1: use atomic operations; 0: do not use atomics
+ --root         [''|string]    full path to the folder storing the input files
+ --maxvoidstep  [1000|int]     maximum distance (in voxel unit) of a photon that
+                               can travel before entering the domain, if 
+                               launched outside (i.e. a widefield source)
+
+== Example ==
+example: (autopilot mode)
+  mcxcl -A -n 1e7 -f input.inp -G 1 
+or (manual mode)
+  mcxcl -t 16384 -T 64 -n 1e7 -f input.inp -s test -r 1 -b 0 -G 1010 -W '50,50'
+</pre>
 
  the above command will launch 1024 GPU threads (-t) with every 64 threads
  a block (-T); for each thread, it will simulate 1e7 photons (-n) and

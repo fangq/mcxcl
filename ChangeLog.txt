@@ -1,37 +1,50 @@
 Change Log
 
-== MCX 0.2 (aurora) development branch, FangQ <fangq nmr mgh harvard edu> ==
+== MCX 0.8 (Duality) beta branch, FangQ <q.fang at neu.edu> ==
 
-2009/12/19 polish documentation, add svn keywords and tagged 0.2 final
-2009/12/10 MCX Studio GUI is tested on Linux, Windows, Mac OS X
-2009/12/03 add README.txt file for each example folder
-2009/12/02 complete "bubble" mode to reduce impact from non-atomic write
-2009/10/24 use cuda event timer, use VC compiler for Windows
-2009/10/21 paper published online, added windows support
-2009/10/20 set license to GPLv3, first public release (v0.2 beta)
-2009/10/19 fixed double-precision warning for CUDA 2.3
-2009/10/06 more GUI developments
-2009/09/25 fixed memory leackage, supported verbose options
-2009/09/24 major code clean-up, added GPUDEBUG macro
-2009/07/31 tested on GTX295 with CUDA 2.3
-2009/07/15 used atomicFloatAdd for atomic memory write
-2009/07/13 fixed half-grid shift bug in the validation script
-2009/07/08 reflection for a maximum of 3 interfaces
-2009/06/26 tested non-atomic write racing condition
-2009/05/19 added mcx studio: a GUI for mcx
-2009/05/07 query GPU info
-2009/05/05 added options to print to a log file
-2009/04/30 code clean up and paper submission, tag 0.1.9 (Aurora alpha)
-2009/04/26 new and more robust boundary reflection code
-2009/04/24 build-in fluence normalization (unitary solution)
-2009/04/20 added examples and validation scripts, supported respins
-2009/04/07 energy conservation for normalization of the solution
-2009/04/03 time gating support
-2009/04/01 split the main function to units, add utils. and config file
-2009/03/02 added logistic-map based random number generator
-2009/02/27 early support of boundary reflection
-2009/02/24 MT rand now working fine
-2009/02/21 added MT random number generator initial version
-2009/02/20 translated to Brook+
-2009/02/15 translated to CUDA
-2009/02/14 initial version written in BrookGPU
+ 2018-08-18 [6ca494c] avoid static linking libm to work with gcc 5.4
+ 2018-08-16*[939ee95] fix floating point accummulation error, port from mcx #41
+ 2018-03-29 [966455f] changes to compile mcxcl.mex using mingw64 g++ on Windows
+ 2018-03-25 [5a1b812] port saveref from mcx to save diffuse reflectance
+ 2018-03-24 [ed508fa] port mcx saveexit flag to mcxcl
+ 2018-03-24 [e08f2f7] support nii output format
+ 2018-03-23*[2111a47] accept full json input in the command line
+ 2018-03-22 [57defd5] fix detection bug, use --debug, read focal len, update help info
+ 2018-03-20 [24bf3b3] update makefile for windows
+ 2018-03-19 [be5ebba] use non-blocking buffer mapping,remove get_local_size
+ 2018-03-18*[ad29b2a] port progress bar from mcx, but not yet working
+ 2018-03-18 [85d6d5c] compile mcxlabcl on linux and mac
+ 2018-03-17*[9ad1ad5] unify mcxlab and mcxlabcl
+ 2018-03-17 [fc59b7d] initial port of mcxlab to mcxcl - mcxlabcl for matlab and octave
+ 2018-02-22 [9e62ac3] separate compilation for amd and nvidia
+ 2018-02-16 [5b73ba6] fix crash for widefield source, fix bug for initial scattering
+ 2018-02-13*[8a53b17] initial port of complex source support from mcx, skipvoid gives segfault if source is outside, need debug
+ 2018-02-08*[88d9d4b] define default cl program
+ 2018-01-29 [d7a1a2f] add optlevel, update main reference
+ 2017-11-22 [68a1557] accept -G integer to specify GPU, like mcx
+ 2017-11-22 [ba0e780] fix nextafter for half, add nextafter test kernel
+ 2017-11-19*[0c11f79] add half precision raytracer, support AMD Vega
+ 2017-10-30 [a031aae] incorporate Leiming's workgroup load-balancing,simulate exact photon number
+ 2017-10-28 [5fbf6cf] use 2560 items per sm based on Leiming's test
+ 2017-10-28 [a188f8e] hand tune AMD autothread number
+ 2017-10-26 [f3a53f4] add MCX_SIMPLIFY_BRANCH flag to reduce thread divergence
+ 2017-10-25 [86956ce] avoid overloading major and minor flags for AMD device, use vendor tag
+ 2017-10-22 [2f23726] set autothread on Intel GPU
+ 2017-10-22 [bf8fec4] tune persistent mode on Intel GPU,remove warning
+ 2017-10-09*[c030366] absorb all variations in the paper in one version, switch by flags
+ 2017-08-03*[8b237f4] mcxcl doc update
+ 2017-08-03 [6e52e32] compile mcxcl on windows, remove mcxstudio
+ 2017-07-30 [8fc3698] ported some of the latest features from mcx - integer media,savenii,mcxstudio flags
+ 2017-01-26 [aef375d] Revert "optimize photon workload at work-group level"
+ 2016-08-27 [135dc82] change clWaitForEvents to clFinish to avoid hanging
+ 2016-08-24 [0e3865b] update core count for GP104
+ 2016-08-23 [d76f626] support autopilot on AMD devices
+ 2016-08-22 [c28fe99] fix core counts for Pascal
+ 2016-08-22 [6c1cdc1] add speed benchmark
+ 2016-08-22 [6b0fffa] port JSON input support from MCX to MCXCL
+ 2016-08-19 [188c5d5] add autopilot mode, determine SM count using nvidia CL extension
+ 2016-08-16 [0d7bece] set xorshift128+ RNG as default
+ 2016-03-21 [1a49986] enable posix erand48 with cl_khr_fp64 extension
+ 2016-03-15 [133b242] make mcxcl run on Intel HD graphics
+ 2016-02-15 [5370ef0] port major mcx updates to mcxcl - hitgrid, normalization, detection, reflection handling etc
+ 2014-10-03 [d732ce9] fix critical bugs found in MCX 0.9.7-2 or earlier releases

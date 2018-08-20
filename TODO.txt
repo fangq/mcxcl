@@ -2,18 +2,9 @@
 
 == Short term projects ==
 
-*. set up mailing lists [2009/09/30, FangQ]
-*. support NIFTI input & output [2009/04/30, FangQ]
-*. support ini based input file format (or perl script format) [2009/04/30, FangQ]
-*. multiple-GPU support [2009/09/30, FangQ]
-*. Brook+ variant of MCX [2009/10/21, FangQ]
-*. OpenCL variant of MCX [2009/10/21, FangQ]
-
 == Long term projects ==
 
-*. support more complicated source forms [2009/09/30, FangQ]
 *. fluorescent material support [2009/09/30, FangQ]
-*. study the round-off errors for the two RNGs [2009/04/30, FangQ]
 
 == Completed ==
 
@@ -24,3 +15,4 @@
 [done] *. compile on windows [2009/09/30, FangQ]
 [done] *. crate a GUI for MCX [2009/09/30, FangQ]
 [done] *. save photon history info at detector sites [2009/04/30, FangQ] (experimental)
+[done] *. multiple-GPU support [2009/09/30, FangQ]
