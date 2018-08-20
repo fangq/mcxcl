@@ -1,179 +1,535 @@
+   #[1]Monte Carlo eXtreme: GPU-based Monte Carlo Simulations
 
-==   #[1]Monte Carlo eXtreme: photon migration on graphics cards  ==
+MCX'18 Workshop Preparation Instructions - Method A
 
-Installation Instructions for MCX
+Method A: Running everything from your laptop
 
-          1. [2]System Requirements
-          2. [3]Running MCX
-          3. [4]Running MCX with GUI
-          4. [5]Compiling MCX from source code
-                4.1. [6]Download the source code
-                4.2. [7]Install the compilers
-                4.3. [8]Setup paths
-                4.4. [9]make your binary
+          1. [2]Preparation of your Laptop
 
-1. System Requirements
+          2. [3]Step 1. Verify your CPU/GPU support
 
-   In the long run, MCX will support most modern GPUs. However, at this point,
-   MCX only has a CUDA version that is supported by nVidia graphics cards. In
-   order to run MCX-CUDA, you have to make sure you have the right hardware and
-   software support, this includes:
+                2.1. [4]Verify GPU/CPU support
 
-     * a CUDA enabled graphics card made by nVidia, a full list of supported
-       cards can be found [10][here]
-     * a computer running GNU/Linux, Windows or Mac OS
-     * pre-installed  CUDA driver and video driver, you can download from
-       [11][here]
+                2.2. [5]Laptops without discrete GPUs
 
-   If you plan to purchase a graphics card that can run mcx, you can consult
-   the following search links:
-     * [12][8800GT series] ~ $100
-     * [13][9800GT series] ~ $100
-     * [14][GTX 280 series] ~ $250
-     * [15][GTX 285 series] ~ $300 - $400
-     * [16][GTX 295 series] ~ $400 - $500
+                2.3. [6]Laptops with discrete GPUs
 
-   MCX  performs  nicely on a low-cost 8800GT card (for a given number of
-   threads, MCX's speed on 8800GT is a few percent faster than the higher
-   models; however, higher models allow to run more threads).
+          3. [7]Step 2. Install MATLAB
 
-2. Running MCX
+          4. [8]Step 3. Download the MCXStudio software package
 
-   Once you are convinced that your hardware and software support are both
-   in-place, you need to setup the system environment variable in order to let
-   MCX find the needed CUDA run-time library. For Linux and Mac OS users, you
-   might need to add the following settings to your shell initialization file.
-   Use "echo $SHELL" command to identify your shell type. For c-shell, i.e.
-   csh/tcsh, add the following lines to your ~/.cshrc file
+                4.1. [9]Notes for Mac Users
 
-  if ("`uname -p`" =~ "*_64" ) then
-          setenv LD_LIBRARY_PATH "/usr/local/cuda/lib64"
-  else
-          setenv LD_LIBRARY_PATH "/usr/local/cuda/lib"
-  endif
-  setenv PATH "/usr/local/cuda/bin:$PATH"
+                4.2. [10]Notes for Windows Users
 
-   and for "bash" or "sh" users, add
+          5. [11]Step 4. Start MCXStudio and query GPU information
 
-  if [[ "`uname -p`" =~ .*_64 ]]; then
-          export LD_LIBRARY_PATH="/usr/local/cuda/lib64"
-  else
-          export LD_LIBRARY_PATH="/usr/local/cuda/lib"
-  fi
-  export PATH="/usr/local/cuda/bin:$PATH"
+          6. [12]Step 5. Run a trial simulation
 
-   to  your  ~/.bash_profile.  If the libcudart.so file is installed in a
-   non-standard folder, please replace the paths in the above scripts to your
-   installation path where libcudart.so resides.
+          7. [13]Step 6. Test MATLAB for visualization
 
-   Then,  you  can  simply start mcx by running the executable located at
-   <mcx>/bin/mcx.
+          8. [14]Step 7. Setting up MATLAB search path for MCXLAB/MMCLAB
+          training
 
-   To list all supported options, you just type mcx without any parameters, it
-   will print the help information.
+          9. [15]Final suggestions
 
-3. Running MCX with GUI
+   The purpose of this document is to help you test/configure your own
+   laptop, and set up a working environment for our modeling tools.
 
-   If you are used to graphics interfaces, you can find an executable mcxstudio
-   under the same folder as mcx. [17]MCX Studio is a cross-platform interface
-   to interact with MCX. It gives users a straightforward way to set various of
-   parameters for a MCX session, and organize different sessions into projects
-   that can be saved for later use. Please read [18]README to see how to use
-   this tool to create, run and save the simulation sessions.
+   If you have an Intel CPU with integrated Intel graphics (HD Graphics,
+   Iris etc), our goal is to find out if you can run [16]MCX-CL and
+   [17]MMC on your laptop; if your laptop contains an NVIDIA GPU, we will
+   also test to see if you can run MCX (and/or MCX-CL) smoothly from your
+   laptop.
 
-4. Compiling MCX from source code
+   If we can not get these tools to work, you will have to move on to the
+   instructions for [18]Method B.
 
-   If you want to compile an executable on your machine from the source code,
-   you should follow the steps described below:
+   Please checkout hashtag [19]#MCXOSA18 on Twitter for discussions and
+   quick support on the preparation.
 
-4.1. Download the source code
+1. Preparation of your Laptop
 
-   You need to first download the source code from the [19]Download page.
+   We assume you use one of the 3 supported configurations:
 
-4.2. Install the compilers
+    1. a 64bit Windows
+    2. a 64bit Linux computer, or
+    3. a 64bit Mac with Intel CPU (you may have to manually start MATLAB
+       for plotting, see [20]Step 6)
 
-   You need install the CUDA and C compilers on your system, this includes
-     * 1. CUDA compiler and run-time libraries: this will be installed when you
-       download and install the CUDA driver/sdk/tools from [20][this link]
-     * 2. GNU toolchain: you need to have g++ and make commands on your system.
-       Usually
-          + for Debian-based Linux users, you can get these basic compiling
-            tools by a single command:
+   We don't support 32bit operating system any more (such as 32bit Windows
+   XP). If your laptop runs on a 32bit OS, you will have to either upgrade
+   it to a 64bit OS, or bring another laptop.
 
- sudo apt-get install build-essential
+   For Windows and Linux laptops, we strongly recommend you to install the
+   Intel CPU OpenCL run-time from the below link, although many laptop may
+   run MCX-CL simulations without needing this run-time library.
 
-     * for Redhat-based systems:
+   [21]https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU
+   _runtime
 
- sudo yum groupinstall "Development Tools"
+   The OpenCL support for Intel CPU and integrated GPU are already
+   built-in in Mac OSX.
 
-     * for Windows users, you need to install [21][MinGW], a minimum Unix
-       system on Windows, the [22][automatic-installer] can be downloaded from
-       [23][here].
-     * for Mac OS users, the GNU compilers can be installed from the Xcode
-       tools from [24][this link]
+2. Step 1. Verify your CPU/GPU support
 
-     3. For Windows, you also need to install [25][Microsoft Visual C++ 200x
-   Express Edition] (or the full version; the Express edition is free. MCX was
-   tested with VC++2005).
+   We will use MCX-CL as our primary tool for demo and training (the
+   operations to use MCX-CL and MCX are almost identical).
 
-  4.3. Setup paths
+   MCX-CL supports a wide-range of processors, including Intel/AMD CPUs
+   and GPUs from NVIDIA/AMD/Intel.
 
-   For  Linux/Mac  OS  users, you need to make sure you have followed the
-   instructions to setup the paths described in the "Running MCX" section.
+2.1. Verify GPU/CPU support
 
-   For Windows, one need to add the path to nvcc (by default, C:\CUDA\bin),
-   path  to  cl.exe (by default, C:\Program Files\Microsoft Visual Studio
-   8\VC\bin) and path to g++/make (by default, C:\MinGW\bin) to your Path
-   environment  variable.  You can follow the screenshots as in [26][this
-   tutorial], and paste the following string at the beginning of the variable
-   value field.
+   To verify if you have installed the OpenCL or CUDA support, you may
 
- C:\Program Files\Microsoft Visual Studio 8\VC\bin;C:\MinGW\bin;C:\CUDA\bin;
+     * if you have a windows machine, download and install the
+       [22]Everything Search tool (a small and fast file name search
+       utility), and type "opencl.dll" in the search bar
+          + Expected result: you must see OpenCL.dll (or nvopencl.dll if
+            you have an NVIDIA GPU) installed in the Windows\System32
+            directory.
+     * if you have an Mac, open a terminal, and type ls
+       /System/Library/Frameworks/OpenCL.framework/Versions/A/OpenCL
+          + Expected result: you should not see an error.
+     * if you have a Linux laptop, open a terminal, and type locate
+       libOpenCL.so,
+          + Expected result: you should see one or multiple libOpenCL
+            files
 
-   If you have installed VC2008, you need to replace "Microsoft Visual Studio
-   8" to "Microsoft Visual Studio 9".
+   Example screenshot from a laptop with integrated GPU
 
-   If you have installed CUDA, MSVC or MinGW at a non-standard location, please
-   open  the  Makefile  under <mcx>/src to update all the library/include
-   directories to the actual path.
+   [23]upload:windows_intel_gpu_verify.png
 
-  4.4. make your binary
+   Example screenshot from a computer with dedicated NVIDIA GPU
 
-   For Linux/Mac OS, you need to open an terminal, "cd" to <mcx>/src, and type
-   "make". This will compile MCX with the default option, i.e. non-atomic
-   memory write, LL5 RNG and fast-math library. You can "cat Makefile" and see
-   other options. If everything is working ok, you should see a binary file
-   generated under <mcx>/bin.
+   [24]upload:windows_opencl_verify.png
 
-   For Windows, you need to double click on a shortcut named "MSYS", a terminal
-   will pop up. Then type "cd /path/to/your/mcx/src", then type "make". The
-   binary will be generated as <mcx>/bin/mcx.exe.
+   If the OpenCL.dll file is not found on your system, please read the
+   below sections. Otherwise, please go to [25]Step 2.
+
+2.2. Laptops without discrete GPUs
+
+   In most cases, your laptop runs on an Intel CPU with integrated
+   graphics. In this case, please make sure you have installed the latest
+   Intel graphics drivers. If you are certain that you have installed the
+   graphics drivers, or your graphics works smoothly, please skip this
+   step.
+
+   If you want to double check, for Windows machine, you can download the
+   "Intel Driver&Support Assistant" to check if you have installed the
+   graphics drivers
+
+   [26]https://downloadcenter.intel.com/download/24345/Intel-Driver-Suppor
+   t-Assistant
+
+   for a Mac, you need to use your App store to update the driver, see the
+   below link for details
+
+   [27]https://www.intel.com/content/www/us/en/support/articles/000022440/
+   graphics-drivers.html
+
+   for a Linux (for example Ubuntu) laptop, the intel CPU OpenCL run-time
+   can be downloaded from
+
+   [28]https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU
+   _runtime
+
+   if you want to use both Intel CPU and GPU on Linux, you need to install
+   the OpenCL™ 2.0 GPU/CPU driver package for Linux* (this involves
+   compiling a new kernel)
+
+   [29]https://software.intel.com/en-us/articles/opencl-drivers#latest_lin
+   ux_driver
+
+2.3. Laptops with discrete GPUs
+
+   if you want to bring a beefy laptop with discrete GPU to the workshop,
+   you need to make sure your discrete GPU is configured with the
+   appropriate GPU driver installed. Again, if you have been using your
+   laptop regularly and the graphics has been smooth, likely your graphics
+   driver has already been installed.
+
+   If your GPU driver was not installed, and would like to install, or
+   upgrade from an older version, for an NVIDIA GPU, you may browse this
+   link to install the matching driver
+
+   [30]http://www.nvidia.com/Download/index.aspx
+
+   if your GPU is an AMD GPU, please use the below link
+
+   [31]https://support.amd.com/en-us/download
+
+   It is also possible to simultaneously access Intel CPU along with your
+   discrete GPU. In this case, you need to download the latest Intel
+   OpenCL Runtime for CPU only if you haven't installed it already.
+
+   [32]https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU
+   _runtime
+
+   Note: if you have an NVIDIA GPU, there is no need to install CUDA in
+   order for you to run MCX/MCXLAB.
+
+3. Step 2. Install MATLAB
+
+   MATLAB is needed for the majority of the training. You must install a
+   working copy of MATLAB before the event. If you do not have a license,
+   you may download a [33]trial version of MATLAB. The trial version has a
+   30-day limit.
+
+   If you use a Mac or Linux laptop, you need to create a link so that
+   your system can find MATLAB. To do this you start a terminal, and type
+
+ sudo ln -s /path/to/matlab /usr/local/bin
+
+   please replace /path/to/matlab to the actual matlab command full path
+   (for Mac, this is typically /Application/MATLAB_R20???.app/bin/matlab,
+   for Linux, it is typically /usr/local/MATLAB/R20???/bin/matlab, ??? is
+   the year and release, such as 18a, 17b etc). You need to type your
+   password to create this link.
+
+   To verify your computer has MATLAB installed, please start a terminal
+   on a Mac or Linux, or type "cmd" and enter in Windows start menu, in
+   the terminal, type "matlab" and enter, you should see MATLAB starts.
+
+4. Step 3. Download the MCXStudio software package
+
+   Our developed MCX/MMC/MCXCL tools are packaged in a single zip file,
+   available for you to download at
+
+   [34]http://mcx.space/nightly/
+
+   Please click on the folder matching your operating system (for example,
+   if you run a 64bit Windows, you need to navigate into win64 folder),
+   and download the file named "MCXStudio-MCX18-nightlybuild.zip".
+
+   Open this file, and unzip it to a working folder (for Windows, for
+   example, the Documents or Downloads folder). The package needs about
+   100 MB disk space.
+
+   Once unzipped, you should be able to see a folder named "MCXStudio",
+   with a few executables and 3 subfolders underneath. See the folder
+   structure below:
+
+MCXStudio/
+├── MATLAB/
+│   ├── mcxlab/
+│   ├── mcxlabcl/
+│   └── mmclab/
+├── MCXSuite/
+│   ├── mcx/
+│   ├── mcxcl/
+│   └── mmc/
+├── mcxstudio
+├── mcx
+├── mmc
+├── mcxcl
+└── Output/
+
+   Please make sure that your downloaded MCXStudio must match your
+   operating system.
+
+4.1. Notes for Mac Users
+
+   For Mac users: Please unzip the package under your [35]home directory
+   directly (Shift+Command+H).
+
+4.2. Notes for Windows Users
+
+   When you start MCXStudio, you may see a dialog to ask you to modify the
+   TdrDelay key in the registry so that mcx can run more than 5 seconds.
+   If you select Yes, some of you may get an error saying you do not have
+   permission.
+
+   To solve this problem, you need to quit MCXStudio, and then right-click
+   on the mcxstudio.exe, and select "Run as Administrator". Then, you
+   should be able to apply the registry change successfully. You must
+   reboot your computer for this change to be effective!
+
+5. Step 4. Start MCXStudio and query GPU information
+
+   Now, navigate to the MCXStudio folder (i.e. the top folder of the
+   extracted software structure). On Windows, right-click on the
+   executable named "mcxstudio.exe" and select "Run as Administrator" for
+   the first time only; on the Linux, double click on the mcxstudio
+   executable; on the Mac, open a terminal and type
+
+ cd ~/MCXStudio
+ open mcxstudio.app
+
+   You should see the below interface. Please proceed using the orders of
+   the labeled red numbers in the screenshot.
+
+   [36]upload:windows_mcxstudio_verify.png
+
+   First, click on the "New" button to the top-left (green plus icon),
+   select the 3rd option "NVIDIA/AMD/Intel CPUs/GPUs (MCX-CL)", and type a
+   session name "preptest" in the field below. Then click OK. You should
+   see a blue/yellow "preptest" icon added to the left panel.
+
+   Now, click on the "GPU" button on the toolbar (6th button from the left
+   side), an Output window will popup, and wait for a few seconds, you
+   should see an output like
+
+"-- Run Command --"
+"/drives/taote1/users/fangq/Download/MCXStudio/MCXSuite/mcxcl/bin/mcxcl" -L
+"-- Printing GPU Information --"
+Platform [0] Name NVIDIA CUDA
+============ GPU device ID 0 [1 of 2]: Graphics Device  ============
+ Device 1 of 2:         Graphics Device
+ Compute units   :      80 core(s)
+ Global memory   :      12644188160 B
+ Local memory    :      49152 B
+ Constant memory :      65536 B
+ Clock speed     :      1455 MHz
+ Compute Capacity:      7.0
+ Stream Processor:      10240
+ Vendor name    :       NVIDIA
+ Auto-thread    :       655360
+...
+Platform [1] Name Intel(R) OpenCL
+============ CPU device ID 2 [1 of 1]: Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz
+ ============
+ Device 3 of 1:         Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz
+ Compute units   :      8 core(s)
+ Global memory   :      33404575744 B
+ Local memory    :      32768 B
+ Constant memory :      131072 B
+ Clock speed     :      4200 MHz
+ Vendor name    :       Intel
+ Auto-thread    :       512
+ Auto-block     :       64
+
+"-- Task completed --"
+
+   If you do not see any output, or it returns no GPU found, that means
+   your OpenCL support was not installed properly. Please go back to
+   [37]Steps 1-2 and reinstall the drivers.
+
+   If you have Intel CPU with Integrated GPU, you should be able to see a
+   section with "Platform [?] Name Intel(R) OpenCL" in the above output.
+   You may see only the CPU is listed, or both the CPU and the integrated
+   GPU.
+
+6. Step 5. Run a trial simulation
+
+   If your above GPU query was successful, you should now see in the
+   middle panel of the MCXStudio window, under the Section entitled "GPU
+   Settings", in a check-box list under "Run MCX on", you should now see
+   the available devices on your laptop.
+
+   To avoid running lengthy simulations, please change the "Total photon
+   number (-n)" field under the "Basic Settings" from 1e6 to 1e5.
+
+   Now, you can then run a trial simulation, by first clicking on the
+   "Validate" button (blue check-mark icon), and then click on "Run" (the
+   button to the right of validate). This will launch an MCXCL simulation.
+   The output window will show again, and you can see the messages printed
+   from the simulation, similar to the output below
+
+"-- Command: --"
+mcxcl --session "preptest"  --input "/drives/taote1/users/fangq/Download/MCXStud
+io/Output/mcxclsessions/preptest/preptest.json" --root "/drives/taote1/users/fan
+gq/Download/MCXStudio/Output/mcxclsessions/preptest" --outputformat mc2 --gpu 10
+ --autopilot 1 --photon 10000000 --normalize 1 --save2pt 1 --reflect 1 --savedet
+ 1 --unitinmm 1.00 --saveseed 0 --seed "1648335518" --compileropt "-D USE_ATOMIC
+" --array 0 --dumpmask 0 --repeat 1  --maxdetphoton 10000000
+"-- Executing Simulation --"
+==============================================================================
+=                       Monte Carlo eXtreme (MCX) -- OpenCL                  =
+=          Copyright (c) 2010-2018 Qianqian Fang <q.fang at neu.edu>         =
+=                             http://mcx.space/                              =
+=                                                                            =
+= Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =
+=            Department of Bioengineering, Northeastern University           =
+==============================================================================
+=    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =
+==============================================================================
+$Rev::6e839e $ Last $Date::2017-07-20 12:46:23 -04$ by $Author::Qianqian Fang$
+==============================================================================
+- variant name: [Detective MCXCL] compiled with OpenCL version [1]
+- compiled with: [RNG] Logistic-Lattice [Seed Length] 5
+initializing streams ...        init complete : 0 ms
+
+Building kernel with option: -cl-mad-enable -DMCX_USE_NATIVE -DMCX_SIMPLIFY_BRAN
+CH -DMCX_VECTOR_INDEX -DMCX_SRC_PENCIL  -D USE_ATOMIC -DUSE_ATOMIC -D MCX_SAVE_D
+ETECTORS -D MCX_DO_REFLECTION
+build program complete : 23 ms
+- [device 0(1): Graphics Device] threadph=15 oddphotons=169600 np=10000000.0 nth
+read=655360 nblock=64 repetition=1
+set kernel arguments complete : 23 ms
+lauching mcx_main_loop for time window [0.0ns 5.0ns] ...
+simulation run# 1 ...
+
+kernel complete:        796 ms
+retrieving flux ...
+detected 0 photons, total: 0    transfer complete:        818 ms
+normalizing raw data ...        normalization factor alpha=20.000000
+saving data to file ... 216000 1        saving data complete : 821 ms
+
+simulated 10000000 photons (10000000) with 1 devices (repeat x1)
+MCX simulation speed: 12953.37 photon/ms
+total simulated energy: 10000000.00     absorbed: 27.22654%
+(loss due to initial specular reflection is excluded in the total)
+
+   If this simulation is completed successfully, you should be able to see
+   the "Simulation speed" and total simulated energy reported at the end.
+   Please verify your "absorbed" percentage value printed at the end (in
+   bold above), and make sure it is ~27%. We found that some Intel OpenCL
+   library versions produced incorrect results.
+
+   If your laptop shows an error for the Intel GPU, please choose another
+   device from the "GPU Settings" section, and run the simulation again.
+
+   If your GPU/CPU gives the below error (found on HD4400 GPU and 4th gen
+   Intel CPUs)
+
+  error: OpenCL extension 'cl_khr_fp64' is unsupported
+  MCXCL ERROR(11):Error: Failed to build program executable! in unit mcx_host.cp
+p:510
+
+   You may add
+
+   -J "-DUSE_LL5_RAND"
+
+   in the MCXStudio GUI\Advanced Settings\Additional Parameters field.
+   This should allow it to run, but please verify the absorption fraction
+   is ~27%. For 4th generation Intel CPU, we found that install the Intel
+   CPU OpenCL run-time can produce correct simulations. Please download it
+   from here
+
+   [38]https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU
+   _runtime
+
+7. Step 6. Test MATLAB for visualization
+
+   Once this above simulation is completed, you can click on the "Plot"
+   button on the toolbar, and from the drop-down menu, select "Plot
+   fluence (mc2)". This will open a MATLAB window, and show you an
+   iterative figure so you can visualize the image slices.
+
+   If MATLAB can not be started, you may not install MATLAB properly, or
+   haven't added MATLAB executable to your PATH environment variable.
+
+   Update:03/30/18:
+     * We are aware that MATLAB can not be started from MCXStudio on the
+       Mac. However, it will print a few lines of MATLAB commands in the
+       "Output" window. As a workaround, you can start a separate MATLAB
+       session, copy and paste the printed MATLAB commands, and run those
+       directly in MATLAB (you need to complete Step 7 to run these
+       commands).
+     * If MATLAB fails to run the command by complaining strings with
+       Extended Latin characters, this is a result of your special
+       keyboard setting. Please change it to an ASCII compatible keyboard
+       layout and the command should be processed correctly.
+
+8. Step 7. Setting up MATLAB search path for MCXLAB/MMCLAB training
+
+   The next step is to set up the search paths for MCXLAB/MMCLAB. You need
+   to start MATLAB, and in the Command window, please type
+
+ pathtool
+
+   this will popup a window. Click on the "Add with Subfolders ..." button
+   (the 2nd from the top), then browse the MCXStudio folder, then select
+   OK. Now you should see all needed MCX/MMC paths are added to MATLAB.
+   Before you quick this window, click on the "Save" button.
+
+   [39]upload:matlab_path_verify.png
+
+   To verify if your MCXLAB/MMCLAB/MCXLABCL has been installed properly,
+   please type
+
+ which mcxlab
+ which mmclab
+ which mcxlabcl
+
+   you should see their full paths printed.
+
+   To see if you can run MCXLAB-CL in your environment, please type
+
+ USE_MCXCL=1   %define this line in the base workspace, all subsequent mcxlab ca
+lls will use mcxcl
+ info=mcxlab('gpuinfo')
+
+   this should print a list of CPU/GPU devices using which you can run the
+   MC simulations.
+
+   [40]upload:matlab_gpu_verify.png
+
+   If you do not see any output, that means your CPU/GPU OpenCL driver was
+   not installed properly, you need to go back to [41]Steps 1-2.
+
+   If you have an NVIDIA GPU, and have installed the proper GPU driver,
+   you may run
+
+ info=mcxlab('gpuinfo')  % notice the command is mcxlab instead of mcxlabcl
+
+   this should print a list of NVIDIA GPU from the MATLAB window.
+
+9. Final suggestions
+
+   If you are able to complete this step successfully, you may submit a
+   survey from the below link and let us know you are ready for the
+   workshop.
+
+   [42]https://goo.gl/forms/n2BxesZgcL1D6piF3
+
+   or continue to test [43]Method B as a backup plan in case Method A
+   fails.
+
+   Feel free to try more simulations by browsing our screencast tutorial
+   page at
+
+   [44]http://mcx.space/wiki/index.cgi?Demo/MCXStudio
+
+   When you have difficulty running our codes using your hardware, please
+   feel free post to [45]#MCXOSA18 hashtag on Twitter to get help.
 
 References
 
-   1. http://mcx.sourceforge.net/cgi-bin/index.cgi?action=rss
-   2. http://mcx.sourceforge.net/cgi-bin/index.cgi?Doc/Installation#System_Requirements
-   3. http://mcx.sourceforge.net/cgi-bin/index.cgi?Doc/Installation#Running_MCX
-   4. http://mcx.sourceforge.net/cgi-bin/index.cgi?Doc/Installation#Running_MCX_with_GUI
-   5. http://mcx.sourceforge.net/cgi-bin/index.cgi?Doc/Installation#Compiling_MCX_from_source_code
-   6. http://mcx.sourceforge.net/cgi-bin/index.cgi?Doc/Installation#Download_the_source_code
-   7. http://mcx.sourceforge.net/cgi-bin/index.cgi?Doc/Installation#Install_the_compilers
-   8. http://mcx.sourceforge.net/cgi-bin/index.cgi?Doc/Installation#Setup_paths
-   9. http://mcx.sourceforge.net/cgi-bin/index.cgi?Doc/Installation#make_your_binary
-  10. http://www.nvidia.com/object/cuda_learn_products.html
-  11. http://www.nvidia.com/object/cuda_get.html
-  12. http://www.google.com/products?aq=f&q=8800GT
-  13. http://www.google.com/products?aq=f&q=9800GT
-  14. http://www.google.com/products?aq=f&q=GTX280
-  15. http://www.google.com/products?aq=f&q=GTX285
-  16. http://www.google.com/products?aq=f&q=GTX295
-  17. http://mcx.sourceforge.net/cgi-bin/index.cgi?Doc/MCXStudio
-  18. http://mcx.sourceforge.net/cgi-bin/index.cgi?Doc/README
-  19. http://mcx.sourceforge.net/cgi-bin/index.cgi?Download
-  20. http://www.nvidia.com/object/cuda_get.html
-  21. http://www.mingw.org/
-  22. http://sourceforge.net/projects/mingw/files/
-  23. http://sourceforge.net/projects/mingw/files/Automated%20MinGW%20Installer/
-  24. http://developer.apple.com/technology/xcode.html
-  25. http://www.microsoft.com/Express/VC/
-  26. http://technet.microsoft.com/en-us/library/aa997841%28EXCHG.65%29.aspx
+   1. http://mcx.space/wiki/index.cgi?action=rss
+   2. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Preparation_of_your_Laptop
+   3. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_1_Verify_your_CPU_GPU_support
+   4. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Verify_GPU_CPU_support
+   5. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Laptops_without_discrete_GPUs
+   6. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Laptops_with_discrete_GPUs
+   7. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_2_Install_MATLAB
+   8. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_3_Download_the_MCXStudio_software_package
+   9. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Notes_for_Mac_Users
+  10. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Notes_for_Windows_Users
+  11. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_4_Start_MCXStudio_and_query_GPU_information
+  12. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_5_Run_a_trial_simulation
+  13. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_6_Test_MATLAB_for_visualization
+  14. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_7_Setting_up_MATLAB_search_path_for_MCXLAB_MMCLAB_training
+  15. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Final_suggestions
+  16. http://mcx.space/wiki/index.cgi?MCXCL
+  17. http://mcx.space/wiki/index.cgi?MMC
+  18. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodB
+  19. https://twitter.com/hashtag/MCXOSA18?src=hash
+  20. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_6_Test_MATLAB_for_visualization
+  21. https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
+  22. https://www.voidtools.com/
+  23. http://mcx.space/wiki/upload/windows_intel_gpu_verify.png
+  24. http://mcx.space/wiki/upload/windows_opencl_verify.png
+  25. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_2_Install_MATLAB
+  26. https://downloadcenter.intel.com/download/24345/Intel-Driver-Support-Assistant
+  27. https://www.intel.com/content/www/us/en/support/articles/000022440/graphics-drivers.html
+  28. https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
+  29. https://software.intel.com/en-us/articles/opencl-drivers#latest_linux_driver
+  30. http://www.nvidia.com/Download/index.aspx
+  31. https://support.amd.com/en-us/download
+  32. https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
+  33. https://www.mathworks.com/campaigns/products/trials.html
+  34. http://mcx.space/nightly/
+  35. https://www.cnet.com/how-to/how-to-find-your-macs-home-folder-and-add-it-to-finder/
+  36. http://mcx.space/wiki/upload/windows_mcxstudio_verify.png
+  37. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_1_Verify_your_CPU_GPU_support
+  38. https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
+  39. http://mcx.space/wiki/upload/matlab_path_verify.png
+  40. http://mcx.space/wiki/upload/matlab_gpu_verify.png
+  41. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_1_Verify_your_CPU_GPU_support
+  42. https://goo.gl/forms/n2BxesZgcL1D6piF3
+  43. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodB
+  44. http://mcx.space/wiki/index.cgi?Demo/MCXStudio
+  45. https://twitter.com/hashtag/MCXOSA18?src=hash
