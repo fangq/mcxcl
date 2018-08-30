@@ -227,7 +227,7 @@ float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
 
 void clearpath(__local float *p, __constant MCXParam *gcfg);
 float mcx_nextafterf(float a, int dir);
-float hitgrid(float4 *p0, float4 *v, float4 *htime, int *id);
+float hitgrid(float4 *p0, float4 *v, FLOAT4VEC *htime, int *id);
 void rotatevector(float4 *v, float stheta, float ctheta, float sphi, float cphi);
 void transmit(float4 *v, float n1, float n2,int flipdir);
 float reflectcoeff(float4 *v, float n1, float n2, int flipdir);
@@ -466,7 +466,7 @@ int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constan
 	    idx1d=((int)(floor(p[0].z))*gcfg->dimlen.y+(int)(floor(p[0].y))*gcfg->dimlen.x+(int)(floor(p[0].x)));
 	    if(media[idx1d] & MED_MASK){ ///< if enters a non-zero voxel
                 GPUDEBUG(("inside volume [%f %f %f] v=<%f %f %f>\n",p[0].x,p[0].y,p[0].z,v[0].x,v[0].y,v[0].z));
-	        float4 htime;
+	        FLOAT4VEC htime;
                 int flipdir;
 		p[0].xyz-=v[0].xyz;
                 f[0].y-=gcfg->minaccumtime;
@@ -561,7 +561,7 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
 */
       *w0=1.f;     ///< reuse to count for launchattempt
       *Lmove=-1.f; ///< reuse as "canfocus" flag for each source: non-zero: focusable, zero: not focusable
-      *prop=(float4)(gcfg->ps.x,gcfg->ps.y,gcfg->ps.z,0); ///< reuse as the origin of the src, needed for focusable sources
+      *prop=TOFLOAT4((float4)(gcfg->ps.x,gcfg->ps.y,gcfg->ps.z,0)); ///< reuse as the origin of the src, needed for focusable sources
 
       /**
        * First, let's terminate the current photon and perform detection calculations
