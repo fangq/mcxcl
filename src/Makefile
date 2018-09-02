@@ -18,8 +18,6 @@ CCOPT=-g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER
 CPPOPT:=$(CCOPT) -Wno-variadic-macros
 CCOPT+=-std=c99
 
-LIBOPENCLDIR:=
-
 DLLFLAG=-fPIC
 OMP=-fopenmp
 OUTPUTFLAG:=-o
