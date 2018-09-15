@@ -661,9 +661,9 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
 	      }else{
 		  *mediaid=media[*idx1d];
 	      }
-              *prop=(float4)(prop[0].x+(gcfg->srcparam1.x+gcfg->srcparam2.x)*0.5f,
+              *prop=TOFLOAT4((float4)(prop[0].x+(gcfg->srcparam1.x+gcfg->srcparam2.x)*0.5f,
 	                 prop[0].y+(gcfg->srcparam1.y+gcfg->srcparam2.y)*0.5f,
-			 prop[0].z+(gcfg->srcparam1.z+gcfg->srcparam2.z)*0.5f,0.f);
+			 prop[0].z+(gcfg->srcparam1.z+gcfg->srcparam2.z)*0.5f,0.f));
 #elif defined(MCX_SRC_FOURIERX) || defined(MCX_SRC_FOURIERX2D) // [v1x][v1y][v1z][|v2|]; [kx][ky][phi0][M], unit(v0) x unit(v1)=unit(v2)
 	      float rx=rand_uniform01(t);
 	      float ry=rand_uniform01(t);
@@ -689,9 +689,9 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
 	      }else{
 		  *mediaid=media[*idx1d];
 	      }
-              *prop=(float4)(prop[0].x+(gcfg->srcparam1.x+v2.x)*0.5f,
+              *prop=TOFLOAT4((float4)(prop[0].x+(gcfg->srcparam1.x+v2.x)*0.5f,
 	                 prop[0].y+(gcfg->srcparam1.y+v2.y)*0.5f,
-			 prop[0].z+(gcfg->srcparam1.z+v2.z)*0.5f,0.f);
+			 prop[0].z+(gcfg->srcparam1.z+v2.z)*0.5f,0.f));
 #elif defined(MCX_SRC_DISK) || defined(MCX_SRC_GAUSSIAN) // uniform disk distribution or Gaussian-beam
 	      // Uniform disk point picking
 	      // http://mathworld.wolfram.com/DiskPointPicking.html
@@ -773,9 +773,9 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
     #else
               *Lmove=-1.f;
     #endif
-              *prop=(float4)(prop[0].x+(gcfg->srcparam1.x)*0.5f,
+              *prop=TOFLOAT4((float4)(prop[0].x+(gcfg->srcparam1.x)*0.5f,
 	                 prop[0].y+(gcfg->srcparam1.y)*0.5f,
-			 prop[0].z+(gcfg->srcparam1.z)*0.5f,0.f);
+			 prop[0].z+(gcfg->srcparam1.z)*0.5f,0.f));
 #endif
           /**
            * If beam focus is set, determine the incident angle
