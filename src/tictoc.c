@@ -1,20 +1,21 @@
-/*******************************************************************************
+/***************************************************************************//**
+**  \mainpage Monte Carlo eXtreme - GPU accelerated Monte Carlo Photon Migration \
+**      -- OpenCL edition
+**  \author Qianqian Fang <q.fang at neu.edu>
+**  \copyright Qianqian Fang, 2009-2018
 **
-**  Monte Carlo eXtreme (MCX)  - GPU accelerated Monte Carlo 3D photon migration
-**  Author: Qianqian Fang <q.fang at neu.edu>
+**  \section sref Reference:
+**  \li \c (\b Yu2018) Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,
+**         "Scalable and massively parallel Monte Carlo photon transport simulations 
+**         for heterogeneous computing platforms," J. Biomed. Optics, 23(1), 010504 (2018)
 **
-**  Reference (Fang2009):
-**        Qianqian Fang and David A. Boas, "Monte Carlo Simulation of Photon 
-**        Migration in 3D Turbid Media Accelerated by Graphics Processing 
-**        Units," Optics Express, vol. 17, issue 22, pp. 20178-20190 (2009)
-**
-**  tictoc.c: timing functions
-**
-**  License: GNU General Public License v3, see LICENSE.txt for details
-**
+**  \section slicense License
+**          GPL v3, see LICENSE.txt for details
 *******************************************************************************/
 
 #include "tictoc.h"
+
+#define _BSD_SOURCE
 
 #ifndef USE_OS_TIMER
 
@@ -69,7 +70,11 @@ unsigned int StartTimer () {
 
 static unsigned int timerRes;
 #ifndef _WIN32
-#include <unistd.h>
+#if _POSIX_C_SOURCE >= 199309L
+#include <time.h>   // for nanosleep
+#else
+#include <unistd.h> // for usleep
+#endif
 #include <sys/time.h>
 #include <string.h>
 void SetupMillisTimer(void) {}
@@ -159,3 +164,28 @@ void CleanupMillisTimer(void) {
 #endif
 
 #endif
+
+#ifdef _WIN32
+#include <windows.h>
+#elif _POSIX_C_SOURCE >= 199309L
+#include <time.h>   // for nanosleep
+#else
+#include <unistd.h> // for usleep
+#endif
+
+/**
+  @brief Cross-platform sleep function
+*/
+
+void sleep_ms(int milliseconds){
+#ifdef _WIN32
+    Sleep(milliseconds);
+#elif _POSIX_C_SOURCE >= 199309L
+    struct timespec ts;
+    ts.tv_sec = milliseconds / 1000;
+    ts.tv_nsec = (milliseconds % 1000) * 1000000;
+    nanosleep(&ts, NULL);
+#else
+    usleep(milliseconds * 1000);
+#endif
+}

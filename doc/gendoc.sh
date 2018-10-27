@@ -2,11 +2,10 @@
 
 # commands to update the document pages from homepage
 
-ROOTURL="http://mcx.sourceforge.net/cgi-bin/index.cgi?embed=1&keywords"
+ROOTURL="http://mcx.space/wiki/index.cgi?embed=1&keywords"
 
-lynx -dump "$ROOTURL=Download" > Download.txt
-lynx -dump "$ROOTURL=Doc/Installation" > INSTALL.txt
-lynx -dump "$ROOTURL=Doc/Basics" > Get_Started.txt
-lynx -dump "$ROOTURL=Doc/FAQ" > FAQ.txt
+lynx -dump "$ROOTURL=MCXCL" > Download.txt
+lynx -dump "$ROOTURL=Workshop/MCX18Preparation/MethodA" > INSTALL.txt
 
-wget http://mcx.sourceforge.net/upload/mcx_diagram_paper.png -Omcx_workflow.png
+wget http://mcx.space/wiki/upload/mcxcl_benchmark_0118.png -Omcxcl_benchmark.png
+

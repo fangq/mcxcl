@@ -1,102 +1,108 @@
+   #[1]Monte Carlo eXtreme: GPU-based Monte Carlo Simulations
 
-==   #[1]Monte Carlo eXtreme: photon migration on graphics cards  ==
+MCXCL - Monte Carlo eXtreme for OpenCL
 
-How to get MCX
+A GPU-accelerated MC for heterogeneous computing platforms
 
-          1. [2]Download the Latest Release
-          2. [3]Download Development Snapshot from SVN (not fully tested)
-                2.1. [4]Anonymous SVN Access
-                2.2. [5]Developer SVN Access
-          3. [6]References
+   This work is described in the following paper
 
-1. Download the Latest Release
+     * Leiming Yu, Fanny Nina-Paravecino, David Kaeli, Qianqian Fang,
+       "[2]Scalable and massively parallel Monte Carlo photon transport
+       simulations for heterogeneous computing platforms," J. Biomed. Opt.
+       23(1), 010504 (2018).
 
-MCX 0.2 (final), codename Aurora
+          1. [3]Introduction
 
-   Before downloading the software, please read the [7]System Requirements for
-   MCX and make sure you have both the hardware and software supports.
+          2. [4]Supported Devices and Simulation Speed
 
-   Please    download   the   latest   v0.2   final   release   at   our
-   [8]registration/download page. We are greatly appreciated if you can tell us
-   a little bit about you and your related research by [9][registering your
-   copy of mcx]. Binary executable (for 32bit and 64bit machines) and source
-   code packages are both provided.
+          3. [5]Download
 
-2. Download Development Snapshot from SVN (not fully tested)
+                3.1. [6]Binary package
 
-   If you want to get the latest development branch of MCX, you can download it
-   from our svn. You have to be aware that an SVN snapshot is not a stable
-   release. It may have partially implemented features and, thus, cause crash
-   or erroneous results.
+                3.2. [7]Source code
 
-   First, make sure you have installed svn client on your system. If you are
-   using a Debian-based GNU/Linux system (such as Ubuntu, Knoppix etc), you can
-   install svn by
+          4. [8]Tutorial
 
- sudo apt-get install subversion
+          5. [9]Acknowledgement
 
-   if you are using a Redhat-based GNU/Linux system (such as Fedora, CentOS
-   etc), you can do this by
+1. Introduction
 
- sudo yum install subversion
+   MCXCL (or MCX for OpenCL) is a high-performance, highly scalable and
+   general-purpose Monte Carlo photon transport simulator for biophotonics
+   applications. Compared to [10]MCX (implemented with NVIDIA CUDA), MCXCL
+   is written in the OpenCL framework, and is capable of launching
+   parallel photon simulations on most modern CPUs and GPUs produced by
+   many vendors, including NVIDIA, AMD and Intel.
 
-   If  your  operating  system  is  Windows,  we recommend you to install
-   [10][TortoiseSVN].
+2. Supported Devices and Simulation Speed
 
-2.1. Anonymous SVN Access
+   MCXCL is supported on NVIDIA GPUs, AMD CPUs and GPUs as well as Intel
+   CPUs and (integrated) GPUs. A comparison between different CPUs/GPUs in
+   [11]3 benchmark problems (and [12]3 optimizations) is shown in the
+   below figure. MCXCL is currently about 2x-3x slower than MCX (CUDA
+   based) on NVIDIA GPUs (see the inset). This is a result of lagged
+   OpenCL driver development of NVIDIA. On the other hand, MCXCL performs
+   quite well on AMD and Intel processors.
 
-   The latest code snapshot can be checked out from project's SVN repository.
-   This can be done anonymously by the following command.
+   [13]upload:mcxcl_benchmark_0118.png
 
- svn checkout --username anonymous_user https://orbit.nmr.mgh.harvard.edu/svn/mcextreme/mcextreme_cuda/trunk/ mcx
+     * Update: 11/14/2017, added AMD Vega 64 results
 
-   The password is the same as the username. After you checking out the code,
-   you can compile and run the software.
+3. Download
 
-2.2. Developer SVN Access
+3.1. Binary package
 
-   If you are one of the developers who have SVN write permission, you can
-   checkout the latest code with the following command:
+   Pre-compiled MCXCL binary packages (preview version) for
+   Linux/Windows/MacOS can be [14]downloaded here. The current preview
+   package is named "mcxcl-*-git_20171108.zip".
 
- svn checkout --username youraccount https://orbit.nmr.mgh.harvard.edu/svn/mcextreme/mcextreme_cuda/trunk/ mcx
+   However, you are highly recommended to download the MCXSuite.zip
+   package for each platform ([15]Linux/[16]Windows/[17]MacOS). MCXCL is
+   part of the suite and easy-to-use GUI interface (MCX Studio) is
+   provided to help one design new simulation and review results. After
+   downloading and extracting the MCXSuite package, please start the GUI
+   program by executing the "mcxsuite(.exe)" executable inside subfolder
+   MCXSuite/mcxsuite/mcxsuite/.
 
-   where youraccount is your registered account in [13][orbit] (of course, you
-   have to [14][register first] and ask the [15][project maintainer] to grant
-   you svn write permission).
+3.2. Source code
 
-   You can simply make changes or debug your changes in your local copy. If
-   your local changes have passed review by other co-developers, you can then
-   commit your changes back to the svn repository by
+   MCXCL is open-source! You can download the latest source code at
+   [18]http://github.com/fangq/mcxcl.
 
- cd /path/to/mcx/local/copy
- svn commit -m "a short summary of your changes"
+4. Tutorial
 
-3. References
+   A tutorial on how to use MCX Studio GUI tool can be found below. The
+   tutorial uses MCX as an example; the procedures for using MCXCL is
+   almost the same, except that you need to select "NVIDIA/AMD/Intel
+   CPUs/GPUs" when creating the simulation. More tutorials can be found
+   [19]here.
 
-   The author of this software would like you to acknowledge the use of this
-   software in your related publications by citing the following paper:
+          [20][mcxstudio_tutorial_2.png]
 
-     * Qianqian Fang and David A. Boas, "Monte Carlo Simulation of Photon
-       Migration in 3D Turbid Media Accelerated by Graphics Processing Units,"
-       Opt. Express, vol. 17, issue 22, pp. 20178-20190 (2009)
+5. Acknowledgement
 
-   You can also find more algorithm and implementation details about MCX in
-   this paper.
+   We thank the funding support from the National Institutes of Health
+   (NIH) under grants R01-GM114365 and R01-CA204443.
 
 References
 
-   1. http://mcx.sourceforge.net/cgi-bin/index.cgi?action=rss
-   2. http://mcx.sourceforge.net/cgi-bin/index.cgi?Download#Download_the_Latest_Release
-   3. http://mcx.sourceforge.net/cgi-bin/index.cgi?Download#Download_Development_Snapshot_from_SVN_not_fully_tested
-   4. http://mcx.sourceforge.net/cgi-bin/index.cgi?Download#Anonymous_SVN_Access
-   5. http://mcx.sourceforge.net/cgi-bin/index.cgi?Download#Developer_SVN_Access
-   6. http://mcx.sourceforge.net/cgi-bin/index.cgi?Download#References
-   7. http://mcx.sourceforge.net/cgi-bin/index.cgi?Doc/Installation
-   8. http://mcx.sourceforge.net/cgi-bin/index.cgi?register/mcx
-   9. http://mcx.sourceforge.net/cgi-bin/index.cgi?action=edit&editmode=prepend&id=register/mcx
-  10. http://tortoisesvn.net/downloads
-  11. https://orbit.nmr.mgh.harvard.edu/svn/mcextreme/mcextreme_cuda/trunk/
-  12. https://orbit.nmr.mgh.harvard.edu/svn/mcextreme/mcextreme_cuda/trunk/
-  13. https://orbit.nmr.mgh.harvard.edu/
-  14. https://orbit.nmr.mgh.harvard.edu/account/register.php
-  15. https://orbit.nmr.mgh.harvard.edu/users/fangq/
+   1. http://mcx.space/wiki/index.cgi?action=rss
+   2. https://www.spiedigitallibrary.org/journals/journal-of-biomedical-optics/volume-23/issue-01/010504/Scalable-and-massively-parallel-Monte-Carlo-photon-transport-simulations-for/10.1117/1.JBO.23.1.010504.full?SSO=1#ArticleLink
+   3. http://mcx.space/wiki/index.cgi?MCXCL#Introduction
+   4. http://mcx.space/wiki/index.cgi?MCXCL#Supported_Devices_and_Simulation_Speed
+   5. http://mcx.space/wiki/index.cgi?MCXCL#Download
+   6. http://mcx.space/wiki/index.cgi?MCXCL#Binary_package
+   7. http://mcx.space/wiki/index.cgi?MCXCL#Source_code
+   8. http://mcx.space/wiki/index.cgi?MCXCL#Tutorial
+   9. http://mcx.space/wiki/index.cgi?MCXCL#Acknowledgement
+  10. http://mcx.space/
+  11. https://github.com/fangq/mcxcl/tree/master/example/benchmark
+  12. https://github.com/fangq/mcxcl_bench/blob/master/run_benchmarking.sh#L3
+  13. http://mcx.space/wiki/upload/mcxcl_benchmark_0118.png
+  14. http://mcx.space/nightly/
+  15. http://mcx.space/nightly/linux64/MCXSuite.zip
+  16. http://mcx.space/nightly/win64/MCXSuite.zip
+  17. http://mcx.space/nightly/osx64/MCXSuite.zip
+  18. http://github.com/fangq/mcxcl
+  19. http://mcx.sourceforge.net/cgi-bin/index.cgi?Demo/MCXStudio
+  20. http://mcx.space/tutorials/mcxstudio/4_How_to_design_a_simulation_and_visualize_the_results.htm

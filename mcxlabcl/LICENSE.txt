@@ -1,8 +1,8 @@
 ===============================================================================
-=                      Monte Carlo eXtreme (MCX) -- OpenCL                    =
+=      MCXLAB-CL - Monte Carlo eXtreme OpenCL (MCX-CL) for MATLAB/Octave      =
 ===============================================================================
 
-Copyright (C) 2010-2018  Qianqian Fang <q.fang at neu.edu>
+Copyright (C) 2018  Qianqian Fang <q.fang at neu.edu>
 
 -------------------------------------------------------------------------------
 

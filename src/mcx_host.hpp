@@ -15,13 +15,26 @@
 extern "C" {
 #endif
 
+#define ABS(a)  ((a)<0?-(a):(a))
+
+#define MCX_DEBUG_RNG       1                   /**< MCX debug flags */
+#define MCX_DEBUG_MOVE      2
+#define MCX_DEBUG_PROGRESS  4
+
 #define MIN(a,b)           ((a)<(b)?(a):(b))
-#define MCX_RNG_NAME       "Logistic-Lattice"
-#define RAND_SEED_LEN      5        //32bit seed length (32*5=160bits)
+
+#ifdef USE_LL5_RAND
+  #define MCX_RNG_NAME       "Logistic-Lattice"
+  #define RAND_SEED_LEN      5        //32bit seed length (32*5=160bits)
+#else
+  #define MCX_RNG_NAME       "xoroshiro128+"
+  #define RAND_SEED_LEN      4        //32bit seed length (32*5=160bits)
+#endif
+
 #define RO_MEM             (CL_MEM_READ_ONLY  | CL_MEM_COPY_HOST_PTR)
 #define WO_MEM             (CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR)
 #define RW_MEM             (CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR)
-#define RW_PTR             (CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR)
+#define RW_PTR             (CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR)
 
 #define OCL_ASSERT(x)  ocl_assess((x),__FILE__,__LINE__)
 
@@ -57,9 +70,19 @@ typedef struct KernelParams {
   cl_uint detnum;
   cl_uint idx1dorig;
   cl_uint mediaidorig;
-  cl_uint threadphoton;
-  cl_uint oddphotons;
-}MCXParam __attribute__ ((aligned (16)));
+  cl_uint blockphoton;
+  cl_uint blockextra;
+  cl_uint voidtime;
+  cl_uint srctype;                    /**< type of the source */
+  cl_float4 srcparam1;                  /**< source parameters set 1 */
+  cl_float4 srcparam2;                  /**< source parameters set 2 */
+  cl_uint   maxvoidstep;
+  cl_uint   issaveexit;    /**<1 save the exit position and dir of a detected photon, 0 do not save*/
+  cl_uint   issaveref;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
+  cl_uint   maxgate;
+  cl_uint threadphoton;                  /**< how many photons to be simulated in a thread */
+  cl_uint debuglevel;           /**< debug flags */
+} MCXParam __attribute__ ((aligned (16)));
 
 void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy);
 cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *activedevlist,GPUInfo **info);

@@ -32,6 +32,10 @@
 #include <ctype.h>
 #include "cJSON.h"
 
+#ifndef DBL_EPSILON
+#define DBL_EPSILON ((double)2.22044604925031308085e-16L)
+#endif
+
 static const char *ep;
 
 const char *cJSON_GetErrorPtr() {return ep;}
