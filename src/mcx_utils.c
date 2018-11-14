@@ -1449,7 +1449,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 				    int gpuid;
                                     i=mcx_readarg(argc,argv,i,&gpuid,"int");
                                     memset(cfg->deviceid,'0',MAX_DEVICE);
-                                    if(gpuid<MAX_DEVICE)
+                                    if(gpuid>0 && gpuid<MAX_DEVICE)
                                          cfg->deviceid[gpuid-1]='1';
                                     else
                                          mcx_error(-2,"GPU id can not be more than 256",__FILE__,__LINE__);
