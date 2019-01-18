@@ -7,6 +7,10 @@
 #include "cjson/cJSON.h"
 #include "nifti1.h"
 
+#ifdef _OPENMP                      ///< use multi-threading for running simulation on multiple GPUs
+    #include <omp.h>
+#endif
+
 #define MAX_PATH_LENGTH     1024
 #define MAX_SESSION_LENGTH  256
 #define MAX_DEVICE          256
@@ -214,7 +218,11 @@ extern "C"
 #endif
 
 #ifdef MCX_CONTAINER
+ #ifdef _OPENMP
+  #define MCX_FPRINTF(fp,...) {if(omp_get_thread_num()==0) mexPrintf(__VA_ARGS__);}
+ #else
   #define MCX_FPRINTF(fp,...) mexPrintf(__VA_ARGS__)
+ #endif
 #else
   #define MCX_FPRINTF(fp,...) fprintf(fp,__VA_ARGS__)
 #endif
