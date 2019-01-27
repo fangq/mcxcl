@@ -46,7 +46,7 @@ HAS_CUDA := $(shell [ -d $(CUDA_LIB) ] && echo "1" )
 ifeq ($(HAS_CUDA), 1)
   CUCCOPT +=-I$(CUDA_LIB)/include -DUSE_OS_TIMER #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
   CCOPT += -I$(CUDA_LIB)/include -DUSE_OS_TIMER
-  LIBOPENCLDIR=$(CUDA_LIB)/lib/x64
+  LIBOPENCLDIR=$(CUDA_LIB)/lib64
   INCLUDEDIRS +=-I$(CUDA_LIB)/include
 endif
 
