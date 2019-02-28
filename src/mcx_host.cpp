@@ -351,8 +351,13 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
          OCL_ASSERT(((mcxqueue[i]=clCreateCommandQueue(mcxcontext,devices[i],prop,&status),status)));
          totalcucore+=gpu[i].core;
 	 if(!cfg->autopilot){
+            int gates=(uint)((cfg->tend-cfg->tstart)/cfg->tstep+0.5);
 	    gpu[i].autothread=cfg->nthread;
 	    gpu[i].autoblock=cfg->nblocksize;
+            if(cfg->maxgate==0)
+	         cfg->maxgate=gates;
+	    else if(cfg->maxgate>gates)
+	        cfg->maxgate=gates;
 	    gpu[i].maxgate=cfg->maxgate;
 	 }else{
              // persistent thread mode

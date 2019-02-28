@@ -3,18 +3,21 @@ function varargout=mcxlabcl(varargin)
 %====================================================================
 %      MCXLAB-CL - Monte Carlo eXtreme (MCX) for MATLAB/GNU Octave
 %--------------------------------------------------------------------
-%       Copyright (c) 2018 Qianqian Fang <q.fang at neu.edu>
+%       Copyright (c) 2018-2019 Qianqian Fang <q.fang at neu.edu>
 %                      URL: http://mcx.space
 %====================================================================
 %
 % Format:
-%    [fluence,detphoton,vol,seed,trajectory]=mcxlabcl(cfg);
+%    fluence=mcxlab(cfg);
 %       or
-%    [fluence,detphoton,vol,seed,trajectory]=mcxlabcl(cfg, option);
+%    [fluence,detphoton,vol,seed,trajectory]=mcxlab(cfg);
+%    [fluence,detphoton,vol,seed,trajectory]=mcxlab(cfg, option);
 %
 % Input:
 %    cfg: a struct, or struct array. Each element of cfg defines 
 %         the parameters associated with a simulation. 
+%         if cfg='gpuinfo': return the supported GPUs and their parameters,
+%         see sample script at the bottom
 %    option: (optional), options is a string, specifying additional options
 %         option='preview': this plots the domain configuration using mcxpreview(cfg)
 %         option='mcxcl':   this calls mcxcl.mex* instead of mcx.mex* on non-NVIDIA hardware
@@ -25,9 +28,14 @@ function varargout=mcxlabcl(varargin)
 %== Required ==
 %     *cfg.nphoton:    the total number of photons to be simulated (integer)
 %     *cfg.vol:        a 3D array specifying the media index in the domain
+%                      can be uint8, uint16, uint32, single or double
+%                      arrays.
 %     *cfg.prop:       an N by 4 array, each row specifies [mua, mus, g, n] in order.
-%                      the first row corresponds to medium type 0 which is 
-%                      typically [0 0 1 1]. The second row is type 1, and so on.
+%                      the first row corresponds to medium type 0
+%                      (background) which is typically [0 0 1 1]. The
+%                      second row is type 1, and so on. The background
+%                      medium (type 0) has special meanings: a photon
+%                      terminates when moving from a non-zero to zero voxel.
 %     *cfg.tstart:     starting time of the simulation (in seconds)
 %     *cfg.tstep:      time-gate width of the simulation (in seconds)
 %     *cfg.tend:       ending time of the simulation (in second)
@@ -35,7 +43,8 @@ function varargout=mcxlabcl(varargin)
 %     *cfg.srcdir:     a 1 by 3 vector, specifying the incident vector; if srcdir
 %                      contains a 4th element, it specifies the focal length of
 %                      the source (only valid for focuable src, such as planar, disk,
-%                      fourier, gaussian, zgaussian, slit, etc)
+%                      fourier, gaussian, pattern, slit, etc); if the focal length
+%                      is nan, all photons will be launched isotropically regardless
 %
 %== MC simulation settings ==
 %      cfg.seed:       seed for the random number generator (integer) [0]
@@ -50,10 +59,6 @@ function varargout=mcxlabcl(varargin)
 %      cfg.unitinmm:   defines the length unit for a grid edge length [1.0]
 %      cfg.shapes:     a JSON string for additional shapes in the grid
 %      cfg.reseedlimit:number of scattering events before reseeding RNG
-%      cfg.faststep: when set to 1, this option enables the legacy 1mm fix-step photon
-%                    advancing strategy; although this method is fast, the results were
-%                    found inaccurate, and therefore is not recommended. Setting to 0
-%                    enables precise ray-tracing between voxels; this is the default.
 %
 %== GPU settings ==
 %      cfg.autopilot:  1-automatically set threads and blocks, [0]-use nthread/nblocksize
@@ -83,15 +88,15 @@ function varargout=mcxlabcl(varargin)
 %                      'pencil' - default, pencil beam, no param needed
 %                      'isotropic' - isotropic source, no param needed
 %                      'cone' - uniform cone beam, srcparam1(1) is the half-angle in radian
-%                      'gaussian' - a collimated gaussian beam, srcparam1(1) specifies the waist radius (in voxels)
-%                      'planar' - a 3D quadrilateral uniform planar source, with three corners specified 
+%                      'gaussian' [*] - a collimated gaussian beam, srcparam1(1) specifies the waist radius (in voxels)
+%                      'planar' [*] - a 3D quadrilateral uniform planar source, with three corners specified 
 %                                by srcpos, srcpos+srcparam1(1:3) and srcpos+srcparam2(1:3)
-%                      'pattern' - a 3D quadrilateral pattern illumination, same as above, except
+%                      'pattern' [*] - a 3D quadrilateral pattern illumination, same as above, except
 %                                srcparam1(4) and srcparam2(4) specify the pattern array x/y dimensions,
 %                                and srcpattern is a floating-point pattern array, with values between [0-1]. 
-%                      'pattern3d' - a 3D illumination pattern. srcparam1{x,y,z} defines the dimensions,
+%                      'pattern3d' [*] - a 3D illumination pattern. srcparam1{x,y,z} defines the dimensions,
 %                                and srcpattern is a floating-point pattern array, with values between [0-1]. 
-%                      'fourier' - spatial frequency domain source, similar to 'planar', except
+%                      'fourier' [*] - spatial frequency domain source, similar to 'planar', except
 %                                the integer parts of srcparam1(4) and srcparam2(4) represent
 %                                the x/y frequencies; the fraction part of srcparam1(4) multiplies
 %                                2*pi represents the phase shift (phi0); 1.0 minus the fraction part of
@@ -99,9 +104,9 @@ function varargout=mcxlabcl(varargin)
 %                                    S=0.5*[1+M*cos(2*pi*(fx*x+fy*y)+phi0)], (0<=x,y,M<=1)
 %                      'arcsine' - similar to isotropic, except the zenith angle is uniform
 %                                distribution, rather than a sine distribution.
-%                      'disk' - a uniform disk source pointing along srcdir; the radius is 
+%                      'disk' [*] - a uniform disk source pointing along srcdir; the radius is 
 %                               set by srcparam1(1) (in grid unit)
-%                      'fourierx' - a general Fourier source, the parameters are 
+%                      'fourierx' [*] - a general Fourier source, the parameters are 
 %                               srcparam1: [v1x,v1y,v1z,|v2|], srcparam2: [kx,ky,phi0,M]
 %                               normalized vectors satisfy: srcdir cross v1=v2
 %                               the phase shift is phi0*2*pi
@@ -112,7 +117,7 @@ function varargout=mcxlabcl(varargin)
 %                      'line' - a line source, emitting from the line segment between 
 %                               cfg.srcpos and cfg.srcpos+cfg.srcparam(1:3), radiating 
 %                               uniformly in the perpendicular direction
-%                      'slit' - a colimated slit beam emitting from the line segment between 
+%                      'slit' [*] - a colimated slit beam emitting from the line segment between 
 %                               cfg.srcpos and cfg.srcpos+cfg.srcparam(1:3), with the initial  
 %                               dir specified by cfg.srcdir
 %                      'pencilarray' - a rectangular array of pencil beams. The srcparam1 and srcparam2
@@ -120,6 +125,8 @@ function varargout=mcxlabcl(varargin)
 %                               are both integers, denoting the element counts in the x/y dimensions, respectively. 
 %                               For exp., srcparam1=[10 0 0 4] and srcparam2[0 20 0 5] represent a 4x5 pencil beam array
 %                               spanning 10 grids in the x-axis and 20 grids in the y-axis (5-voxel spacing)
+%                      source types marked with [*] can be focused using the
+%                      focal length parameter (4th element of cfg.srcdir)
 %      cfg.{srcparam1,srcparam2}: 1x4 vectors, see cfg.srctype for details
 %      cfg.srcpattern: see cfg.srctype for details
 %      cfg.issrcfrom0: 1-first voxel is [0 0 0], [0]- first voxel is [1 1 1]
@@ -128,15 +135,19 @@ function varargout=mcxlabcl(varargin)
 %
 %== Output control ==
 %      cfg.issaveexit: [0]-save the position (x,y,z) and (vx,vy,vz) for a detected photon
+%                      Example: <demo_lambertian_exit_angle.m>
 %      cfg.issaveref:  [0]-save diffuse reflectance/transmittance in the non-zero voxels
 %                      next to a boundary voxel. The reflectance data are stored as 
-%                      negative values
+%                      negative values; must pad zeros next to boundaries
+%                      Example: see the demo script at the bottom
 %      cfg.outputtype: 'flux' - fluence-rate, (default value)
 %                      'fluence' - fluence integrated over each time gate, 
 %                      'energy' - energy deposit per voxel
 %                      'jacobian' or 'wl' - mua Jacobian (replay mode), 
 %                      'nscat' or 'wp' - weighted scattering counts for computing Jacobian for mus (replay mode)
-%      cfg.session:    a string for output file names (used when no return variables)
+%                      for type jacobian/wl/wp, example: <demo_mcxlab_replay.m>
+%                      and  <demo_replay_timedomain.m>
+%      cfg.session:    a string for output file names (only used when no return variables)
 %
 %== Debug ==
 %      cfg.debuglevel:  debug flag string, one or a combination of ['R','M','P'], no space
@@ -181,6 +192,10 @@ function varargout=mcxlabcl(varargin)
 %
 %
 % Example:
+%      % first query if you have supported GPU(s)
+%      info=mcxlab('gpuinfo')
+%
+%      % define the simulation using a struct
 %      cfg.nphoton=1e7;
 %      cfg.vol=uint8(ones(60,60,60));
 %      cfg.srcpos=[30 30 1];
@@ -225,6 +240,17 @@ if(nargin==2 && ischar(varargin{2}))
 	    return;
     elseif(strcmp(varargin{2},'opencl'))
         useopencl=1;
+    end
+end
+
+if(isstruct(varargin{1}))
+    for i=1:length(varargin{1})
+        castlist={'srcpattern','srcpos','detpos','prop','workload','srcdir'};
+        for j=1:length(castlist)
+            if(isfield(varargin{1}(i),castlist{j}))
+                varargin{1}(i).(castlist{j})=double(varargin{1}(i).(castlist{j}));
+            end
+        end
     end
 end
 

@@ -148,7 +148,7 @@ void mcx_initcfg(Config *cfg){
 #endif
      cfg->maxdetphoton=1000000; 
      cfg->isdumpmask=0;
-     cfg->autopilot=0;
+     cfg->autopilot=1;
      cfg->shapedata=NULL;
      cfg->optlevel=3;
 
@@ -263,9 +263,6 @@ void mcx_savenii(float *dat, int len, char* name, int type32bit, int outputforma
      logval=(float *)malloc(sizeof(float)*len);
 
      if(type32bit==NIFTI_TYPE_FLOAT32){
-	 for(i=0;i<len;i++)
-	    logval[i]=log10f(dat[i]);
-	 hdr.intent_code=NIFTI_INTENT_LOG10PVAL;
          hdr.pixdim[4] = cfg->tstep*1e6f;
      }else{
          short *mask=(short*)logval;
@@ -884,17 +881,25 @@ int mcx_loadjson(cJSON *root, Config *cfg){
            cfg->srctype=mcx_keylookup((char*)FIND_JSON_KEY("Type","Optode.Source.Type",src,"pencil",valuestring),srctypeid);
            subitem=FIND_JSON_OBJ("Param1","Optode.Source.Param1",src);
            if(subitem){
-              cfg->srcparam1.x=subitem->child->valuedouble;
-              cfg->srcparam1.y=subitem->child->next->valuedouble;
-              cfg->srcparam1.z=subitem->child->next->next->valuedouble;
-              cfg->srcparam1.w=subitem->child->next->next->next->valuedouble;
+              if(subitem->child->next){
+		      cfg->srcparam1.y=subitem->child->next->valuedouble;
+                      if(subitem->child->next->next){
+                          cfg->srcparam1.z=subitem->child->next->next->valuedouble;
+			  if(subitem->child->next->next->next)
+                              cfg->srcparam1.w=subitem->child->next->next->next->valuedouble;
+		      }
+	      }
            }
            subitem=FIND_JSON_OBJ("Param2","Optode.Source.Param2",src);
            if(subitem){
-              cfg->srcparam2.x=subitem->child->valuedouble;
-              cfg->srcparam2.y=subitem->child->next->valuedouble;
-              cfg->srcparam2.z=subitem->child->next->next->valuedouble;
-              cfg->srcparam2.w=subitem->child->next->next->next->valuedouble;
+              if(subitem->child->next){
+		      cfg->srcparam2.y=subitem->child->next->valuedouble;
+                      if(subitem->child->next->next){
+                          cfg->srcparam2.z=subitem->child->next->next->valuedouble;
+			  if(subitem->child->next->next->next)
+                              cfg->srcparam2.w=subitem->child->next->next->next->valuedouble;
+		      }
+	      }
            }
            subitem=FIND_JSON_OBJ("Pattern","Optode.Source.Pattern",src);
            if(subitem){
@@ -1569,7 +1574,7 @@ int mcx_lookupindex(char *key, const char *index){
 }
 
 void mcx_version(Config *cfg){
-    const char ver[]="$Rev::4fdc45$";
+    const char ver[]="$Rev::4fdc45$2019.2";
     int v=0;
     sscanf(ver,"$Rev::%d",&v);
     MCX_FPRINTF(cfg->flog, "MCXCL Revision %d\n",v);
@@ -1605,7 +1610,7 @@ void mcx_printheader(Config *cfg){
     MCX_FPRINTF(cfg->flog,"\
 ==============================================================================\n\
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =\n\
-=          Copyright (c) 2010-2018 Qianqian Fang <q.fang at neu.edu>         =\n\
+=          Copyright (c) 2010-2019 Qianqian Fang <q.fang at neu.edu>         =\n\
 =                             http://mcx.space/                              =\n\
 =                                                                            =\n\
 = Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =\n\
@@ -1613,7 +1618,7 @@ void mcx_printheader(Config *cfg){
 ==============================================================================\n\
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =\n\
 ==============================================================================\n\
-$Rev::4fdc45 $ Last $Date::2018-03-29 00:35:53 -04$ by $Author::Qianqian Fang$\n\
+$Rev::4fdc45$2019.2 $Date::2018-03-29 00:35:53 -04$ by $Author::Qianqian Fang$\n\
 ==============================================================================\n");
 }
 
@@ -1627,7 +1632,6 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -f config     (--input)       read an input file in .json or .inp format\n\
 \n\
 == MC options ==\n\
-\n\
  -n [0|int]    (--photon)      total photon number (exponential form accepted)\n\
  -r [1|int]    (--repeat)      divide photons into r groups (1 per GPU call)\n\
  -b [1|0]      (--reflect)     1 to reflect photons at ext. boundary;0 to exit\n\
@@ -1645,7 +1649,7 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -L            (--listgpu)     print GPU information only\n\
  -t [16384|int](--thread)      total thread number\n\
  -T [64|int]   (--blocksize)   thread number per block\n\
- -A [0|int]    (--autopilot)   auto thread config:1 enable;0 disable\n\
+ -A [1|int]    (--autopilot)   auto thread config:1 enable;0 disable\n\
  -G [0|int]    (--gpu)         specify which GPU to use, list GPU by -L; 0 auto\n\
       or\n\
  -G '1101'     (--gpu)         using multiple devices (1 enable, 0 disable)\n\
@@ -1670,6 +1674,7 @@ where possible parameters include (the first value in [*|*] is the default)\n\
                                mc2 - MCX mc2 format (binary 32bit float)\n\
                                nii - Nifti format\n\
                                hdr - Analyze 7.5 hdr/img format\n\
+                               tx3 - GL texture data for rendering (GL_RGBA32F)\n\
  -O [X|XFEJP]  (--outputtype)  X - output flux, F - fluence, E - energy deposit\n\
                                J - Jacobian (replay mode),   P - scattering\n\
                                event counts at each voxel (replay mode only)\n\
@@ -1695,7 +1700,7 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 \n\
 == Example ==\n\
 example: (autopilot mode)\n\
-  %s -A -n 1e7 -f input.inp -G 1 \n\
+  %s -A 1 -n 1e7 -f input.inp -G 1 \n\
 or (manual mode)\n\
   %s -t 16384 -T 64 -n 1e7 -f input.inp -s test -r 1 -b 0 -G 1010 -W '50,50'\n",exename,exename,exename);
 }
