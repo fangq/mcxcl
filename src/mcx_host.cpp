@@ -305,7 +305,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      GPUInfo *gpu=NULL;
 
      MCXParam param={{{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}},
-		     {{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,0.f}},
+		     {{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,cfg->srcdir.w}},
 		     {{(float)cfg->dim.x,(float)cfg->dim.y,(float)cfg->dim.z,0}},dimlen,cp0,cp1,cachebox,
 		     minstep,0.f,0.f,cfg->tend,R_C0*cfg->unitinmm,(uint)cfg->isrowmajor,
                      (uint)cfg->issave2pt,(uint)cfg->isreflect,(uint)cfg->isrefint,(uint)cfg->issavedet,1.f/cfg->tstep,

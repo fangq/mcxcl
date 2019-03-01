@@ -892,6 +892,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
            cfg->srctype=mcx_keylookup((char*)FIND_JSON_KEY("Type","Optode.Source.Type",src,"pencil",valuestring),srctypeid);
            subitem=FIND_JSON_OBJ("Param1","Optode.Source.Param1",src);
            if(subitem){
+	      cfg->srcparam1.x=subitem->child->valuedouble;
               if(subitem->child->next){
 		      cfg->srcparam1.y=subitem->child->next->valuedouble;
                       if(subitem->child->next->next){
@@ -903,6 +904,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
            }
            subitem=FIND_JSON_OBJ("Param2","Optode.Source.Param2",src);
            if(subitem){
+	      cfg->srcparam2.x=subitem->child->valuedouble;
               if(subitem->child->next){
 		      cfg->srcparam2.y=subitem->child->next->valuedouble;
                       if(subitem->child->next->next){
