@@ -57,8 +57,9 @@
 #define MAX_PROP           2000                     /*maximum property number*/
 #define OUTSIDE_VOLUME     0xFFFFFFFF              /**< flag indicating the index is outside of the volume */
 
-#define DET_MASK           0xFFFF0000
-#define MED_MASK           0x0000FFFF
+#define DET_MASK           0x80000000              /**< mask of the sign bit to get the detector */
+#define MED_MASK           0x0000FFFF              /**< mask of the lower 16bit to get the medium index */
+#define MIX_MASK           0x7FFF0000              /**< mask of the upper 16bit to get the volume mix ratio */
 #define NULL               0
 #define MAX_ACCUM          1000.f
 
@@ -197,8 +198,7 @@ static float rand_uniform01(__private RandType t[RAND_BUF_LEN]){
     return xorshift128p_nextf(t);
 }
 
-static void xorshift128p_seed (__global uint *seed,RandType t[RAND_BUF_LEN])
-{
+static void xorshift128p_seed (__global uint *seed,RandType t[RAND_BUF_LEN]){
     t[0] = (ulong)seed[0] << 32 | seed[1] ;
     t[1] = (ulong)seed[2] << 32 | seed[3];
 }
@@ -577,7 +577,7 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
 #ifdef MCX_SAVE_DETECTORS
       // let's handle detectors here
           if(gcfg->savedet){
-             if(isdet>0 && *mediaid==0)
+             if((isdet&DET_MASK)==DET_MASK && *mediaid==0)
 	         savedetphoton(n_det,dpnum,v[0].w,ppath,p,v,gdetpos,gcfg);
              clearpath(ppath,gcfg);
           }
@@ -780,7 +780,15 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
           /**
            * If beam focus is set, determine the incident angle
            */
-          if(*Lmove<0.f && gcfg->c0.w!=0.f){
+          if(*Lmove<0.f){
+	    if(isnan(gcfg->c0.w)){ // isotropic if focal length is -0.f
+                float ang,stheta,ctheta,sphi,cphi;
+                ang=TWO_PI*rand_uniform01(t); //next arimuth angle
+                MCX_SINCOS(ang,sphi,cphi);
+                ang=acos(2.f*rand_uniform01(t)-1.f); //sine distribution
+                MCX_SINCOS(ang,stheta,ctheta);
+                rotatevector(v,stheta,ctheta,sphi,cphi);
+	    }else if(gcfg->c0.w!=0.f){
 	        float Rn2=(gcfg->c0.w > 0.f) - (gcfg->c0.w < 0.f);
 	        prop[0].x+=gcfg->c0.w*v[0].x;
 		prop[0].y+=gcfg->c0.w*v[0].y;
@@ -792,6 +800,7 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
                 v[0].x*=Rn2;
                 v[0].y*=Rn2;
                 v[0].z*=Rn2;
+	    }
 	  }
 
           /**
@@ -873,7 +882,6 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      float  n1;   //reflection var
      int flipdir=0;
 
-     //for MT RNG, these will be zero-length arrays and be optimized out
      RandType t[RAND_BUF_LEN];
      FLOAT4VEC prop;    //can become float2 if no reflection
 

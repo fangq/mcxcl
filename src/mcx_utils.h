@@ -22,10 +22,11 @@
 
 #define MIN_HEADER_SIZE 348
 #define NII_HEADER_SIZE 352
+#define GL_RGBA32F 0x8814
 
 enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP};   /**< types of output */
 enum TMCXParent  {mpStandalone, mpMATLAB};
-enum TOutputFormat {ofMC2, ofNifti, ofAnalyze, ofUBJSON};
+enum TOutputFormat {ofMC2, ofNifti, ofAnalyze, ofUBJSON, ofTX3};
 enum TDeviceVendor {dvUnknown, dvNVIDIA, dvAMD, dvIntel, dvIntelGPU};
 
 typedef struct MCXMedium{
@@ -104,7 +105,6 @@ typedef struct MCXConfig{
 	unsigned int maxgate;        /*simultaneous recording gates*/
 	unsigned int respin;         /*number of repeatitions*/
 	int printnum;       /*number of printed threads (for debugging)*/
-	unsigned int reseedlimit;     /**<number of scattering events per thread before the RNG is reseeded*/
 	int gpuid;                    /**<the ID of the GPU to use, starting from 1, 0 for auto*/
 
 	unsigned int *vol; /*pointer to the volume*/

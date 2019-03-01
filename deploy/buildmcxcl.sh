@@ -7,8 +7,9 @@
 #  by Qianqian Fang <q.fang at neu.edu>
 #
 #  Format:
-#     ./buildmcxcl.sh <releasetag>
+#     ./buildmcxcl.sh <releasetag> <branch>
 #                   releasetag defaults to "nightly" if not given
+#                   branch defaults to "master" if not given
 #
 #  Dependency:
 #   - To compile mcxcl binary, mcxlabcl for octave
@@ -66,9 +67,14 @@ cat <<EOF >> mcxcl/.git/config
 EOF
 
 cd mcxcl
+
+if [ ! -z "$2" ]
+then
+      git checkout $2
+fi
+
 rm -rf *
 git checkout .
-rm -rf .git
 
 rm -rf .git
 

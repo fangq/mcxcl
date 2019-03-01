@@ -90,6 +90,13 @@ const char *srctypeid[]={"pencil","isotropic","cone","gaussian","planar",
     "pattern","fourier","arcsine","disk","fourierx","fourierx2d","zgaussian",
     "line","slit","pencilarray","pattern3d",""};
 
+/**
+ * Flag to decide if parameter has been initialized over command line
+ */
+
+char flagset[256]={'\0'};
+
+
 #ifdef WIN32
          char pathsep='\\';
 #else
@@ -97,7 +104,7 @@ const char *srctypeid[]={"pencil","isotropic","cone","gaussian","planar",
 #endif
 
 const char outputtype[]={'x','f','e','j','p','\0'};
-const char *outputformat[]={"mc2","nii","hdr","ubj",""};
+const char *outputformat[]={"mc2","nii","hdr","ubj","tx3",""};
 
 void mcx_initcfg(Config *cfg){
      cfg->medianum=0;
@@ -165,7 +172,6 @@ void mcx_initcfg(Config *cfg){
      cfg->maxjumpdebug=1000000;
 
      cfg->seeddata=NULL;
-     cfg->reseedlimit=10000000;
      cfg->issaveseed=0;
      cfg->issaveexit=0;
      cfg->issaveref=0;
@@ -323,6 +329,7 @@ void mcx_savedata(float *dat, int len, Config *cfg){
      FILE *fp;
      char name[MAX_PATH_LENGTH];
      char fname[MAX_PATH_LENGTH];
+     unsigned int glformat=GL_RGBA32F;
 
      if(cfg->rootpath[0])
          sprintf(name,"%s%c%s",cfg->rootpath,pathsep,cfg->session);
@@ -338,6 +345,10 @@ void mcx_savedata(float *dat, int len, Config *cfg){
 
      if(fp==NULL){
 	mcx_error(-2,"can not save data to disk",__FILE__,__LINE__);
+     }
+     if(cfg->outputformat==ofTX3){
+	fwrite(&glformat,sizeof(unsigned int),1,fp);
+	fwrite(&(cfg->dim.x),sizeof(int),3,fp);
      }
      fwrite(dat,sizeof(float),len,fp);
      fclose(fp);
@@ -756,7 +767,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
 	     strncpy(filename,volfile,MAX_PATH_LENGTH);
 	  }
 	}
-        if(cfg->unitinmm==1.f)
+        if(!flagset['u'])
 	    cfg->unitinmm=FIND_JSON_KEY("LengthUnit","Domain.LengthUnit",Domain,1.f,valuedouble);
         meds=FIND_JSON_OBJ("Media","Domain.Media",Domain);
         if(meds){
@@ -956,20 +967,22 @@ int mcx_loadjson(cJSON *root, Config *cfg){
      }
      if(Session){
         char val[1];
-	if(cfg->seed==0)      cfg->seed=FIND_JSON_KEY("RNGSeed","Session.RNGSeed",Session,-1,valueint);
-        if(cfg->nphoton==0)   cfg->nphoton=FIND_JSON_KEY("Photons","Session.Photons",Session,0,valuedouble);
+	if(!flagset['E'])      cfg->seed=FIND_JSON_KEY("RNGSeed","Session.RNGSeed",Session,-1,valueint);
+        if(!flagset['n'])      cfg->nphoton=FIND_JSON_KEY("Photons","Session.Photons",Session,0,valuedouble);
         if(cfg->session[0]=='\0')  strncpy(cfg->session, FIND_JSON_KEY("ID","Session.ID",Session,"default",valuestring), MAX_SESSION_LENGTH);
         if(cfg->rootpath[0]=='\0') strncpy(cfg->rootpath, FIND_JSON_KEY("RootPath","Session.RootPath",Session,"",valuestring), MAX_PATH_LENGTH);
 
-        if(!cfg->isreflect)   cfg->isreflect=FIND_JSON_KEY("DoMismatch","Session.DoMismatch",Session,cfg->isreflect,valueint);
-        if(cfg->issave2pt)    cfg->issave2pt=FIND_JSON_KEY("DoSaveVolume","Session.DoSaveVolume",Session,cfg->issave2pt,valueint);
-        if(cfg->isnormalized) cfg->isnormalized=FIND_JSON_KEY("DoNormalize","Session.DoNormalize",Session,cfg->isnormalized,valueint);
-        if(!cfg->issavedet)   cfg->issavedet=FIND_JSON_KEY("DoPartialPath","Session.DoPartialPath",Session,cfg->issavedet,valueint);
-        if(!cfg->issaveexit)  cfg->issaveexit=FIND_JSON_KEY("DoSaveExit","Session.DoSaveExit",Session,cfg->issaveexit,valueint);
+        if(!flagset['b'])   cfg->isreflect=FIND_JSON_KEY("DoMismatch","Session.DoMismatch",Session,cfg->isreflect,valueint);
+        if(!flagset['S'])   cfg->issave2pt=FIND_JSON_KEY("DoSaveVolume","Session.DoSaveVolume",Session,cfg->issave2pt,valueint);
+        if(!flagset['U'])   cfg->isnormalized=FIND_JSON_KEY("DoNormalize","Session.DoNormalize",Session,cfg->isnormalized,valueint);
+        if(!flagset['d'])   cfg->issavedet=FIND_JSON_KEY("DoPartialPath","Session.DoPartialPath",Session,cfg->issavedet,valueint);
+        if(!flagset['X'])   cfg->issaveexit=FIND_JSON_KEY("DoSaveExit","Session.DoSaveExit",Session,cfg->issaveexit,valueint);
 /*
 	if(!cfg->issaveseed)  cfg->issaveseed=FIND_JSON_KEY("DoSaveSeed","Session.DoSaveSeed",Session,cfg->issaveseed,valueint);
-	cfg->reseedlimit=FIND_JSON_KEY("ReseedLimit","Session.ReseedLimit",Session,cfg->reseedlimit,valueint);
 */
+        if(!flagset['A'])  cfg->autopilot=FIND_JSON_KEY("DoAutoThread","Session.DoAutoThread",Session,cfg->autopilot,valueint);
+	if(!flagset['D'])  cfg->debuglevel=mcx_parsedebugopt(FIND_JSON_KEY("Debug","Session.Debug",Session,"",valuestring),debugflag);
+
         if(!cfg->outputformat)  cfg->outputformat=mcx_keylookup((char *)FIND_JSON_KEY("OutputFormat","Session.OutputFormat",Session,"mc2",valuestring),outputformat);
         if(cfg->outputformat<0)
                 mcx_error(-2,"the specified output format is not recognized",__FILE__,__LINE__);
@@ -978,7 +991,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
 	if(mcx_lookupindex(val, outputtype)){
 		mcx_error(-2,"the specified output data type is not recognized",__FILE__,__LINE__);
 	}
-	cfg->outputtype=val[0];
+	if(!flagset['O']) cfg->outputtype=val[0];
      }
      if(Forward){
         uint gates;
@@ -1169,7 +1182,7 @@ void  mcx_maskdet(Config *cfg){
 		     padvol[idx1d+dy*dx+dx]&&padvol[idx1d+dy*dx-dx]&&padvol[idx1d-dy*dx+dx]&&padvol[idx1d-dy*dx-dx]&&
 		     padvol[idx1d+dy*dx+dx+1]&&padvol[idx1d+dy*dx+dx-1]&&padvol[idx1d+dy*dx-dx+1]&&padvol[idx1d+dy*dx-dx-1]&&
 		     padvol[idx1d-dy*dx+dx+1]&&padvol[idx1d-dy*dx+dx-1]&&padvol[idx1d-dy*dx-dx+1]&&padvol[idx1d-dy*dx-dx-1])){
-		          cfg->vol[((int)iz*cfg->dim.y*cfg->dim.x+(int)iy*cfg->dim.x+(int)ix)] |= ((d+1)<<16);/*set the highest bit to 1*/
+		          cfg->vol[((int)iz*cfg->dim.y*cfg->dim.x+(int)iy*cfg->dim.x+(int)ix)] |= DET_MASK;/*set the highest bit to 1*/
                           count++;
 	          }
 	       }
@@ -1327,6 +1340,8 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 				continue;
 			}
 		}
+		if(argv[i][1]<='z' && argv[i][1]>='A')
+		   flagset[(int)(argv[i][1])]=1;
 	        switch(argv[i][1]){
 		     case 'h': 
 		                mcx_usage(cfg,argv[0]);
