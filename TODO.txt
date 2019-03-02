@@ -4,8 +4,7 @@
 
 == Long term projects ==
 
-*. fluorescent material support [2009/09/30, FangQ]
-
+[done] *. fluorescent material support via pattern3d source [2009/09/30, FangQ]
 == Completed ==
 
 [done] *. results does not repeat with identical random number seed, need to check [2009/04/07, FangQ]
