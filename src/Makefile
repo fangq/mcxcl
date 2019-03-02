@@ -21,11 +21,12 @@ CCOPT+=-std=c99
 DLLFLAG=-fPIC
 OMP=-fopenmp
 OUTPUTFLAG:=-o
+XXD=xxd
 
 # setup for amd
 AMDAPPSDKROOT ?=/opt/AMDAPPSDK-3.0
 HAS_AMD := $(shell [ -d $(AMDAPPSDKROOT) ] && echo "1" )
-ifeq ($(HAS_AMD), 1)                                                        
+ifeq ($(HAS_AMD), 1)
   LIBOPENCLDIR=$(AMDAPPSDKROOT)/lib/x86_64
   INCLUDEDIRS +=-I$(AMDAPPSDKROOT)/include
 endif
@@ -110,8 +111,8 @@ makedirs:
 $(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(OBJS)
 	$(AR) $(OBJS) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY)
 
-%$(CLHEADER): %.cl
-	xxd -i $(CLPROGRAM).cl | sed 's/\([0-9a-f]\)$$/\0, 0x00/' > $(CLPROGRAM).clh
+%$(CLHEADER): xxd %.cl
+	$(XXD) -i $(CLPROGRAM).cl | sed 's/\([0-9a-f]\)$$/\0, 0x00/' > $(CLPROGRAM).clh
 
 %$(OBJSUFFIX): %.c
 	$(CC) $(INCLUDEDIRS) $(CCOPT) -c -o $@  $<
@@ -126,3 +127,7 @@ static: LINKOPT:=-Wl,-Bstatic  -Wl,-Bdynamic -static-libgcc -static-libstdc++ $(
 
 clean:
 	-rm -f $(OBJS) $(CLSOURCE) $(OUTPUT_DIR)/$(BINARY)$(EXESUFFIX) $(OUTPUT_DIR)/$(BINARY)_atomic$(EXESUFFIX)
+xxd:
+	@if [ -z `which ${XXD}` ]; then \
+	    echo "Please first install 'xxd' utility. For Ubuntu/Debian, use 'sudo apt-get install vim-common'; for Windows, please select xxd in cygwin64 installer."; exit 1;\
+	fi

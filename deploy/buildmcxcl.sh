@@ -14,13 +14,13 @@
 #  Dependency:
 #   - To compile mcxcl binary, mcxlabcl for octave
 #
-#     sudo apt-get install gcc ocl-icd-opencl-dev liboctave-dev
+#     sudo apt-get install gcc ocl-icd-opencl-dev liboctave-dev vim-common
 #
 #   - To compile mcxlabcl for MATLAB, one must install MATLAB first, also search
 #     and replace R20xx in this script to match your system's MATLAB version
 #   - One can also install vendor-specific OpenCL libraries, such as nvidia-opencl-dev
 #   - For Windows, first install Cygwin64, and install x86_64-w64-mingw32-gcc/g++
-#   
+#
 ###############################################################################
 
 BUILD='nightly';

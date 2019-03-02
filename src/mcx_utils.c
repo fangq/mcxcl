@@ -18,6 +18,8 @@
 @brief   mcconfiguration and command line option processing unit
 *******************************************************************************/
 
+#pragma GCC diagnostic ignored "-Woverlength-strings"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
