@@ -8,6 +8,8 @@
 
 clear cfg
 
+eval('base','USE_MCXCL=1;');
+
 gpuinfo=mcxlabcl('gpuinfo');
 
 cfg.gpuid=1;  % gpuid can be an integer 1-N to specify the n-th GPU
@@ -131,3 +133,5 @@ mcxbenchmark.speedsum=sum(speed);
 if(~isempty(hbar))
     delete(hbar);
 end
+
+eval('base','USE_MCXCL=0;');

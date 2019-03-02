@@ -45,6 +45,8 @@
 
 #define ONE_PI             3.1415926535897932f     //pi
 #define TWO_PI             6.28318530717959f       //2*pi
+#define JUST_ABOVE_ONE     1.0001f                 /**< test for boundary */
+#define JUST_BELOW_ONE     0.9998f                 /**< test for boundary */
 
 #define C0                 299792458000.f          //speed of light in mm/s
 #define R_C0               3.335640951981520e-12f  //1/C0 in s/mm
@@ -738,13 +740,14 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
 	      MCX_SINCOS(ang,sphi,cphi);
     #if defined(MCX_SRC_CONE) // a solid-angle section of a uniform sphere
 		  do{
-		      ang=(gcfg->srcparam1.y>0) ? TWO_PI*rand_uniform01(t) : MCX_MATHFUN(cos)(2.f*rand_uniform01(t)-1.f); //sine distribution
+		      ang=(gcfg->srcparam1.y>0) ? TWO_PI*rand_uniform01(t) : acos(2.f*rand_uniform01(t)-1.f); //sine distribution
 		  }while(ang>gcfg->srcparam1.x);
     #else
-		  if(gcfg->srctype==MCX_SRC_ISOTROPIC) // uniform sphere
-		      ang=MCX_MATHFUN(cos)(2.f*rand_uniform01(t)-1.f); //sine distribution
-		  else
+            #if defined(MCX_SRC_ISOTROPIC) // a solid-angle section of a uniform sphere
+		      ang=acos(2.f*rand_uniform01(t)-1.f); //sine distribution
+            #else
 		      ang=ONE_PI*rand_uniform01(t); //uniform distribution in zenith angle, arcsine
+	    #endif
     #endif
 	      MCX_SINCOS(ang,stheta,ctheta);
 	      rotatevector(v,stheta,ctheta,sphi,cphi);
