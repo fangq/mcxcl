@@ -160,9 +160,9 @@ cp $BUILDROOT/dlls/*.dll ../bin
 #upx -9 ../bin/mcxcl
 
 cd ../
-rm -rf .git mcxlabcl bin/mcxcl.dSYM src
+rm -rf .git mcxlabcl bin/mcxcl.dSYM src .git_filters .gitattributes deploy
 #mv src/bin .
-#rm -rf src .git_filters .gitattributes
+#rm -rf src .git_filters .gitattributes 
 #mkdir -p src/bin
 #cd src/bin
 #if [ "$OS" == "win" ]

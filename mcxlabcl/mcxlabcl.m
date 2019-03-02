@@ -8,10 +8,10 @@ function varargout=mcxlabcl(varargin)
 %====================================================================
 %
 % Format:
-%    fluence=mcxlab(cfg);
+%    fluence=mcxlabcl(cfg);
 %       or
-%    [fluence,detphoton,vol,seed,trajectory]=mcxlab(cfg);
-%    [fluence,detphoton,vol,seed,trajectory]=mcxlab(cfg, option);
+%    [fluence,detphoton,vol]=mcxlabcl(cfg);
+%    [fluence,detphoton,vol]=mcxlabcl(cfg, option);
 %
 % Input:
 %    cfg: a struct, or struct array. Each element of cfg defines 
@@ -20,8 +20,14 @@ function varargout=mcxlabcl(varargin)
 %         see sample script at the bottom
 %    option: (optional), options is a string, specifying additional options
 %         option='preview': this plots the domain configuration using mcxpreview(cfg)
-%         option='mcxcl':   this calls mcxcl.mex* instead of mcx.mex* on non-NVIDIA hardware
+%         option='opencl':  force using mcxcl.mex* instead of mcx.mex* on NVIDIA/AMD/Intel hardware
+%         option='cuda':    force using mcx.mex* instead of mcxcl.mex* on NVIDIA GPUs
 %
+%    if one defines USE_MCXCL=1 in MATLAB command line window, all following
+%    mcxlab and mcxlabcl calls will use mcxcl.mex; by setting option='cuda', one can
+%    force both mcxlab and mcxlabcl to use mcx (cuda version). Similarly, if
+%    USE_MCXCL=0, all mcxlabcl and mcxlab call will use mcx.mex by default, unless
+%    one set option='opencl'.
 %
 %    cfg may contain the following fields:
 %
@@ -178,18 +184,6 @@ function varargout=mcxlabcl(varargin)
 %              "data" is the is the only subfield in all MCXLAB-CL before 2018
 %      vol: (optional) a struct array, each element is a preprocessed volume
 %            corresponding to each instance of cfg. Each volume is a 3D int32 array.
-%      seeds: (optional), if give, mcxlabcl returns the seeds, in the form of
-%            a byte array (uint8) for each detected photon. The column number
-%            of seed equals that of detphoton.
-%      trajectory: (optional), if given, mcxlabcl returns the trajectory data for
-%            each simulated photon. The output has 6 rows, the meanings are 
-%               1:    index of the photon packet
-%		2-4:  x/y/z/ of each trajectory position
-%		5:    current photon packet weight
-%		6:    reserved
-%            By default, mcxlabcl only records the first 1e6 positions along all
-%            simulated photons; change cfg.maxjumpdebug to define a different limit.
-%
 %
 % Example:
 %      % first query if you have supported GPU(s)
@@ -198,30 +192,41 @@ function varargout=mcxlabcl(varargin)
 %      % define the simulation using a struct
 %      cfg.nphoton=1e7;
 %      cfg.vol=uint8(ones(60,60,60));
+%      cfg.vol(20:40,20:40,10:30)=2;    % add an inclusion
+%      cfg.prop=[0 0 1 1;0.005 1 0 1.37; 0.2 10 0.9 1.37]; % [mua,mus,g,n]
+%      cfg.issrcfrom0=1;
 %      cfg.srcpos=[30 30 1];
 %      cfg.srcdir=[0 0 1];
+%      cfg.detpos=[30 20 1 1;30 40 1 1;20 30 1 1;40 30 1 1];
+%      cfg.vol(:,:,1)=0;   % pad a layer of 0s to get diffuse reflectance
+%      cfg.issaveref=1;
 %      cfg.gpuid=1;
 %      cfg.autopilot=1;
-%      cfg.prop=[0 0 1 1;0.005 1 0 1.37];
 %      cfg.tstart=0;
 %      cfg.tend=5e-9;
 %      cfg.tstep=5e-10;
 %      % calculate the fluence distribution with the given config
-%      fluence=mcxlabcl(cfg);
+%      [fluence,detpt,vol]=mcxlabcl(cfg);
 %
-%      cfgs(1)=cfg;
-%      cfgs(2)=cfg;
-%      cfgs(1).isreflect=0;
-%      cfgs(2).isreflect=1;
-%      cfgs(2).issavedet=1;
-%      cfgs(2).detpos=[30 20 1 1;30 40 1 1;20 30 1 1;40 30 1 1];
-%      % calculate the fluence and partial path lengths for the two configurations
-%      [fluences,detps]=mcxlabcl(cfgs);
+%      %%alternatively, you can call
+%      %[fluence,detpt,vol]=mcxlab(cfg,'mcxcl');
 %
-%      imagesc(squeeze(log(fluences(1).data(:,30,:,1)))-squeeze(log(fluences(2).data(:,30,:,1))));
+%      % integrate time-axis (4th dimension) to get CW solutions
+%      cwfluence=sum(fluence.data,4);  % convert fluence rate to fluence
+%      cwdref=sum(fluence.dref,4);     % diffuse reflectance
+%      % plot configuration and results
+%      subplot(231);
+%      mcxpreview(cfg);title('domain preview');
+%      subplot(232);
+%      mcxplotvol(log10(cwfluence));title('fluence at y=30');
+%      subplot(233);
+%      hist(detpt.ppath(:,1),50); title('partial path tissue#1');
+%      subplot(234);
+%      plot(squeeze(fluence.data(30,30,30,:)),'-o');title('TPSF at [30,30,30]');
+%      subplot(235);
+%      imagesc(squeeze(log(cwdref(:,:,1))));title('diffuse refle. at z=1');
 %
-%
-% This function is part of Monte Carlo eXtreme (MCX) URL: http://mcx.space
+% This function is part of Monte Carlo eXtreme (MCX) URL: http://mcx.space/mcxcl
 %
 % License: GNU General Public License version 3, please read LICENSE.txt for details
 %
@@ -238,8 +243,8 @@ if(nargin==2 && ischar(varargin{2}))
     if(strcmp(varargin{2},'preview'))
         [varargout{1:nargout}]=mcxpreview(varargin{1});
 	    return;
-    elseif(strcmp(varargin{2},'opencl'))
-        useopencl=1;
+    elseif(strcmp(varargin{2},'cuda'))
+        useopencl=0;
     end
 end
 
