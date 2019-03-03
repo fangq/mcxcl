@@ -401,7 +401,7 @@ void mcx_assess(const int err,const char *msg,const char *file,const int linenum
 }
 
 void mcx_error(const int id,const char *msg,const char *file,const int linenum){
-     fprintf(stdout,"\nMCXCL ERROR(%d):%s in unit %s:%d\n",id,msg,file,linenum);
+     fprintf(stdout,S_RED"\nMCXCL ERROR(%d):%s in unit %s:%d\n"S_RESET,id,msg,file,linenum);
 #ifdef MCX_CONTAINER
      mcx_throw_exception(id,msg,file,linenum);
 #else
@@ -1196,7 +1196,7 @@ void  mcx_maskdet(Config *cfg){
 	   }
         }
         if(cfg->issavedet && count==0)
-              fprintf(stderr,"MCX WARNING: detector %d is not located on an interface, please check coordinates.\n",d+1);
+              fprintf(stderr,S_RED"MCX WARNING: detector %d is not located on an interface, please check coordinates.\n"S_RESET,d+1);
      }
 
      free(padvol);
@@ -1254,11 +1254,11 @@ void mcx_progressbar(float percent, Config *cfg){
         if(percent!=-0.f)
 	    for(j=0;j<colwidth;j++)     MCX_FPRINTF(stdout,"\b");
         oldmarker=percentage;
-        MCX_FPRINTF(stdout,"Progress: [");
+        MCX_FPRINTF(stdout,S_YELLOW"Progress: [");
         for(j=0;j<percentage;j++)      MCX_FPRINTF(stdout,"=");
         MCX_FPRINTF(stdout,(percentage<colwidth-18) ? ">" : "=");
         for(j=percentage;j<colwidth-18;j++) MCX_FPRINTF(stdout," ");
-        MCX_FPRINTF(stdout,"] %3d%%",(int)(percent*100));
+        MCX_FPRINTF(stdout,"] %3d%%"S_RESET,(int)(percent*100));
 #ifdef MCX_CONTAINER
         mcx_matlab_flush();
 #else
@@ -1361,7 +1361,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 				break;
 		     case 'f': 
 		     		isinteractive=0;
-				if(argc>i && argv[i+1][0]=='{'){
+				if(i<argc-1 && argv[i+1][0]=='{'){
 					jsoninput=argv[i+1];
 					i++;
 				}else
@@ -1449,7 +1449,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 				i=mcx_readarg(argc,argv,i,cfg->compileropt+strlen(cfg->compileropt),"string");
 				break;
                      case 'D':
-                                if(i+1<argc && isalpha(argv[i+1][0]) )
+                                if(i<argc-1 && isalpha(argv[i+1][0]) )
                                         cfg->debuglevel=mcx_parsedebugopt(argv[++i],debugflag);
                                 else
                                         i=mcx_readarg(argc,argv,i,&(cfg->debuglevel),"int");
@@ -1596,7 +1596,7 @@ int mcx_lookupindex(char *key, const char *index){
 }
 
 void mcx_version(Config *cfg){
-    const char ver[]="$Rev::4fdc45$2019.2";
+    const char ver[]="$Rev::4fdc45$2019.3";
     int v=0;
     sscanf(ver,"$Rev::%d",&v);
     MCX_FPRINTF(cfg->flog, "MCXCL Revision %d\n",v);
@@ -1629,7 +1629,7 @@ void mcx_flush(Config *cfg){
 }
 
 void mcx_printheader(Config *cfg){
-    MCX_FPRINTF(cfg->flog,"\
+    MCX_FPRINTF(cfg->flog,S_BLUE"\
 ==============================================================================\n\
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =\n\
 =          Copyright (c) 2010-2019 Qianqian Fang <q.fang at neu.edu>         =\n\
@@ -1640,8 +1640,8 @@ void mcx_printheader(Config *cfg){
 ==============================================================================\n\
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =\n\
 ==============================================================================\n\
-$Rev::4fdc45$2019.2 $Date::2018-03-29 00:35:53 -04$ by $Author::Qianqian Fang$\n\
-==============================================================================\n");
+$Rev::4fdc45$2019.3 $Date::2018-03-29 00:35:53 -04$ by $Author::Qianqian Fang$\n\
+==============================================================================\n"S_RESET);
 }
 
 void mcx_usage(Config *cfg,char *exename){
@@ -1649,11 +1649,11 @@ void mcx_usage(Config *cfg,char *exename){
      printf("\n\
 usage: %s <param1> <param2> ...\n\
 where possible parameters include (the first value in [*|*] is the default)\n\
-\n\
-== Required option ==\n\
+\n"S_BOLD S_CYAN"\
+== Required option ==\n"S_RESET"\
  -f config     (--input)       read an input file in .json or .inp format\n\
-\n\
-== MC options ==\n\
+\n"S_BOLD S_CYAN"\
+== MC options ==\n"S_RESET"\
  -n [0|int]    (--photon)      total photon number (exponential form accepted)\n\
  -r [1|int]    (--repeat)      divide photons into r groups (1 per GPU call)\n\
  -b [1|0]      (--reflect)     1 to reflect photons at ext. boundary;0 to exit\n\
@@ -1666,8 +1666,8 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -e [0.|float] (--minenergy)   minimum energy level to terminate a photon\n\
  -g [1|int]    (--gategroup)   number of time gates per run\n\
  -a [0|1]      (--array)       1 for C array (row-major); 0 for Matlab array\n\
-\n\
-== GPU options ==\n\
+\n"S_BOLD S_CYAN"\
+== GPU options ==\n"S_RESET"\
  -L            (--listgpu)     print GPU information only\n\
  -t [16384|int](--thread)      total thread number\n\
  -T [64|int]   (--blocksize)   thread number per block\n\
@@ -1680,8 +1680,8 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -o [3|int]    (--optlevel)    optimization level 0-no opt;1,2,3 more optimized\n\
  -J '-D MCX'   (--compileropt) specify additional JIT compiler options\n\
  -k my_simu.cl (--kernel)      user specified OpenCL kernel source file\n\
-\n\
-== Output options ==\n\
+\n"S_BOLD S_CYAN"\
+== Output options ==\n"S_RESET"\
  -s sessionid  (--session)     a string to label all output file names\n\
  -d [1|0]      (--savedet)     1 to save photon info at detectors; 0 not save\n\
  -x [0|1]      (--saveexit)    1 to save photon exit positions and directions\n\
@@ -1700,29 +1700,34 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -O [X|XFEJP]  (--outputtype)  X - output flux, F - fluence, E - energy deposit\n\
                                J - Jacobian (replay mode),   P - scattering\n\
                                event counts at each voxel (replay mode only)\n\
-\n\
-== User IO options ==\n\
+\n"S_BOLD S_CYAN"\
+== User IO options ==\n"S_RESET"\
  -h            (--help)        print this message\n\
  -v            (--version)     print MCX revision number\n\
  -l            (--log)         print messages to a log file instead\n\
  -i 	       (--interactive) interactive mode\n\
-\n\
-== Debug options ==\n\
+\n"S_BOLD S_CYAN"\
+== Debug options ==\n"S_RESET"\
  -D [0|int]    (--debug)       print debug information (you can use an integer\n\
   or                           or a string by combining the following flags)\n\
  -D [''|RMP]                   4 P  print progress bar\n\
       combine multiple items by using a string, or add selected numbers together\n\
-\n\
-== Additional options ==\n\
+\n"S_BOLD S_CYAN"\
+== Additional options ==\n"S_RESET"\
  --atomic       [1|0]          1: use atomic operations; 0: do not use atomics\n\
  --root         [''|string]    full path to the folder storing the input files\n\
  --maxvoidstep  [1000|int]     maximum distance (in voxel unit) of a photon that\n\
                                can travel before entering the domain, if \n\
                                launched outside (i.e. a widefield source)\n\
-\n\
-== Example ==\n\
-example: (autopilot mode)\n\
-  %s -A 1 -n 1e7 -f input.inp -G 1 \n\
-or (manual mode)\n\
-  %s -t 16384 -T 64 -n 1e7 -f input.inp -s test -r 1 -b 0 -G 1010 -W '50,50'\n",exename,exename,exename);
+\n"S_BOLD S_CYAN"\
+== Example ==\n"S_RESET"\
+example: (autopilot mode)\n"S_GREEN"\
+       %s -A 1 -n 1e7 -f input.json -G 1\n"S_RESET"\
+or (manual mode)\n"S_GREEN"\
+       %s -t 16384 -T 64 -n 1e7 -f input.json -s test -r 2 -d 1 -b 1 -G 1\n"S_RESET"\
+or (use multiple devices - 1st,2nd and 4th GPUs - together with equal load)\n"S_GREEN"\
+       %s -A -n 1e7 -f input.json -G 1101 -W 10,10,10\n"S_RESET"\
+or (use inline domain definition)\n"S_GREEN"\
+       %s -f input.json -P '{\"Shapes\":[{\"ZLayers\":[[1,10,1],[11,30,2],[31,60,3]]}]}'"S_RESET"\n",
+              exename,exename,exename,exename,exename);
 }

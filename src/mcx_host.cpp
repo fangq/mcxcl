@@ -152,7 +152,7 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
 	    if(1){
                 OCL_ASSERT((clGetPlatformInfo(platforms[i],
                           CL_PLATFORM_NAME,sizeof(pbuf),pbuf,NULL)));
-	        if(cfg->isgpuinfo) printf("Platform [%d] Name %s\n",i,pbuf);
+	        if(cfg->isgpuinfo) printf(S_YELLOW"Platform [%d] Name %s\n"S_RESET,i,pbuf);
                 cps[1]=(cl_context_properties)platform;
 
         	for(j=0; j<2; j++){
@@ -208,7 +208,7 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
         		  cuinfo.autothread=cuinfo.autoblock * cuinfo.core;
 
 			  if(cfg->isgpuinfo){
-                		printf("============ %s device ID %d [%d of %d]: %s  ============\n",devname[j],cuid,k+1,devnum,cuinfo.name);
+                		printf(S_BLUE"============ %s device ID %d [%d of %d]: %s  ============\n"S_RESET,devname[j],cuid,k+1,devnum,cuinfo.name);
                 		printf(" Device %d of %d:\t\t%s\n",cuid+1,devnum,cuinfo.name);
                 		printf(" Compute units   :\t%d core(s)\n",(uint)cuinfo.sm);
                 		printf(" Global memory   :\t%ld B\n",(unsigned long)cuinfo.globalmem);
@@ -232,7 +232,7 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
 			        memcpy((*info)+(*activedev),&cuinfo,sizeof(GPUInfo));
 				activedevlist[(*activedev)++]=devices[k];
 				if(activeplatform && activeplatform!=platform){
-					MCX_FPRINTF(stderr,"Error: one can not mix devices between different platforms\n");fflush(cfg->flog);
+					MCX_FPRINTF(stderr,S_RED"ERROR: one can not mix devices between different platforms\n"S_RESET);fflush(cfg->flog);
 					exit(-1);
 				}
 				activeplatform=platform;
@@ -628,11 +628,11 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                 OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetphoton[devid],CL_TRUE,0,sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),
 	                                        Pdet, 0, NULL, NULL)));
 		if(detected>cfg->maxdetphoton){
-			MCX_FPRINTF(cfg->flog,"WARNING: the detected photon (%d) \
-is more than what your have specified (%d), please use the -H option to specify a greater number\t"
+			MCX_FPRINTF(cfg->flog,S_RED"WARNING: the detected photon (%d) \
+is more than what your have specified (%d), please use the -H option to specify a greater number\t"S_RESET
                            ,detected,cfg->maxdetphoton);
 		}else{
-			MCX_FPRINTF(cfg->flog,"detected %d photons, total: %d\t",detected,cfg->detectedcount+detected);
+			MCX_FPRINTF(cfg->flog,"detected "S_BOLD""S_BLUE"%d photons"S_RESET", total: "S_BOLD""S_BLUE"%d"S_RESET"\t",detected,cfg->detectedcount+detected);
 		}
                 cfg->his.detected+=detected;
                 detected=MIN(detected,cfg->maxdetphoton);
@@ -747,9 +747,9 @@ is more than what your have specified (%d), please use the -H option to specify 
      }
 
      // total energy here equals total simulated photons+unfinished photons for all threads
-     MCX_FPRINTF(cfg->flog,"simulated %d photons (%d) with %d devices (repeat x%d)\nMCX simulation speed: %.2f photon/ms\n",
+     MCX_FPRINTF(cfg->flog,"simulated %d photons (%d) with %d devices (repeat x%d)\nMCX simulation speed: "S_BOLD""S_BLUE"%.2f photon/ms"S_RESET"\n",
              cfg->nphoton,cfg->nphoton,workdev, cfg->respin,(double)cfg->nphoton/toc);
-     MCX_FPRINTF(cfg->flog,"total simulated energy: %.2f\tabsorbed: %5.5f%%\n(loss due to initial specular reflection is excluded in the total)\n",
+     MCX_FPRINTF(cfg->flog,"total simulated energy: %.2f\tabsorbed: "S_BOLD""S_BLUE"%5.5f%%"S_RESET"\n(loss due to initial specular reflection is excluded in the total)\n",
              cfg->energytot,(cfg->energytot-cfg->energyesc)/cfg->energytot*100.f);
      fflush(cfg->flog);
 
