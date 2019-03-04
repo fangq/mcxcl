@@ -12,6 +12,7 @@ Website: http://mcx.space
 
 Table of Content:
 
+O.    What's New
 I.    Introduction
 II.   Requirement and Installation
 III.  Running Simulations
@@ -23,6 +24,44 @@ VIII. Interpreting the Outputs
 IX.   Best practices guide
 X.    Acknowledgement
 XI.   Reference
+
+
+---------------------------------------------------------------------
+
+O.    What's New
+
+In MCX-CL v2019.3 (0.9), we added a list of major new additions, including
+
+* Add 4 built-in complex domain examples - Colin27 brain atlas, USC_19-5 brain atlas, Digimouse, and mcxyz skin-vessel benchmark
+* Support isotropic launch for all focuable sources - gaussian, pattern, pattern3d, fourier, disk, fourierx, fourierx2d, and slit - by setting cfg.srcdir(4) to nan
+* Add python-based mch file reader (by Shih-Cheng Tu), nightly build compilation script, colored command line output, and more
+* Add gpubenchmark script to mcxlabcl, please browse submitted benchmark results at http://mcx.space/computebench/
+* Half-precision ray-tracing support (paper in-preparation)
+* The GPU-ANLM denoiser newly added for mcx, mcxfilter.m, detailed in our [Yao2018] paper, also applies to mcxlabcl/mcxcl output
+
+In addition, we also fixed a number of critical bugs, such as
+
+* fix bugs for incorrect results for isotropic source, cone source
+* fix mcxlabcl gpuinfo output crash using multiple GPUs
+* fix mcxlab crash when srcpattern/srcdir/srcpos/detpos are not in double precision
+* fix mcxlab crash due to racing in multi-threads
+* force g to 1 in region where mus is 0
+
+Compared to MCX v2019.3 (1.4.8), MCX-CL has not yet supported the below features as of this release
+
+* Output momentum transfer for DCS simulations
+* Output photon trajectory data
+* Specifying one of the four boundary conditions for each of the 6 facets of the domain
+* Output partial scattering event counts like MMC
+* Photon replay
+* Photon sharing - simultaneous simulations of multiple patterns
+* 2D simulations
+* Support photon numbers over 2^31-1 in one simulation
+
+[Yuan2018] Yaoshen Yuan, Leiming Yu, Zafer Doğan, Qianqian Fang*, 
+"Graphics processing units-accelerated adaptive nonlocal means filter for denoising 
+three-dimensional Monte Carlo photon transport simulations," 
+J. of Biomedical Optics, 23(12), 121618 (2018), URL: https://doi.org/10.1117/1.JBO.23.12.121618
 
 ---------------------------------------------------------------------
 
@@ -89,14 +128,15 @@ With the up-to-date driver installed for your computers, MCXCL can run on
 almost all computers. The requirements for using this software include
 
 *. a single/multi-core CPU, or
-*. a CUDA capable nVidia graphics card, or
-*. a AMD/ATI graphics card
+*. a CUDA capable NVIDIA graphics card, or
+*. an AMD graphics card
 and
 *. pre-installed graphics driver - typically includes the OpenCL library (libOpenCL.* or OpenCL.dll)
 
 For speed differences between different CPUs/GPUs made by different vendors, please
-see your above paper [1] and our website
+see your above paper [1] and our websites
 
+http://mcx.space/computebench/
 http://mcx.space/mcxcl
 
 Generally speaking, AMD and NVIDIA high-end dedicated GPU performs the best, about 20-60x 
@@ -509,7 +549,7 @@ such as the following:
 
 <pre>==============================================================================
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =
-=          Copyright (c) 2010-2018 Qianqian Fang <q.fang at neu.edu>         =
+=          Copyright (c) 2010-2019 Qianqian Fang <q.fang at neu.edu>         =
 =                             http://mcx.space/                              =
 =                                                                            =
 = Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =
@@ -517,17 +557,16 @@ such as the following:
 ==============================================================================
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =
 ==============================================================================
-$Rev::4fdc45 $ Last $Date::2018-03-29 00:35:53 -04$ by $Author::Qianqian Fang$
+$Rev::f748e7$2019.3 $Date::2019-03-03 00:34:40 -05$ by $Author::Qianqian Fang$
 ==============================================================================
 
-usage: mcxcl <param1> <param2> ...
+usage: ./mcxcl <param1> <param2> ...
 where possible parameters include (the first value in [*|*] is the default)
 
 == Required option ==
  -f config     (--input)       read an input file in .json or .inp format
 
 == MC options ==
-
  -n [0|int]    (--photon)      total photon number (exponential form accepted)
  -r [1|int]    (--repeat)      divide photons into r groups (1 per GPU call)
  -b [1|0]      (--reflect)     1 to reflect photons at ext. boundary;0 to exit
@@ -545,7 +584,7 @@ where possible parameters include (the first value in [*|*] is the default)
  -L            (--listgpu)     print GPU information only
  -t [16384|int](--thread)      total thread number
  -T [64|int]   (--blocksize)   thread number per block
- -A [0|int]    (--autopilot)   auto thread config:1 enable;0 disable
+ -A [1|int]    (--autopilot)   auto thread config:1 enable;0 disable
  -G [0|int]    (--gpu)         specify which GPU to use, list GPU by -L; 0 auto
       or
  -G '1101'     (--gpu)         using multiple devices (1 enable, 0 disable)
@@ -570,6 +609,7 @@ where possible parameters include (the first value in [*|*] is the default)
                                mc2 - MCX mc2 format (binary 32bit float)
                                nii - Nifti format
                                hdr - Analyze 7.5 hdr/img format
+                               tx3 - GL texture data for rendering (GL_RGBA32F)
  -O [X|XFEJP]  (--outputtype)  X - output flux, F - fluence, E - energy deposit
                                J - Jacobian (replay mode),   P - scattering
                                event counts at each voxel (replay mode only)
@@ -595,9 +635,13 @@ where possible parameters include (the first value in [*|*] is the default)
 
 == Example ==
 example: (autopilot mode)
-  mcxcl -A -n 1e7 -f input.inp -G 1 
+       ./mcxcl -A 1 -n 1e7 -f input.json -G 1
 or (manual mode)
-  mcxcl -t 16384 -T 64 -n 1e7 -f input.inp -s test -r 1 -b 0 -G 1010 -W '50,50'
+       ./mcxcl -t 16384 -T 64 -n 1e7 -f input.json -s test -r 2 -d 1 -b 1 -G 1
+or (use multiple devices - 1st,2nd and 4th GPUs - together with equal load)
+       ./mcxcl -A -n 1e7 -f input.json -G 1101 -W 10,10,10
+or (use inline domain definition)
+       ./mcxcl -f input.json -P '{"Shapes":[{"ZLayers":[[1,10,1],[11,30,2],[31,60,3]]}]}'
 </pre>
 
  the above command will launch 1024 GPU threads (-t) with every 64 threads
@@ -615,20 +659,23 @@ A typical MCX input file looks like this:
 
 1000000              # total photon, use -n to overwrite in the command line
 29012392             # RNG seed, negative to generate
-30.0 30.0 0.0 1      # source position (in grid unit), the last num sets srcfrom0 (-z)
-0 0 1                # initial directional vector
+30.0 30.0 0.0 1      # source position (in grid unit), the last num (optional) sets srcfrom0 (-z)
+0 0 1 0               # initial directional vector, 4th number is the focal-length, 0 for collimated beam, nan for isotropic
 0.e+00 1.e-09 1.e-10 # time-gates(s): start, end, step
-semi60x60x60.bin     # volume ('unsigned char' format)
+semi60x60x60.bin     # volume ('unsigned char' binary format)
 1 60 1 60            # x voxel size in mm (isotropic only), dim, start/end indices
 1 60 1 60            # y voxel size, must be same as x, dim, start/end indices 
 1 60 1 60            # y voxel size, must be same as x, dim, start/end indices
 1                    # num of media
 1.010101 0.01 0.005 1.37  # scat. mus (1/mm), g, mua (1/mm), n
 4       1.0          # detector number and default radius (in grid unit)
-30.0  20.0  0.0  2.0 # detector 1 position (real numbers in grid unit) and radius if different
-30.0  40.0  0.0      # ..., if radius is ignored, MCX will use the default radius
+30.0  20.0  0.0  2.0 # detector 1 position (real numbers in grid unit) and individual radius (optional)
+30.0  40.0  0.0      # ..., if individual radius is ignored, MCX will use the default radius
 20.0  30.0  0.0      #
 40.0  30.0  0.0      # 
+pencil               # source type (optional)
+0 0 0 0              # parameters (4 floats) for the selected source
+0 0 0 0              # additional source parameters
 
 Note that the scattering coefficient mus=musp/(1-g).
 
@@ -912,8 +959,20 @@ or run
 
 or
 
- USE_OPENCL=1
+ USE_MCXCL=1
  info=mcxlab('gpuinfo')
+
+Overall, mcxlabcl and mcxlab is highly compatible with nearly identical features
+and interfaces. If yo have a working mcxlab script, the simpliest way to use it
+with mcxlabcl on non-NVIDIA devices is to insert the below command
+
+ eval('base','USE_MCXCL=1;');
+
+at the begining of the script, and insert 
+
+ eval('base','USE_MCXCL=0;');
+
+at the end of the script.
 
 If you have supported processors, please then run the demo mcxlabcl scripts
 inside mcxlabcl/examples. mcxlabcl and mcxlab has a high compatibility in interfaces

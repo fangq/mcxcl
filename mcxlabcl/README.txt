@@ -59,25 +59,45 @@ the verbose command line options in MCX.
 <pre> ====================================================================
        MCXLAB-CL - Monte Carlo eXtreme (MCX) for MATLAB/GNU Octave
  --------------------------------------------------------------------
- Copyright (c) 2011-2017 Qianqian Fang <q.fang at neu.edu>
+        Copyright (c) 2018-2019 Qianqian Fang <q.fang at neu.edu>
                        URL: http://mcx.space
  ====================================================================
  
   Format:
-     [fluence,detphoton,vol,seed,trajectory]=mcxlabcl(cfg);
+     fluence=mcxlabcl(cfg);
+        or
+     [fluence,detphoton,vol]=mcxlabcl(cfg);
+     [fluence,detphoton,vol]=mcxlabcl(cfg, option);
  
   Input:
      cfg: a struct, or struct array. Each element of cfg defines 
           the parameters associated with a simulation. 
+          if cfg='gpuinfo': return the supported GPUs and their parameters,
+          see sample script at the bottom
+     option: (optional), options is a string, specifying additional options
+          option='preview': this plots the domain configuration using mcxpreview(cfg)
+          option='opencl':  force using mcxcl.mex* instead of mcx.mex* on NVIDIA/AMD/Intel hardware
+          option='cuda':    force using mcx.mex* instead of mcxcl.mex* on NVIDIA GPUs
  
-     It may contain the following fields:
+     if one defines USE_MCXCL=1 in MATLAB command line window, all following
+     mcxlab and mcxlabcl calls will use mcxcl.mex; by setting option='cuda', one can
+     force both mcxlab and mcxlabcl to use mcx (cuda version). Similarly, if
+     USE_MCXCL=0, all mcxlabcl and mcxlab call will use mcx.mex by default, unless
+     one set option='opencl'.
+ 
+     cfg may contain the following fields:
  
  == Required ==
       *cfg.nphoton:    the total number of photons to be simulated (integer)
       *cfg.vol:        a 3D array specifying the media index in the domain
+                       can be uint8, uint16, uint32, single or double
+                       arrays.
       *cfg.prop:       an N by 4 array, each row specifies [mua, mus, g, n] in order.
-                       the first row corresponds to medium type 0 which is 
-                       typically [0 0 1 1]. The second row is type 1, and so on.
+                       the first row corresponds to medium type 0
+                       (background) which is typically [0 0 1 1]. The
+                       second row is type 1, and so on. The background
+                       medium (type 0) has special meanings: a photon
+                       terminates when moving from a non-zero to zero voxel.
       *cfg.tstart:     starting time of the simulation (in seconds)
       *cfg.tstep:      time-gate width of the simulation (in seconds)
       *cfg.tend:       ending time of the simulation (in second)
@@ -85,7 +105,8 @@ the verbose command line options in MCX.
       *cfg.srcdir:     a 1 by 3 vector, specifying the incident vector; if srcdir
                        contains a 4th element, it specifies the focal length of
                        the source (only valid for focuable src, such as planar, disk,
-                       fourier, gaussian, zgaussian, slit, etc)
+                       fourier, gaussian, pattern, slit, etc); if the focal length
+                       is nan, all photons will be launched isotropically regardless
  
  == MC simulation settings ==
        cfg.seed:       seed for the random number generator (integer) [0]
@@ -100,10 +121,6 @@ the verbose command line options in MCX.
        cfg.unitinmm:   defines the length unit for a grid edge length [1.0]
        cfg.shapes:     a JSON string for additional shapes in the grid
        cfg.reseedlimit:number of scattering events before reseeding RNG
-       cfg.faststep: when set to 1, this option enables the legacy 1mm fix-step photon
-                     advancing strategy; although this method is fast, the results were
-                     found inaccurate, and therefore is not recommended. Setting to 0
-                     enables precise ray-tracing between voxels; this is the default.
  
  == GPU settings ==
        cfg.autopilot:  1-automatically set threads and blocks, [0]-use nthread/nblocksize
@@ -133,13 +150,15 @@ the verbose command line options in MCX.
                        'pencil' - default, pencil beam, no param needed
                        'isotropic' - isotropic source, no param needed
                        'cone' - uniform cone beam, srcparam1(1) is the half-angle in radian
-                       'gaussian' - a collimated gaussian beam, srcparam1(1) specifies the waist radius (in voxels)
-                       'planar' - a 3D quadrilateral uniform planar source, with three corners specified 
+                       'gaussian' [*] - a collimated gaussian beam, srcparam1(1) specifies the waist radius (in voxels)
+                       'planar' [*] - a 3D quadrilateral uniform planar source, with three corners specified 
                                  by srcpos, srcpos+srcparam1(1:3) and srcpos+srcparam2(1:3)
-                       'pattern' - a 3D quadrilateral pattern illumination, same as above, except
+                       'pattern' [*] - a 3D quadrilateral pattern illumination, same as above, except
                                  srcparam1(4) and srcparam2(4) specify the pattern array x/y dimensions,
-                                 and srcpattern is a pattern array, valued between [0-1]. 
-                       'fourier' - spatial frequency domain source, similar to 'planar', except
+                                 and srcpattern is a floating-point pattern array, with values between [0-1]. 
+                       'pattern3d' [*] - a 3D illumination pattern. srcparam1{x,y,z} defines the dimensions,
+                                 and srcpattern is a floating-point pattern array, with values between [0-1]. 
+                       'fourier' [*] - spatial frequency domain source, similar to 'planar', except
                                  the integer parts of srcparam1(4) and srcparam2(4) represent
                                  the x/y frequencies; the fraction part of srcparam1(4) multiplies
                                  2*pi represents the phase shift (phi0); 1.0 minus the fraction part of
@@ -147,9 +166,9 @@ the verbose command line options in MCX.
                                      S=0.5*[1+M*cos(2*pi*(fx*x+fy*y)+phi0)], (0<=x,y,M<=1)
                        'arcsine' - similar to isotropic, except the zenith angle is uniform
                                  distribution, rather than a sine distribution.
-                       'disk' - a uniform disk source pointing along srcdir; the radius is 
+                       'disk' [*] - a uniform disk source pointing along srcdir; the radius is 
                                 set by srcparam1(1) (in grid unit)
-                       'fourierx' - a general Fourier source, the parameters are 
+                       'fourierx' [*] - a general Fourier source, the parameters are 
                                 srcparam1: [v1x,v1y,v1z,|v2|], srcparam2: [kx,ky,phi0,M]
                                 normalized vectors satisfy: srcdir cross v1=v2
                                 the phase shift is phi0*2*pi
@@ -160,7 +179,7 @@ the verbose command line options in MCX.
                        'line' - a line source, emitting from the line segment between 
                                 cfg.srcpos and cfg.srcpos+cfg.srcparam(1:3), radiating 
                                 uniformly in the perpendicular direction
-                       'slit' - a colimated slit beam emitting from the line segment between 
+                       'slit' [*] - a colimated slit beam emitting from the line segment between 
                                 cfg.srcpos and cfg.srcpos+cfg.srcparam(1:3), with the initial  
                                 dir specified by cfg.srcdir
                        'pencilarray' - a rectangular array of pencil beams. The srcparam1 and srcparam2
@@ -168,6 +187,8 @@ the verbose command line options in MCX.
                                 are both integers, denoting the element counts in the x/y dimensions, respectively. 
                                 For exp., srcparam1=[10 0 0 4] and srcparam2[0 20 0 5] represent a 4x5 pencil beam array
                                 spanning 10 grids in the x-axis and 20 grids in the y-axis (5-voxel spacing)
+                       source types marked with [*] can be focused using the
+                       focal length parameter (4th element of cfg.srcdir)
        cfg.{srcparam1,srcparam2}: 1x4 vectors, see cfg.srctype for details
        cfg.srcpattern: see cfg.srctype for details
        cfg.issrcfrom0: 1-first voxel is [0 0 0], [0]- first voxel is [1 1 1]
@@ -176,15 +197,19 @@ the verbose command line options in MCX.
  
  == Output control ==
        cfg.issaveexit: [0]-save the position (x,y,z) and (vx,vy,vz) for a detected photon
+                       Example: <demo_lambertian_exit_angle.m>
        cfg.issaveref:  [0]-save diffuse reflectance/transmittance in the non-zero voxels
                        next to a boundary voxel. The reflectance data are stored as 
-                       negative values
+                       negative values; must pad zeros next to boundaries
+                       Example: see the demo script at the bottom
        cfg.outputtype: 'flux' - fluence-rate, (default value)
                        'fluence' - fluence integrated over each time gate, 
                        'energy' - energy deposit per voxel
                        'jacobian' or 'wl' - mua Jacobian (replay mode), 
                        'nscat' or 'wp' - weighted scattering counts for computing Jacobian for mus (replay mode)
-       cfg.session:    a string for output file names (used when no return variables)
+                       for type jacobian/wl/wp, example: <demo_mcxlab_replay.m>
+                       and  <demo_replay_timedomain.m>
+       cfg.session:    a string for output file names (only used when no return variables)
  
  == Debug ==
        cfg.debuglevel:  debug flag string, one or a combination of ['R','M','P'], no space
@@ -203,75 +228,80 @@ the verbose command line options in MCX.
              dimensions specified by [size(vol) total-time-gates]. 
              The content of the array is the normalized fluence at 
              each voxel of each time-gate.
-       detphoton: a struct array, with a length equals to that of cfg.
-             For each element of detphoton, detphoton(i).data is a 2D array with
-             dimensions [size(cfg.prop,1)+1 saved-photon-num]. The first row
-             is the ID(>0) of the detector that captures the photon; the second row
- 	     saves the number of scattering events of each exiting photon; the rest rows
- 	     are the partial path lengths (in grid unit) traveling in medium 1 up 
-             to the last. If you set cfg.unitinmm, you need to multiply the path-lengths
-             to convert them to mm unit.
+       detphoton: (optional) a struct array, with a length equals to that of cfg.
+             Starting from v2018, the detphoton contains the below subfields:
+               detphoton.detid: the ID(>0) of the detector that captures the photon
+               detphoton.nscat: cummulative scattering event counts
+               detphoton.ppath: cummulative path lengths in each medium (partial pathlength)
+                    one need to multiply cfg.unitinmm with ppath to convert it to mm.
+               detphoton.p or .v: exit position and direction, when cfg.issaveexit=1
+               detphoton.data: a concatenated and transposed array in the order of
+                     [detid nscat ppath p v]'
+               "data" is the is the only subfield in all MCXLAB-CL before 2018
        vol: (optional) a struct array, each element is a preprocessed volume
-             corresponding to each instance of cfg. Each volume is a 3D uint8 array.
-       seeds: (optional), if give, mcxlabcl returns the seeds, in the form of
-             a byte array (uint8) for each detected photon. The column number
-             of seed equals that of detphoton.
-       trajectory: (optional), if given, mcxlabcl returns the trajectory data for
-             each simulated photon. The output has 6 rows, the meanings are 
-                1:    index of the photon packet
- 		2-4:  x/y/z/ of each trajectory position
- 		5:    current photon packet weight
- 		6:    reserved
-             By default, mcxlabcl only records the first 1e6 positions along all
-             simulated photons; change cfg.maxjumpdebug to define a different limit.
- 
+             corresponding to each instance of cfg. Each volume is a 3D int32 array.
  
   Example:
+       % first query if you have supported GPU(s)
+       info=mcxlab('gpuinfo')
+ 
+       % define the simulation using a struct
        cfg.nphoton=1e7;
        cfg.vol=uint8(ones(60,60,60));
+       cfg.vol(20:40,20:40,10:30)=2;    % add an inclusion
+       cfg.prop=[0 0 1 1;0.005 1 0 1.37; 0.2 10 0.9 1.37]; % [mua,mus,g,n]
+       cfg.issrcfrom0=1;
        cfg.srcpos=[30 30 1];
        cfg.srcdir=[0 0 1];
+       cfg.detpos=[30 20 1 1;30 40 1 1;20 30 1 1;40 30 1 1];
+       cfg.vol(:,:,1)=0;   % pad a layer of 0s to get diffuse reflectance
+       cfg.issaveref=1;
        cfg.gpuid=1;
        cfg.autopilot=1;
-       cfg.prop=[0 0 1 1;0.005 1 0 1.37];
        cfg.tstart=0;
        cfg.tend=5e-9;
        cfg.tstep=5e-10;
        % calculate the fluence distribution with the given config
-       fluence=mcxlabcl(cfg);
+       [fluence,detpt,vol]=mcxlabcl(cfg);
  
-       cfgs(1)=cfg;
-       cfgs(2)=cfg;
-       cfgs(1).isreflect=0;
-       cfgs(2).isreflect=1;
-       cfgs(2).issavedet=1;
-       cfgs(2).detpos=[30 20 1 1;30 40 1 1;20 30 1 1;40 30 1 1];
-       % calculate the fluence and partial path lengths for the two configurations
-       [fluences,detps]=mcxlabcl(cfgs);
+       %%alternatively, you can call
+       %[fluence,detpt,vol]=mcxlab(cfg,'mcxcl');
  
-       imagesc(squeeze(log(fluences(1).data(:,30,:,1)))-squeeze(log(fluences(2).data(:,30,:,1))));
+       % integrate time-axis (4th dimension) to get CW solutions
+       cwfluence=sum(fluence.data,4);  % convert fluence rate to fluence
+       cwdref=sum(fluence.dref,4);     % diffuse reflectance
+       % plot configuration and results
+       subplot(231);
+       mcxpreview(cfg);title('domain preview');
+       subplot(232);
+       mcxplotvol(log10(cwfluence));title('fluence at y=30');
+       subplot(233);
+       hist(detpt.ppath(:,1),50); title('partial path tissue#1');
+       subplot(234);
+       plot(squeeze(fluence.data(30,30,30,:)),'-o');title('TPSF at [30,30,30]');
+       subplot(235);
+       imagesc(squeeze(log(cwdref(:,:,1))));title('diffuse refle. at z=1');
  
- 
-  This function is part of Monte Carlo eXtreme OpenCL (MCX-CL) URL: http://mcx.space/mcxcl
+  This function is part of Monte Carlo eXtreme (MCX) URL: http://mcx.space/mcxcl
  
   License: GNU General Public License version 3, please read LICENSE.txt for details
 </pre>
 
 == # Examples ==
 
-We provided several examples to demonstrate the basic usage of MCXLAB-CL,
+We provided several examples to demonstrate the basic usage of MCXLAB,
 as well as to perform validations of MCX algorithm using both simple 
 homogeneous and heterogeneous domains. These examples are explained below:
 
 ==== demo_mcxlab_basic.m ====
 
-In this example, we show the most basic usage of MCXLAB-CL. This include
+In this example, we show the most basic usage of MCXLAB. This include
 how to define the input configuration structure, launch MCX simulations
 and interpret and plotting the resulting data.
 
 ==== demo_validation_homogeneous.m ====
 
-In this example, we validate MCXLAB-CL with a homogeneous medium in a 
+In this example, we validate MCXLAB with a homogeneous medium in a 
 cubic domain. This is exactly the example shown in Fig.5 of [Fang2009].
 
 You can also use the alternative optical properties that has a high g
@@ -279,7 +309,7 @@ value to observe the similarity between the two scattering/g configurations.
 
 ==== demo_validation_heterogeneous.m ====
 
-In this example, we validate the MCXLAB-CL solver with a heterogeneous
+In this example, we validate the MCXLAB solver with a heterogeneous
 domain and the analytical solution of the diffusion model. We also 
 demonstrate how to use sub-pixel resolution to refine the representation
 of heterogeneities. The domain is consisted of a 6x6x6 cm box with a 
@@ -287,15 +317,23 @@ of heterogeneities. The domain is consisted of a 6x6x6 cm box with a
 
 This test is identical to that used for Fig. 3 in [Fang2010].
 
-==== demo_sphere_cube_subpixel.m ====
+==== demo_fullhead_atlas.m ====
+In this example, we demonstrate light transport simulation in a full-head 
+atlas template(USC 19.5 year group[Sanchez2012]). 
+This demo is identical to the MCX simulation used for Fig.9(a) in
+[TranYan2019](submitted).
 
-In this example, we demonstrate how to use sub-pixel resolution 
-to represent the problem domain. The domain is consisted of a 
-6x6x6 cm box with a 2cm diameter sphere embedded at the center.
+==== demo_mcxyz_skinvessel.m ====
+In this example, we compare between MCX and mcxyz written by Dr. Steve Jacques.
+The same benchmark can be found at https://omlc.org/software/mc/mcxyz/index.html
+
+==== demo_digimouse_sfdi.m ====
+This simulates a widefield SFDI source using the Digimouse atlas. There are
+21 tissue types in the atlas.
 
 ==== demo_4layer_head.m ====
 
-In this example, we simulate a 4-layer brain model using MCXLAB-CL.
+In this example, we simulate a 4-layer brain model using MCXLAB.
 We will investigate the differences between the solutions with and 
 witout boundary reflections (both external and internal) and show
 you how to display and analyze the resulting data.
@@ -308,10 +346,12 @@ pattern illumuniation (spatial frequency domain sources), arcsine
 distribution beam, uniform cone beam, and an arbitrary light pattern 
 (defined by a 2D image).
 
-==== bench_reseedlimit.m ====
-In this simulation, we verify the reduction of Monte Carlo stochastic
-noise with respect to the increase of photon numbers. We also test the
-effect of the reseedlimit parameter and its impact to the noise.
+==== demo_sphere_cube_subpixel.m ====
+
+In this example, we demonstrate how to use sub-pixel resolution 
+to represent the problem domain. The domain is consisted of a 
+6x6x6 cm box with a 2cm diameter sphere embedded at the center.
+
 
 
 == # How to compile MCXLAB-CL ==
