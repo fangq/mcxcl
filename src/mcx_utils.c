@@ -160,7 +160,7 @@ void mcx_initcfg(Config *cfg){
      cfg->isdumpmask=0;
      cfg->autopilot=1;
      cfg->shapedata=NULL;
-     cfg->optlevel=3;
+     cfg->optlevel=1;
 
      memset(cfg->deviceid,0,MAX_DEVICE);
      memset(cfg->compileropt,0,MAX_PATH_LENGTH);
