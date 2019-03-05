@@ -618,9 +618,6 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	   toc+=tic1-tic0;
            MCX_FPRINTF(cfg->flog,"kernel complete:  \t%d ms\nretrieving flux ... \t",tic1-tic);fflush(cfg->flog);
 
-           if(cfg->runtime<tic1-tic)
-               cfg->runtime=tic1-tic;
-
            for(devid=0;devid<workdev;devid++){
              if(cfg->issavedet){
                 OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetected[devid],CL_FALSE,0,sizeof(uint),
@@ -704,6 +701,9 @@ is more than what your have specified (%d), please use the -H option to specify 
            }// loop over work devices
        }// iteration
      }// time gates
+
+     if(cfg->runtime<toc)
+           cfg->runtime=toc;
 
      if(cfg->isnormalized){
 	   float scale=1.f, mua;
