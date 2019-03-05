@@ -292,12 +292,12 @@ void savedetphoton(__global float *n_det,__global uint *detectedphoton,float nsc
 		n_det[baseaddr+i]=ppath[i]; // save partial pathlength to the memory
 	    if(gcfg->issaveexit){
                 baseaddr+=gcfg->maxmedia;
-	        n_det[baseaddr++]=p0->x;
-		n_det[baseaddr++]=p0->y;
-		n_det[baseaddr++]=p0->z;
-		n_det[baseaddr++]=v->x;
-		n_det[baseaddr++]=v->y;
-		n_det[baseaddr++]=v->z;
+	        n_det[baseaddr++]=p0[0].x;
+		n_det[baseaddr++]=p0[0].y;
+		n_det[baseaddr++]=p0[0].z;
+		n_det[baseaddr++]=v[0].x;
+		n_det[baseaddr++]=v[0].y;
+		n_det[baseaddr++]=v[0].z;
 	    }
 	 }
       }
