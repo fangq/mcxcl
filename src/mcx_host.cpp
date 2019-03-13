@@ -152,7 +152,7 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
 	    if(1){
                 OCL_ASSERT((clGetPlatformInfo(platforms[i],
                           CL_PLATFORM_NAME,sizeof(pbuf),pbuf,NULL)));
-	        if(cfg->isgpuinfo) printf(S_YELLOW"Platform [%d] Name %s\n"S_RESET,i,pbuf);
+	        if(cfg->isgpuinfo) MCX_FPRINTF(stdout,S_YELLOW"Platform [%d] Name %s\n"S_RESET,i,pbuf);
                 cps[1]=(cl_context_properties)platform;
 
         	for(j=0; j<2; j++){
@@ -208,24 +208,24 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
         		  cuinfo.autothread=cuinfo.autoblock * cuinfo.core;
 
 			  if(cfg->isgpuinfo){
-                		printf(S_BLUE"============ %s device ID %d [%d of %d]: %s  ============\n"S_RESET,devname[j],cuid,k+1,devnum,cuinfo.name);
-                		printf(" Device %d of %d:\t\t%s\n",cuid+1,devnum,cuinfo.name);
-                		printf(" Compute units   :\t%d core(s)\n",(uint)cuinfo.sm);
-                		printf(" Global memory   :\t%ld B\n",(unsigned long)cuinfo.globalmem);
-                		printf(" Local memory    :\t%ld B\n",(unsigned long)cuinfo.sharedmem);
-                		printf(" Constant memory :\t%ld B\n",(unsigned long)cuinfo.constmem);
-                		printf(" Clock speed     :\t%d MHz\n",cuinfo.clock);
+                		MCX_FPRINTF(stdout,S_BLUE"============ %s device ID %d [%d of %d]: %s  ============\n"S_RESET,devname[j],cuid,k+1,devnum,cuinfo.name);
+                		MCX_FPRINTF(stdout," Device %d of %d:\t\t%s\n",cuid+1,devnum,cuinfo.name);
+                		MCX_FPRINTF(stdout," Compute units   :\t%d core(s)\n",(uint)cuinfo.sm);
+                		MCX_FPRINTF(stdout," Global memory   :\t%ld B\n",(unsigned long)cuinfo.globalmem);
+                		MCX_FPRINTF(stdout," Local memory    :\t%ld B\n",(unsigned long)cuinfo.sharedmem);
+                		MCX_FPRINTF(stdout," Constant memory :\t%ld B\n",(unsigned long)cuinfo.constmem);
+                		MCX_FPRINTF(stdout," Clock speed     :\t%d MHz\n",cuinfo.clock);
 
                                 if(strstr(pbuf,"NVIDIA")){
-                                     printf(" Compute Capacity:\t%d.%d\n",cuinfo.major,cuinfo.minor);
-                                     printf(" Stream Processor:\t%d\n",cuinfo.core);
+                                     MCX_FPRINTF(stdout," Compute Capacity:\t%d.%d\n",cuinfo.major,cuinfo.minor);
+                                     MCX_FPRINTF(stdout," Stream Processor:\t%d\n",cuinfo.core);
                                 }else if(strstr(pbuf,"AMD") && j==0){
-                                     printf(" GFXIP version:   \t%d.%d\n",cuinfo.major,cuinfo.minor);
-                                     printf(" Stream Processor:\t%d\n",cuinfo.core);
+                                     MCX_FPRINTF(stdout," GFXIP version:   \t%d.%d\n",cuinfo.major,cuinfo.minor);
+                                     MCX_FPRINTF(stdout," Stream Processor:\t%d\n",cuinfo.core);
                                 }
-                		printf(" Vendor name    :\t%s\n",VendorList[cuinfo.vendor]);
-                		printf(" Auto-thread    :\t%ld\n",cuinfo.autothread);
-                		printf(" Auto-block     :\t%ld\n",cuinfo.autoblock);
+                		MCX_FPRINTF(stdout," Vendor name    :\t%s\n",VendorList[cuinfo.vendor]);
+                		MCX_FPRINTF(stdout," Auto-thread    :\t%ld\n",cuinfo.autothread);
+                		MCX_FPRINTF(stdout," Auto-block     :\t%ld\n",cuinfo.autoblock);
                       	  }
 		          if(activedevlist!=NULL){
 			     if(cfg->deviceid[cuid++]=='1'){
