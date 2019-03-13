@@ -232,8 +232,7 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
 			        memcpy((*info)+(*activedev),&cuinfo,sizeof(GPUInfo));
 				activedevlist[(*activedev)++]=devices[k];
 				if(activeplatform && activeplatform!=platform){
-					MCX_FPRINTF(stderr,S_RED"ERROR: one can not mix devices between different platforms\n"S_RESET);fflush(cfg->flog);
-					exit(-1);
+					mcx_error(-(int)99,S_RED"ERROR: one can not mix devices between different platforms\n"S_RESET,__FILE__,__LINE__);
 				}
 				activeplatform=platform;
 			     }
@@ -756,12 +755,12 @@ is more than what your have specified (%d), please use the -H option to specify 
      clReleaseMemObject(gmedia);
      clReleaseMemObject(gproperty);
      clReleaseMemObject(gparam);
+     clReleaseMemObject(gprogress[0]);
 
      for(i=0;i<workdev;i++){
          clReleaseMemObject(gfield[i]);
          clReleaseMemObject(gseed[i]);
          clReleaseMemObject(genergy[i]);
-         clReleaseMemObject(gprogress[i]);
          clReleaseMemObject(gdetected[i]);
          clReleaseMemObject(gdetpos[i]);
          clReleaseKernel(mcxkernel[i]);

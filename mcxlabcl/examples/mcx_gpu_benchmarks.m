@@ -19,6 +19,9 @@ cfg.gpuid=1;  % gpuid can be an integer 1-N to specify the n-th GPU
 %cfg.gpuid='111';          % on wazu, GPU#1,2,3 are 980Ti, 590 Core1 and Core 2
 %cfg.workload=[90,10,10];  % workload distribution between the 3 GPUs
 
+cfg.gpuid='011';
+cfg.workload=[218,161];  % workload distribution between the 3 GPUs
+
 gpuid=cfg.gpuid;
 
 if(ischar(gpuid) && regexp(gpuid,'^[01]+$'))
