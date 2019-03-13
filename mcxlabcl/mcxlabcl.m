@@ -64,7 +64,7 @@ function varargout=mcxlabcl(varargin)
 %      cfg.minenergy:  terminate photon when weight less than this level (float) [0.0]
 %      cfg.unitinmm:   defines the length unit for a grid edge length [1.0]
 %      cfg.shapes:     a JSON string for additional shapes in the grid
-%      cfg.reseedlimit:number of scattering events before reseeding RNG
+%      cfg.internalsrc:set to 1 to skip entry search to speedup launch, effective on AMD GPUs
 %
 %== GPU settings ==
 %      cfg.autopilot:  1-automatically set threads and blocks, [0]-use nthread/nblocksize
