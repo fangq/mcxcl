@@ -120,7 +120,7 @@ the verbose command line options in MCX.
        cfg.minenergy:  terminate photon when weight less than this level (float) [0.0]
        cfg.unitinmm:   defines the length unit for a grid edge length [1.0]
        cfg.shapes:     a JSON string for additional shapes in the grid
-       cfg.reseedlimit:number of scattering events before reseeding RNG
+       cfg.internalsrc:set to 1 to skip entry search to speedup launch, effective on AMD GPUs
  
  == GPU settings ==
        cfg.autopilot:  1-automatically set threads and blocks, [0]-use nthread/nblocksize
@@ -243,7 +243,7 @@ the verbose command line options in MCX.
  
   Example:
        % first query if you have supported GPU(s)
-       info=mcxlab('gpuinfo')
+       info=mcxlabcl('gpuinfo')
  
        % define the simulation using a struct
        cfg.nphoton=1e7;

@@ -5,7 +5,7 @@
 
 Author: Qianqian Fang <q.fang at neu.edu>
 License: GNU General Public License version 3 (GPLv3)
-Version: 0.9 (Eternity beta)
+Version: 0.9 (Eternity - beta)
 Website: http://mcx.space
 
 ---------------------------------------------------------------------
@@ -557,10 +557,10 @@ such as the following:
 ==============================================================================
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =
 ==============================================================================
-$Rev::f748e7$2019.3 $Date::2019-03-03 00:34:40 -05$ by $Author::Qianqian Fang$
+$Rev::4fdc45$2019.3 $Date::2018-03-29 00:35:53 -04$ by $Author::Qianqian Fang$
 ==============================================================================
 
-usage: ./mcxcl <param1> <param2> ...
+usage: mcxcl <param1> <param2> ...
 where possible parameters include (the first value in [*|*] is the default)
 
 == Required option ==
@@ -629,19 +629,20 @@ where possible parameters include (the first value in [*|*] is the default)
 == Additional options ==
  --atomic       [1|0]          1: use atomic operations; 0: do not use atomics
  --root         [''|string]    full path to the folder storing the input files
+ --internalsrc  [0|1]          set to 1 to skip entry search to speedup launch
  --maxvoidstep  [1000|int]     maximum distance (in voxel unit) of a photon that
                                can travel before entering the domain, if 
                                launched outside (i.e. a widefield source)
 
 == Example ==
 example: (autopilot mode)
-       ./mcxcl -A 1 -n 1e7 -f input.json -G 1
+       mcxcl -A 1 -n 1e7 -f input.json -G 1
 or (manual mode)
-       ./mcxcl -t 16384 -T 64 -n 1e7 -f input.json -s test -r 2 -d 1 -b 1 -G 1
+       mcxcl -t 16384 -T 64 -n 1e7 -f input.json -s test -r 2 -d 1 -b 1 -G 1
 or (use multiple devices - 1st,2nd and 4th GPUs - together with equal load)
-       ./mcxcl -A -n 1e7 -f input.json -G 1101 -W 10,10,10
+       mcxcl -A -n 1e7 -f input.json -G 1101 -W 10,10,10
 or (use inline domain definition)
-       ./mcxcl -f input.json -P '{"Shapes":[{"ZLayers":[[1,10,1],[11,30,2],[31,60,3]]}]}'
+       mcxcl -f input.json -P '{"Shapes":[{"ZLayers":[[1,10,1],[11,30,2],[31,60,3]]}]}'
 </pre>
 
  the above command will launch 1024 GPU threads (-t) with every 64 threads
