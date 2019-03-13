@@ -79,4 +79,4 @@ set(gca,'clim',[-12 0]);
 set(gca,'fontsize',18);
 set(gca, 'FontName', 'Times New Roman');
 
-eval('base','USE_MCXCL=0;');
+eval('base','clear USE_MCXCL;');

@@ -27,7 +27,7 @@ function varargout=mcxlabcl(varargin)
 %    mcxlab and mcxlabcl calls will use mcxcl.mex; by setting option='cuda', one can
 %    force both mcxlab and mcxlabcl to use mcx (cuda version). Similarly, if
 %    USE_MCXCL=0, all mcxlabcl and mcxlab call will use mcx.mex by default, unless
-%    one set option='opencl'.
+%    one set option='opencl'. Please run eval('base','clear USE_MCXCL') to reset.
 %
 %    cfg may contain the following fields:
 %
@@ -81,11 +81,10 @@ function varargout=mcxlabcl(varargin)
 %                      between 2 active GPUs. A simple load balancing strategy is to 
 %                      use the GPU core counts as the weight.
 %      cfg.isgpuinfo:  1-print GPU info, [0]-do not print
-%      cfg.sradius:    radius within which we use atomic operations (in grid) [0.0]
-%                      sradius=0 to disable atomic operations; if sradius=-1,
-%                      use cfg.crop0 and crop1 to define a cubic atomic zone; if
-%                      sradius=-2, perform atomic operations in the entire domain;
-%                      by default, srandius=-2 (atomic operations is used).
+%      cfg.optlevel:   optimization level; each level contains all the optimization in the
+%                      lower levels; optlevel=2,3 is driver dependent, and may cause dramatic slow down
+%                      please avoid or use with caution. Default value is 1.
+%                      0 - no optimization; 1- use native math functions; 2/3 - more aggressive optimizations (driver dependent)
 %
 %== Source-detector parameters ==
 %      cfg.detpos:     an N by 4 array, each row specifying a detector: [x,y,z,radius]
@@ -218,13 +217,14 @@ function varargout=mcxlabcl(varargin)
 %      subplot(231);
 %      mcxpreview(cfg);title('domain preview');
 %      subplot(232);
-%      mcxplotvol(log10(cwfluence));title('fluence at y=30');
+%      imagesc(squeeze(log(cwfluence(:,30,:))));title('fluence at y=30');
 %      subplot(233);
 %      hist(detpt.ppath(:,1),50); title('partial path tissue#1');
 %      subplot(234);
 %      plot(squeeze(fluence.data(30,30,30,:)),'-o');title('TPSF at [30,30,30]');
 %      subplot(235);
 %      imagesc(squeeze(log(cwdref(:,:,1))));title('diffuse refle. at z=1');
+%      mcxplotvol(log10(cwfluence));title('fluence at y=30');
 %
 % This function is part of Monte Carlo eXtreme (MCX) URL: http://mcx.space/mcxcl
 %

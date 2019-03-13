@@ -383,4 +383,4 @@ title('a gaussian beam source');
 % title('raw RNG distribution');
 % cfg=rmfield(cfg,'debuglevel');
 
-eval('base','USE_MCXCL=0;');
+eval('base','clear USE_MCXCL;');

@@ -1677,7 +1677,7 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -G '1101'     (--gpu)         using multiple devices (1 enable, 0 disable)\n\
  -W '50,30,20' (--workload)    workload for active devices; normalized by sum\n\
  -I            (--printgpu)    print GPU information and run program\n\
- -o [3|int]    (--optlevel)    optimization level 0-no opt;1,2,3 more optimized\n\
+ -o [1|int]    (--optlevel)    optimization level 0-no opt;1,2,3 more optimized\n\
  -J '-D MCX'   (--compileropt) specify additional JIT compiler options\n\
  -k my_simu.cl (--kernel)      user specified OpenCL kernel source file\n\
 \n"S_BOLD S_CYAN"\

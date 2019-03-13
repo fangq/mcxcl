@@ -53,4 +53,4 @@ mcxplotvol(log10(fcw));
 
 %mcx2json(cfg,'digimouse.json');
 
-eval('base','USE_MCXCL=0;');
+eval('base','clear USE_MCXCL;');
