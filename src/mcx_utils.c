@@ -58,7 +58,7 @@
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W','z',
                  'd','r','S','p','e','U','R','l','L','M','I','-','o','c','k','v','J',
-                 'A','P','E','F','H','-','u','-','x','X','\0'};
+                 'A','P','E','F','H','-','u','-','x','X','-','\0'};
 
 /**
  * Long command line options
@@ -72,7 +72,7 @@ const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--normalize","--skipradius","--log","--listgpu","--dumpmask",
                  "--printgpu","--root","--optlevel","--cpu","--kernel","--verbose","--compileropt",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
-		 "--mediabyte","--unitinmm","--atomic","--saveexit","--saveref",""};
+		 "--mediabyte","--unitinmm","--atomic","--saveexit","--saveref","--internalsrc",""};
 
 /**
  * Debug flags
@@ -145,6 +145,7 @@ void mcx_initcfg(Config *cfg){
      cfg->rootpath[0]='\0';
      cfg->iscpu=0;
      cfg->isverbose=0;
+     cfg->internalsrc=0;
 
      cfg->srctype=0;;         /** use pencil beam as default source type */
      cfg->maxvoidstep=1000;
@@ -1509,6 +1510,8 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                                      i=mcx_readarg(argc,argv,i,cfg->rootpath,"string");
                                 else if(strcmp(argv[i]+2,"atomic")==0)
 		                     i=mcx_readarg(argc,argv,i,&(cfg->isatomic),"int");
+                                else if(strcmp(argv[i]+2,"internalsrc")==0)
+		                     i=mcx_readarg(argc,argv,i,&(cfg->internalsrc),"int");
                                 else
                                      MCX_FPRINTF(cfg->flog,"unknown verbose option: --%s\n",argv[i]+2);
 		     	        break;
@@ -1716,6 +1719,7 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 == Additional options ==\n"S_RESET"\
  --atomic       [1|0]          1: use atomic operations; 0: do not use atomics\n\
  --root         [''|string]    full path to the folder storing the input files\n\
+ --internalsrc  [0|1]          set to 1 to skip entry search to speedup launch\n\
  --maxvoidstep  [1000|int]     maximum distance (in voxel unit) of a photon that\n\
                                can travel before entering the domain, if \n\
                                launched outside (i.e. a widefield source)\n\

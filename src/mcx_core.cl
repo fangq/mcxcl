@@ -446,6 +446,8 @@ float reflectcoeff(float4 *v, float n1, float n2, int flipdir){
       }
 }
 
+#ifndef INTERNAL_SOURCE
+
 /**
  * @brief Advance photon to the 1st non-zero voxel if launched in the backgruond 
  *
@@ -512,6 +514,7 @@ int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constan
       }
 }
 
+#endif
 
 /**
  * @brief Terminate a photon and launch a new photon according to specified source form
@@ -811,6 +814,7 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
            */
 //          *rv=float3(native_divide(1.f,v[0].x),native_divide(1.f,v[0].y),native_divide(1.f,v[0].z));
 
+#ifndef INTERNAL_SOURCE
           /**
            * If a photon is launched outside of the box, or inside a zero-voxel, move it until it hits a non-zero voxel
            */
@@ -821,6 +825,7 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
 		 *mediaid=media[*idx1d];
 	     }
 	  }
+#endif
 	  *w0+=1.f;
 	  
 	  /**

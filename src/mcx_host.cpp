@@ -319,6 +319,8 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      if(workdev>MAX_DEVICE)
          workdev=MAX_DEVICE;
+     if(workdev == 0)
+	 mcx_error(-(int)99,(char*)("Specified GPU does not exist"),__FILE__,__LINE__);
 
      if(devices == NULL){
          OCL_ASSERT(-1);
@@ -488,6 +490,8 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
          sprintf(opt+strlen(opt)," -DMCX_SAVE_DETECTORS");
      if(cfg->isreflect)
          sprintf(opt+strlen(opt)," -DMCX_DO_REFLECTION");
+     if(cfg->internalsrc || (param.mediaidorig && (cfg->srctype==MCX_SRC_PENCIL || cfg->srctype==MCX_SRC_CONE || cfg->srctype==MCX_SRC_ISOTROPIC)))
+         sprintf(opt+strlen(opt)," -DINTERNAL_SOURCE");
 
      MCX_FPRINTF(cfg->flog,"Building kernel with option: %s\n",opt);
      status=clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);

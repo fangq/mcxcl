@@ -120,6 +120,7 @@ typedef struct MCXConfig{
 	char iscpu;         /*1 use CPU for simulation, 0 use GPU*/
 	char isverbose;     /*1 print debug info, 0 do not*/
 	char issrcfrom0;    /*1 do not subtract 1 from src/det positions, 0 subtract 1*/
+	char internalsrc;   /*1 all photons launch positions are inside non-zero voxels, 0 let mcx search entry point*/
         char isdumpmask;    /*1 dump detector mask; 0 not*/
 	char issaveseed;             /**<1 save the seed for a detected photon, 0 do not save*/
 	char issaveexit;             /**<1 save the exit position and dir of a detected photon, 0 do not save*/
