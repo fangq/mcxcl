@@ -127,7 +127,7 @@ II. Requirement and Installation
 With the up-to-date driver installed for your computers, MCXCL can run on
 almost all computers. The requirements for using this software include
 
-*. a single/multi-core CPU, or
+*. a CPU, or
 *. a CUDA capable NVIDIA graphics card, or
 *. an AMD graphics card
 and
@@ -159,7 +159,7 @@ The below installation steps can be browsed online at
 http://mcx.space/wiki/index.cgi/wiki/index.cgi?Workshop/MCX18Preparation/MethodA
 
 
-== # Step 1. Verify your CPU/GPU support ==
+=== # Step 1. Verify your CPU/GPU support ==
 
 MCX-CL supports a wide-range of processors, including Intel/AMD CPUs 
 and GPUs from NVIDIA/AMD/Intel. If your computer has been working previously,
@@ -167,7 +167,7 @@ in most cases, MCX-CL can simply run out-of-box. However, if you have trouble,
 please follow the below detailed steps to verify and setup your OS to run
 MCX-CL.
 
-=== # Verify GPU/CPU support ===
+==== # Verify GPU/CPU support ===
 
 To verify if you have installed the OpenCL or CUDA support, you may
 
@@ -185,7 +185,7 @@ To verify if you have installed the OpenCL or CUDA support, you may
 If the <tt>OpenCL.dll</tt> file is not found on your system, please 
 read the below sections. Otherwise, please go to Step 2: Install MATLAB.
 
-=== # Computers without discrete GPUs ===
+==== # Computers without discrete GPUs ===
 
 In many cases, your computer runs on an Intel CPU with integrated graphics. In 
 this case, please make sure you have installed the latest Intel graphics drivers. 
@@ -214,7 +214,7 @@ the OpenCL™ 2.0 GPU/CPU driver package for Linux* (this involves compiling a n
 https://software.intel.com/en-us/articles/opencl-drivers#latest_linux_driver
 
 
-=== # Computers with discrete GPUs ===
+==== # Computers with discrete GPUs ===
 
 If you have a computer with a discrete GPU, you need to make sure your 
 discrete GPU is configured with the appropriate GPU 
@@ -242,7 +242,7 @@ Note: if you have an NVIDIA GPU, there is no need to install CUDA in
 order for you to run MCX/MCXLAB.
 
 
-== # Step 2. Install MATLAB or GNU Octave =
+=== # Step 2. Install MATLAB or GNU Octave =
 
 One must install either a MATLAB or GNU Octave if one needs to use mcxlabcl.
 If you use a Mac or Linux laptop, you need to create a link (if this link does
@@ -261,7 +261,7 @@ To verify your computer has MATLAB installed, please start a terminal on a
 Mac or Linux, or type "cmd" and enter in Windows start menu, in the terminal, 
 type "<tt>matlab</tt>" and enter, you should see MATLAB starts.
 
-== # Step 3. Download MCXCL ==
+=== # Step 3. Download MCXCL ==
 
 One can download two separate MCXCL packages (standalone mcxcl binary, and mcxlabcl)
 or download the integrated MCXStudio package (which contains mcx, mcxcl, mmc, mcxlab, 
@@ -321,10 +321,10 @@ with a few executables and 3 subfolders underneath. See the folder structure bel
 
 Please make sure that your downloaded <tt>MCXStudio</tt> must match your operating system.
 
-=== # Notes for Mac Users ===
+==== # Notes for Mac Users ===
 '''For Mac users:''' Please unzip the package under your '''[https://www.cnet.com/how-to/how-to-find-your-macs-home-folder-and-add-it-to-finder/ home directory]''' directly (Shift+Command+H).
 
-=== # Notes for Windows Users ===
+==== # Notes for Windows Users ===
 When you start MCXStudio, you may see a dialog to ask you to modify the TdrDelay key 
 in the registry so that mcx can run more than 5 seconds. If you select Yes, some 
 of you may get an error saying you do not have permission. 
@@ -339,7 +339,7 @@ and right-click on the "apply_timeout_registry_fix.bat" file and select
 
 '''You must reboot your computer for this change to be effective!'''
 
-== # Step 4. Start MCXStudio and query GPU information ==
+=== # Step 4. Start MCXStudio and query GPU information ==
 
 Now, navigate to the MCXStudio folder (i.e. the top folder of the extracted 
 software structure). On Windows, right-click on the executable named <tt>"mcxstudio.exe"</tt> 
@@ -399,7 +399,7 @@ If you have Intel CPU with Integrated GPU, you should be able to see a section w
 the CPU is listed, or both the CPU and the integrated GPU.
 
 
-== # Step 5. Run a trial simulation ==
+=== # Step 5. Run a trial simulation ==
 
 If your above GPU query was successful, you should now see in the middle panel 
 of the MCXStudio window, under the Section entitled "GPU Settings", in a check-box 
@@ -477,29 +477,12 @@ OpenCL run-time can produce correct simulations. Please download it from here
 
 https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
 
-== # Step 6. Test MATLAB for visualization ==
+=== # Step 6. Test MATLAB for visualization ==
 
-Once this above simulation is completed, you can click on the "Plot" button 
-on the toolbar, and from the drop-down menu,  select "Plot fluence (mc2)". 
-This will open a MATLAB window, and show you an iterative figure so you 
-can visualize the image slices.
-
-If MATLAB can not be started, you may not install MATLAB properly, or haven't 
-added MATLAB executable to your PATH environment variable.
-
-'''Update:03/30/18: '''
-* We are aware that MATLAB can not be started from MCXStudio on the Mac. \
-However, it will print a few lines of MATLAB commands in the "Output" window. \
-As a workaround, you can start a separate MATLAB session, copy and paste \
-the printed MATLAB commands, and run those directly in MATLAB (you need to \
-complete Step 7 to run these commands).
-* If MATLAB fails to run the command by complaining strings with Extended \
-Latin characters, this is a result of your special keyboard setting. Please \
-change it to an ASCII compatible keyboard layout and the command should be \
-processed correctly.
+From v2019.3, MCXStudio provides builtin 3D volume visualization, this step is no longer needed.
 
 
-== # Step 7. Setting up MATLAB search path ==
+=== # Step 7. Setting up MATLAB search path ==
 
 The next step is to set up the search paths for MCXLAB/MMCLAB. You need to 
 start MATLAB, and in the Command window, please type 
@@ -524,6 +507,7 @@ To see if you can run MCXLAB-CL in your environment, please type
 
  USE_MCXCL=1   ''%define this line in the base workspace, all subsequent mcxlab calls will use mcxcl''
  info=mcxlab('gpuinfo')
+ clear USE_MCXCL
 
 this should print a list of CPU/GPU devices using which you can run the MC simulations.
 
