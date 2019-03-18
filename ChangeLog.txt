@@ -1,5 +1,37 @@
 Change Log
 
+== MCX 0.9 (Eternity - beta) branch, FangQ <q.fang at neu.edu> ==
+
+ 2019-03-16 [1ce5240] update installation guide
+ 2019-03-13 [7d6c192] update documentation for internalsrc flag
+ 2019-03-13 [80db60f] print gpuinfo inside matlab
+ 2019-03-13 [5465b99] support internalsrc flag in mcxlabcl
+ 2019-03-13 [50485bd] remove skipvoid when the source is inside, improve AMD GPU speed by 2-3x
+ 2019-03-13 [4853da3] avoid crashing matlab when mixing devices from different platforms
+ 2019-03-12 [c0e8da7] set default optlevel to 1
+ 2019-03-05 [079604d] demote the optimization level to 1
+ 2019-03-05 [35d5797] fix compilation error on amdgpu-pro drivers 16.60
+ 2019-03-04 [8f78960] fix runtime calculation in mcxlabcl
+ 2019-03-03 [f748e74] add color to the command line output
+ 2019-03-02 [3cc2b49] fix bugs for isotropic source, cone source, add gpubenchmark script
+ 2019-03-02 [d784bc6] avoid gcc warning,test xxd utility and add vim-common dependency
+ 2019-03-02 [7450c87] add all mcx matlab functions, update mcxlabcl help, fix mcxlabcl compilation bug
+ 2019-03-01 [8c3f16b] fix bug to read srcparam from json
+ 2019-03-01 [6e916cb] sync mcxcl with mcx 2019.2
+ 2019-02-28 [3c6f928] sync mcx updates, add colin27, digimouse and usc19-5 examples
+ 2019-01-29 [c5947c6] Merge pull request #22 from koenigjaeger/master
+ 2019-01-29 [9652224] fix dimtype definition; copy from a fix made in mmclab
+ 2019-01-27 [75a258f] change lib path to link with cuda
+ 2019-01-18 [60aab29] fix mmclab crash due to racing in multi-thread, similar to mcx issue #60
+ 2018-11-21 [5a3d058] fix skinvessel json input file
+ 2018-11-21 [bd9db4c] update the launch position in skinvessel benchmark
+ 2018-11-14 [aed9038] add benchmark from mcxyz skinvessel example
+ 2018-11-13 [0f3611c] test if gpuid is 0 to avoid mcxlab crashing
+ 2018-09-27 [0d7e54b] give a warning and avoid crash for unsupported debug flags, fix #46
+ 2018-09-15 [2567fd3] Merge branch 'master' of https://github.com/fangq/mcxcl
+ 2018-09-15 [51e8c97] launchphoton supports half precision
+ 2018-09-01 [d316023] add nightly build script for mcxcl
+
 == MCX 0.8 (Duality) beta branch, FangQ <q.fang at neu.edu> ==
 
  2018-08-18 [6ca494c] avoid static linking libm to work with gcc 5.4
