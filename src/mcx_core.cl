@@ -200,7 +200,7 @@ static float rand_uniform01(__private RandType t[RAND_BUF_LEN]){
     return xorshift128p_nextf(t);
 }
 
-static void xorshift128p_seed (__global uint *seed,RandType t[RAND_BUF_LEN]){
+static void xorshift128p_seed (__global uint *seed, __private RandType t[RAND_BUF_LEN]){
     t[0] = (ulong)seed[0] << 32 | seed[1] ;
     t[1] = (ulong)seed[2] << 32 | seed[3];
 }
