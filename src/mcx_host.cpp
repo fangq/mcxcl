@@ -764,17 +764,23 @@ is more than what your have specified (%d), please use the -H option to specify 
      for(i=0;i<workdev;i++){
          clReleaseMemObject(gfield[i]);
          clReleaseMemObject(gseed[i]);
+         clReleaseMemObject(gdetphoton[i]);
          clReleaseMemObject(genergy[i]);
          clReleaseMemObject(gdetected[i]);
-         clReleaseMemObject(gdetpos[i]);
+         if(cfg->detpos)
+             clReleaseMemObject(gdetpos[i]);
+         if(cfg->srctype==MCX_SRC_PATTERN || cfg->srctype==MCX_SRC_PATTERN3D)
+             clReleaseMemObject(gsrcpattern[i]);
          clReleaseKernel(mcxkernel[i]);
      }
      free(gfield);
      free(gseed);
+     free(gdetphoton);
      free(genergy);
      free(gprogress);
      free(gdetected);
      free(gdetpos);
+     free(gsrcpattern);
      free(mcxkernel);
 
      free(waittoread);
