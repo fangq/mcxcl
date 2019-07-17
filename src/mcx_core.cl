@@ -1142,6 +1142,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                            MCX_SINCOS(theta,stheta,ctheta);
                        }
                        GPUDEBUG(((__constant char*)"scat theta=%f\n",theta));
+		       tmp0=(v.w > gcfg->gscatter) ? 0.f : prop.z;
+
 #ifdef SAVE_DETECTORS
                        if(SAVE_NSCAT(gcfg->savedetflag))
 		           ppath[(mediaid & MED_MASK)-1]++;
@@ -1167,9 +1169,9 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 
           FLOAT4VEC htime;            //reflection var
 	  f.z=hitgrid(&p, &v, &htime, &flipdir);
-	  float slen=f.z*prop.y;
+	  float slen=f.z*prop.y*(v.w+1.f > gcfg->gscatter ? (1.f-prop.z) : 1.f); //unitless (minstep=grid, mus=1/grid)
 	  slen=fmin(slen,f.x);
-	  f.z=native_divide(slen,prop.y);
+	  f.z=native_divide(slen,prop.y*(v.w+1.f > gcfg->gscatter ? (1.f-prop.z) : 1.f ));
 
           GPUDEBUG(((__constant char*)"p=[%f %f %f] -> <%f %f %f>*%f -> hit=[%f %f %f] flip=%d\n",p.x,p.y,p.z,v.x,v.y,v.z,f.z,htime.x,htime.y,htime.z,flipdir));
 

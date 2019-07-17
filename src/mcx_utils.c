@@ -73,7 +73,7 @@ const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--printgpu","--root","--optlevel","--cpu","--kernel","--verbose","--compileropt",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
 		 "--mediabyte","--unitinmm","--atomic","--saveexit","--saveref",
-		 "--internalsrc","savedetflag","gscatter",""};
+		 "--internalsrc","--savedetflag","--gscatter",""};
 
 /**
  * Debug flags
