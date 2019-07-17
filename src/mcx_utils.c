@@ -1684,12 +1684,17 @@ int mcx_isbinstr(const char * str){
  */
  
  float mcx_updatemua(unsigned int mediaid, Config *cfg){
-     float mua;
+     float mua=0.f;
      if(cfg->mediabyte<=4)
          mua=cfg->prop[mediaid & MED_MASK].mua;
-     else if(cfg->mediabyte==MEDIA_MUA_FLOAT)
-         mua=fabs(*((float *)&mediaid));
-     else if(cfg->mediabyte==MEDIA_ASGN_BYTE){
+     else if(cfg->mediabyte==MEDIA_MUA_FLOAT){
+         union{
+            float f;
+	    unsigned int i;
+         } med;
+         med.i=mediaid;
+         mua=fabs(med.f);
+     }else if(cfg->mediabyte==MEDIA_ASGN_BYTE){
          union {
             unsigned i;
             unsigned char h[4];
