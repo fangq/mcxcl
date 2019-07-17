@@ -193,6 +193,9 @@ void mcx_initcfg(Config *cfg){
      cfg->clsource=NULL;
 #endif
      cfg->maxdetphoton=1000000; 
+     cfg->maxjumpdebug=10000000;
+     cfg->exportdebugdata=NULL;
+     cfg->debugdatalen=0;
      cfg->isdumpmask=0;
      cfg->autopilot=1;
      cfg->shapedata=NULL;
@@ -280,6 +283,8 @@ void mcx_clearcfg(Config *cfg){
         free(cfg->exportfield);
      if(cfg->exportdetected)
         free(cfg->exportdetected);
+     if(cfg->exportdebugdata)
+        free(cfg->exportdebugdata);
      if(cfg->seeddata)
         free(cfg->seeddata);
 
@@ -411,11 +416,12 @@ void mcx_savedata(float *dat, int len, Config *cfg){
 
 void mcx_savedetphoton(float *ppath, void *seeds, int count, int doappend, Config *cfg){
 	FILE *fp;
-	char fhistory[MAX_PATH_LENGTH];
+	char fhistory[MAX_PATH_LENGTH], filetag;
+	filetag=((cfg->his.detected==0  && cfg->his.savedphoton) ? 't' : 'h');
         if(cfg->rootpath[0])
-                sprintf(fhistory,"%s%c%s.mch",cfg->rootpath,pathsep,cfg->session);
+                sprintf(fhistory,"%s%c%s.mc%c",cfg->rootpath,pathsep,cfg->session,filetag);
         else
-                sprintf(fhistory,"%s.mch",cfg->session);
+                sprintf(fhistory,"%s.mc%c",cfg->session,filetag);
 	if(doappend){
            fp=fopen(fhistory,"ab");
 	}else{
@@ -426,6 +432,8 @@ void mcx_savedetphoton(float *ppath, void *seeds, int count, int doappend, Confi
         }
 	fwrite(&(cfg->his),sizeof(History),1,fp);
 	fwrite(ppath,sizeof(float),count*cfg->his.colcount,fp);
+	if(cfg->issaveseed && seeds!=NULL)
+           fwrite(seeds,cfg->his.seedbyte,count,fp);
 	fclose(fp);
 }
 

@@ -82,6 +82,7 @@ typedef struct KernelParams {
   cl_uint   issaveref;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
   cl_uint   maxgate;
   cl_uint   threadphoton;                  /**< how many photons to be simulated in a thread */
+  cl_int    oddphoton;                    /**< how many threads need to simulate 1 more photon above the basic load (threadphoton) */
   cl_uint   debuglevel;           /**< debug flags */
   cl_uint   savedetflag;          /**< detected photon save flags */
   cl_uint   reclen;               /**< length of buffer per detected photon */
