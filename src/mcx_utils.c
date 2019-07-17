@@ -58,7 +58,7 @@
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W','z',
                  'd','r','S','p','e','U','R','l','L','M','I','-','o','c','k','v','J',
-                 'A','P','E','F','H','K','u','-','x','X','-','w','\0'};
+                 'A','P','E','F','H','K','u','-','x','X','-','w','-','\0'};
 
 /**
  * Long command line options
@@ -67,13 +67,13 @@ char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W'
 
 const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--thread","--blocksize","--session","--array","--gategroup",
-                 "--reflect","--reflect3","--debug","--devicelist","--gpu","--workload","--srcfrom0",
+                 "--reflect","--bc","--debug","--devicelist","--gpu","--workload","--srcfrom0",
 		 "--savedet","--repeat","--save2pt","--printlen","--minenergy",
                  "--normalize","--skipradius","--log","--listgpu","--dumpmask",
                  "--printgpu","--root","--optlevel","--cpu","--kernel","--verbose","--compileropt",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
 		 "--mediabyte","--unitinmm","--atomic","--saveexit","--saveref",
-		 "--internalsrc","savedetflag",""};
+		 "--internalsrc","savedetflag","gscatter",""};
 
 /**
  * Debug flags
@@ -83,15 +83,6 @@ const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
  */
 
 const char debugflag[]={'R','M','P','\0'};
-
-/**
- * Source type specifier
- * User can specify the source type using a string
- */
-
-const char *srctypeid[]={"pencil","isotropic","cone","gaussian","planar",
-    "pattern","fourier","arcsine","disk","fourierx","fourierx2d","zgaussian",
-    "line","slit","pencilarray","pattern3d",""};
 
 /**
  * Flag to decide if parameter has been initialized over command line
@@ -108,9 +99,37 @@ char flagset[256]={'\0'};
 
 const char saveflag[]={'D','S','P','M','X','V','W','\0'};
 
-const char outputtype[]={'x','f','e','j','p','\0'};
+/**
+ * Output data types
+ * x: fluence rate
+ * f: fluence
+ * e: energy deposit
+ * j: jacobian for mua
+ * p: scattering counts for computing Jacobians for mus
+ */
+
+const char outputtype[]={'x','f','e','j','p','m','\0'};
 const char *outputformat[]={"mc2","nii","hdr","ubj","tx3",""};
 
+/**
+ * Boundary condition (BC) types
+ * _: no condition (fallback to isreflect)
+ * r: Fresnel boundary
+ * a: total absorption BC
+ * m: total reflection (mirror) BC
+ * c: cylic BC
+ */
+
+const char boundarycond[]={'_','r','a','m','c','\0'};
+
+/**
+ * Source type specifier
+ * User can specify the source type using a string
+ */
+
+const char *srctypeid[]={"pencil","isotropic","cone","gaussian","planar",
+    "pattern","fourier","arcsine","disk","fourierx","fourierx2d","zgaussian",
+    "line","slit","pencilarray","pattern3d",""};
 
 /**
  * Media byte format
@@ -161,6 +180,7 @@ void mcx_initcfg(Config *cfg){
      cfg->savedetflag=0x5;
      cfg->his.savedetflag=cfg->savedetflag;
      cfg->ismomentum=0;
+     cfg->gscatter=1e9;     /** by default, honor anisotropy for all scattering, use --gscatter to reduce it */
 
      cfg->srctype=0;;         /** use pencil beam as default source type */
      cfg->maxvoidstep=1000;
@@ -177,6 +197,7 @@ void mcx_initcfg(Config *cfg){
      cfg->autopilot=1;
      cfg->shapedata=NULL;
      cfg->optlevel=1;
+     cfg->srcnum=1;
 
      memset(cfg->deviceid,0,MAX_DEVICE);
      memset(cfg->compileropt,0,MAX_PATH_LENGTH);
@@ -199,6 +220,7 @@ void mcx_initcfg(Config *cfg){
      cfg->replay.seed=NULL;
      cfg->replay.weight=NULL;
      cfg->replay.tof=NULL;
+     cfg->replay.detid=NULL;
      cfg->replaydet=0;
      cfg->seedfile[0]='\0';
 
@@ -209,11 +231,15 @@ void mcx_initcfg(Config *cfg){
      cfg->debuglevel=0;
      cfg->gpuid=0;
 
+     memset(cfg->bc,0,8);
      memset(&cfg->his,0,sizeof(History));
      memcpy(cfg->his.magic,"MCXH",4);
      cfg->his.version=1;
      cfg->his.unitinmm=1.f;
      cfg->his.normalizer=1.f;
+     cfg->his.srcnum=1;
+     cfg->his.respin=1;
+
      cfg->exportfield=NULL;
      cfg->exportdetected=NULL;
      cfg->detectedcount=0;
@@ -242,6 +268,14 @@ void mcx_clearcfg(Config *cfg){
      if(cfg->clsource && cfg->clsource!=(char *)mcx_core_cl)
         free(cfg->clsource);
 #endif
+     if(cfg->replay.weight)
+        free(cfg->replay.weight);
+     if(cfg->replay.seed)
+        free(cfg->replay.seed);
+     if(cfg->replay.tof)
+        free(cfg->replay.tof);
+     if(cfg->replay.detid)
+        free(cfg->replay.detid);
      if(cfg->exportfield)
         free(cfg->exportfield);
      if(cfg->exportdetected)
@@ -401,14 +435,39 @@ void mcx_printlog(Config *cfg, const char *str){
      }
 }
 
-void mcx_normalize(float field[], float scale, int fieldlen, int option){
+/**
+ * @brief Normalize the solution by multiplying a scaling factor
+ *
+ * @param[in,out] field: volumetric data before normalization
+ * @param[in] scale: the scaling factor (or normalization factor) to be applied
+ * @param[in] fieldlen: the length (floating point) of elements in the volume
+ * @param[in] option: if set to 2, only normalize positive values (negative values for diffuse reflectance calculations)
+ */
+
+void mcx_normalize(float field[], float scale, int fieldlen, int option, int pidx, int srcnum){
      int i;
      for(i=0;i<fieldlen;i++){
-         if(option==2 && field[i]<0.f)
+         if(option==2 && field[i*srcnum+pidx]<0.f)
 	     continue;
-         field[i]*=scale;
+         field[i*srcnum+pidx]*=scale;
      }
 }
+
+/**
+ * @brief Kahan summation: Add a sequence of finite precision floating point numbers  
+ *
+ * Source: https://en.wikipedia.org/wiki/Kahan_summation_algorithm
+ * @param[in,out] sum: sum of the squence before and after adding the next element
+ * @param[in,out] kahanc: a running compensation for lost low-order bits
+ * @param[in] input: the next element of the sequence
+ */
+ 
+ void mcx_kahanSum(float *sum, float *kahanc, float input){
+     float kahany=input-*kahanc;
+     float kahant=*sum+kahany;
+     *kahanc=kahant-*sum-kahany;
+     *sum=kahant;
+ }
 
 void mcx_assess(const int err,const char *msg,const char *file,const int linenum){
      if(!err){
@@ -545,7 +604,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      if(cfg->nphoton==0) cfg->nphoton=i;
      comm=fgets(comment,MAX_PATH_LENGTH,in);
      if(in==stdin)
-     	fprintf(stdout,"%d\nPlease specify the random number generator seed: [1234567]\n\t",cfg->nphoton);
+     	fprintf(stdout,"%ld\nPlease specify the random number generator seed: [1234567]\n\t",cfg->nphoton);
      MCX_ASSERT(fscanf(in,"%d", &(cfg->seed) )==1);
      comm=fgets(comment,MAX_PATH_LENGTH,in);
      if(in==stdin)
@@ -658,6 +717,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      mcx_prepdomain(filename,cfg);
      cfg->his.maxmedia=cfg->medianum-1; /*skip media 0*/
      cfg->his.detnum=cfg->detnum;
+     cfg->his.srcnum=cfg->srcnum;
      cfg->his.savedetflag=cfg->savedetflag;
      //cfg->his.colcount=cfg->medianum+1+(cfg->issaveexit)*6; /*column count=maxmedia+2*/
 
@@ -682,23 +742,23 @@ void mcx_loadconfig(FILE *in, Config *cfg){
                char patternfile[MAX_PATH_LENGTH];
                FILE *fp;
                if(cfg->srcpattern) free(cfg->srcpattern);
-               cfg->srcpattern=(float*)calloc((cfg->srcparam1.w*cfg->srcparam2.w),sizeof(float));
+               cfg->srcpattern=(float*)calloc((cfg->srcparam1.w*cfg->srcparam2.w*cfg->srcnum),sizeof(float));
                MCX_ASSERT(fscanf(in, "%s", patternfile)==1);
                fp=fopen(patternfile,"rb");
                if(fp==NULL)
                      MCX_ERROR(-6,"pattern file can not be opened");
-               MCX_ASSERT(fread(cfg->srcpattern,cfg->srcparam1.w*cfg->srcparam2.w,sizeof(float),fp)==sizeof(float));
+               MCX_ASSERT(fread(cfg->srcpattern,cfg->srcparam1.w*cfg->srcparam2.w*cfg->srcnum,sizeof(float),fp)==sizeof(float));
                fclose(fp);
            }else if(cfg->srctype==MCX_SRC_PATTERN3D && cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z>0){
                char patternfile[MAX_PATH_LENGTH];
                FILE *fp;
                if(cfg->srcpattern) free(cfg->srcpattern);
-               cfg->srcpattern=(float*)calloc((int)(cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z),sizeof(float));
+               cfg->srcpattern=(float*)calloc((int)(cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z*cfg->srcnum),sizeof(float));
                MCX_ASSERT(fscanf(in, "%s", patternfile)==1);
                fp=fopen(patternfile,"rb");
                if(fp==NULL)
                      MCX_ERROR(-6,"pattern file can not be opened");
-               MCX_ASSERT(fread(cfg->srcpattern,cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z,sizeof(float),fp)==sizeof(float));
+               MCX_ASSERT(fread(cfg->srcpattern,cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z*cfg->srcnum,sizeof(float),fp)==sizeof(float));
                fclose(fp);
            }
 	}else
@@ -744,24 +804,32 @@ void mcx_prepdomain(char *filename, Config *cfg){
      }else{
      	mcx_error(-4,"one must specify a binary volume file in order to run the simulation",__FILE__,__LINE__);
      }
-/*
      if(cfg->seed==SEED_FROM_FILE && cfg->seedfile[0]){
-        if(cfg->respin>1){
+        if(cfg->respin>1 || cfg->respin<0){
 	   cfg->respin=1;
-	   fprintf(stderr,"Warning: respin is disabled in the replay mode\n");
+	   fprintf(stderr,S_RED"WARNING: respin is disabled in the replay mode\n"S_RESET);
 	}
         mcx_loadseedfile(cfg);
      }
-*/  
+     if(cfg->replaydet>(int)cfg->detnum)
+        MCX_ERROR(-4,"replay detector ID exceeds the maximum detector number");
+     if(cfg->replaydet==-1 && cfg->detnum==1)
+        cfg->replaydet=1;
      if(cfg->medianum){
         for(int i=0;i<cfg->medianum;i++)
-             if(cfg->prop[i].mus==0.f)
+             if(cfg->prop[i].mus==0.f){
 	         cfg->prop[i].mus=EPS;
+		 cfg->prop[i].g=1.f;
+             }
      }
      for(int i=0;i<MAX_DEVICE;i++)
         if(cfg->deviceid[i]=='0')
            cfg->deviceid[i]='\0';
-	   
+
+     for(int i=0;i<6;i++)
+        if(cfg->bc[i]>='A' && mcx_lookupindex(cfg->bc+i,boundarycond))
+	   MCX_ERROR(-4,"unknown boundary condition specifier");
+
      if((cfg->mediabyte==MEDIA_AS_F2H || cfg->mediabyte==MEDIA_MUA_FLOAT || cfg->mediabyte==MEDIA_AS_HALF) && cfg->medianum<2)
          MCX_ERROR(-4,"the 'prop' field must contain at least 2 rows for the requested media format");
      if((cfg->mediabyte==MEDIA_ASGN_BYTE || cfg->mediabyte==MEDIA_AS_SHORT) && cfg->medianum<3)
@@ -964,6 +1032,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
 		      }
 	      }
            }
+	   cfg->srcnum=FIND_JSON_KEY("SrcNum","Optode.Source.SrcNum",src,cfg->srcnum,valueint);
            subitem=FIND_JSON_OBJ("Pattern","Optode.Source.Pattern",src);
            if(subitem){
               int nx=FIND_JSON_KEY("Nx","Optode.Source.Pattern.Nx",subitem,0,valueint);
@@ -975,14 +1044,25 @@ int mcx_loadjson(cJSON *root, Config *cfg){
                      int i;
                      pat=pat->child;
                      if(cfg->srcpattern) free(cfg->srcpattern);
-                     cfg->srcpattern=(float*)calloc(nx*ny*nz,sizeof(float));
-                     for(i=0;i<nx*ny*nz;i++){
-                         cfg->srcpattern[i]=pat->valuedouble;
-                         if((pat=pat->next)==NULL){
+                     cfg->srcpattern=(float*)calloc(nx*ny*nz*cfg->srcnum,sizeof(float));
+                     for(i=0;i<nx*ny*nz*cfg->srcnum;i++){
+                         if(pat==NULL)
                              MCX_ERROR(-1,"Incomplete pattern data");
-                         }
+                         cfg->srcpattern[i]=pat->valuedouble;
+                         pat=pat->next;
                      }
-                 }
+                 }else if(pat){
+                     FILE *fid=fopen(pat->valuestring,"rb");
+		     if(fid!=NULL){
+		         if(cfg->srcpattern) free(cfg->srcpattern);
+                         cfg->srcpattern=(float*)calloc(nx*ny*nz*cfg->srcnum,sizeof(float));
+                         if(fread((void*)cfg->srcpattern,sizeof(float),nx*ny*nz*cfg->srcnum,fid)!=nx*ny*nz*cfg->srcnum){
+			     fclose(fid);
+			     mcx_error(-2,"srcpattern file size does not match the specified data size",__FILE__,__LINE__);
+			 }
+			 fclose(fid);
+                     }
+		 }
               }
            }
         }
@@ -1078,6 +1158,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
      mcx_prepdomain(filename,cfg);
      cfg->his.maxmedia=cfg->medianum-1; /*skip media 0*/
      cfg->his.detnum=cfg->detnum;
+     cfg->his.srcnum=cfg->srcnum;
      cfg->his.savedetflag=cfg->savedetflag;
      //cfg->his.colcount=cfg->medianum+1+(cfg->issaveexit)*6; /*column count=maxmedia+2*/
      return 0;
@@ -1086,7 +1167,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
 void mcx_saveconfig(FILE *out, Config *cfg){
      unsigned int i;
 
-     fprintf(out,"%d\n", (cfg->nphoton) ); 
+     fprintf(out,"%ld\n", (cfg->nphoton) ); 
      fprintf(out,"%d\n", (cfg->seed) );
      fprintf(out,"%f %f %f\n", (cfg->srcpos.x),(cfg->srcpos.y),(cfg->srcpos.z) );
      fprintf(out,"%f %f %f\n", (cfg->srcdir.x),(cfg->srcdir.y),(cfg->srcdir.z) );
@@ -1153,6 +1234,78 @@ void mcx_loadvolume(char *filename,Config *cfg){
      }
      if(cfg->mediabyte<4)
          free(inputvol);
+}
+
+
+/**
+ * @brief Load previously saved photon seeds from an .mch file for replay
+ *
+ * @param[in] cfg: simulation configuration
+ */
+
+void mcx_loadseedfile(Config *cfg){
+    History his;
+    FILE *fp=fopen(cfg->seedfile,"rb");
+    if(fp==NULL)
+        mcx_error(-7,"can not open the specified history file",__FILE__,__LINE__);
+    if(fread(&his,sizeof(History),1,fp)!=1)
+        mcx_error(-7,"error when reading the history file",__FILE__,__LINE__);
+    if(his.savedphoton==0 || his.seedbyte==0){
+	mcx_error(-7,"history file does not contain seed data, please re-run your simulation with '-q 1'",__FILE__,__LINE__);
+    }
+    if(his.maxmedia!=cfg->medianum-1)
+        mcx_error(-7,"the history file was generated with a different media setting",__FILE__,__LINE__);
+    if(fseek(fp,his.savedphoton*his.colcount*sizeof(float),SEEK_CUR))
+        mcx_error(-7,"illegal history file",__FILE__,__LINE__);
+    cfg->replay.seed=malloc(his.savedphoton*his.seedbyte);
+    if(cfg->replay.seed==NULL)
+        mcx_error(-7,"can not allocate memory",__FILE__,__LINE__);
+    if(fread(cfg->replay.seed,his.seedbyte,his.savedphoton,fp)!=his.savedphoton)
+        mcx_error(-7,"error when reading the seed data",__FILE__,__LINE__);
+    cfg->seed=SEED_FROM_FILE;
+    cfg->nphoton=his.savedphoton;
+
+    if(cfg->outputtype==otJacobian || cfg->outputtype==otWP || cfg->outputtype==otDCS ){ //cfg->replaydet>0
+       int i,j, hasdetid=0, offset;
+       float plen, *ppath;
+       hasdetid=SAVE_DETID(his.savedetflag);
+       offset=SAVE_NSCAT(his.savedetflag)*his.maxmedia;
+
+       if(((!hasdetid) && cfg->detnum>1) || !SAVE_PPATH(his.savedetflag))
+           mcx_error(-7,"please rerun the baseline simulation and save detector ID (D) and partial-path (P) using '-w DP'",__FILE__,__LINE__);
+
+       ppath=(float*)malloc(his.savedphoton*his.colcount*sizeof(float));
+       cfg->replay.weight=(float*)malloc(his.savedphoton*sizeof(float));
+       cfg->replay.tof=(float*)calloc(his.savedphoton,sizeof(float));
+       cfg->replay.detid=(int*)calloc(his.savedphoton,sizeof(int));
+       fseek(fp,sizeof(his),SEEK_SET);
+       if(fread(ppath,his.colcount*sizeof(float),his.savedphoton,fp)!=his.savedphoton)
+           mcx_error(-7,"error when reading the seed data",__FILE__,__LINE__);
+
+       cfg->nphoton=0;
+       for(i=0;i<his.savedphoton;i++)
+           if(cfg->replaydet<=0 || cfg->replaydet==(int)(ppath[i*his.colcount])){
+               if(i!=cfg->nphoton)
+                   memcpy((char *)(cfg->replay.seed)+cfg->nphoton*his.seedbyte, (char *)(cfg->replay.seed)+i*his.seedbyte, his.seedbyte);
+               cfg->replay.weight[cfg->nphoton]=1.f;
+               cfg->replay.detid[cfg->nphoton]=(hasdetid) ? (int)(ppath[i*his.colcount]): 1;
+               for(j=hasdetid;j<his.maxmedia+hasdetid;j++){
+	           plen=ppath[i*his.colcount+offset+j]*his.unitinmm;
+                   cfg->replay.weight[cfg->nphoton]*=expf(-cfg->prop[j-hasdetid+1].mua*plen);
+                   cfg->replay.tof[cfg->nphoton]+=plen*R_C0*cfg->prop[j-hasdetid+1].n;
+               }
+               if(cfg->replay.tof[cfg->nphoton]<cfg->tstart || cfg->replay.tof[cfg->nphoton]>cfg->tend) /*need to consider -g*/
+                   continue;
+               cfg->nphoton++;
+           }
+	free(ppath);
+        cfg->replay.seed=realloc(cfg->replay.seed, cfg->nphoton*his.seedbyte);
+        cfg->replay.weight=(float*)realloc(cfg->replay.weight, cfg->nphoton*sizeof(float));
+        cfg->replay.tof=(float*)realloc(cfg->replay.tof, cfg->nphoton*sizeof(float));
+        cfg->replay.detid=(int*)realloc(cfg->replay.detid, cfg->nphoton*sizeof(int));
+	cfg->minenergy=0.f;
+    }
+    fclose(fp);
 }
 
 void  mcx_convertrow2col(unsigned int **vol, uint4 *dim){
@@ -1441,7 +1594,9 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->isreflect),"char");
 		     	        break;
                      case 'B':
-                                i=mcx_readarg(argc,argv,i,&(cfg->isref3),"char");
+                                if(i<argc+1)
+				    strncpy(cfg->bc,argv[i+1],8);
+				i++;
                                	break;
 		     case 'd':
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->issavedet),"char");
@@ -1568,6 +1723,10 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                                      i=mcx_readarg(argc,argv,i,cfg->rootpath,"string");
                                 else if(strcmp(argv[i]+2,"atomic")==0)
 		                     i=mcx_readarg(argc,argv,i,&(cfg->isatomic),"int");
+                                else if(strcmp(argv[i]+2,"maxjumpdebug")==0)
+                                     i=mcx_readarg(argc,argv,i,&(cfg->maxjumpdebug),"int");
+                                else if(strcmp(argv[i]+2,"gscatter")==0)
+                                     i=mcx_readarg(argc,argv,i,&(cfg->gscatter),"int");
                                 else if(strcmp(argv[i]+2,"internalsrc")==0)
 		                     i=mcx_readarg(argc,argv,i,&(cfg->internalsrc),"int");
                                 else
@@ -1755,6 +1914,15 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -n [0|int]    (--photon)      total photon number (exponential form accepted)\n\
  -r [1|int]    (--repeat)      divide photons into r groups (1 per GPU call)\n\
  -b [1|0]      (--reflect)     1 to reflect photons at ext. boundary;0 to exit\n\
+ -B '______'   (--bc)          per-face boundary condition (BC), 6 letters for\n\
+    /case insensitive/         bounding box faces at -x,-y,-z,+x,+y,+z axes;\n\
+			       overwrite -b if given. \n\
+			       each letter can be one of the following:\n\
+			       '_': undefined, fallback to -b\n\
+			       'r': like -b 1, Fresnel reflection BC\n\
+			       'a': like -b 0, total absorption BC\n\
+			       'm': mirror or total reflection BC\n\
+			       'c': cyclic BC, enter from opposite face\n\
  -u [1.|float] (--unitinmm)    defines the length unit for the grid edge\n\
  -U [1|0]      (--normalize)   1 to normalize flux to unitary; 0 save raw\n\
  -E [0|int]    (--seed)        set random-number-generator seed, -1 to generate\n\
@@ -1837,9 +2005,15 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  --atomic       [1|0]          1: use atomic operations; 0: do not use atomics\n\
  --root         [''|string]    full path to the folder storing the input files\n\
  --internalsrc  [0|1]          set to 1 to skip entry search to speedup launch\n\
+ --gscatter     [1e9|int]      after a photon completes the specified number of\n\
+                               scattering events, mcx then ignores anisotropy g\n\
+                               and only performs isotropic scattering for speed\n\
  --maxvoidstep  [1000|int]     maximum distance (in voxel unit) of a photon that\n\
                                can travel before entering the domain, if \n\
                                launched outside (i.e. a widefield source)\n\
+ --maxjumpdebug [10000000|int] when trajectory is requested (i.e. -D M),\n\
+                               use this parameter to set the maximum positions\n\
+                               stored (default: 1e7)\n\
 \n"S_BOLD S_CYAN"\
 == Example ==\n"S_RESET"\
 example: (autopilot mode)\n"S_GREEN"\

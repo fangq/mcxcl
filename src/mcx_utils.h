@@ -24,10 +24,11 @@
 #define NII_HEADER_SIZE 352
 #define GL_RGBA32F 0x8814
 
-enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP};   /**< types of output */
+enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS};   /**< types of output */
 enum TMCXParent  {mpStandalone, mpMATLAB};
 enum TOutputFormat {ofMC2, ofNifti, ofAnalyze, ofUBJSON, ofTX3};
 enum TDeviceVendor {dvUnknown, dvNVIDIA, dvAMD, dvIntel, dvIntelGPU};
+enum TBoundary {bcUnknown, bcReflect, bcAbsorb, bcMirror, bcCylic};            /**< boundary conditions */
 
 typedef struct MCXMedium{
 	float mua;
@@ -55,6 +56,7 @@ typedef struct MCXHistoryHeader{
 } History;
 
 typedef struct PhotonReplay{
+	int   *detid;                 /**< pointer to the detector index */
 	void  *seed;
 	float *weight;
 	float *tof;
@@ -77,7 +79,7 @@ typedef struct MCXGPUInfo {
 } GPUInfo;
 
 typedef struct MCXConfig{
-	int nphoton;      /*(total simulated photon number) we now use this to 
+	size_t nphoton;      /*(total simulated photon number) we now use this to 
 	                     temporarily alias totalmove, as to specify photon
 			     number is causing some troubles*/
         unsigned int nblocksize;   /*thread block size*/
@@ -149,6 +151,7 @@ typedef struct MCXConfig{
 	int voidtime;                /**<1 start counting photon time when moves inside 0 voxels; 0: count time only after enters non-zero voxel*/
 	float4 srcparam1;            /**<a quadruplet {x,y,z,w} for additional source parameters*/
 	float4 srcparam2;            /**<a quadruplet {x,y,z,w} for additional source parameters*/
+	unsigned int srcnum;         /**<total number of pattern sources */
         float* srcpattern;           /**<a string for the source form, options include "pencil","isotropic", etc*/
         char deviceid[MAX_DEVICE];
 	float workload[MAX_DEVICE];
@@ -174,6 +177,7 @@ typedef struct MCXConfig{
 	int parentid;
         uint optlevel;
 	uint mediabyte;
+	char bc[8];                  /**<boundary condition flag for [-x,-y,-z,+x,+y,+z,unused,unused] */
 } Config;
 
 #ifdef	__cplusplus
@@ -193,7 +197,7 @@ void mcx_clearcfg(Config *cfg);
 void mcx_parsecmd(int argc, char* argv[], Config *cfg);
 void mcx_usage(Config *cfg,char *exename);
 void mcx_loadvolume(char *filename,Config *cfg);
-void mcx_normalize(float field[], float scale, int fieldlen, int option);
+void mcx_normalize(float field[], float scale, int fieldlen, int option, int pidx, int srcnum);
 int  mcx_readarg(int argc, char *argv[], int id, void *output,const char *type);
 void mcx_printlog(Config *cfg, const char *str);
 int  mcx_remap(char *opt);
@@ -213,7 +217,9 @@ void mcx_version(Config *cfg);
 int  mcx_isbinstr(const char * str);
 void mcx_progressbar(float percent, Config *cfg);
 void mcx_flush(Config *cfg);
-
+void mcx_loadseedfile(Config *cfg);
+void mcx_kahanSum(float *sum, float *kahanc, float input);
+float mcx_updatemua(unsigned int mediaid, Config *cfg);
 
 #ifdef MCX_CONTAINER
 #ifdef __cplusplus

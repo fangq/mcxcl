@@ -292,16 +292,28 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cl_mem *gfield,*gdetphoton,*gseed,*genergy;
      cl_mem *gprogress,*gdetected,*gdetpos, *gsrcpattern;
 
-     cl_uint dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z;
+     cl_uint dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z*((cfg->srctype==MCX_SRC_PATTERN || cfg->srctype==MCX_SRC_PATTERN3D) ? cfg->srcnum : 1);
 
      cl_uint  *media=(cl_uint *)(cfg->vol);
      cl_float  *field;
 
      cl_uint   *Pseed;
      float  *Pdet;
+     float  *srcpw=NULL,*energytot=NULL,*energyabs=NULL; // for multi-srcpattern
      char opt[MAX_PATH_LENGTH]={'\0'};
-     cl_uint detreclen=cfg->medianum+1+(cfg->issaveexit>0)*6;
      GPUInfo *gpu=NULL;
+
+     /*
+                                   |----------------------------------------------->  hostdetreclen  <--------------------------------------|
+                                             |------------------------>    partialdata   <-------------------|                               
+      host detected photon buffer: detid (1), partial_scat (#media), partial_path (#media), momontum (#media), p_exit (3), v_exit(3), w0 (1) 
+                                             |--------------------------------------------->    w0offset   <-------------------------------------||<----- w0 (#srcnum) ----->|
+       gpu detected photon buffer:            partial_scat (#media), partial_path (#media), momontum (#media), E_escape (1), E_launch (1), w0 (1), w0_photonsharing (#srcnum)
+     */
+     unsigned int partialdata=(cfg->medianum-1)*(SAVE_NSCAT(cfg->savedetflag)+SAVE_PPATH(cfg->savedetflag)+SAVE_MOM(cfg->savedetflag)); // buf len for media-specific data, copy from gpu to host
+     unsigned int w0offset=partialdata+3;    // offset for photon sharing buffer
+     unsigned int hostdetreclen=partialdata+SAVE_DETID(cfg->savedetflag)+3*(SAVE_PEXIT(cfg->savedetflag)+SAVE_VEXIT(cfg->savedetflag))+SAVE_W0(cfg->savedetflag); // host-side det photon data buffer length
+     unsigned int is2d=(cfg->dim.x==1 ? 1 : (cfg->dim.y==1 ? 2 : (cfg->dim.z==1 ? 3 : 0)));
 
      MCXParam param={{{cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z,1.f}},
 		     {{cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z,cfg->srcdir.w}},
@@ -313,8 +325,9 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                      cfg->medianum-1,cfg->detnum,0,0,0,0,(uint)cfg->voidtime,(uint)cfg->srctype,
 		     {{cfg->srcparam1.x,cfg->srcparam1.y,cfg->srcparam1.z,cfg->srcparam1.w}},
 		     {{cfg->srcparam2.x,cfg->srcparam2.y,cfg->srcparam2.z,cfg->srcparam2.w}},
-		     (uint)cfg->maxvoidstep,cfg->issaveexit>0,cfg->issaveref>0,cfg->maxgate,0,
-		     (uint)cfg->mediabyte,(uint)cfg->debuglevel};
+		     (uint)cfg->maxvoidstep,cfg->issaveexit>0,cfg->issaveseed>0,cfg->issaveref>0,cfg->maxgate,0,
+		     (uint)cfg->debuglevel, cfg->savedetflag,hostdetreclen,partialdata,w0offset,(uint)cfg->mediabyte,
+		     (uint)cfg->maxjumpdebug,cfg->gscatter,is2d,cfg->replaydet,cfg->srcnum};
 
      platform=mcx_list_gpu(cfg,&workdev,devices,&gpu);
 
@@ -385,7 +398,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	 if(gpu[i].autothread%gpu[i].autoblock)
      	    gpu[i].autothread=(gpu[i].autothread/gpu[i].autoblock)*gpu[i].autoblock;
          if(gpu[i].maxgate==0 && dimxyz>0){
-             int needmem=dimxyz+gpu[i].autothread*sizeof(float4)*4+sizeof(float)*cfg->maxdetphoton*detreclen+10*1024*1024; /*keep 10M for other things*/
+             int needmem=dimxyz+gpu[i].autothread*sizeof(float4)*4+sizeof(float)*cfg->maxdetphoton*hostdetreclen+10*1024*1024; /*keep 10M for other things*/
              gpu[i].maxgate=(gpu[i].globalmem-needmem)/dimxyz;
              gpu[i].maxgate=MIN(((cfg->tend-cfg->tstart)/cfg->tstep+0.5),gpu[i].maxgate);     
 	 }
@@ -406,7 +419,10 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate*2);
      Pdet=(float*)calloc(cfg->maxdetphoton,sizeof(float)*(cfg->medianum+1));
 
-     fieldlen=dimxyz*cfg->maxgate;
+     if(cfg->seed==SEED_FROM_FILE && cfg->replaydet==-1)
+         fieldlen=dimxyz*cfg->maxgate*cfg->detnum;
+     else
+         fieldlen=dimxyz*cfg->maxgate;
      cachebox.x=(cp1.x-cp0.x+1);
      cachebox.y=(cp1.y-cp0.y+1)*(cp1.x-cp0.x+1);
      dimlen.x=cfg->dim.x;
@@ -450,9 +466,9 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
        if(cfg->detpos)
            OCL_ASSERT(((gdetpos[i]=clCreateBuffer(mcxcontext,RO_MEM, cfg->detnum*sizeof(float4),cfg->detpos,&status),status)));
        if(cfg->srctype==MCX_SRC_PATTERN)
-           OCL_ASSERT(((gsrcpattern[i]=clCreateBuffer(mcxcontext,RO_MEM, sizeof(float)*(int)(cfg->srcparam1.w*cfg->srcparam2.w),cfg->srcpattern,&status),status)));
+           OCL_ASSERT(((gsrcpattern[i]=clCreateBuffer(mcxcontext,RO_MEM, sizeof(float)*(int)(cfg->srcparam1.w*cfg->srcparam2.w)*cfg->srcnum,cfg->srcpattern,&status),status)));
        else if(cfg->srctype==MCX_SRC_PATTERN3D)
-           OCL_ASSERT(((gsrcpattern[i]=clCreateBuffer(mcxcontext,RO_MEM, sizeof(float)*(int)(cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z),cfg->srcpattern,&status),status)));
+           OCL_ASSERT(((gsrcpattern[i]=clCreateBuffer(mcxcontext,RO_MEM, sizeof(float)*(int)(cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z)*cfg->srcnum,cfg->srcpattern,&status),status)));
        else
            gsrcpattern[i]=NULL;
        free(Pseed);
@@ -540,15 +556,23 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 9, sizeof(cl_mem), (void*)(gdetpos+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],10, sizeof(cl_mem), (void*)(gprogress))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],11, sizeof(cl_mem), (void*)(gdetected+i))));
-	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],12, cfg->issavedet? sizeof(int)+sizeof(cl_float)*cfg->nblocksize*param.maxmedia : sizeof(int), NULL)));
+	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],12, cfg->issavedet? gpu[i].autoblock*(sizeof(float)*(param.w0offset+cfg->srcnum)) : sizeof(int), NULL)));
      }
      MCX_FPRINTF(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);fflush(cfg->flog);
 
-     if(cfg->exportfield==NULL)
-         cfg->exportfield=(float *)calloc(sizeof(float)*cfg->dim.x*cfg->dim.y*cfg->dim.z,cfg->maxgate*2);
+     if(cfg->exportfield==NULL){
+         if(cfg->seed==SEED_FROM_FILE && cfg->replaydet==-1)
+             cfg->exportfield=(float *)calloc(sizeof(float)*dimxyz,cfg->maxgate*2*cfg->detnum);
+	 else
+             cfg->exportfield=(float *)calloc(sizeof(float)*dimxyz,cfg->maxgate*2);
+     }
      if(cfg->exportdetected==NULL)
-         cfg->exportdetected=(float*)malloc((cfg->medianum+1)*cfg->maxdetphoton*sizeof(float));
+         cfg->exportdetected=(float*)malloc(hostdetreclen*cfg->maxdetphoton*sizeof(float));
 
+     cfg->detectedcount=0;
+     cfg->his.detected=0;
+     cfg->his.respin=cfg->respin;
+     cfg->his.colcount=hostdetreclen;
      cfg->energytot=0.f;
      cfg->energyesc=0.f;
      cfg->runtime=0;
@@ -557,6 +581,8 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      cl_float Vvox;
      Vvox=cfg->steps.x*cfg->steps.y*cfg->steps.z;
+     memcpy(&(param.bc),cfg->bc,8);
+
      tic0=GetTimeMillis();
 
      for(t=cfg->tstart;t<cfg->tend;t+=cfg->tstep*cfg->maxgate){
@@ -626,7 +652,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
              if(cfg->issavedet){
                 OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetected[devid],CL_FALSE,0,sizeof(uint),
                                             &detected, 0, NULL, waittoread+devid)));
-                OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetphoton[devid],CL_TRUE,0,sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),
+                OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetphoton[devid],CL_TRUE,0,sizeof(float)*cfg->maxdetphoton*hostdetreclen,
 	                                        Pdet, 0, NULL, NULL)));
 		if(detected>cfg->maxdetphoton){
 			MCX_FPRINTF(cfg->flog,S_RED"WARNING: the detected photon (%d) \
@@ -638,8 +664,8 @@ is more than what your have specified (%d), please use the -H option to specify 
                 cfg->his.detected+=detected;
                 detected=MIN(detected,cfg->maxdetphoton);
 		if(cfg->exportdetected){
-                        cfg->exportdetected=(float*)realloc(cfg->exportdetected,(cfg->detectedcount+detected)*detreclen*sizeof(float));
-	                memcpy(cfg->exportdetected+cfg->detectedcount*(detreclen),Pdet,detected*(detreclen)*sizeof(float));
+                        cfg->exportdetected=(float*)realloc(cfg->exportdetected,(cfg->detectedcount+detected)*hostdetreclen*sizeof(float));
+	                memcpy(cfg->exportdetected+cfg->detectedcount*(hostdetreclen),Pdet,detected*(hostdetreclen)*sizeof(float));
                         cfg->detectedcount+=detected;
 		}
 	     }
@@ -709,33 +735,79 @@ is more than what your have specified (%d), please use the -H option to specify 
      if(cfg->runtime<toc)
            cfg->runtime=toc;
 
+     if(cfg->srctype==MCX_SRC_PATTERN && cfg->srcnum>1){// post-processing only for multi-srcpattern
+         srcpw=(float *)calloc(cfg->srcnum,sizeof(float));
+	 energytot=(float *)calloc(cfg->srcnum,sizeof(float));
+	 energyabs=(float *)calloc(cfg->srcnum,sizeof(float));
+	 uint psize=(int)cfg->srcparam1.w*(int)cfg->srcparam2.w;
+	 for(uint i=0;i<cfg->srcnum;i++){
+	     float kahanc=0.f;
+	     for(uint j=0;j<psize;j++)   
+	         mcx_kahanSum(&srcpw[i],&kahanc,cfg->srcpattern[j*cfg->srcnum+i]);
+	     energytot[i]=cfg->nphoton*srcpw[i]/(float)psize;
+	     kahanc=0.f;
+	     if(cfg->outputtype==otEnergy){
+	         int fieldlenPsrc=fieldlen/cfg->srcnum;
+	         for(int j=0;j<fieldlenPsrc;j++)
+		     mcx_kahanSum(&energyabs[i],&kahanc,cfg->exportfield[j*cfg->srcnum+i]);
+	     }else{
+	         for(uint j=0;j<cfg->maxgate;j++)
+		     for(uint k=0;k<dimlen.z;k++)
+		         mcx_kahanSum(&energyabs[i],&kahanc,cfg->exportfield[j*dimxyz+(k*cfg->srcnum+i)]*mcx_updatemua((uint)cfg->vol[j],cfg));
+	     }
+	 }
+     }
      if(cfg->isnormalized){
-	   float scale=1.f, mua;
-	   uint t;
-           MCX_FPRINTF(cfg->flog,"normalizing raw data ...\t");fflush(cfg->flog);
+	   float *scale=(float *)calloc(cfg->srcnum,sizeof(float));
+	   scale[0]=1.f;
+	   int isnormalized=0;
+           MCX_FPRINTF(cfg->flog,"normalizing raw data ...\t");
+           cfg->energyabs+=cfg->energytot-cfg->energyesc;
            if(cfg->outputtype==otFlux || cfg->outputtype==otFluence){
-               scale=1.f/(cfg->energytot*Vvox*cfg->tstep);
-	       if(cfg->unitinmm!=1.f)
-		   scale*=cfg->unitinmm; /* Vvox (in mm^3 already) * (Tstep) * (Eabsorp/U) */
+               scale[0]=cfg->unitinmm/(cfg->energytot*Vvox*cfg->tstep); /* Vvox (in mm^3 already) * (Tstep) * (Eabsorp/U) */
 
                if(cfg->outputtype==otFluence)
-		   scale*=cfg->tstep;
-               if(cfg->exportfield)
-	          for(t=0;t<cfg->maxgate;t++)
-	            for(i=0;i<dimxyz;i++){
-		        mua=cfg->prop[media[i] & MED_MASK].mua;
-			if(mua > 0.f)
-			    cfg->exportfield[t*dimxyz+i]/=mua;
-		    }
-	   }else if(cfg->outputtype==otEnergy || cfg->outputtype==otJacobian)
-	       scale=1.f/cfg->energytot;
-
-         cfg->normalizer=scale;
-	 cfg->his.normalizer=scale;
-         cfg->energyabs+=cfg->energytot-cfg->energyesc;
-
-	 MCX_FPRINTF(cfg->flog,"normalization factor alpha=%f\n",scale);  fflush(cfg->flog);
-         mcx_normalize(cfg->exportfield,scale,fieldlen,cfg->isnormalized);
+		   scale[0]*=cfg->tstep;
+	   }else if(cfg->outputtype==otEnergy)
+	       scale[0]=1.f/cfg->energytot;
+	   else if(cfg->outputtype==otJacobian || cfg->outputtype==otWP || cfg->outputtype==otDCS){
+	       if(cfg->seed==SEED_FROM_FILE && cfg->replaydet==-1){
+                   int detid;
+		   for(detid=1;detid<=(int)cfg->detnum;detid++){
+	               scale[0]=0.f; // the cfg->normalizer and cfg.his.normalizer are inaccurate in this case, but this is ok
+		       for(size_t i=0;i<cfg->nphoton;i++)
+		           if(cfg->replay.detid[i]==detid)
+	                       scale[0]+=cfg->replay.weight[i];
+	               if(scale[0]>0.f)
+	                   scale[0]=cfg->unitinmm/scale[0];
+                       MCX_FPRINTF(cfg->flog,"normalization factor for detector %d alpha=%f\n",detid, scale[0]);  fflush(cfg->flog);
+                       mcx_normalize(cfg->exportfield+(detid-1)*dimxyz*param.maxgate,scale[0],dimxyz*param.maxgate,cfg->isnormalized,0,1);
+		   }
+		   isnormalized=1;
+	       }else{
+	           scale[0]=0.f;
+	           for(size_t i=0;i<cfg->nphoton;i++)
+	               scale[0]+=cfg->replay.weight[i];
+	           if(scale[0]>0.f)
+                       scale[0]=cfg->unitinmm/scale[0];
+	       }
+           }
+	   if(cfg->srctype==MCX_SRC_PATTERN && cfg->srcnum>1){// post-processing only for multi-srcpattern
+	       float scaleref=scale[0];
+	       int psize=(int)cfg->srcparam1.w*(int)cfg->srcparam2.w;
+	       for(i=0;i<cfg->srcnum;i++){
+		   scale[i]=psize/srcpw[i]*scaleref;
+	       }
+	   }
+         cfg->normalizer=scale[0];
+	 cfg->his.normalizer=scale[0];
+         if(!isnormalized){
+	     for(i=0;i<cfg->srcnum;i++){
+                 MCX_FPRINTF(cfg->flog,"source %d, normalization factor alpha=%f\n",(i+1),scale[i]);  fflush(cfg->flog);
+	         mcx_normalize(cfg->exportfield,scale[i],fieldlen/cfg->srcnum,cfg->isnormalized,i,cfg->srcnum);
+	     }
+	 }
+	 free(scale);
      }
      if(cfg->issave2pt && cfg->parentid==mpStandalone){
          MCX_FPRINTF(cfg->flog,"saving data to file ... %d %d\t",fieldlen,cfg->maxgate);
@@ -751,7 +823,7 @@ is more than what your have specified (%d), please use the -H option to specify 
      }
 
      // total energy here equals total simulated photons+unfinished photons for all threads
-     MCX_FPRINTF(cfg->flog,"simulated %d photons (%d) with %d devices (repeat x%d)\nMCX simulation speed: "S_BOLD""S_BLUE"%.2f photon/ms"S_RESET"\n",
+     MCX_FPRINTF(cfg->flog,"simulated %ld photons (%ld) with %d devices (repeat x%d)\nMCX simulation speed: "S_BOLD""S_BLUE"%.2f photon/ms"S_RESET"\n",
              cfg->nphoton,cfg->nphoton,workdev, cfg->respin,(double)cfg->nphoton/toc);
      MCX_FPRINTF(cfg->flog,"total simulated energy: %.2f\tabsorbed: "S_BOLD""S_BLUE"%5.5f%%"S_RESET"\n(loss due to initial specular reflection is excluded in the total)\n",
              cfg->energytot,(cfg->energytot-cfg->energyesc)/cfg->energytot*100.f);
@@ -799,4 +871,7 @@ is more than what your have specified (%d), please use the -H option to specify 
      clReleaseEvent(kernelevent);
 #endif
      free(field);
+     free(srcpw);
+     free(energytot);
+     free(energyabs);
 }

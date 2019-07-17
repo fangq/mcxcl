@@ -78,11 +78,22 @@ typedef struct KernelParams {
   cl_float4 srcparam2;                  /**< source parameters set 2 */
   cl_uint   maxvoidstep;
   cl_uint   issaveexit;    /**<1 save the exit position and dir of a detected photon, 0 do not save*/
+  cl_uint   issaveseed;           /**< flag if one need to save the detected photon seeds for replay */
   cl_uint   issaveref;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
   cl_uint   maxgate;
   cl_uint   threadphoton;                  /**< how many photons to be simulated in a thread */
+  cl_uint   debuglevel;           /**< debug flags */
+  cl_uint   savedetflag;          /**< detected photon save flags */
+  cl_uint   reclen;               /**< length of buffer per detected photon */
+  cl_uint   partialdata;          /**< per-medium detected photon data length */
+  cl_uint   w0offset;             /**< photon-sharing buffer offset */
   cl_uint   mediaformat;          /**< format of the media buffer */
-  cl_uint debuglevel;           /**< debug flags */
+  cl_uint   maxjumpdebug;         /**< max number of positions to be saved to save photon trajectory when -D M is used */
+  cl_uint   gscatter;             /**< how many scattering events after which mus/g can be approximated by mus' */
+  cl_uint   is2d;                 /**< is the domain a 2D slice? */
+  cl_int    replaydet;                     /**< select which detector to replay, 0 for all, -1 save all separately */
+  cl_uint   srcnum;               /**< total number of source patterns */
+  cl_char   bc[8];               /**< boundary conditions */
 } MCXParam __attribute__ ((aligned (16)));
 
 void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy);

@@ -57,7 +57,9 @@
 #define SAME_VOXEL         -9999.f                 //scatter within a voxel
 #define NO_LAUNCH          9999                    //when fail to launch, for debug
 #define MAX_PROP           2000                     /*maximum property number*/
-#define OUTSIDE_VOLUME     0xFFFFFFFF              /**< flag indicating the index is outside of the volume */
+#define OUTSIDE_VOLUME_MIN 0xFFFFFFFF              /**< flag indicating the index is outside of the volume from x=xmax,y=ymax,z=zmax*/
+#define OUTSIDE_VOLUME_MAX 0x7FFFFFFF              /**< flag indicating the index is outside of the volume from x=0/y=0/z=0*/
+#define SEED_FROM_FILE      -999                   /**< special flag indicating to read seeds from an mch file for replay */
 
 #define DET_MASK           0x80000000              /**< mask of the sign bit to get the detector */
 #define MED_MASK           0x0000FFFF              /**< mask of the lower 16bit to get the medium index */
@@ -70,6 +72,36 @@
 #define MCX_DEBUG_PROGRESS  4
 
 #define MIN(a,b)           ((a)<(b)?(a):(b))
+
+#define MEDIA_AS_F2H          100  /**<  media format: {[float32: mua][float32: mus]} -> 32bit:{[half: mua],{half: mus}} */
+#define MEDIA_MUA_FLOAT       101  /**<  media format: 32bit:{[float32: mua]} */
+#define MEDIA_AS_HALF         102  /**<  media format: 32bit:{[half: mua],[half: mus]} */
+#define MEDIA_ASGN_BYTE       103  /**<  media format: 32bit:{[byte: mua],[byte: mus],[byte: g],[byte: n]} */
+#define MEDIA_AS_SHORT        104  /**<  media format: 32bit:{[short: mua],[short: mus]} */
+
+#define SAVE_DETID(a)         ((a)    & 0x1)   /**<  mask to save detector ID*/
+#define SAVE_NSCAT(a)         ((a)>>1 & 0x1)   /**<  output partial scattering counts */
+#define SAVE_PPATH(a)         ((a)>>2 & 0x1)   /**<  output partial path */
+#define SAVE_MOM(a)           ((a)>>3 & 0x1)   /**<  output momentum transfer */
+#define SAVE_PEXIT(a)         ((a)>>4 & 0x1)   /**<  save exit positions */
+#define SAVE_VEXIT(a)         ((a)>>5 & 0x1)   /**<  save exit vector/directions */
+#define SAVE_W0(a)            ((a)>>6 & 0x1)   /**<  save initial weight */
+
+#define SET_SAVE_DETID(a)     ((a) | 0x1   )   /**<  mask to save detector ID*/
+#define SET_SAVE_NSCAT(a)     ((a) | 0x1<<1)   /**<  output partial scattering counts */
+#define SET_SAVE_PPATH(a)     ((a) | 0x1<<2)   /**<  output partial path */
+#define SET_SAVE_MOM(a)       ((a) | 0x1<<3)   /**<  output momentum transfer */
+#define SET_SAVE_PEXIT(a)     ((a) | 0x1<<4)   /**<  save exit positions */
+#define SET_SAVE_VEXIT(a)     ((a) | 0x1<<5)   /**<  save exit vector/directions */
+#define SET_SAVE_W0(a)        ((a) | 0x1<<6)   /**<  save initial weight */
+
+#define UNSET_SAVE_DETID(a)     ((a) & ~(0x1)   )   /**<  mask to save detector ID*/
+#define UNSET_SAVE_NSCAT(a)     ((a) & ~(0x1<<1))   /**<  output partial scattering counts */
+#define UNSET_SAVE_PPATH(a)     ((a) & ~(0x1<<2))   /**<  output partial path */
+#define UNSET_SAVE_MOM(a)       ((a) & ~(0x1<<3))   /**<  output momentum transfer */
+#define UNSET_SAVE_PEXIT(a)     ((a) & ~(0x1<<4))   /**<  save exit positions */
+#define UNSET_SAVE_VEXIT(a)     ((a) & ~(0x1<<5))   /**<  save exit vector/directions */
+#define UNSET_SAVE_W0(a)        ((a) & ~(0x1<<6))   /**<  save initial weight */
 
 typedef struct KernelParams {
   float4 ps,c0;
@@ -97,13 +129,25 @@ typedef struct KernelParams {
   float4 srcparam2;                  /**< source parameters set 2 */
   uint   maxvoidstep;
   uint   issaveexit;    /**<1 save the exit position and dir of a detected photon, 0 do not save*/
+  uint   issaveseed;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
   uint   issaveref;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
   uint   maxgate;
   uint   threadphoton;                  /**< how many photons to be simulated in a thread */
-  uint   mediaformat;          /**< format of the media buffer */
   uint   debuglevel;           /**< debug flags */
+  uint   savedetflag;          /**< detected photon save flags */
+  uint   reclen;               /**< length of buffer per detected photon */
+  uint   partialdata;          /**< per-medium detected photon data length */
+  uint   w0offset;             /**< photon-sharing buffer offset */
+  uint   mediaformat;          /**< format of the media buffer */
+  uint   maxjumpdebug;         /**< max number of positions to be saved to save photon trajectory when -D M is used */
+  uint   gscatter;             /**< how many scattering events after which mus/g can be approximated by mus' */
+  uint   is2d;                 /**< is the domain a 2D slice? */
+  int    replaydet;                     /**< select which detector to replay, 0 for all, -1 save all separately */
+  uint   srcnum;               /**< total number of source patterns */
+  unsigned char bc[8];               /**< boundary conditions */
 } MCXParam __attribute__ ((aligned (32)));
 
+enum TBoundary {bcUnknown, bcReflect, bcAbsorb, bcMirror, bcCylic};            /**< boundary conditions */
 
 //#ifndef USE_XORSHIFT128P_RAND     // xorshift128+ is the default RNG
 #ifdef USE_LL5_RAND                 //enable the legacy Logistic Lattic RNG
@@ -228,7 +272,7 @@ float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
 
 /* function prototypes */
 
-void clearpath(__local float *p, __constant MCXParam *gcfg);
+void clearpath(__local float *p, int maxmediatype);
 float mcx_nextafterf(float a, int dir);
 float hitgrid(float4 *p0, float4 *v, FLOAT4VEC *htime, int *id);
 void rotatevector(float4 *v, float stheta, float ctheta, float sphi, float cphi);
@@ -242,7 +286,7 @@ void savedetphoton(__global float *n_det,__global uint *detectedphoton,float nsc
 #endif
 int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
            __global float *field, uint *mediaid,float *w0,float *Lmove,uint isdet, 
-	   __local float *ppath,float *energyloss,float *energylaunched,
+	   __local float *ppath,
 	   __global float *n_det,__global uint *dpnum, __private RandType t[RAND_BUF_LEN],
 	   __constant float4 *gproperty, __global const uint *media, __global float *srcpattern,
 	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, int threadphoton, 
@@ -260,9 +304,9 @@ inline float atomicadd(volatile __global float* address, const float value){
 }
 #endif
 
-void clearpath(__local float *p, __constant MCXParam *gcfg){
+void clearpath(__local float *p, int maxmediatype){
       uint i;
-      for(i=0;i<gcfg->maxmedia;i++)
+      for(i=0;i<maxmediatype;i++)
       	   p[i]=0.f;
 }
 
@@ -279,6 +323,17 @@ uint finddetector(float4 *p0,__constant float4 *gdetpos,__constant MCXParam *gcf
       return 0;
 }
 
+void saveexitppath(__global float *n_det,__local float *ppath,float4 *p0,uint *idx1d, __constant MCXParam *gcfg){
+      if(gcfg->issaveref>1){
+          if(*idx1d>=gcfg->maxdetphoton)
+	      return;
+          uint baseaddr=(*idx1d)*gcfg->reclen;
+	  n_det[baseaddr]+=p0->w;
+	  for(int i=0;i<gcfg->maxmedia;i++)
+		n_det[baseaddr+i]+=ppath[i]*p0->w;
+      }
+}
+
 void savedetphoton(__global float *n_det,__global uint *detectedphoton,float nscat,
                    __local float *ppath,float4 *p0,float4 *v,__constant float4 *gdetpos,__constant MCXParam *gcfg){
       uint detid=finddetector(p0,gdetpos,gcfg);
@@ -286,20 +341,23 @@ void savedetphoton(__global float *n_det,__global uint *detectedphoton,float nsc
 	 uint baseaddr=atomic_inc(detectedphoton);
 	 if(baseaddr<gcfg->maxdetphoton){
 	    uint i;
-	    baseaddr*=gcfg->maxmedia+2+gcfg->issaveexit*6;
-	    n_det[baseaddr++]=detid;
-	    n_det[baseaddr++]=nscat;
-	    for(i=0;i<gcfg->maxmedia;i++)
-		n_det[baseaddr+i]=ppath[i]; // save partial pathlength to the memory
-	    if(gcfg->issaveexit){
-                baseaddr+=gcfg->maxmedia;
-	        n_det[baseaddr++]=p0[0].x;
-		n_det[baseaddr++]=p0[0].y;
-		n_det[baseaddr++]=p0[0].z;
-		n_det[baseaddr++]=v[0].x;
-		n_det[baseaddr++]=v[0].y;
-		n_det[baseaddr++]=v[0].z;
+	    //for(i=0;i<gcfg->issaveseed*RAND_BUF_LEN;i++)
+	    //    seeddata[baseaddr*RAND_BUF_LEN+i]=t[i]; ///< save photon seed for replay
+	    baseaddr*=gcfg->reclen;
+	    if(SAVE_DETID(gcfg->savedetflag))
+	        n_det[baseaddr++]=detid;
+	    for(i=0;i<gcfg->partialdata;i++)
+		n_det[baseaddr++]=ppath[i]; ///< save partial pathlength to the memory
+            if(SAVE_PEXIT(gcfg->savedetflag)){
+	            *((__global float3*)(n_det+baseaddr))=(float3)(p0->x,p0->y,p0->z);
+		    baseaddr+=3;
 	    }
+	    if(SAVE_VEXIT(gcfg->savedetflag)){
+		    *((__global float3*)(n_det+baseaddr))=(float3)(v->x,v->y,v->z);
+		    baseaddr+=3;
+	    }
+	    if(SAVE_W0(gcfg->savedetflag))
+	        n_det[baseaddr++]=ppath[gcfg->w0offset-1];
 	 }
       }
 }
@@ -387,6 +445,54 @@ float hitgrid(float4 *p, float4 *v0, half4 *htime, int *id){
 
 #endif
 
+
+/**
+ * @brief Compute 2D-scattering if the domain has a dimension of 1 in x/y or z
+ *
+ * This function performs 2D scattering calculation if the domain is only a sheet of voxels
+ *
+ * @param[in,out] v: the direction vector of the photon
+ * @param[in] stheta: the sine of the rotation angle
+ * @param[in] ctheta: the cosine of the rotation angle
+ */
+
+void rotatevector2d(float4 *v, float stheta, float ctheta, int is2d){
+      if(is2d==1)
+   	  *((float4*)v)=(float4)(
+   	       0.f,
+	       v[0].y*ctheta - v[0].z*stheta,
+   	       v[0].y*stheta + v[0].z*ctheta,
+   	       v[0].w
+   	  );
+      else if(is2d==2)
+  	  *((float4*)v)=(float4)(
+	       v[0].x*ctheta - v[0].z*stheta,
+   	       0.f,
+   	       v[0].x*stheta + v[0].z*ctheta,
+   	       v[0].w
+   	  );
+      else if(is2d==3)
+  	  *((float4*)v)=(float4)(
+	       v[0].x*ctheta - v[0].y*stheta,
+   	       v[0].x*stheta + v[0].y*ctheta,
+   	       0.f,
+   	       v[0].w
+   	  );
+      GPUDEBUG(((__constant char*)"new dir: %10.5e %10.5e %10.5e\n",v[0].x,v[0].y,v[0].z));
+}
+
+/**
+ * @brief Compute 3D-scattering direction vector
+ *
+ * This function updates the direction vector after a 3D scattering event
+ *
+ * @param[in,out] v: the direction vector of the photon
+ * @param[in] stheta: the sine of the azimuthal angle
+ * @param[in] ctheta: the cosine of the azimuthal angle
+ * @param[in] sphi: the sine of the zenith angle
+ * @param[in] cphi: the cosine of the zenith angle
+ */
+
 void rotatevector(float4 *v, float stheta, float ctheta, float sphi, float cphi){
       if( v[0].z>-1.f+EPS && v[0].z<1.f-EPS ) {
    	  float tmp0=1.f-v[0].z*v[0].z;
@@ -457,21 +563,23 @@ float reflectcoeff(float4 *v, float n1, float n2, int flipdir){
  * @param[in] mediaid: the media ID (32 bit) of the current voxel, format is specified in gcfg->mediaformat or cfg->mediabyte
  */
  
-void updateproperty(FLOAT4VEC *prop, unsigned int mediaid,__constant float4 *gproperty){
+void updateproperty(FLOAT4VEC *prop, unsigned int mediaid,__constant float4 *gproperty,__constant MCXParam *gcfg){
 	  if(gcfg->mediaformat<=4)
 	      *((FLOAT4VEC*)(prop))=gproperty[mediaid & MED_MASK];
           else if(gcfg->mediaformat==MEDIA_MUA_FLOAT){
 	      prop->x=fabs(*((float *)&mediaid));
-              prop->w=gproperty[!(mediaid & MED_MASK)==0].w;
+              prop->w=gproperty[(!(mediaid & MED_MASK))==0].w;
+#ifdef USE_HALF
 	  }else if(gcfg->mediaformat==MEDIA_AS_F2H||gcfg->mediaformat==MEDIA_AS_HALF){
 	      union {
                  unsigned int i;
                  half h[2];
               } val;
 	      val.i=mediaid & MED_MASK;
-	      prop->x=fabs(__half2float(val.h[0]));
-	      prop->y=fabs(__half2float(val.h[1]));
-	      prop->w=gproperty[!(mediaid & MED_MASK)==0].w;
+	      prop->x=fabs(convert_float(val.h[0]));
+	      prop->y=fabs(convert_float(val.h[1]));
+	      prop->w=gproperty[(!(mediaid & MED_MASK))==0].w;
+#endif
 	  }else if(gcfg->mediaformat==MEDIA_ASGN_BYTE){
 	      union {
                  unsigned int i;
@@ -490,7 +598,7 @@ void updateproperty(FLOAT4VEC *prop, unsigned int mediaid,__constant float4 *gpr
 	      val.i=mediaid & MED_MASK;
 	      prop->x=val.h[0]*(1.f/65535.f)*(gproperty[2].x-gproperty[1].x)+gproperty[1].x;
 	      prop->y=val.h[1]*(1.f/65535.f)*(gproperty[2].y-gproperty[1].y)+gproperty[1].y;
-	      prop->w=gproperty[!(mediaid & MED_MASK)==0].w;
+	      prop->w=gproperty[(!(mediaid & MED_MASK))==0].w;
           }
 }
 
@@ -538,7 +646,7 @@ int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constan
 		    }
 		}
                 f[0].y = (gcfg->voidtime) ? f[0].y : 0.f;
-                updateproperty((FLOAT4VEC*)&htime,media[idx1d]);
+                updateproperty((FLOAT4VEC*)&htime,media[idx1d],gproperty,gcfg);
 
 		if(gproperty[media[idx1d] & MED_MASK].w!=gproperty[0].w){
 	            p[0].w*=1.f-reflectcoeff(v, gproperty[0].w,gproperty[media[idx1d] & MED_MASK].w,flipdir);
@@ -584,8 +692,6 @@ int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constan
  * @param[in,out] Lmove: photon movement length variable, reset to 0 after launch
  * @param[in] isdet: whether the previous photon being terminated lands at a detector
  * @param[in,out] ppath: pointer to the shared-mem buffer to store photon partial-path data
- * @param[in,out] energyloss: register variable to accummulate the escaped photon energy
- * @param[in,out] energylaunched: register variable to accummulate the total launched photon energy
  * @param[in,out] n_det: array in the constant memory where detector positions are stored
  * @param[in,out] dpnum: global-mem variable where the count of detected photons are stored
  * @param[in] t: RNG state
@@ -601,18 +707,12 @@ int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constan
 
 int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
            __global float *field, uint *mediaid,float *w0,float *Lmove,uint isdet, 
-	   __local float *ppath,float *energyloss,float *energylaunched,
+	   __local float *ppath,
 	   __global float *n_det,__global uint *dpnum, __private RandType t[RAND_BUF_LEN],
 	   __constant float4 *gproperty, __global const uint *media, __global float *srcpattern,
 	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, int threadphoton, 
 	   int oddphotons, __local int *blockphoton, volatile __global uint *gprogress){
 
-/*
-__device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,float4 *prop,uint *idx1d, float *field,
-           uint *mediaid,float *w0,float *Lmove,int isdet, float ppath[],float energyloss[],float energylaunched[],float n_det[],uint *dpnum,
-	   RandType t[RAND_BUF_LEN],RandType photonseed[RAND_BUF_LEN],
-	   uint media[],float srcpattern[],int threadid,RandType rngseed[],RandType seeddata[],float gdebugdata[],volatile int gprogress[]){
-*/
       *w0=1.f;     ///< reuse to count for launchattempt
       *Lmove=-1.f; ///< reuse as "canfocus" flag for each source: non-zero: focusable, zero: not focusable
       *prop=TOFLOAT4((float4)(gcfg->ps.x,gcfg->ps.y,gcfg->ps.z,0)); ///< reuse as the origin of the src, needed for focusable sources
@@ -621,29 +721,47 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
        * First, let's terminate the current photon and perform detection calculations
        */
       if(p[0].w>=0.f){
-          *energyloss+=p[0].w;  ///< sum all the remaining energy
+          ppath[gcfg->partialdata]+=p[0].w;  ///< sum all the remaining energy
+
 #ifdef GROUP_LOAD_BALANCE
           if(f[0].w<0.f || atomic_sub(blockphoton,1)<=1)
               return 1;
           if(blockphoton[0]<get_local_size(0) && get_local_id(0))
               f[0].w=-2.f;
 #endif
+
+          if(*mediaid==0 && *idx1d!=OUTSIDE_VOLUME_MIN && *idx1d!=OUTSIDE_VOLUME_MAX && gcfg->issaveref){
+            if(gcfg->issaveref==1){
+              int tshift=MIN((int)gcfg->maxgate-1,(int)(floor((f[0].y-gcfg->twin0)*gcfg->Rtstep)));
+#if !defined(MCX_SRC_PATTERN) && !defined(MCX_SRC_PATTERN3D)
+  #ifdef USE_ATOMIC
+                   atomicadd(& field[*idx1d+tshift*gcfg->dimlen.z],-p[0].w);	       
+  #else
+                   field[*idx1d+tshift*gcfg->dimlen.z]+=-p[0].w;
+  #endif
+#else
+		  for(int i=0;i<gcfg->srcnum;i++){
+		    if(ppath[gcfg->w0offset+i]>0.f){
+  #ifdef USE_ATOMIC
+                        atomicadd(& field[(*idx1d+tshift*gcfg->dimlen.z)*gcfg->srcnum+i],-p->w*ppath[gcfg->w0offset+i]);
+  #else
+	                field[(*idx1d+tshift*gcfg->dimlen.z)*gcfg->srcnum+i]+=-p->w*ppath[gcfg->w0offset+i];
+  #endif
+		    }
+		  }
+#endif
+             }else{
+                 saveexitppath(n_det,ppath,p,idx1d,gcfg);
+	     }
+	  }
 #ifdef MCX_SAVE_DETECTORS
       // let's handle detectors here
           if(gcfg->savedet){
-             if((isdet&DET_MASK)==DET_MASK && *mediaid==0)
+             if((isdet&DET_MASK)==DET_MASK && *mediaid==0 && gcfg->issaveref<2)
 	         savedetphoton(n_det,dpnum,v[0].w,ppath,p,v,gdetpos,gcfg);
-             clearpath(ppath,gcfg);
+             clearpath(ppath,gcfg->partialdata);
           }
 #endif
-          if(gcfg->issaveref && *mediaid==0 && *idx1d!=OUTSIDE_VOLUME){
-	       int tshift=MIN((int)gcfg->maxgate-1,(int)(floor((f[0].y-gcfg->twin0)*gcfg->Rtstep)));
-#ifdef USE_ATOMIC
-               atomicadd(& field[*idx1d+tshift*gcfg->dimlen.z],-p[0].w);	       
-#else
-	       field[*idx1d+tshift*gcfg->dimlen.z]+=-p[0].w;
-#endif
-	  }
       }
       /**
        * If the thread completes all assigned photons, terminate this thread.
@@ -653,6 +771,8 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
          return 1; // all photons complete 
 #endif
       
+      ppath+= gcfg->partialdata;
+
       /**
        * If this is a replay of a detected photon, initilize the RNG with the stored seed here.
        */
@@ -697,10 +817,27 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
 				       p[0].w);
     #endif
     #if defined(MCX_SRC_PATTERN)  // need to prevent rx/ry=1 here
-		  p[0].w=srcpattern[(int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w)];
+    	          if(gcfg->srcnum<=1){
+    		      p[0].w=srcpattern[(int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w)];
+    		      ppath[2]=p->w;
+    		  }else{
+    		    *((uint *)(ppath+2))=((int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w));
+    	            for(int i=0;i<gcfg->srcnum;i++)
+    		          ppath[i+3]=srcpattern[(*((uint *)(ppath+2)))*gcfg->srcnum+i];
+    		    p[0].w=1.f;
+		  }
     #elif defined(MCX_SRC_PATTERN3D)  // need to prevent rx/ry=1 here
-	          p[0].w=srcpattern[(int)(rz*JUST_BELOW_ONE*gcfg->srcparam1.z)*(int)(gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+
+    	          if(gcfg->srcnum<=1){
+                      p[0].w=srcpattern[(int)(rz*JUST_BELOW_ONE*gcfg->srcparam1.z)*(int)(gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+
 	                          (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.x)];
+    		      ppath[2]=p->w;
+    		  }else{
+    		      *((uint *)(ppath+2))=((int)(rz*JUST_BELOW_ONE*gcfg->srcparam1.z)*(int)(gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+
+    	                              (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.x));
+    	              for(int i=0;i<gcfg->srcnum;i++)
+    	                ppath[i+3]=srcpattern[(*((uint *)(ppath+2)))*gcfg->srcnum+i];
+    		    p[0].w=1.f;
+    		  }
     #elif defined(MCX_SRC_FOURIER)  // need to prevent rx/ry=1 here
 		  p[0].w=(MCX_MATHFUN(cos)((floor(gcfg->srcparam1.w)*rx+floor(gcfg->srcparam2.w)*ry
 			  +gcfg->srcparam1.w-floor(gcfg->srcparam1.w))*TWO_PI)*(1.f-gcfg->srcparam2.w+floor(gcfg->srcparam2.w))+1.f)*0.5f; //between 0 and 1
@@ -888,7 +1025,7 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
        * Now a photon is successfully launched, perform necssary initialization for a new trajectory
        */
       f[0].w+=1.f; 
-      updateproperty(prop,*mediaid,gproperty);
+      updateproperty(prop,*mediaid,gproperty,gcfg);
 
 /*
       if(gcfg->debuglevel & MCX_DEBUG_MOVE)
@@ -900,8 +1037,9 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
         loss. This is different from the wide-field MMC, where the 
         total launched energy includes the specular reflection loss
        */
-      *energylaunched+=p[0].w;
-      *w0=p[0].w;
+      ppath[1]+=p->w;
+      *w0=p->w;
+      ppath[2]=((gcfg->srcnum>1)? ppath[2] : p[0].w); // store initial weight
       v[0].w=EPS;
       *Lmove=0.f;
       
@@ -930,8 +1068,6 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      float4 p={0.f,0.f,0.f,-1.f};  //{x,y,z}: x,y,z coordinates,{w}:packet weight
      float4 v=gcfg->c0;  //{x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event
      float4 f={0.f,0.f,0.f,0.f};  //f.w can be dropped to save register
-     float  energyloss=genergy[idx<<1];
-     float  energylaunched=genergy[(idx<<1)+1];
 
      uint idx1d, idx1dold;   //idx1dold is related to reflection
 
@@ -943,7 +1079,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
      RandType t[RAND_BUF_LEN];
      FLOAT4VEC prop;    //can become float2 if no reflection
 
-     __local float *ppath=sharedmem+get_local_id(0)*gcfg->maxmedia;
+     __local float *ppath=sharedmem+get_local_size(0)*(gcfg->issaveseed*RAND_BUF_LEN*sizeof(RandType));
      __local int   blockphoton[1];
 
 #ifdef GROUP_LOAD_BALANCE
@@ -953,13 +1089,16 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 #endif
 
 #ifdef  MCX_SAVE_DETECTORS
-     if(gcfg->savedet) clearpath(ppath,gcfg);
+     ppath+=get_local_id(0)*(gcfg->w0offset + gcfg->srcnum); // block#2: maxmedia*thread number to store the partial
+     if(gcfg->savedet) clearpath(ppath,gcfg->w0offset + gcfg->srcnum);
+     ppath[gcfg->partialdata]  =genergy[idx<<1];
+     ppath[gcfg->partialdata+1]=genergy[(idx<<1)+1];
 #endif
 
      gpu_rng_init(t,n_seed,idx);
 
      if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,0,ppath,
-		      &energyloss,&energylaunched,n_det,detectedphoton,t,gproperty,
+		      n_det,detectedphoton,t,gproperty,
 		      media,srcpattern,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton,gprogress)){
          n_seed[idx]=NO_LAUNCH;
          return;
@@ -1003,14 +1142,28 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                            MCX_SINCOS(theta,stheta,ctheta);
                        }
                        GPUDEBUG(((__constant char*)"scat theta=%f\n",theta));
-                       rotatevector(&v,stheta,ctheta,sphi,cphi);
+#ifdef SAVE_DETECTORS
+                       if(SAVE_NSCAT(gcfg->savedetflag))
+		           ppath[(mediaid & MED_MASK)-1]++;
+	               /** accummulate momentum transfer */
+                       if(SAVE_MOM(gcfg->savedetflag))
+	                   ppath[gcfg->maxmedia*(SAVE_NSCAT(gcfg->savedetflag)+SAVE_PPATH(gcfg->savedetflag))+(mediaid & MED_MASK)-1]+=1.f-ctheta;
+#endif
+                       /** Update direction vector with the two random angles */
+		       if(gcfg->is2d)
+		           rotatevector2d(&v,(rand_next_aangle(t)>0.5f ? stheta: -stheta),ctheta,gcfg->is2d);
+		       else
+                           rotatevector(&v,stheta,ctheta,sphi,cphi);
                        v.w+=1.f;
+
+                       //if(gcfg->debuglevel & MCX_DEBUG_MOVE)
+                       //    savedebugdata(&p,(uint)f.ndone+idx*gcfg->threadphoton+umin(idx,(idx<gcfg->oddphotons)*idx),gdebugdata);
 	       }
 	       v.w=(int)v.w;
 	  }
 
 	  n1=prop.w;
-	  updateproperty(&prop,mediaid,gproperty);
+	  updateproperty(&prop,mediaid,gproperty,gcfg);
 
           FLOAT4VEC htime;            //reflection var
 	  f.z=hitgrid(&p, &v, &htime, &flipdir);
@@ -1032,8 +1185,8 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           GPUDEBUG(((__constant char*)"update p=[%f %f %f] -> f.z=%f\n",p.x,p.y,p.z,f.z));
 
 #ifdef MCX_SAVE_DETECTORS
-          if(gcfg->savedet)
-	      ppath[(mediaid & MED_MASK)-1]+=f.z; //(unit=grid)
+          if(gcfg->savedet && SAVE_PPATH(gcfg->savedetflag))
+	      ppath[gcfg->maxmedia*(SAVE_NSCAT(gcfg->savedetflag))+(mediaid & MED_MASK)-1]+=f.z; //(unit=grid)
 #endif
 
           mediaidold=mediaid | isdet;
@@ -1048,12 +1201,15 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           mediaid &= MED_MASK;
 #else
           if(any(isless(p.xyz,(float3)(0.f))) || any(isgreaterequal(p.xyz,(gcfg->maxidx.xyz)))){
+              /** if photon moves outside of the volume, set mediaid to 0 */
 	      mediaid=0;
-	      idx1d=OUTSIDE_VOLUME;
+	      isdet=gcfg->bc[(!(p.x<0.f||p.y<0.f||p.z<0.f))*3+flipdir];  /** isdet now stores the boundary condition flag, this will be overwriten before the end of the loop */
+              GPUDEBUG(("moving outside: [%f %f %f], idx1d [%d]->[out], bcflag %d\n",p.x,p.y,p.z,idx1d,isdet));
+	      idx1d=(p.x<0.f||p.y<0.f||p.z<0.f) ? OUTSIDE_VOLUME_MIN : OUTSIDE_VOLUME_MAX;
 	  }else{
               mediaid=media[idx1d];
-              isdet=mediaid & DET_MASK;
-              mediaid &= MED_MASK;
+	      isdet=mediaid & DET_MASK;  /** upper 16bit is the mask of the covered detector */
+	      mediaid &= MED_MASK;       /** lower 16bit is the medium index */
           }
 #endif
 
@@ -1067,6 +1223,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 #ifndef USE_ATOMIC
                   field[idx1dold+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z]+=w0-p.w;
 #else
+  #if !defined(MCX_SRC_PATTERN) && !defined(MCX_SRC_PATTERN3D)
                   int tshift=(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep));
 		  float oldval=atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], w0-p.w);
 		  if(oldval>MAX_ACCUM){
@@ -1075,16 +1232,46 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 			else
 			    atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z+gcfg->dimlen.w], oldval);
 		  }
+  #else
+                  int tshift=(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep));
+		  for(int i=0;i<gcfg->srcnum;i++){
+		      if(ppath[gcfg->w0offset+i]>0.f){
+		          float oldval=atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+], w0-p.w);
+			  if(oldval>MAX_ACCUM){
+				if(atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+], -oldval)<0.f)
+				    atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+], oldval);
+				else
+				    atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum++gcfg->dimlen.w], oldval);
+			  }
+		      }
+		  }
+  #endif
                   GPUDEBUG(((__constant char*)"atomic write to [%d] %e, w=%f\n",idx1dold,w0,p.w));
 #endif
 	     }
 	     w0=p.w;
 	  }
-
-          if((mediaid==0 && (!gcfg->doreflect || (gcfg->doreflect && n1==gproperty[mediaid & MED_MASK].w))) || f.y>gcfg->twin1){
+	  /** launch new photon when exceed time window or moving from non-zero voxel to zero voxel without reflection */
+          if((mediaid==0 && (((isdet & 0xF)==0 && (!gcfg->doreflect || (gcfg->doreflect && n1==gproperty[0].w))) || (isdet==bcAbsorb || isdet==bcCylic) )) || f.y>gcfg->twin1){
+		  if(isdet==bcCylic){
+                     if(flipdir==0) 
+		         p.x=mcx_nextafterf(convert_float_rte(p.x+((idx1d==OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.x: -gcfg->maxidx.x)),(v.x > 0.f)-(v.x < 0.f));
+                     if(flipdir==1)
+		         p.y=mcx_nextafterf(convert_float_rte(p.y+((idx1d==OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.y: -gcfg->maxidx.y)),(v.y > 0.f)-(v.y < 0.f));
+                     if(flipdir==2)
+		         p.z=mcx_nextafterf(convert_float_rte(p.z+((idx1d==OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.z: -gcfg->maxidx.z)),(v.z > 0.f)-(v.z < 0.f));
+		     if(any(isless(p.xyz,(float3)(0.f))) || any(isgreaterequal(p.xyz,(gcfg->maxidx.xyz)))) {
+                	 idx1d=((int)(floor(p.z))*gcfg->dimlen.y+(int)(floor(p.y))*gcfg->dimlen.x+(int)(floor(p.x)));
+	        	 mediaid=media[idx1d];
+	        	 isdet=mediaid & DET_MASK;  /** upper 16bit is the mask of the covered detector */
+	        	 mediaid &= MED_MASK;       /** lower 16bit is the medium index */
+                	 GPUDEBUG(("Cylic boundary condition, moving photon in dir %d at %d flag, new pos=[%f %f %f]\n",flipdir,isdet,p.x,p.y,p.z));
+	        	 continue;
+		     }
+		  }
                   GPUDEBUG(((__constant char*)"direct relaunch at idx=[%d] mediaid=[%d], ref=[%d]\n",idx1d,mediaid,gcfg->doreflect));
 		  if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),ppath,
-		      &energyloss,&energylaunched,n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton,gprogress)){ 
+		      n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton,gprogress)){ 
                          break;
 		  }
                   isdet=mediaid & DET_MASK;
@@ -1097,7 +1284,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	          float Rtotal=1.f;
                   float cphi,sphi,stheta,ctheta;
 
-                  updateproperty(&prop,mediaid,gproperty); ///< optical property across the interface  
+                  updateproperty(&prop,mediaid,gproperty,gcfg); ///< optical property across the interface  
 
                   float tmp0=n1*n1;
                   float tmp1=prop.w*prop.w;
@@ -1120,7 +1307,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
                         if(mediaid==0){ // transmission to external boundary
                             GPUDEBUG(((__constant char*)"transmit to air, relaunch\n"));
 		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),
-			        ppath,&energyloss,&energylaunched,n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton,gprogress)){
+			        ppath,n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,nphoton,ophoton,blockphoton,gprogress)){
                                     break;
 			    }
                             isdet=mediaid & DET_MASK;
@@ -1140,13 +1327,13 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	                GPUDEBUG(((__constant char*)"ref p_new=[%f %f %f] v_new=[%f %f %f]\n",p.x,p.y,p.z,v.x,v.y,v.z));
                 	idx1d=idx1dold;
 		 	mediaid=(media[idx1d] & MED_MASK);
-			updateproperty(&prop,mediaid,gproperty); ///< optical property across the interface
+			updateproperty(&prop,mediaid,gproperty,gcfg); ///< optical property across the interface
 			n1=prop.w;
 		  }
               }
 #endif
      }
-     genergy[idx<<1]=energyloss;
-     genergy[(idx<<1)+1]=energylaunched;
+     genergy[idx<<1]    =ppath[gcfg->partialdata];
+     genergy[(idx<<1)+1]=ppath[gcfg->partialdata+1];
 }
 
