@@ -80,7 +80,8 @@ typedef struct KernelParams {
   cl_uint   issaveexit;    /**<1 save the exit position and dir of a detected photon, 0 do not save*/
   cl_uint   issaveref;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
   cl_uint   maxgate;
-  cl_uint threadphoton;                  /**< how many photons to be simulated in a thread */
+  cl_uint   threadphoton;                  /**< how many photons to be simulated in a thread */
+  cl_uint   mediaformat;          /**< format of the media buffer */
   cl_uint debuglevel;           /**< debug flags */
 } MCXParam __attribute__ ((aligned (16)));
 

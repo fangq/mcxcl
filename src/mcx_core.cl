@@ -100,6 +100,7 @@ typedef struct KernelParams {
   uint   issaveref;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
   uint   maxgate;
   uint   threadphoton;                  /**< how many photons to be simulated in a thread */
+  uint   mediaformat;          /**< format of the media buffer */
   uint   debuglevel;           /**< debug flags */
 } MCXParam __attribute__ ((aligned (32)));
 
@@ -446,6 +447,53 @@ float reflectcoeff(float4 *v, float n1, float n2, int flipdir){
       }
 }
 
+/**
+ * @brief Loading optical properties from constant memory
+ *
+ * This function parses the media input and load optical properties
+ * from GPU memory
+ *
+ * @param[out] prop: pointer to the current optical properties {mua, mus, g, n}
+ * @param[in] mediaid: the media ID (32 bit) of the current voxel, format is specified in gcfg->mediaformat or cfg->mediabyte
+ */
+ 
+void updateproperty(FLOAT4VEC *prop, unsigned int mediaid,__constant float4 *gproperty){
+	  if(gcfg->mediaformat<=4)
+	      *((FLOAT4VEC*)(prop))=gproperty[mediaid & MED_MASK];
+          else if(gcfg->mediaformat==MEDIA_MUA_FLOAT){
+	      prop->x=fabs(*((float *)&mediaid));
+              prop->w=gproperty[!(mediaid & MED_MASK)==0].w;
+	  }else if(gcfg->mediaformat==MEDIA_AS_F2H||gcfg->mediaformat==MEDIA_AS_HALF){
+	      union {
+                 unsigned int i;
+                 half h[2];
+              } val;
+	      val.i=mediaid & MED_MASK;
+	      prop->x=fabs(__half2float(val.h[0]));
+	      prop->y=fabs(__half2float(val.h[1]));
+	      prop->w=gproperty[!(mediaid & MED_MASK)==0].w;
+	  }else if(gcfg->mediaformat==MEDIA_ASGN_BYTE){
+	      union {
+                 unsigned int i;
+                 unsigned char h[4];
+              } val;
+	      val.i=mediaid & MED_MASK;
+	      prop->x=val.h[0]*(1.f/255.f)*(gproperty[2].x-gproperty[1].x)+gproperty[1].x;
+	      prop->y=val.h[1]*(1.f/255.f)*(gproperty[2].y-gproperty[1].y)+gproperty[1].y;
+	      prop->z=val.h[2]*(1.f/255.f)*(gproperty[2].z-gproperty[1].z)+gproperty[1].z;
+	      prop->w=val.h[3]*(1.f/127.f)*(gproperty[2].w-gproperty[1].w)+gproperty[1].w;
+          }else if(gcfg->mediaformat==MEDIA_AS_SHORT){
+	      union {
+                 unsigned int i;
+                 unsigned short h[2];
+              } val;
+	      val.i=mediaid & MED_MASK;
+	      prop->x=val.h[0]*(1.f/65535.f)*(gproperty[2].x-gproperty[1].x)+gproperty[1].x;
+	      prop->y=val.h[1]*(1.f/65535.f)*(gproperty[2].y-gproperty[1].y)+gproperty[1].y;
+	      prop->w=gproperty[!(mediaid & MED_MASK)==0].w;
+          }
+}
+
 #ifndef INTERNAL_SOURCE
 
 /**
@@ -490,6 +538,7 @@ int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constan
 		    }
 		}
                 f[0].y = (gcfg->voidtime) ? f[0].y : 0.f;
+                updateproperty((FLOAT4VEC*)&htime,media[idx1d]);
 
 		if(gproperty[media[idx1d] & MED_MASK].w!=gproperty[0].w){
 	            p[0].w*=1.f-reflectcoeff(v, gproperty[0].w,gproperty[media[idx1d] & MED_MASK].w,flipdir);
@@ -839,7 +888,8 @@ __device__ inline int launchnewphoton(float4 *p,float4 *v,float4 *f,float3* rv,f
        * Now a photon is successfully launched, perform necssary initialization for a new trajectory
        */
       f[0].w+=1.f; 
-      prop[0]=TOFLOAT4(gproperty[*mediaid & MED_MASK]); //always use mediaid to read gproperty[]
+      updateproperty(prop,*mediaid,gproperty);
+
 /*
       if(gcfg->debuglevel & MCX_DEBUG_MOVE)
           savedebugdata(p,(uint)f[0].w+threadid*gcfg->threadphoton+umin(threadid,(threadid<gcfg->oddphotons)*threadid),gdebugdata);
@@ -960,7 +1010,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	  }
 
 	  n1=prop.w;
-	  prop=TOFLOAT4(gproperty[mediaid & MED_MASK]);
+	  updateproperty(&prop,mediaid,gproperty);
 
           FLOAT4VEC htime;            //reflection var
 	  f.z=hitgrid(&p, &v, &htime, &flipdir);
@@ -1043,11 +1093,11 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
           }
 #ifdef MCX_DO_REFLECTION
           //if hit the boundary, exceed the max time window or exit the domain, rebound or launch a new one
-          if(gcfg->doreflect && n1!=gproperty[mediaid & MED_MASK].w){
+	  if(((gcfg->doreflect && (isdet & 0xF)==0) || (isdet & 0x1)) && n1!=gproperty[(mediaid>0 && gcfg->mediaformat>=100)?1:mediaid].w){
 	          float Rtotal=1.f;
                   float cphi,sphi,stheta,ctheta;
 
-                  *((float4*)(&prop))=gproperty[mediaid & MED_MASK]; // optical property across the interface
+                  updateproperty(&prop,mediaid,gproperty); ///< optical property across the interface  
 
                   float tmp0=n1*n1;
                   float tmp1=prop.w*prop.w;
@@ -1090,7 +1140,7 @@ __kernel void mcx_main_loop(const int nphoton, const int ophoton,__global const 
 	                GPUDEBUG(((__constant char*)"ref p_new=[%f %f %f] v_new=[%f %f %f]\n",p.x,p.y,p.z,v.x,v.y,v.z));
                 	idx1d=idx1dold;
 		 	mediaid=(media[idx1d] & MED_MASK);
-			prop=TOFLOAT4(gproperty[mediaid]);
+			updateproperty(&prop,mediaid,gproperty); ///< optical property across the interface
 			n1=prop.w;
 		  }
               }

@@ -48,7 +48,10 @@ typedef struct MCXHistoryHeader{
 	float unitinmm;
 	unsigned int  seedbyte;
         float normalizer;              /**< what is the normalization factor */
-	int reserved[5];
+	int respin;                    /**< if positive, repeat count so total photon=totalphoton*respin; if negative, total number is processed in respin subset */
+	unsigned int  srcnum;          /**< number of sources for simultaneous pattern sources */
+	unsigned int  savedetflag;     /**< number of sources for simultaneous pattern sources */
+	int reserved[2];               /**< reserved fields for future extension */
 } History;
 
 typedef struct PhotonReplay{
@@ -120,6 +123,7 @@ typedef struct MCXConfig{
 	char iscpu;         /*1 use CPU for simulation, 0 use GPU*/
 	char isverbose;     /*1 print debug info, 0 do not*/
 	char issrcfrom0;    /*1 do not subtract 1 from src/det positions, 0 subtract 1*/
+        char ismomentum;             /**<1 to save momentum transfer for detected photons, implies issavedet=1*/
 	char internalsrc;   /*1 all photons launch positions are inside non-zero voxels, 0 let mcx search entry point*/
         char isdumpmask;    /*1 dump detector mask; 0 not*/
 	char issaveseed;             /**<1 save the seed for a detected photon, 0 do not save*/
@@ -163,6 +167,7 @@ typedef struct MCXConfig{
 	unsigned int debugdatalen;   /**<max number of photon trajectory position length*/
 	unsigned int gscatter;       /**<after how many scattering events that we can use mus' instead of mus */
 	float *exportdebugdata;      /**<pointer to the buffer where the photon trajectory data are stored*/
+        unsigned int savedetflag;    /**<a flag to control the output fields of detected photon data*/
 
 	unsigned int detectedcount; /**<total number of detected photons*/
 	unsigned int runtime;

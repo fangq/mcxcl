@@ -58,7 +58,7 @@
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W','z',
                  'd','r','S','p','e','U','R','l','L','M','I','-','o','c','k','v','J',
-                 'A','P','E','F','H','-','u','-','x','X','-','\0'};
+                 'A','P','E','F','H','K','u','-','x','X','-','w','\0'};
 
 /**
  * Long command line options
@@ -72,7 +72,8 @@ const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--normalize","--skipradius","--log","--listgpu","--dumpmask",
                  "--printgpu","--root","--optlevel","--cpu","--kernel","--verbose","--compileropt",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
-		 "--mediabyte","--unitinmm","--atomic","--saveexit","--saveref","--internalsrc",""};
+		 "--mediabyte","--unitinmm","--atomic","--saveexit","--saveref",
+		 "--internalsrc","savedetflag",""};
 
 /**
  * Debug flags
@@ -105,8 +106,19 @@ char flagset[256]={'\0'};
          char pathsep='/';
 #endif
 
+const char saveflag[]={'D','S','P','M','X','V','W','\0'};
+
 const char outputtype[]={'x','f','e','j','p','\0'};
 const char *outputformat[]={"mc2","nii","hdr","ubj","tx3",""};
+
+
+/**
+ * Media byte format
+ * User can specify the source type using a string
+ */
+
+const unsigned int mediaformatid[]={1,2,4,100,101,102,103,104,0};
+const char *mediaformat[]={"byte","short","integer","muamus_float","mua_float","muamus_half","asgn_byte","muamus_short",""};
 
 void mcx_initcfg(Config *cfg){
      cfg->medianum=0;
@@ -146,6 +158,9 @@ void mcx_initcfg(Config *cfg){
      cfg->iscpu=0;
      cfg->isverbose=0;
      cfg->internalsrc=0;
+     cfg->savedetflag=0x5;
+     cfg->his.savedetflag=cfg->savedetflag;
+     cfg->ismomentum=0;
 
      cfg->srctype=0;;         /** use pencil beam as default source type */
      cfg->maxvoidstep=1000;
@@ -643,7 +658,8 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      mcx_prepdomain(filename,cfg);
      cfg->his.maxmedia=cfg->medianum-1; /*skip media 0*/
      cfg->his.detnum=cfg->detnum;
-     cfg->his.colcount=cfg->medianum+1+(cfg->issaveexit)*6; /*column count=maxmedia+2*/
+     cfg->his.savedetflag=cfg->savedetflag;
+     //cfg->his.colcount=cfg->medianum+1+(cfg->issaveexit)*6; /*column count=maxmedia+2*/
 
      if(in==stdin)
      	fprintf(stdout,"Please specify the source type[pencil|cone|gaussian]:\n\t");
@@ -745,6 +761,25 @@ void mcx_prepdomain(char *filename, Config *cfg){
      for(int i=0;i<MAX_DEVICE;i++)
         if(cfg->deviceid[i]=='0')
            cfg->deviceid[i]='\0';
+	   
+     if((cfg->mediabyte==MEDIA_AS_F2H || cfg->mediabyte==MEDIA_MUA_FLOAT || cfg->mediabyte==MEDIA_AS_HALF) && cfg->medianum<2)
+         MCX_ERROR(-4,"the 'prop' field must contain at least 2 rows for the requested media format");
+     if((cfg->mediabyte==MEDIA_ASGN_BYTE || cfg->mediabyte==MEDIA_AS_SHORT) && cfg->medianum<3)
+         MCX_ERROR(-4,"the 'prop' field must contain at least 3 rows for the requested media format");
+
+     if(cfg->ismomentum)
+         cfg->savedetflag=SET_SAVE_MOM(cfg->savedetflag);
+     if(cfg->issaveexit){
+         cfg->savedetflag=SET_SAVE_PEXIT(cfg->savedetflag);
+	 cfg->savedetflag=SET_SAVE_VEXIT(cfg->savedetflag);
+     }
+     if(cfg->issavedet && cfg->savedetflag==0)
+         cfg->savedetflag=0x5;
+     if(cfg->mediabyte>=100){
+	 cfg->savedetflag=UNSET_SAVE_NSCAT(cfg->savedetflag);
+	 cfg->savedetflag=UNSET_SAVE_PPATH(cfg->savedetflag);
+	 cfg->savedetflag=UNSET_SAVE_MOM(cfg->savedetflag);
+     }
 }
 
 int mcx_loadjson(cJSON *root, Config *cfg){
@@ -772,6 +807,15 @@ int mcx_loadjson(cJSON *root, Config *cfg){
           }else{
 	     strncpy(filename,volfile,MAX_PATH_LENGTH);
 	  }
+	}
+	if(!flagset['K']){
+	    val=FIND_JSON_OBJ("MediaFormat","Domain.MediaFormat",Domain);
+	    if(val){
+                cfg->mediabyte=mcx_keylookup((char*)FIND_JSON_KEY("MediaFormat","Domain.MediaFormat",Domain,"byte",valuestring),mediaformat);
+	        if(cfg->mediabyte==-1)
+	           MCX_ERROR(-1,"Unsupported media format.");
+	        cfg->mediabyte=mediaformatid[cfg->mediabyte];
+	    }
 	}
         if(!flagset['u'])
 	    cfg->unitinmm=FIND_JSON_KEY("LengthUnit","Domain.LengthUnit",Domain,1.f,valuedouble);
@@ -990,6 +1034,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
 */
         if(!flagset['A'])  cfg->autopilot=FIND_JSON_KEY("DoAutoThread","Session.DoAutoThread",Session,cfg->autopilot,valueint);
 	if(!flagset['D'])  cfg->debuglevel=mcx_parsedebugopt(FIND_JSON_KEY("Debug","Session.Debug",Session,"",valuestring),debugflag);
+	cfg->savedetflag=mcx_parsedebugopt(FIND_JSON_KEY("SaveDataMask","Session.SaveDataMask",Session,"",valuestring),saveflag);
 
         if(!cfg->outputformat)  cfg->outputformat=mcx_keylookup((char *)FIND_JSON_KEY("OutputFormat","Session.OutputFormat",Session,"mc2",valuestring),outputformat);
         if(cfg->outputformat<0)
@@ -1033,7 +1078,8 @@ int mcx_loadjson(cJSON *root, Config *cfg){
      mcx_prepdomain(filename,cfg);
      cfg->his.maxmedia=cfg->medianum-1; /*skip media 0*/
      cfg->his.detnum=cfg->detnum;
-     cfg->his.colcount=cfg->medianum+1+(cfg->issaveexit)*6; /*column count=maxmedia+2*/
+     cfg->his.savedetflag=cfg->savedetflag;
+     //cfg->his.colcount=cfg->medianum+1+(cfg->issaveexit)*6; /*column count=maxmedia+2*/
      return 0;
 }
 
@@ -1469,6 +1515,12 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
  		                i=mcx_readarg(argc,argv,i,&(cfg->issaveref),"char");
  				if (cfg->issaveref) cfg->issaveref=1;
  				break;
+		     case 'w':
+			        if(i+1<argc && isalpha(argv[i+1][0]) ){
+				    cfg->savedetflag=mcx_parsedebugopt(argv[++i],saveflag);
+			        }else
+				    i=mcx_readarg(argc,argv,i,&(cfg->savedetflag),"int");
+ 				break;
                      case 'G':
                                 if(mcx_isbinstr(argv[i+1])){
                                     i=mcx_readarg(argc,argv,i,cfg->deviceid,"string");
@@ -1498,14 +1550,20 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                      case 'E':
 				i=mcx_readarg(argc,argv,i,&(cfg->seed),"int");
 		     	        break;
-		     case 'H':
+		     case 'K':
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->maxdetphoton),"int");
 		     	        break;
+				if(i+1<argc && isalpha(argv[i+1][0]) ){
+				    cfg->mediabyte=mcx_keylookup(argv[++i],mediaformat);
+				    if(cfg->mediabyte==-1)
+				        MCX_ERROR(-1,"Unsupported media format.");
+				    cfg->mediabyte=mediaformatid[cfg->mediabyte];
+				}else
+				    i=mcx_readarg(argc,argv,i,&(cfg->mediabyte),"int");
+				break;
 		     case '-':  /*additional verbose parameters*/
                                 if(strcmp(argv[i]+2,"devicelist")==0)
                                      i=mcx_readarg(argc,argv,i,cfg->deviceid,"string");
-                                else if(strcmp(argv[i]+2,"mediabyte")==0)
-                                     i=mcx_readarg(argc,argv,i,&(cfg->mediabyte),"int");
                                 else if(strcmp(argv[i]+2,"root")==0)
                                      i=mcx_readarg(argc,argv,i,cfg->rootpath,"string");
                                 else if(strcmp(argv[i]+2,"atomic")==0)
@@ -1617,6 +1675,38 @@ int mcx_isbinstr(const char * str){
 }
 
 
+ /**
+ * @brief Retrieve mua for different cfg.vol formats to convert fluence back to energy in post-processing 
+ *
+ * @param[out] output: medium absorption coefficient for the current voxel
+ * @param[in] mediaid: medium index of the current voxel
+ * @param[in] cfg: simulation configuration
+ */
+ 
+ float mcx_updatemua(unsigned int mediaid, Config *cfg){
+     float mua;
+     if(cfg->mediabyte<=4)
+         mua=cfg->prop[mediaid & MED_MASK].mua;
+     else if(cfg->mediabyte==MEDIA_MUA_FLOAT)
+         mua=fabs(*((float *)&mediaid));
+     else if(cfg->mediabyte==MEDIA_ASGN_BYTE){
+         union {
+            unsigned i;
+            unsigned char h[4];
+        } val;
+        val.i=mediaid & MED_MASK;
+        mua=val.h[0]*(1.f/255.f)*(cfg->prop[2].mua-cfg->prop[1].mua)+cfg->prop[1].mua;
+     }else if(cfg->mediabyte==MEDIA_AS_SHORT){
+         union {
+            unsigned int i;
+            unsigned short h[2];
+         } val;
+        val.i=mediaid & MED_MASK;
+        mua=val.h[0]*(1.f/65535.f)*(cfg->prop[2].mua-cfg->prop[1].mua)+cfg->prop[1].mua;
+     }
+     return mua;
+ }
+
 /**
  * @brief Force flush the command line to print the message
  *
@@ -1665,9 +1755,20 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -E [0|int]    (--seed)        set random-number-generator seed, -1 to generate\n\
  -z [0|1]      (--srcfrom0)    1 volume origin is [0 0 0]; 0: origin at [1 1 1]\n\
  -k [1|0]      (--voidtime)    when src is outside, 1 enables timer inside void\n\
- -P '{...}'    (--shapes)      a JSON string for additional shapes in the grid\n\
  -e [0.|float] (--minenergy)   minimum energy level to terminate a photon\n\
  -g [1|int]    (--gategroup)   number of time gates per run\n\
+\n"S_BOLD S_CYAN"\
+== Input options ==\n"S_RESET"\
+ -P '{...}'    (--shapes)      a JSON string for additional shapes in the grid\n\
+ -K [1|int|str](--mediabyte)   volume data format, use either a number or a str\n\
+                               1 or byte: 0-128 tissue labels\n\
+			       2 or short: 0-65535 (max to 4000) tissue labels\n\
+			       4 or integer: integer tissue labels \n\
+                             100 or muamus_float: 2x 32bit floats for mua/mus\n\
+                             101 or mua_float: 1 float per voxel for mua\n\
+			     102 or muamus_half: 2x 16bit float for mua/mus\n\
+			     103 or asgn_byte: 4x byte gray-levels for mua/s/g/n\n\
+			     104 or muamus_short: 2x short gray-levels for mua/s\n\
  -a [0|1]      (--array)       1 for C array (row-major); 0 for Matlab array\n\
 \n"S_BOLD S_CYAN"\
 == GPU options ==\n"S_RESET"\
@@ -1687,8 +1788,19 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 == Output options ==\n"S_RESET"\
  -s sessionid  (--session)     a string to label all output file names\n\
  -d [1|0]      (--savedet)     1 to save photon info at detectors; 0 not save\n\
+ -w [DP|DSPMXVW](--savedetflag)a string controlling detected photon data fields\n\
+    /case insensitive/         1 D  output detector ID (1)\n\
+                               2 S  output partial scat. even counts (#media)\n\
+                               4 P  output partial path-lengths (#media)\n\
+			       8 M  output momentum transfer (#media)\n\
+			      16 X  output exit position (3)\n\
+			      32 V  output exit direction (3)\n\
+			      64 W  output initial weight (1)\n\
+      combine multiple items by using a string, or add selected numbers together\n\
+      by default, mcx only saves detector ID and partial-path data\n\
  -x [0|1]      (--saveexit)    1 to save photon exit positions and directions\n\
                                setting -x to 1 also implies setting '-d' to 1\n\
+			       same as adding 'XV' to -w.\n\
  -X [0|1]      (--saveref)     1 to save diffuse reflectance at the air-voxels\n\
                                right outside of the domain; if non-zero voxels\n\
 			       appear at the boundary, pad 0s before using -X\n\

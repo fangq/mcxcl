@@ -1,3 +1,26 @@
+/*******************************************************************************
+**
+**  \mainpage Monte Carlo eXtreme (MCX)  - GPU accelerated 3D Monte Carlo transport simulation
+**
+**  \author Qianqian Fang <q.fang at neu.edu>
+**
+**  \section sref Reference:
+**  \li \c (\b Fang2009) Qianqian Fang and David A. Boas, 
+**          <a href="http://www.opticsinfobase.org/abstract.cfm?uri=oe-17-22-20178">
+**          "Monte Carlo Simulation of Photon Migration in 3D Turbid Media Accelerated 
+**          by Graphics Processing Units,"</a> Optics Express, 17(22) 20178-20190 (2009).
+**  
+**  \section slicense License
+**        GNU General Public License v3, see LICENSE.txt for details
+**
+*******************************************************************************/
+
+/***************************************************************************//**
+\file    mcx_const.h
+
+@brief   Constants assumed in MCX codes
+*******************************************************************************/
+
 #ifndef _MCEXTREME_CONSTANT_H
 #define _MCEXTREME_CONSTANT_H
 
@@ -13,13 +36,22 @@
 #define JUST_ABOVE_ONE     1.0001f                 /*test for boundary*/
 #define SAME_VOXEL         -9999.f                 /*scatter within a voxel*/
 #define NO_LAUNCH          9999                    /*when fail to launch, for debug*/
+#define OUTSIDE_VOLUME_MIN 0xFFFFFFFF              /**< flag indicating the index is outside of the volume from x=xmax,y=ymax,z=zmax*/
+#define OUTSIDE_VOLUME_MAX 0x7FFFFFFF              /**< flag indicating the index is outside of the volume from x=0/y=0/z=0*/
 #define MAX_PROP           2000                     /*maximum property number*/
 #define MAX_DETECTORS      2000
 #define SEED_FROM_FILE      -999                   /**< special flag indicating to read seeds from an mch file for replay */
 
+#define SIGN_BIT           0x80000000U
 #define DET_MASK           0x80000000              /**< mask of the sign bit to get the detector */
-#define MED_MASK           0x0000FFFF              /**< mask of the lower 16bit to get the medium index */
+#define MED_MASK           0x7FFFFFFF              /**< mask of the lower 16bit to get the medium index */
 #define MIX_MASK           0x7FFF0000              /**< mask of the upper 16bit to get the volume mix ratio */
+
+#define MEDIA_AS_F2H          100  /**<  media format: {[float32: mua][float32: mus]} -> 32bit:{[half: mua],{half: mus}} */
+#define MEDIA_MUA_FLOAT       101  /**<  media format: 32bit:{[float32: mua]} */
+#define MEDIA_AS_HALF         102  /**<  media format: 32bit:{[half: mua],[half: mus]} */
+#define MEDIA_ASGN_BYTE       103  /**<  media format: 32bit:{[byte: mua],[byte: mus],[byte: g],[byte: n]} */
+#define MEDIA_AS_SHORT        104  /**<  media format: 32bit:{[short: mua],[short: mus]} */
 
 #define MCX_DEBUG_REC_LEN  6  /**<  number of floating points per position saved when -D M is used for trajectory */
 
@@ -39,6 +71,30 @@
 #define MCX_SRC_SLIT       13 /**<  a collimated line source */
 #define MCX_SRC_PENCILARRAY 14 /**<  a rectangular array of pencil beams */
 #define MCX_SRC_PATTERN3D  15  /**<  a 3D pattern source, starting from srcpos, srcparam1.{x,y,z} define the x/y/z dimensions */
+
+#define SAVE_DETID(a)         ((a)    & 0x1)   /**<  mask to save detector ID*/
+#define SAVE_NSCAT(a)         ((a)>>1 & 0x1)   /**<  output partial scattering counts */
+#define SAVE_PPATH(a)         ((a)>>2 & 0x1)   /**<  output partial path */
+#define SAVE_MOM(a)           ((a)>>3 & 0x1)   /**<  output momentum transfer */
+#define SAVE_PEXIT(a)         ((a)>>4 & 0x1)   /**<  save exit positions */
+#define SAVE_VEXIT(a)         ((a)>>5 & 0x1)   /**<  save exit vector/directions */
+#define SAVE_W0(a)            ((a)>>6 & 0x1)   /**<  save initial weight */
+
+#define SET_SAVE_DETID(a)     ((a) | 0x1   )   /**<  mask to save detector ID*/
+#define SET_SAVE_NSCAT(a)     ((a) | 0x1<<1)   /**<  output partial scattering counts */
+#define SET_SAVE_PPATH(a)     ((a) | 0x1<<2)   /**<  output partial path */
+#define SET_SAVE_MOM(a)       ((a) | 0x1<<3)   /**<  output momentum transfer */
+#define SET_SAVE_PEXIT(a)     ((a) | 0x1<<4)   /**<  save exit positions */
+#define SET_SAVE_VEXIT(a)     ((a) | 0x1<<5)   /**<  save exit vector/directions */
+#define SET_SAVE_W0(a)        ((a) | 0x1<<6)   /**<  save initial weight */
+
+#define UNSET_SAVE_DETID(a)     ((a) & ~(0x1)   )   /**<  mask to save detector ID*/
+#define UNSET_SAVE_NSCAT(a)     ((a) & ~(0x1<<1))   /**<  output partial scattering counts */
+#define UNSET_SAVE_PPATH(a)     ((a) & ~(0x1<<2))   /**<  output partial path */
+#define UNSET_SAVE_MOM(a)       ((a) & ~(0x1<<3))   /**<  output momentum transfer */
+#define UNSET_SAVE_PEXIT(a)     ((a) & ~(0x1<<4))   /**<  save exit positions */
+#define UNSET_SAVE_VEXIT(a)     ((a) & ~(0x1<<5))   /**<  save exit vector/directions */
+#define UNSET_SAVE_W0(a)        ((a) & ~(0x1<<6))   /**<  save initial weight */
 
 #ifndef MCX_CONTAINER
   #define S_RED     "\x1b[31m"
