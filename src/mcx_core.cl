@@ -1092,7 +1092,7 @@ __kernel void mcx_main_loop(__global const uint *media,
      __global float *n_det,__constant float4 *gproperty,__global float *srcpattern,
      __constant float4 *gdetpos, volatile __global uint *gprogress,__global uint *detectedphoton,
      __global RandType *gseeddata,__global uint *gjumpdebug,__global float *gdebugdata,
-     __local char *sharedmem, __constant MCXParam *gcfg){
+     __local ulong *sharedmem, __constant MCXParam *gcfg){
 
      int idx= get_global_id(0);
 
@@ -1110,7 +1110,7 @@ __kernel void mcx_main_loop(__global const uint *media,
      RandType t[RAND_BUF_LEN];
      FLOAT4VEC prop;    //can become float2 if no reflection
 
-     __local float *ppath=(__local float *)(sharedmem+get_local_size(0)*(gcfg->issaveseed*RAND_BUF_LEN*sizeof(RandType)));
+     __local float *ppath=(__local float *)((__local char*)sharedmem+get_local_size(0)*(gcfg->issaveseed*RAND_BUF_LEN*sizeof(RandType)));
      __local int   blockphoton[1];
 #ifdef GROUP_LOAD_BALANCE
      if(get_local_id(0) == 0)

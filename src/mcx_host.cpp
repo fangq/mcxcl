@@ -906,7 +906,6 @@ is more than what your have specified (%d), please use the -H option to specify 
              clReleaseMemObject(gdetpos[i]);
          if(cfg->issaveseed){
              clReleaseMemObject(gseeddata[i]);
-             free(seeddata);
 	 }
          if(cfg->srctype==MCX_SRC_PATTERN || cfg->srctype==MCX_SRC_PATTERN3D)
              clReleaseMemObject(gsrcpattern[i]);
