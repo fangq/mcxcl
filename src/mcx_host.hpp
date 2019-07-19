@@ -29,7 +29,7 @@ extern "C" {
   #define RAND_SEED_LEN      5        //32bit seed length (32*5=160bits)
   #define RAND_BUF_LEN       5        //register arrays
 #else
-  typedef unsigned long long  RandType;
+  typedef cl_ulong  RandType;
   #define MCX_RNG_NAME       "xoroshiro128+"
   #define RAND_SEED_LEN      4        //32bit seed length (32*5=160bits)
   #define RAND_BUF_LEN       2        //register arrays
