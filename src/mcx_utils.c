@@ -57,8 +57,8 @@
  */
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W','z',
-                 'd','r','S','p','e','U','R','l','L','M','I','-','o','c','k','v','J',
-                 'A','P','E','F','H','K','u','-','x','X','-','w','-','\0'};
+                 'd','r','S','p','e','U','R','l','L','M','I','-','o','k','v','J',
+                 'A','P','E','F','H','K','u','-','x','X','-','w','-','q','V','\0'};
 
 /**
  * Long command line options
@@ -70,10 +70,10 @@ const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--reflect","--bc","--debug","--devicelist","--gpu","--workload","--srcfrom0",
 		 "--savedet","--repeat","--save2pt","--printlen","--minenergy",
                  "--normalize","--skipradius","--log","--listgpu","--dumpmask",
-                 "--printgpu","--root","--optlevel","--cpu","--kernel","--verbose","--compileropt",
+                 "--printgpu","--root","--optlevel","--kernel","--verbose","--compileropt",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
 		 "--mediabyte","--unitinmm","--atomic","--saveexit","--saveref",
-		 "--internalsrc","--savedetflag","--gscatter",""};
+		 "--internalsrc","--savedetflag","--gscatter","--saveseed","--specular",""};
 
 /**
  * Debug flags
@@ -174,13 +174,13 @@ void mcx_initcfg(Config *cfg){
      cfg->flog=stdout;
      cfg->sradius=0.f;
      cfg->rootpath[0]='\0';
-     cfg->iscpu=0;
      cfg->isverbose=0;
      cfg->internalsrc=0;
      cfg->savedetflag=0x5;
      cfg->his.savedetflag=cfg->savedetflag;
      cfg->ismomentum=0;
      cfg->gscatter=1e9;     /** by default, honor anisotropy for all scattering, use --gscatter to reduce it */
+     cfg->isspecular=0;
 
      cfg->srctype=0;;         /** use pencil beam as default source type */
      cfg->maxvoidstep=1000;
@@ -1117,11 +1117,11 @@ int mcx_loadjson(cJSON *root, Config *cfg){
         if(!flagset['U'])   cfg->isnormalized=FIND_JSON_KEY("DoNormalize","Session.DoNormalize",Session,cfg->isnormalized,valueint);
         if(!flagset['d'])   cfg->issavedet=FIND_JSON_KEY("DoPartialPath","Session.DoPartialPath",Session,cfg->issavedet,valueint);
         if(!flagset['X'])   cfg->issaveexit=FIND_JSON_KEY("DoSaveExit","Session.DoSaveExit",Session,cfg->issaveexit,valueint);
-/*
-	if(!cfg->issaveseed)  cfg->issaveseed=FIND_JSON_KEY("DoSaveSeed","Session.DoSaveSeed",Session,cfg->issaveseed,valueint);
-*/
-        if(!flagset['A'])  cfg->autopilot=FIND_JSON_KEY("DoAutoThread","Session.DoAutoThread",Session,cfg->autopilot,valueint);
-	if(!flagset['D'])  cfg->debuglevel=mcx_parsedebugopt(FIND_JSON_KEY("Debug","Session.Debug",Session,"",valuestring),debugflag);
+	if(!flagset['q'])   cfg->issaveseed=FIND_JSON_KEY("DoSaveSeed","Session.DoSaveSeed",Session,cfg->issaveseed,valueint);
+        if(!flagset['A'])   cfg->autopilot=FIND_JSON_KEY("DoAutoThread","Session.DoAutoThread",Session,cfg->autopilot,valueint);
+	if(!flagset['m'])   cfg->ismomentum=FIND_JSON_KEY("DoDCS","Session.DoDCS",Session,cfg->ismomentum,valueint);
+	if(!flagset['V'])   cfg->isspecular=FIND_JSON_KEY("DoSpecular","Session.DoSpecular",Session,cfg->isspecular,valueint);
+	if(!flagset['D'])   cfg->debuglevel=mcx_parsedebugopt(FIND_JSON_KEY("Debug","Session.Debug",Session,"",valuestring),debugflag);
 	cfg->savedetflag=mcx_parsedebugopt(FIND_JSON_KEY("SaveDataMask","Session.SaveDataMask",Session,"",valuestring),saveflag);
 
         if(!cfg->outputformat)  cfg->outputformat=mcx_keylookup((char *)FIND_JSON_KEY("OutputFormat","Session.OutputFormat",Session,"mc2",valuestring),outputformat);
@@ -1595,6 +1595,9 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     case 'a':
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->isrowmajor),"char");
 		     	        break;
+		     case 'q':
+		     	        i=mcx_readarg(argc,argv,i,&(cfg->issaveseed),"char");
+		     	        break;
 		     case 'g':
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->maxgate),"int");
 		     	        break;
@@ -1642,12 +1645,12 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     case 'I':  
 		                cfg->isgpuinfo=1;
 		                break;
-		     case 'c':  
-		                cfg->iscpu=1;
-		                break;
 		     case 'v':  
 		                cfg->isverbose=1;
 		                break;
+		     case 'V':
+		     	        i=mcx_readarg(argc,argv,i,&(cfg->isspecular),"char");
+		     	        break;
 		     case 'o':
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->optlevel),"int");
 		     	        break;
@@ -1985,6 +1988,9 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -X [0|1]      (--saveref)     1 to save diffuse reflectance at the air-voxels\n\
                                right outside of the domain; if non-zero voxels\n\
 			       appear at the boundary, pad 0s before using -X\n\
+ -m [0|1]      (--momentum)    1 to save photon momentum transfer,0 not to save.\n\
+                               same as adding 'M' to the -w flag\n\
+ -q [0|1]      (--saveseed)    1 to save photon RNG seed for replay; 0 not save\n\
  -M [0|1]      (--dumpmask)    1 to dump detector volume masks; 0 do not save\n\
  -H [1000000] (--maxdetphoton) max number of detected photons\n\
  -S [1|0]      (--save2pt)     1 to save the flux field; 0 do not save\n\

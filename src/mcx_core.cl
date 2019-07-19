@@ -132,6 +132,7 @@ typedef struct KernelParams {
   uint   issaveexit;    /**<1 save the exit position and dir of a detected photon, 0 do not save*/
   uint   issaveseed;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
   uint   issaveref;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
+  uint   isspecular;           /**< 0 do not perform specular reflection at launch, 1 do specular reflection */
   uint   maxgate;
   uint   threadphoton;                  /**< how many photons to be simulated in a thread */
   int    oddphoton;                    /**< how many threads need to simulate 1 more photon above the basic load (threadphoton) */
@@ -234,7 +235,7 @@ static float xorshift128p_nextf (__private RandType t[RAND_BUF_LEN]){
    return s1.f[0] - 1.0f;
 }
 
-static void copystate(__private RandType t[RAND_BUF_LEN], __private RandType tnew[RAND_BUF_LEN]){
+static void copystate(__private RandType t[RAND_BUF_LEN], __local RandType tnew[RAND_BUF_LEN]){
     tnew[0]=t[0];
     tnew[1]=t[1];
 }
@@ -284,7 +285,9 @@ int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constan
 #ifdef MCX_SAVE_DETECTORS
 uint finddetector(float4 *p0,__constant float4 *gdetpos,__constant MCXParam *gcfg);
 void savedetphoton(__global float *n_det,__global uint *detectedphoton,float nscat,
-                   __local float *ppath,float4 *p0,float4 *v,__constant float4 *gdetpos,__constant MCXParam *gcfg);
+                   __local float *ppath,float4 *p0,float4 *v,
+  		   __local RandType t[RAND_BUF_LEN], __global RandType *gseeddata, 
+                   __constant float4 *gdetpos,__constant MCXParam *gcfg);
 #endif
 int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
            __global float *field, uint *mediaid,float *w0,float *Lmove,uint isdet, 
@@ -293,6 +296,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	   __constant float4 *gproperty, __global const uint *media, __global float *srcpattern,
 	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid,
 	   __local int *blockphoton, volatile __global uint *gprogress,
+	   __local RandType *photonseed, __global RandType gseeddata[],
 	   __global uint *gjumpdebug,__global float *gdebugdata);
 
 
@@ -339,14 +343,16 @@ void saveexitppath(__global float *n_det,__local float *ppath,float4 *p0,uint *i
 }
 
 void savedetphoton(__global float *n_det,__global uint *detectedphoton,float nscat,
-                   __local float *ppath,float4 *p0,float4 *v,__constant float4 *gdetpos,__constant MCXParam *gcfg){
+                   __local float *ppath,float4 *p0,float4 *v,
+		   __local RandType t[RAND_BUF_LEN], __global RandType *gseeddata, 
+		   __constant float4 *gdetpos,__constant MCXParam *gcfg){
       uint detid=finddetector(p0,gdetpos,gcfg);
       if(detid){
 	 uint baseaddr=atomic_inc(detectedphoton);
 	 if(baseaddr<gcfg->maxdetphoton){
 	    uint i;
-	    //for(i=0;i<gcfg->issaveseed*RAND_BUF_LEN;i++)
-	    //    seeddata[baseaddr*RAND_BUF_LEN+i]=t[i]; ///< save photon seed for replay
+	    for(i=0;i<gcfg->issaveseed*RAND_BUF_LEN;i++)
+	        gseeddata[baseaddr*RAND_BUF_LEN+i]=t[i]; ///< save photon seed for replay
 	    baseaddr*=gcfg->reclen;
 	    if(SAVE_DETID(gcfg->savedetflag))
 	        n_det[baseaddr++]=detid;
@@ -671,8 +677,7 @@ int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constan
 		}
                 f[0].y = (gcfg->voidtime) ? f[0].y : 0.f;
                 updateproperty((FLOAT4VEC*)&htime,media[idx1d],gproperty,gcfg);
-
-		if(gproperty[media[idx1d] & MED_MASK].w!=gproperty[0].w){
+		if(gcfg->isspecular &&  htime.w!=gproperty[0].w){
 	            p[0].w*=1.f-reflectcoeff(v, gproperty[0].w,gproperty[media[idx1d] & MED_MASK].w,flipdir);
                     GPUDEBUG(("transmitted intensity w=%e\n",p[0].w));
 	            if(p[0].w>EPS){
@@ -724,7 +729,7 @@ int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constan
  * @param[in] srcpattern: user-specified source pattern array if pattern source is used
  * @param[in] threadid: the global index of the current thread
  * @param[in] rngseed: in the replay mode, pointer to the saved detected photon seed data
- * @param[in,out] seeddata: pointer to the buffer to save detected photon seeds
+ * @param[in,out] gseeddata: pointer to the buffer to save detected photon seeds
  * @param[in,out] gdebugdata: pointer to the buffer to save photon trajectory positions
  * @param[in,out] gprogress: pointer to the host variable to update progress bar
  */
@@ -736,6 +741,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	   __constant float4 *gproperty, __global const uint *media, __global float *srcpattern,
 	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, 
 	   __local int *blockphoton, volatile __global uint *gprogress,
+	   __local RandType *photonseed, __global RandType gseeddata[],
 	   __global uint *gjumpdebug,__global float *gdebugdata){
 
       *w0=1.f;     ///< reuse to count for launchattempt
@@ -783,7 +789,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
       // let's handle detectors here
           if(gcfg->savedet){
              if((isdet&DET_MASK)==DET_MASK && *mediaid==0 && gcfg->issaveref<2)
-	         savedetphoton(n_det,dpnum,v[0].w,ppath,p,v,gdetpos,gcfg);
+	         savedetphoton(n_det,dpnum,v[0].w,ppath,p,v,photonseed, gseeddata, gdetpos,gcfg);
              clearpath(ppath,gcfg->partialdata);
           }
 #endif
@@ -817,10 +823,10 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	  f[0]=(float4)(0.f,0.f,gcfg->minaccumtime,f[0].w);
           *idx1d=gcfg->idx1dorig;
           *mediaid=gcfg->mediaidorig;
-/*
+
 	  if(gcfg->issaveseed)
               copystate(t,photonseed);
-*/
+
           /**
            * Only one branch is taken because of template, this can reduce thread divergence
            */
@@ -1085,8 +1091,8 @@ __kernel void mcx_main_loop(__global const uint *media,
      __global float *field, __global float *genergy, __global uint *n_seed,
      __global float *n_det,__constant float4 *gproperty,__global float *srcpattern,
      __constant float4 *gdetpos, volatile __global uint *gprogress,__global uint *detectedphoton,
-     __global uint *gjumpdebug,__global float *gdebugdata,
-     __local float *sharedmem, __constant MCXParam *gcfg){
+     __global RandType *gseeddata,__global uint *gjumpdebug,__global float *gdebugdata,
+     __local char *sharedmem, __constant MCXParam *gcfg){
 
      int idx= get_global_id(0);
 
@@ -1104,9 +1110,8 @@ __kernel void mcx_main_loop(__global const uint *media,
      RandType t[RAND_BUF_LEN];
      FLOAT4VEC prop;    //can become float2 if no reflection
 
-     __local float *ppath=sharedmem+get_local_size(0)*(gcfg->issaveseed*RAND_BUF_LEN*sizeof(RandType));
+     __local float *ppath=(__local float *)(sharedmem+get_local_size(0)*(gcfg->issaveseed*RAND_BUF_LEN*sizeof(RandType)));
      __local int   blockphoton[1];
-
 #ifdef GROUP_LOAD_BALANCE
      if(get_local_id(0) == 0)
 	blockphoton[0] = gcfg->blockphoton + ((int)get_group_id(0) < gcfg->blockextra);
@@ -1124,10 +1129,12 @@ __kernel void mcx_main_loop(__global const uint *media,
 
      if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,0,ppath,
 		      n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,blockphoton,
-		      gprogress,gjumpdebug,gdebugdata)){
+		      gprogress,(__local RandType*)(sharedmem+get_local_id(0)*gcfg->issaveseed*RAND_BUF_LEN*sizeof(RandType)),
+		      gseeddata,gjumpdebug,gdebugdata)){
          n_seed[idx]=NO_LAUNCH;
          return;
      }
+
 #ifdef GROUP_LOAD_BALANCE
      while(blockphoton[0]>0 || f.w<0.f) {
 #else
@@ -1298,7 +1305,8 @@ __kernel void mcx_main_loop(__global const uint *media,
 		  }
                   GPUDEBUG(((__constant char*)"direct relaunch at idx=[%d] mediaid=[%d], ref=[%d]\n",idx1d,mediaid,gcfg->doreflect));
 		  if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),ppath,
-		      n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,blockphoton,gprogress,gjumpdebug,gdebugdata)){ 
+		      n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,blockphoton,gprogress,
+		      (__local RandType*)(sharedmem+get_local_id(0)*gcfg->issaveseed*RAND_BUF_LEN*sizeof(RandType)),gseeddata,gjumpdebug,gdebugdata)){ 
                          break;
 		  }
                   isdet=mediaid & DET_MASK;
@@ -1334,7 +1342,8 @@ __kernel void mcx_main_loop(__global const uint *media,
                         if(mediaid==0){ // transmission to external boundary
                             GPUDEBUG(((__constant char*)"transmit to air, relaunch\n"));
 		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),
-			        ppath,n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,blockphoton,gprogress,gjumpdebug,gdebugdata)){
+			        ppath,n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,blockphoton,gprogress,
+				(__local RandType*)(sharedmem+get_local_id(0)*gcfg->issaveseed*RAND_BUF_LEN*sizeof(RandType)),seedata,gjumpdebug,gdebugdata)){
                                     break;
 			    }
                             isdet=mediaid & DET_MASK;

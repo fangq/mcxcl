@@ -4,7 +4,7 @@
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #define CL_USE_DEPRECATED_OPENCL_2_0_APIS
 #ifdef __APPLE__
-  #include <cl.h>
+  #include <OpenCL/cl.h>
 #else
   #include <CL/cl.h>
 #endif
@@ -24,11 +24,15 @@ extern "C" {
 #define MIN(a,b)           ((a)<(b)?(a):(b))
 
 #ifdef USE_LL5_RAND
+  typedef float  RandType;
   #define MCX_RNG_NAME       "Logistic-Lattice"
   #define RAND_SEED_LEN      5        //32bit seed length (32*5=160bits)
+  #define RAND_BUF_LEN       5        //register arrays
 #else
+  typedef unsigned long long  RandType;
   #define MCX_RNG_NAME       "xoroshiro128+"
   #define RAND_SEED_LEN      4        //32bit seed length (32*5=160bits)
+  #define RAND_BUF_LEN       2        //register arrays
 #endif
 
 #define RO_MEM             (CL_MEM_READ_ONLY  | CL_MEM_COPY_HOST_PTR)
@@ -80,6 +84,7 @@ typedef struct KernelParams {
   cl_uint   issaveexit;    /**<1 save the exit position and dir of a detected photon, 0 do not save*/
   cl_uint   issaveseed;           /**< flag if one need to save the detected photon seeds for replay */
   cl_uint   issaveref;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
+  cl_uint   isspecular;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
   cl_uint   maxgate;
   cl_uint   threadphoton;                  /**< how many photons to be simulated in a thread */
   cl_int    oddphoton;                    /**< how many threads need to simulate 1 more photon above the basic load (threadphoton) */

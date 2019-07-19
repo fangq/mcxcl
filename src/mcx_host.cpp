@@ -290,7 +290,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cl_uint  totalcucore;
      cl_uint  devid=0;
      cl_mem gmedia,gproperty,gparam;
-     cl_mem *gfield=NULL,*gdetphoton,*gseed=NULL,*genergy=NULL;
+     cl_mem *gfield=NULL,*gdetphoton,*gseed=NULL,*genergy=NULL, *gseeddata=NULL;
      cl_mem *gprogress=NULL,*gdetected=NULL,*gdetpos=NULL, *gsrcpattern=NULL, *gjumpdebug=NULL, *gdebugdata=NULL;
 
      cl_uint dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z*((cfg->srctype==MCX_SRC_PATTERN || cfg->srctype==MCX_SRC_PATTERN3D) ? cfg->srcnum : 1);
@@ -303,6 +303,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      float  *srcpw=NULL,*energytot=NULL,*energyabs=NULL; // for multi-srcpattern
      char opt[MAX_PATH_LENGTH]={'\0'};
      GPUInfo *gpu=NULL;
+     RandType *seeddata=NULL;
 
      /*
                                    |----------------------------------------------->  hostdetreclen  <--------------------------------------|
@@ -326,7 +327,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                      cfg->medianum-1,cfg->detnum,0,0,0,0,(uint)cfg->voidtime,(uint)cfg->srctype,
 		     {{cfg->srcparam1.x,cfg->srcparam1.y,cfg->srcparam1.z,cfg->srcparam1.w}},
 		     {{cfg->srcparam2.x,cfg->srcparam2.y,cfg->srcparam2.z,cfg->srcparam2.w}},
-		     (uint)cfg->maxvoidstep,cfg->issaveexit>0,cfg->issaveseed>0,cfg->issaveref>0,cfg->maxgate,0,0,
+		     (uint)cfg->maxvoidstep,cfg->issaveexit>0,cfg->issaveseed>0,cfg->issaveref>0,cfg->isspecular>0,cfg->maxgate,0,0,
 		     (uint)cfg->debuglevel, cfg->savedetflag,hostdetreclen,partialdata,w0offset,(uint)cfg->mediabyte,
 		     (uint)cfg->maxjumpdebug,cfg->gscatter,is2d,cfg->replaydet,cfg->srcnum};
 
@@ -360,6 +361,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      gsrcpattern=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gjumpdebug=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gdebugdata=(cl_mem *)malloc(workdev*sizeof(cl_mem));
+     gseeddata=(cl_mem *)malloc(workdev*sizeof(cl_mem));
 
      /* The block is to move the declaration of prop closer to its use */
      cl_command_queue_properties prop = CL_QUEUE_PROFILING_ENABLE;
@@ -474,6 +476,11 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
            OCL_ASSERT(((gjumpdebug[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint),&jumpcount,&status),status)));
            OCL_ASSERT(((gdebugdata[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*(debuglen*cfg->maxjumpdebug),cfg->exportdebugdata,&status),status)));
        }
+       if(cfg->issaveseed){
+           seeddata=(RandType*)calloc(sizeof(RandType),cfg->maxdetphoton*RAND_BUF_LEN);
+           OCL_ASSERT(((gseeddata[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(RandType)*cfg->maxdetphoton*RAND_BUF_LEN,seeddata,&status),status)));
+	   free(seeddata);
+       }
        if(cfg->detpos)
            OCL_ASSERT(((gdetpos[i]=clCreateBuffer(mcxcontext,RO_MEM, cfg->detnum*sizeof(float4),cfg->detpos,&status),status)));
        if(cfg->srctype==MCX_SRC_PATTERN)
@@ -565,14 +572,10 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 7, sizeof(cl_mem), (void*)(gdetpos+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 8, sizeof(cl_mem), (void*)(gprogress))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 9, sizeof(cl_mem), (void*)(gdetected+i))));
-	 if(cfg->debuglevel & MCX_DEBUG_MOVE){
-	    OCL_ASSERT((clSetKernelArg(mcxkernel[i],10, sizeof(cl_mem), (void*)(gjumpdebug+i))));
-	    OCL_ASSERT((clSetKernelArg(mcxkernel[i],11, sizeof(cl_mem), (void*)(gdebugdata+i))));
-	 }else{
-	    OCL_ASSERT((clSetKernelArg(mcxkernel[i],10, 0, NULL)));
-	    OCL_ASSERT((clSetKernelArg(mcxkernel[i],11, 0, NULL)));
-	 }
-	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],12, cfg->issavedet? gpu[i].autoblock*(sizeof(float)*(param.w0offset+cfg->srcnum)) : sizeof(int), NULL)));
+         OCL_ASSERT((clSetKernelArg(mcxkernel[i],10, sizeof(cl_mem), ((cfg->issaveseed) ? (void*)(gseeddata+i) : NULL) )));
+         OCL_ASSERT((clSetKernelArg(mcxkernel[i],11, sizeof(cl_mem), ((cfg->debuglevel & MCX_DEBUG_MOVE) ? (void*)(gjumpdebug+i) : NULL) )));
+	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],12, sizeof(cl_mem), ((cfg->debuglevel & MCX_DEBUG_MOVE) ? (void*)(gdebugdata+i) : NULL) )));
+	 OCL_ASSERT((clSetKernelArg(mcxkernel[i],13, cfg->issavedet? gpu[i].autoblock*(cfg->issaveseed*(RAND_BUF_LEN*sizeof(RandType))+sizeof(float)*(param.w0offset+cfg->srcnum)) : sizeof(int), NULL)));
      }
      MCX_FPRINTF(cfg->flog,"set kernel arguments complete : %d ms\n",GetTimeMillis()-tic);fflush(cfg->flog);
 
@@ -623,7 +626,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                param.blockphoton =(int)(np*cfg->workload[devid]/(fullload*nblock*cfg->respin));
 	       param.blockextra  =(int)(np*cfg->workload[devid]/(fullload*cfg->respin)-param.blockphoton*nblock);
                OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],gparam,CL_TRUE,0,sizeof(MCXParam),&param, 0, NULL, NULL)));
-               OCL_ASSERT((clSetKernelArg(mcxkernel[devid],13, sizeof(cl_mem), (void*)&gparam)));
+               OCL_ASSERT((clSetKernelArg(mcxkernel[devid],14, sizeof(cl_mem), (void*)&gparam)));
                // launch mcxkernel
 #ifndef USE_OS_TIMER
                OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,&gpu[devid].autothread,&gpu[devid].autoblock, 0, NULL, &kernelevent)));
@@ -691,6 +694,11 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
                                             &detected, 0, NULL, waittoread+devid)));
                 OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],gdetphoton[devid],CL_TRUE,0,sizeof(float)*cfg->maxdetphoton*hostdetreclen,
 	                                        Pdet, 0, NULL, NULL)));
+		if(cfg->issaveseed){
+                    seeddata=(RandType*)calloc(sizeof(RandType),cfg->maxdetphoton*RAND_BUF_LEN);
+		    OCL_ASSERT(clEnqueueReadBuffer(mcxqueue[devid],gseeddata[devid],CL_TRUE,0,
+		              sizeof(RandType)*cfg->maxdetphoton*RAND_BUF_LEN,seeddata,0,NULL,NULL));
+		}
 		if(detected>cfg->maxdetphoton){
 			MCX_FPRINTF(cfg->flog,S_RED"WARNING: the detected photon (%d) \
 is more than what your have specified (%d), please use the -H option to specify a greater number\t"S_RESET
@@ -702,9 +710,15 @@ is more than what your have specified (%d), please use the -H option to specify 
                 detected=MIN(detected,cfg->maxdetphoton);
 		if(cfg->exportdetected){
                         cfg->exportdetected=(float*)realloc(cfg->exportdetected,(cfg->detectedcount+detected)*hostdetreclen*sizeof(float));
+			if(cfg->issaveseed && cfg->seeddata)
+			    cfg->seeddata=(RandType*)realloc(cfg->seeddata,(cfg->detectedcount+detected)*sizeof(RandType)*RAND_BUF_LEN);
 	                memcpy(cfg->exportdetected+cfg->detectedcount*(hostdetreclen),Pdet,detected*(hostdetreclen)*sizeof(float));
+			if(cfg->issaveseed && cfg->seeddata)
+			    memcpy(((RandType*)cfg->seeddata)+cfg->detectedcount*RAND_BUF_LEN,seeddata,detected*sizeof(RandType)*RAND_BUF_LEN);
                         cfg->detectedcount+=detected;
 		}
+		if(cfg->issaveseed)
+                        free(seeddata);
 	     }
 	     //handling the 2pt distributions
              if(cfg->issave2pt){
@@ -890,6 +904,10 @@ is more than what your have specified (%d), please use the -H option to specify 
 	 }
          if(cfg->detpos)
              clReleaseMemObject(gdetpos[i]);
+         if(cfg->issaveseed){
+             clReleaseMemObject(gseeddata[i]);
+             free(seeddata);
+	 }
          if(cfg->srctype==MCX_SRC_PATTERN || cfg->srctype==MCX_SRC_PATTERN3D)
              clReleaseMemObject(gsrcpattern[i]);
          clReleaseKernel(mcxkernel[i]);
@@ -904,6 +922,7 @@ is more than what your have specified (%d), please use the -H option to specify 
      free(gsrcpattern);
      free(gjumpdebug);
      free(gdebugdata);
+     free(gseeddata);
      free(mcxkernel);
      free(waittoread);
 

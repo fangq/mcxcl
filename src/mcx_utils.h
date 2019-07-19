@@ -122,7 +122,7 @@ typedef struct MCXConfig{
 	char issavedet;     /*1 to count all photons hits the detectors*/
 	char issave2pt;     /*1 to save the 2-point distribution, 0 do not save*/
 	char isgpuinfo;     /*1 to print gpu info when attach, 0 do not print*/
-	char iscpu;         /*1 use CPU for simulation, 0 use GPU*/
+        char isspecular;             /**<1 calculate the initial specular ref if outside the mesh, 0 do not calculate*/
 	char isverbose;     /*1 print debug info, 0 do not*/
 	char issrcfrom0;    /*1 do not subtract 1 from src/det positions, 0 subtract 1*/
         char ismomentum;             /**<1 to save momentum transfer for detected photons, implies issavedet=1*/
