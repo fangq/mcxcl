@@ -1092,7 +1092,7 @@ __kernel void mcx_main_loop(__global const uint *media,
      __global float *n_det,__constant float4 *gproperty,__global float *srcpattern,
      __constant float4 *gdetpos, volatile __global uint *gprogress,__global uint *detectedphoton,
      __global RandType *gseeddata,__global uint *gjumpdebug,__global float *gdebugdata,
-     __local ulong *sharedmem, __constant MCXParam *gcfg){
+     __local float *sharedmem, __constant MCXParam *gcfg){
 
      int idx= get_global_id(0);
 
