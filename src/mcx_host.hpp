@@ -86,6 +86,8 @@ typedef struct KernelParams {
   cl_uint   issaveref;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
   cl_uint   isspecular;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
   cl_uint   maxgate;
+  cl_int    seed;                          /**< RNG seed passted from the host */
+  cl_uint   outputtype;           /**< Type of output to be accummulated */
   cl_uint   threadphoton;                  /**< how many photons to be simulated in a thread */
   cl_int    oddphoton;                    /**< how many threads need to simulate 1 more photon above the basic load (threadphoton) */
   cl_uint   debuglevel;           /**< debug flags */

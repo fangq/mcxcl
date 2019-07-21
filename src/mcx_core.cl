@@ -134,6 +134,8 @@ typedef struct KernelParams {
   uint   issaveref;     /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
   uint   isspecular;           /**< 0 do not perform specular reflection at launch, 1 do specular reflection */
   uint   maxgate;
+  int    seed;                          /**< RNG seed passted from the host */
+  uint   outputtype;           /**< Type of output to be accummulated */
   uint   threadphoton;                  /**< how many photons to be simulated in a thread */
   int    oddphoton;                    /**< how many threads need to simulate 1 more photon above the basic load (threadphoton) */
   uint   debuglevel;           /**< debug flags */
@@ -151,6 +153,7 @@ typedef struct KernelParams {
 } MCXParam __attribute__ ((aligned (32)));
 
 enum TBoundary {bcUnknown, bcReflect, bcAbsorb, bcMirror, bcCylic};            /**< boundary conditions */
+enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS};   /**< types of output */
 
 //#ifndef USE_XORSHIFT128P_RAND     // xorshift128+ is the default RNG
 #ifdef USE_LL5_RAND                 //enable the legacy Logistic Lattic RNG
@@ -288,16 +291,18 @@ void savedetphoton(__global float *n_det,__global uint *detectedphoton,float nsc
                    __local float *ppath,float4 *p0,float4 *v,
   		   __local RandType t[RAND_BUF_LEN], __global RandType *gseeddata, 
                    __constant float4 *gdetpos,__constant MCXParam *gcfg);
+void saveexitppath(__global float *n_det,__local float *ppath,float4 *p0,uint *idx1d, __constant MCXParam *gcfg);
 #endif
 int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
            __global float *field, uint *mediaid,float *w0,float *Lmove,uint isdet, 
-	   __local float *ppath,
-	   __global float *n_det,__global uint *dpnum, __private RandType t[RAND_BUF_LEN],
+	   __local float *ppath,__global float *n_det,__global uint *dpnum, 
+	   __private RandType t[RAND_BUF_LEN],__global RandType *rngseed,
 	   __constant float4 *gproperty, __global const uint *media, __global float *srcpattern,
 	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid,
 	   __local int *blockphoton, volatile __global uint *gprogress,
 	   __local RandType *photonseed, __global RandType gseeddata[],
 	   __global uint *gjumpdebug,__global float *gdebugdata);
+void savedebugdata(float4 *p,uint id,__global uint *gjumpdebug,__global float *gdebugdata,__constant MCXParam *gcfg);
 
 
 #ifdef USE_ATOMIC
@@ -736,8 +741,8 @@ int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constan
 
 int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
            __global float *field, uint *mediaid,float *w0,float *Lmove,uint isdet, 
-	   __local float *ppath,
-	   __global float *n_det,__global uint *dpnum, __private RandType t[RAND_BUF_LEN],
+	   __local float *ppath, __global float *n_det,__global uint *dpnum, 
+	   __private RandType t[RAND_BUF_LEN],__global RandType *rngseed,
 	   __constant float4 *gproperty, __global const uint *media, __global float *srcpattern,
 	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, 
 	   __local int *blockphoton, volatile __global uint *gprogress,
@@ -781,9 +786,11 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 		    }
 		  }
 #endif
-             }else{
+             }
+#ifdef MCX_SAVE_DETECTORS
+              else
                  saveexitppath(n_det,ppath,p,idx1d,gcfg);
-	     }
+#endif
 	  }
 #ifdef MCX_SAVE_DETECTORS
       // let's handle detectors here
@@ -807,13 +814,13 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
       /**
        * If this is a replay of a detected photon, initilize the RNG with the stored seed here.
        */
-/*
+
       if(gcfg->seed==SEED_FROM_FILE){
           int seedoffset=(threadid*gcfg->threadphoton+min(threadid,gcfg->oddphoton-1)+max(0,(int)f[0].w+1))*RAND_BUF_LEN;
           for(int i=0;i<RAND_BUF_LEN;i++)
 	      t[i]=rngseed[seedoffset+i];
       }
-*/
+
       /**
        * Attempt to launch a new photon until success
        */
@@ -1091,6 +1098,7 @@ __kernel void mcx_main_loop(__global const uint *media,
      __global float *field, __global float *genergy, __global uint *n_seed,
      __global float *n_det,__constant float4 *gproperty,__global float *srcpattern,
      __constant float4 *gdetpos, volatile __global uint *gprogress,__global uint *detectedphoton,
+     __global float replayweight[],__global float photontof[],__global int photondetid[], 
      __global RandType *gseeddata,__global uint *gjumpdebug,__global float *gdebugdata,
      __local float *sharedmem, __constant MCXParam *gcfg){
 
@@ -1128,7 +1136,7 @@ __kernel void mcx_main_loop(__global const uint *media,
      gpu_rng_init(t,n_seed,idx);
 
      if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,0,ppath,
-		      n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,blockphoton,
+		      n_det,detectedphoton,t,(__global RandType*)n_seed, gproperty,media,srcpattern,gdetpos,gcfg,idx,blockphoton,
 		      gprogress,(__local RandType*)(sharedmem+get_local_id(0)*gcfg->issaveseed*RAND_BUF_LEN*sizeof(RandType)),
 		      gseeddata,gjumpdebug,gdebugdata)){
          n_seed[idx]=NO_LAUNCH;
@@ -1190,6 +1198,25 @@ __kernel void mcx_main_loop(__global const uint *media,
                            rotatevector(&v,stheta,ctheta,sphi,cphi);
                        v.w+=1.f;
 
+                       if(gcfg->outputtype==otWP || gcfg->outputtype==otDCS){
+                            ///< photontof[] and replayweight[] should be cached using local mem to avoid global read
+                            int tshift=(idx*gcfg->threadphoton+min(idx,gcfg->oddphoton-1)+(int)f.w);
+			    tmp0=(gcfg->outputtype==otDCS)? (1.f-ctheta) : 1.f;
+                            tshift=(int)(floor((photontof[tshift]-gcfg->twin0)*gcfg->Rtstep)) + 
+                                 ( (gcfg->replaydet==-1)? ((photondetid[tshift]-1)*gcfg->maxgate) : 0);
+#ifndef USE_ATOMIC
+                            field[idx1d+tshift*gcfg->dimlen.z]+=tmp0*replayweight[(idx*gcfg->threadphoton+min(idx,gcfg->oddphoton-1)+(int)f.w)];
+#else
+			    float oldval=atomicadd(& field[idx1d+tshift*gcfg->dimlen.z], tmp0*replayweight[(idx*gcfg->threadphoton+min(idx,gcfg->oddphoton-1)+(int)f.w)]);
+			    if(oldval>MAX_ACCUM){
+			        if(atomicadd(& field[idx1d+tshift*gcfg->dimlen.z], -oldval)<0.f)
+				    atomicadd(& field[idx1d+tshift*gcfg->dimlen.z], oldval);
+				else
+				    atomicadd(& field[idx1d+tshift*gcfg->dimlen.z+gcfg->dimlen.w], oldval);
+			    }
+                            GPUDEBUG(("atomic write to [%d] %e, w=%f\n",idx1d,tmp0*replayweight[(idx*gcfg->threadphoton+min(idx,gcfg->oddphoton-1)+(int)f.w)],p.w));
+#endif
+                       }
                        if(gcfg->debuglevel & MCX_DEBUG_MOVE)
                            savedebugdata(&p,(uint)f.w+idx*gcfg->threadphoton+min(idx,(idx<gcfg->oddphoton)*idx),gjumpdebug,gdebugdata,gcfg);
 	       }
@@ -1253,12 +1280,27 @@ __kernel void mcx_main_loop(__global const uint *media,
              GPUDEBUG(((__constant char*)"field add to %d->%f(%d)\n",idx1dold,w0-p.w,(int)f.w));
              // if t is within the time window, which spans cfg->maxgate*cfg->tstep wide
              if(gcfg->save2pt && f.y>=gcfg->twin0 && f.y<gcfg->twin1){
+	          float weight=0.f;
+                  int tshift=(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep));
+
+		  /** calculate the quality to be accummulated */
+		  if(gcfg->outputtype==otEnergy)
+		      weight=w0-p.w;
+		  else if(gcfg->seed==SEED_FROM_FILE){
+		      if(gcfg->outputtype==otJacobian){
+		        weight=replayweight[(idx*gcfg->threadphoton+min(idx,gcfg->oddphoton-1)+(int)f.w)]*f.z;
+			tshift=(idx*gcfg->threadphoton+min(idx,gcfg->oddphoton-1)+(int)f.w);
+			tshift=(int)(floor((photontof[tshift]-gcfg->twin0)*gcfg->Rtstep)) + 
+			   ( (gcfg->replaydet==-1)? ((photondetid[tshift]-1)*gcfg->maxgate) : 0);
+		      }
+		  }else
+		      weight=(prop.x==0.f) ? 0.f : ((w0-p.w)/(prop.x));
+
                   GPUDEBUG(((__constant char*)"deposit to [%d] %e, w=%f\n",idx1dold,w0-p.w,p.w));
 #ifndef USE_ATOMIC
                   field[idx1dold+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z]+=w0-p.w;
 #else
   #if !defined(MCX_SRC_PATTERN) && !defined(MCX_SRC_PATTERN3D)
-                  int tshift=(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep));
 		  float oldval=atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], w0-p.w);
 		  if(oldval>MAX_ACCUM){
 			if(atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], -oldval)<0.f)
@@ -1305,7 +1347,7 @@ __kernel void mcx_main_loop(__global const uint *media,
 		  }
                   GPUDEBUG(((__constant char*)"direct relaunch at idx=[%d] mediaid=[%d], ref=[%d]\n",idx1d,mediaid,gcfg->doreflect));
 		  if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),ppath,
-		      n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,blockphoton,gprogress,
+		      n_det,detectedphoton,t,(__global RandType*)n_seed,gproperty,media,srcpattern,gdetpos,gcfg,idx,blockphoton,gprogress,
 		      (__local RandType*)(sharedmem+get_local_id(0)*gcfg->issaveseed*RAND_BUF_LEN*sizeof(RandType)),gseeddata,gjumpdebug,gdebugdata)){ 
                          break;
 		  }
@@ -1342,8 +1384,8 @@ __kernel void mcx_main_loop(__global const uint *media,
                         if(mediaid==0){ // transmission to external boundary
                             GPUDEBUG(((__constant char*)"transmit to air, relaunch\n"));
 		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),
-			        ppath,n_det,detectedphoton,t,gproperty,media,srcpattern,gdetpos,gcfg,idx,blockphoton,gprogress,
-				(__local RandType*)(sharedmem+get_local_id(0)*gcfg->issaveseed*RAND_BUF_LEN*sizeof(RandType)),seedata,gjumpdebug,gdebugdata)){
+			        ppath,n_det,detectedphoton,t,(__global RandType*)n_seed,gproperty,media,srcpattern,gdetpos,gcfg,idx,blockphoton,gprogress,
+				(__local RandType*)(sharedmem+get_local_id(0)*gcfg->issaveseed*RAND_BUF_LEN*sizeof(RandType)),gseeddata,gjumpdebug,gdebugdata)){
                                     break;
 			    }
                             isdet=mediaid & DET_MASK;
@@ -1371,5 +1413,8 @@ __kernel void mcx_main_loop(__global const uint *media,
      }
      genergy[idx<<1]    =ppath[gcfg->partialdata];
      genergy[(idx<<1)+1]=ppath[gcfg->partialdata+1];
+
+     if(gcfg->issaveref>1)
+         *detectedphoton=gcfg->maxdetphoton;
 }
 

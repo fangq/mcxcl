@@ -58,7 +58,8 @@
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W','z',
                  'd','r','S','p','e','U','R','l','L','M','I','-','o','k','v','J',
-                 'A','P','E','F','H','K','u','-','x','X','-','w','-','q','V','\0'};
+                 'A','P','E','F','H','K','u','-','x','X','-','w','-','q','V','m',
+		 'Y','O','-','-','\0'};
 
 /**
  * Long command line options
@@ -73,7 +74,8 @@ const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--printgpu","--root","--optlevel","--kernel","--verbose","--compileropt",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
 		 "--mediabyte","--unitinmm","--atomic","--saveexit","--saveref",
-		 "--internalsrc","--savedetflag","--gscatter","--saveseed","--specular",""};
+		 "--internalsrc","--savedetflag","--gscatter","--saveseed","--specular"
+		 "--momentum","--replaydet","--outputtype","--voidtime","--showkernel",""};
 
 /**
  * Debug flags
@@ -856,6 +858,16 @@ void mcx_prepdomain(char *filename, Config *cfg){
 	 cfg->savedetflag=UNSET_SAVE_PPATH(cfg->savedetflag);
 	 cfg->savedetflag=UNSET_SAVE_MOM(cfg->savedetflag);
      }
+     if(cfg->issaveref>1){
+        if(cfg->issavedet==0)
+	    MCX_ERROR(-4,"you must have at least two outputs if issaveref is greater than 1");
+
+        if(cfg->dim.x*cfg->dim.y*cfg->dim.z > cfg->maxdetphoton){
+	    MCX_FPRINTF(cfg->flog,"you must set --maxdetphoton larger than the total size of the voxels when --issaveref is greater than 1; autocorrecting ...\n");
+	    cfg->maxdetphoton=cfg->dim.x*cfg->dim.y*cfg->dim.z;
+        }
+	cfg->savedetflag=0x5;
+     }
 }
 
 int mcx_loadjson(cJSON *root, Config *cfg){
@@ -1537,7 +1549,7 @@ int mcx_remap(char *opt){
     return 1;
 }
 void mcx_parsecmd(int argc, char* argv[], Config *cfg){
-     int i=1,isinteractive=1,issavelog=0;
+     int i=1,isinteractive=1,issavelog=0,showkernel=0;
      char filename[MAX_PATH_LENGTH]={0}, *jsoninput=NULL;
      char logfile[MAX_PATH_LENGTH]={0};
      float np=0.f;
@@ -1575,9 +1587,6 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 				}else
 		     	        	i=mcx_readarg(argc,argv,i,filename,"string");
 				break;
-		     case 'm':
-				mcx_error(-2,"specifying photon move is not supported any more, please use -n",__FILE__,__LINE__);
-		     	        i=mcx_readarg(argc,argv,i,&(cfg->nphoton),"int");
 		     	        break;
 		     case 'n':
 		     	        i=mcx_readarg(argc,argv,i,&(np),"float");
@@ -1612,6 +1621,10 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     case 'd':
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->issavedet),"char");
 		     	        break;
+		     case 'm':
+		                i=mcx_readarg(argc,argv,i,&(cfg->ismomentum),"char");
+				if (cfg->ismomentum) cfg->issavedet=1;
+				break;
 		     case 'r':
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->respin),"int");
 		     	        break;
@@ -1710,12 +1723,32 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     case 'M':
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->isdumpmask),"char");
 		     	        break;
+                     case 'Y':
+                                i=mcx_readarg(argc,argv,i,&(cfg->replaydet),"int");
+                                break;
+		     case 'H':
+		     	        i=mcx_readarg(argc,argv,i,&(cfg->maxdetphoton),"int");
+		     	        break;
                      case 'P':
                                 cfg->shapedata=argv[++i];
                                 break;
                      case 'E':
-				i=mcx_readarg(argc,argv,i,&(cfg->seed),"int");
+				if(i<argc-1 && strstr(argv[i+1],".mch")!=NULL){ /*give an mch file to initialize the seed*/
+#if defined(USE_LL5_RAND)
+					mcx_error(-1,"seeding file is not supported in this binary",__FILE__,__LINE__);
+#else
+                                        i=mcx_readarg(argc,argv,i,cfg->seedfile,"string");
+					cfg->seed=SEED_FROM_FILE;
+#endif
+		     	        }else
+					i=mcx_readarg(argc,argv,i,&(cfg->seed),"int");
 		     	        break;
+                     case 'O':
+                                i=mcx_readarg(argc,argv,i,&(cfg->outputtype),"string");
+				if(mcx_lookupindex(&(cfg->outputtype), outputtype)){
+                                        mcx_error(-2,"the specified output data type is not recognized",__FILE__,__LINE__);
+                                }
+                                break;
 		     case 'K':
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->maxdetphoton),"int");
 		     	        break;
@@ -1734,10 +1767,14 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                                      i=mcx_readarg(argc,argv,i,cfg->rootpath,"string");
                                 else if(strcmp(argv[i]+2,"atomic")==0)
 		                     i=mcx_readarg(argc,argv,i,&(cfg->isatomic),"int");
+                                else if(strcmp(argv[i]+2,"voidtime")==0)
+		                     i=mcx_readarg(argc,argv,i,&(cfg->voidtime),"char");
                                 else if(strcmp(argv[i]+2,"maxjumpdebug")==0)
                                      i=mcx_readarg(argc,argv,i,&(cfg->maxjumpdebug),"int");
                                 else if(strcmp(argv[i]+2,"gscatter")==0)
                                      i=mcx_readarg(argc,argv,i,&(cfg->gscatter),"int");
+                                else if(strcmp(argv[i]+2,"showkernel")==0)
+                                     i=mcx_readarg(argc,argv,i,&showkernel,"char");
                                 else if(strcmp(argv[i]+2,"internalsrc")==0)
 		                     i=mcx_readarg(argc,argv,i,&(cfg->internalsrc),"int");
                                 else
@@ -1771,6 +1808,13 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 	  cfg->clsource[srclen]='\0';
 	  fclose(fp);
      }
+     if(showkernel){
+	  fprintf(cfg->flog,"%s\n",cfg->clsource);
+	  exit(0);
+     }
+
+     if((cfg->outputtype==otJacobian ||cfg->outputtype==otWP || cfg->outputtype==otDCS) && cfg->seed!=SEED_FROM_FILE)
+         MCX_ERROR(-1,"Jacobian output is only valid in the reply mode. Please give an mch file after '-E'.");
      if(cfg->isgpuinfo!=2){ /*print gpu info only*/
 	  if(isinteractive){
              mcx_readconfig((char*)"",cfg);
@@ -1923,7 +1967,8 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 \n"S_BOLD S_CYAN"\
 == MC options ==\n"S_RESET"\
  -n [0|int]    (--photon)      total photon number (exponential form accepted)\n\
- -r [1|int]    (--repeat)      divide photons into r groups (1 per GPU call)\n\
+ -r [1|+/-int] (--repeat)      if positive, repeat by r times,total= #photon*r\n\
+                               if negative, divide #photon into r subsets\n\
  -b [1|0]      (--reflect)     1 to reflect photons at ext. boundary;0 to exit\n\
  -B '______'   (--bc)          per-face boundary condition (BC), 6 letters for\n\
     /case insensitive/         bounding box faces at -x,-y,-z,+x,+y,+z axes;\n\
@@ -1936,11 +1981,34 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 			       'c': cyclic BC, enter from opposite face\n\
  -u [1.|float] (--unitinmm)    defines the length unit for the grid edge\n\
  -U [1|0]      (--normalize)   1 to normalize flux to unitary; 0 save raw\n\
- -E [0|int]    (--seed)        set random-number-generator seed, -1 to generate\n\
+ -E [0|int|mch](--seed)        set random-number-generator seed, -1 to generate\n\
+                               if an mch file is followed, MCX \"replays\" \n\
+                               the detected photon; the replay mode can be used\n\
+                               to calculate the mua/mus Jacobian matrices\n\
  -z [0|1]      (--srcfrom0)    1 volume origin is [0 0 0]; 0: origin at [1 1 1]\n\
- -k [1|0]      (--voidtime)    when src is outside, 1 enables timer inside void\n\
+ -Y [0|int]    (--replaydet)   replay only the detected photons from a given \n\
+                               detector (det ID starts from 1), used with -E \n\
+			       if 0, replay all detectors and sum all Jacobians\n\
+			       if -1, replay all detectors and save separately\n\
+ -V [0|1]      (--specular)    1 source located in the background,0 inside mesh\n\
  -e [0.|float] (--minenergy)   minimum energy level to terminate a photon\n\
  -g [1|int]    (--gategroup)   number of time gates per run\n\
+\n"S_BOLD S_CYAN"\
+== GPU options ==\n"S_RESET"\
+ -L            (--listgpu)     print GPU information only\n\
+ -t [16384|int](--thread)      total thread number\n\
+ -T [64|int]   (--blocksize)   thread number per block\n\
+ -A [1|int]    (--autopilot)   auto thread config:1 enable;0 disable\n\
+ -G [0|int]    (--gpu)         specify which GPU to use, list GPU by -L; 0 auto\n\
+      or\n\
+ -G '1101'     (--gpu)         using multiple devices (1 enable, 0 disable)\n\
+ -W '50,30,20' (--workload)    workload for active devices; normalized by sum\n\
+ -I            (--printgpu)    print GPU information and run program\n\
+ -o [1|int]    (--optlevel)    optimization level 0-no opt;1,2,3 more optimized\n\
+ -J '-DMACRO'  (--compileropt) specify additional JIT compiler options\n\
+                               A few built-in preprocessors include\n\
+              -DMCX_GPU_DEBUG  - print step-by-step debug info\n\
+ -k my_simu.cl (--kernel)      user specified OpenCL kernel source file\n\
 \n"S_BOLD S_CYAN"\
 == Input options ==\n"S_RESET"\
  -P '{...}'    (--shapes)      a JSON string for additional shapes in the grid\n\
@@ -1954,20 +2022,6 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 			     103 or asgn_byte: 4x byte gray-levels for mua/s/g/n\n\
 			     104 or muamus_short: 2x short gray-levels for mua/s\n\
  -a [0|1]      (--array)       1 for C array (row-major); 0 for Matlab array\n\
-\n"S_BOLD S_CYAN"\
-== GPU options ==\n"S_RESET"\
- -L            (--listgpu)     print GPU information only\n\
- -t [16384|int](--thread)      total thread number\n\
- -T [64|int]   (--blocksize)   thread number per block\n\
- -A [1|int]    (--autopilot)   auto thread config:1 enable;0 disable\n\
- -G [0|int]    (--gpu)         specify which GPU to use, list GPU by -L; 0 auto\n\
-      or\n\
- -G '1101'     (--gpu)         using multiple devices (1 enable, 0 disable)\n\
- -W '50,30,20' (--workload)    workload for active devices; normalized by sum\n\
- -I            (--printgpu)    print GPU information and run program\n\
- -o [1|int]    (--optlevel)    optimization level 0-no opt;1,2,3 more optimized\n\
- -J '-D MCX'   (--compileropt) specify additional JIT compiler options\n\
- -k my_simu.cl (--kernel)      user specified OpenCL kernel source file\n\
 \n"S_BOLD S_CYAN"\
 == Output options ==\n"S_RESET"\
  -s sessionid  (--session)     a string to label all output file names\n\
@@ -2012,11 +2066,15 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 == Debug options ==\n"S_RESET"\
  -D [0|int]    (--debug)       print debug information (you can use an integer\n\
   or                           or a string by combining the following flags)\n\
- -D [''|RMP]                   4 P  print progress bar\n\
+ -D [''|RMP]                   1 R  debug RNG\n\
+    /case insensitive/         2 M  store photon trajectory info\n\
+                               4 P  print progress bar\n\
       combine multiple items by using a string, or add selected numbers together\n\
 \n"S_BOLD S_CYAN"\
 == Additional options ==\n"S_RESET"\
  --atomic       [1|0]          1: use atomic operations; 0: do not use atomics\n\
+ --voidtime     [1|0]          when src is outside, 1 enables timer inside void\n\
+ --showkernel   [1|0]          1:display the default or loaded (-k) MCXCL kernel\n\
  --root         [''|string]    full path to the folder storing the input files\n\
  --internalsrc  [0|1]          set to 1 to skip entry search to speedup launch\n\
  --gscatter     [1e9|int]      after a photon completes the specified number of\n\
