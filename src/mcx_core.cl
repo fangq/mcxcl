@@ -1146,6 +1146,8 @@ __kernel void mcx_main_loop(__global const uint *media,
          n_seed[idx]=NO_LAUNCH;
          return;
      }
+     isdet=mediaid & DET_MASK;
+     mediaid &= MED_MASK; // keep isdet to 0 to avoid launching photon ina 
 
 #ifdef GROUP_LOAD_BALANCE
      while(blockphoton[0]>0 || f.w<0.f) {
@@ -1376,7 +1378,7 @@ __kernel void mcx_main_loop(__global const uint *media,
        	       	     Rtotal=(Rtotal+(ctheta-stheta)/(ctheta+stheta))*0.5f;
 		     GPUDEBUG(((__constant char*)"Rtotal=%f\n",Rtotal));
                   }
-	          if(Rtotal<1.f && rand_next_reflect(t)>Rtotal){ // do transmission
+	          if(Rtotal<1.f && (((isdet & 0xF)==0 && gproperty[mediaid].w>=1.f) || isdet==bcReflect) && rand_next_reflect(t)>Rtotal){ // do transmission
                         transmit(&v,n1,prop.w,flipdir);
                         if(mediaid==0){ // transmission to external boundary
                             GPUDEBUG(((__constant char*)"transmit to air, relaunch\n"));

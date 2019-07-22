@@ -306,13 +306,13 @@ void mcx_cleargpuinfo(GPUInfo **gpuinfo){
     }
 }
 
-void mcx_savenii(float *dat, int len, char* name, int type32bit, int outputformatid, Config *cfg){
+void mcx_savenii(float *dat, size_t len, char* name, int type32bit, int outputformatid, Config *cfg){
      FILE *fp;
      char fname[MAX_PATH_LENGTH]={'\0'};
      nifti_1_header hdr;
      nifti1_extender pad={{0,0,0,0}};
      float *logval=dat;
-     int i;
+     size_t i;
 
      memset((void *)&hdr, 0, sizeof(hdr));
      hdr.sizeof_hdr = MIN_HEADER_SIZE;
@@ -478,6 +478,58 @@ void mcx_normalize(float field[], float scale, int fieldlen, int option, int pid
      *sum=kahant;
  }
 
+ /**
+ * @brief Retrieve mua for different cfg.vol formats to convert fluence back to energy in post-processing 
+ *
+ * @param[out] output: medium absorption coefficient for the current voxel
+ * @param[in] mediaid: medium index of the current voxel
+ * @param[in] cfg: simulation configuration
+ */
+ 
+ float mcx_updatemua(unsigned int mediaid, Config *cfg){
+     float mua=0.f;
+     if(cfg->mediabyte<=4)
+         mua=cfg->prop[mediaid & MED_MASK].mua;
+     else if(cfg->mediabyte==MEDIA_MUA_FLOAT){
+         union{
+            float f;
+	    unsigned int i;
+         } med;
+         med.i=mediaid;
+         mua=fabs(med.f);
+     }else if(cfg->mediabyte==MEDIA_ASGN_BYTE){
+         union {
+            unsigned i;
+            unsigned char h[4];
+        } val;
+        val.i=mediaid & MED_MASK;
+        mua=val.h[0]*(1.f/255.f)*(cfg->prop[2].mua-cfg->prop[1].mua)+cfg->prop[1].mua;
+     }else if(cfg->mediabyte==MEDIA_AS_SHORT){
+         union {
+            unsigned int i;
+            unsigned short h[2];
+         } val;
+        val.i=mediaid & MED_MASK;
+        mua=val.h[0]*(1.f/65535.f)*(cfg->prop[2].mua-cfg->prop[1].mua)+cfg->prop[1].mua;
+     }
+     return mua;
+ }
+
+
+/**
+ * @brief Force flush the command line to print the message
+ *
+ * @param[in] cfg: simulation configuration
+ */
+
+void mcx_flush(Config *cfg){
+#ifdef MCX_CONTAINER
+    mcx_matlab_flush();
+#else
+    fflush(cfg->flog);
+#endif
+}
+
 void mcx_assess(const int err,const char *msg,const char *file,const int linenum){
      if(!err){
          mcx_error(err,msg,file,linenum);
@@ -485,7 +537,7 @@ void mcx_assess(const int err,const char *msg,const char *file,const int linenum
 }
 
 void mcx_error(const int id,const char *msg,const char *file,const int linenum){
-     fprintf(stdout,S_RED"\nMCXCL ERROR(%d):%s in unit %s:%d\n"S_RESET,id,msg,file,linenum);
+     MCX_FPRINTF(stdout,S_RED"\nMCXCL ERROR(%d):%s in unit %s:%d\n"S_RESET,id,msg,file,linenum);
 #ifdef MCX_CONTAINER
      mcx_throw_exception(id,msg,file,linenum);
 #else
@@ -604,27 +656,32 @@ void mcx_writeconfig(const char *fname, Config *cfg){
 void mcx_loadconfig(FILE *in, Config *cfg){
      int i;
      unsigned int gates,itmp;
+     size_t count;
      float dtmp;
      char filename[MAX_PATH_LENGTH]={0}, strtypestr[MAX_SESSION_LENGTH], comment[MAX_PATH_LENGTH],*comm;
      
      if(in==stdin)
-     	fprintf(stdout,"Please specify the total number of photons: [1000000]\n\t");
-     MCX_ASSERT(fscanf(in,"%d", &(i) )==1); 
-     if(cfg->nphoton==0) cfg->nphoton=i;
+     	MCX_FPRINTF(stdout,"Please specify the total number of photons: [1000000]\n\t");
+     MCX_ASSERT(fscanf(in,"%lu", &(count) )==1); 
+     if(cfg->nphoton==0) cfg->nphoton=count;
      comm=fgets(comment,MAX_PATH_LENGTH,in);
      if(in==stdin)
-     	fprintf(stdout,"%ld\nPlease specify the random number generator seed: [1234567]\n\t",cfg->nphoton);
-     MCX_ASSERT(fscanf(in,"%d", &(cfg->seed) )==1);
+     	MCX_FPRINTF(stdout,"%ld\nPlease specify the random number generator seed: [1234567]\n\t",cfg->nphoton);
+     if(cfg->seed==0){
+        MCX_ASSERT(fscanf(in,"%d", &(cfg->seed) )==1);
+     }else{
+        MCX_ASSERT(fscanf(in,"%u", &itmp )==1);
+     }
      comm=fgets(comment,MAX_PATH_LENGTH,in);
      if(in==stdin)
-     	fprintf(stdout,"%d\nPlease specify the position of the source: [10 10 5]\n\t",cfg->seed);
+     	MCX_FPRINTF(stdout,"%d\nPlease specify the position of the source: [10 10 5]\n\t",cfg->seed);
      MCX_ASSERT(fscanf(in,"%f %f %f", &(cfg->srcpos.x),&(cfg->srcpos.y),&(cfg->srcpos.z) )==3);
      comm=fgets(comment,MAX_PATH_LENGTH,in);
      if(cfg->issrcfrom0==0 && comm!=NULL && sscanf(comm,"%u",&itmp)==1)
          cfg->issrcfrom0=itmp;
 
      if(in==stdin)
-     	fprintf(stdout,"%f %f %f\nPlease specify the normal direction of the source fiber: [0 0 1]\n\t",
+     	MCX_FPRINTF(stdout,"%f %f %f\nPlease specify the normal direction of the source fiber: [0 0 1]\n\t",
                                    cfg->srcpos.x,cfg->srcpos.y,cfg->srcpos.z);
      if(!cfg->issrcfrom0){
      	cfg->srcpos.x--;cfg->srcpos.y--;cfg->srcpos.z--; /*convert to C index, grid center*/
@@ -635,13 +692,13 @@ void mcx_loadconfig(FILE *in, Config *cfg){
          cfg->srcdir.w=dtmp;
 
      if(in==stdin)
-     	fprintf(stdout,"%f %f %f\nPlease specify the time gates in seconds (start end and step) [0.0 1e-9 1e-10]\n\t",
+     	MCX_FPRINTF(stdout,"%f %f %f\nPlease specify the time gates in seconds (start end and step) [0.0 1e-9 1e-10]\n\t",
                                    cfg->srcdir.x,cfg->srcdir.y,cfg->srcdir.z);
      MCX_ASSERT(fscanf(in,"%f %f %f", &(cfg->tstart),&(cfg->tend),&(cfg->tstep) )==3);
      comm=fgets(comment,MAX_PATH_LENGTH,in);
 
      if(in==stdin)
-     	fprintf(stdout,"%f %f %f\nPlease specify the path to the volume binary file:\n\t",
+     	MCX_FPRINTF(stdout,"%f %f %f\nPlease specify the path to the volume binary file:\n\t",
                                    cfg->tstart,cfg->tend,cfg->tstep);
      if(cfg->tstart>cfg->tend || cfg->tstep==0.f){
          mcx_error(-9,"incorrect time gate settings",__FILE__,__LINE__);
@@ -664,64 +721,105 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      comm=fgets(comment,MAX_PATH_LENGTH,in);
 
      if(in==stdin)
-     	fprintf(stdout,"%s\nPlease specify the x voxel size (in mm), x dimension, min and max x-index [1.0 100 1 100]:\n\t",filename);
+     	MCX_FPRINTF(stdout,"%s\nPlease specify the x voxel size (in mm), x dimension, min and max x-index [1.0 100 1 100]:\n\t",filename);
      MCX_ASSERT(fscanf(in,"%f %u %u %u", &(cfg->steps.x),&(cfg->dim.x),&(cfg->crop0.x),&(cfg->crop1.x))==4);
      comm=fgets(comment,MAX_PATH_LENGTH,in);
 
      if(in==stdin)
-     	fprintf(stdout,"%f %u %u %u\nPlease specify the y voxel size (in mm), y dimension, min and max y-index [1.0 100 1 100]:\n\t",
+     	MCX_FPRINTF(stdout,"%f %u %u %u\nPlease specify the y voxel size (in mm), y dimension, min and max y-index [1.0 100 1 100]:\n\t",
                                   cfg->steps.x,cfg->dim.x,cfg->crop0.x,cfg->crop1.x);
      MCX_ASSERT(fscanf(in,"%f %u %u %u", &(cfg->steps.y),&(cfg->dim.y),&(cfg->crop0.y),&(cfg->crop1.y))==4);
      comm=fgets(comment,MAX_PATH_LENGTH,in);
 
      if(in==stdin)
-     	fprintf(stdout,"%f %u %u %u\nPlease specify the z voxel size (in mm), z dimension, min and max z-index [1.0 100 1 100]:\n\t",
+     	MCX_FPRINTF(stdout,"%f %u %u %u\nPlease specify the z voxel size (in mm), z dimension, min and max z-index [1.0 100 1 100]:\n\t",
                                   cfg->steps.y,cfg->dim.y,cfg->crop0.y,cfg->crop1.y);
      MCX_ASSERT(fscanf(in,"%f %u %u %u", &(cfg->steps.z),&(cfg->dim.z),&(cfg->crop0.z),&(cfg->crop1.z))==4);
      comm=fgets(comment,MAX_PATH_LENGTH,in);
 
+     if(cfg->steps.x!=cfg->steps.y || cfg->steps.y!=cfg->steps.z)
+        mcx_error(-9,"MCX currently does not support anisotropic voxels",__FILE__,__LINE__);
+
+     if(cfg->steps.x!=1.f && cfg->unitinmm==1.f)
+        cfg->unitinmm=cfg->steps.x;
+
+     if(cfg->unitinmm!=1.f){
+        cfg->steps.x=cfg->unitinmm; cfg->steps.y=cfg->unitinmm; cfg->steps.z=cfg->unitinmm;
+     }
+
+     if(cfg->sradius>0.f){
+     	cfg->crop0.x=MAX((uint)(cfg->srcpos.x-cfg->sradius),0);
+     	cfg->crop0.y=MAX((uint)(cfg->srcpos.y-cfg->sradius),0);
+     	cfg->crop0.z=MAX((uint)(cfg->srcpos.z-cfg->sradius),0);
+     	cfg->crop1.x=MIN((uint)(cfg->srcpos.x+cfg->sradius),cfg->dim.x-1);
+     	cfg->crop1.y=MIN((uint)(cfg->srcpos.y+cfg->sradius),cfg->dim.y-1);
+     	cfg->crop1.z=MIN((uint)(cfg->srcpos.z+cfg->sradius),cfg->dim.z-1);
+     }else if(cfg->sradius==0.f){
+     	memset(&(cfg->crop0),0,sizeof(uint3));
+     	memset(&(cfg->crop1),0,sizeof(uint3));
+     }else{
+        /*
+           if -R is followed by a negative radius, mcx uses crop0/crop1 to set the cachebox
+        */
+        if(!cfg->issrcfrom0){
+            cfg->crop0.x--;cfg->crop0.y--;cfg->crop0.z--;  /*convert to C index*/
+            cfg->crop1.x--;cfg->crop1.y--;cfg->crop1.z--;
+        }
+     }
      if(in==stdin)
-     	fprintf(stdout,"%f %u %u %u\nPlease specify the total types of media:\n\t",
+     	MCX_FPRINTF(stdout,"%f %u %u %u\nPlease specify the total types of media:\n\t",
                                   cfg->steps.z,cfg->dim.z,cfg->crop0.z,cfg->crop1.z);
      MCX_ASSERT(fscanf(in,"%u", &(cfg->medianum))==1);
      cfg->medianum++;
      comm=fgets(comment,MAX_PATH_LENGTH,in);
 
      if(in==stdin)
-     	fprintf(stdout,"%d\n",cfg->medianum);
+     	MCX_FPRINTF(stdout,"%d\n",cfg->medianum);
      cfg->prop=(Medium*)malloc(sizeof(Medium)*cfg->medianum);
      cfg->prop[0].mua=0.f; /*property 0 is already air*/
      cfg->prop[0].mus=0.f;
-     cfg->prop[0].g=0.f;
+     cfg->prop[0].g=1.f;
      cfg->prop[0].n=1.f;
      for(i=1;i<(int)cfg->medianum;i++){
         if(in==stdin)
-		fprintf(stdout,"Please define medium #%d: mus(1/mm), anisotropy, mua(1/mm) and refractive index: [1.01 0.01 0.04 1.37]\n\t",i);
+		MCX_FPRINTF(stdout,"Please define medium #%d: mus(1/mm), anisotropy, mua(1/mm) and refractive index: [1.01 0.01 0.04 1.37]\n\t",i);
      	MCX_ASSERT(fscanf(in, "%f %f %f %f", &(cfg->prop[i].mus),&(cfg->prop[i].g),&(cfg->prop[i].mua),&(cfg->prop[i].n))==4);
         comm=fgets(comment,MAX_PATH_LENGTH,in);
         if(in==stdin)
-		fprintf(stdout,"%f %f %f %f\n",cfg->prop[i].mus,cfg->prop[i].g,cfg->prop[i].mua,cfg->prop[i].n);
+		MCX_FPRINTF(stdout,"%f %f %f %f\n",cfg->prop[i].mus,cfg->prop[i].g,cfg->prop[i].mua,cfg->prop[i].n);
      }
-     if(in==stdin)
-     	fprintf(stdout,"Please specify the total number of detectors and fiber diameter (in mm):\n\t");
+     if(cfg->unitinmm!=1.f){
+         for(i=1;i<cfg->medianum;i++){
+		cfg->prop[i].mus*=cfg->unitinmm;
+		cfg->prop[i].mua*=cfg->unitinmm;
+         }
+     }
+      if(in==stdin)
+     	MCX_FPRINTF(stdout,"Please specify the total number of detectors and fiber diameter (in grid unit):\n\t");
      MCX_ASSERT(fscanf(in,"%u %f", &(cfg->detnum), &(cfg->detradius))==2);
      comm=fgets(comment,MAX_PATH_LENGTH,in);
      if(in==stdin)
-     	fprintf(stdout,"%d %f\n",cfg->detnum,cfg->detradius);
+     	MCX_FPRINTF(stdout,"%d %f\n",cfg->detnum,cfg->detradius);
+     if(cfg->medianum+cfg->detnum>MAX_PROP+MAX_DETECTORS)
+         mcx_error(-4,"input media types plus detector number exceeds the maximum total (4000)",__FILE__,__LINE__);
+
      cfg->detpos=(float4*)malloc(sizeof(float4)*cfg->detnum);
      if(cfg->issavedet && cfg->detnum==0) 
       	cfg->issavedet=0;
-     for(i=0;i<(int)cfg->detnum;i++){
+     for(i=0;i<cfg->detnum;i++){
         if(in==stdin)
-		fprintf(stdout,"Please define detector #%d: x,y,z (in mm): [5 5 5 1]\n\t",i);
+		MCX_FPRINTF(stdout,"Please define detector #%d: x,y,z (in grid unit): [5 5 5 1]\n\t",i);
      	MCX_ASSERT(fscanf(in, "%f %f %f", &(cfg->detpos[i].x),&(cfg->detpos[i].y),&(cfg->detpos[i].z))==3);
-	cfg->detpos[i].w=cfg->detradius*cfg->detradius;
+	cfg->detpos[i].w=cfg->detradius;
         if(!cfg->issrcfrom0){
-	   cfg->detpos[i].x--;cfg->detpos[i].y--;cfg->detpos[i].z--;  /*convert to C index*/
+		cfg->detpos[i].x--;cfg->detpos[i].y--;cfg->detpos[i].z--;  /*convert to C index*/
 	}
         comm=fgets(comment,MAX_PATH_LENGTH,in);
+        if(comm!=NULL && sscanf(comm,"%f",&dtmp)==1)
+            cfg->detpos[i].w=dtmp;
+
         if(in==stdin)
-		fprintf(stdout,"%f %f %f\n",cfg->detpos[i].x,cfg->detpos[i].y,cfg->detpos[i].z);
+		MCX_FPRINTF(stdout,"%f %f %f\n",cfg->detpos[i].x,cfg->detpos[i].y,cfg->detpos[i].z);
      }
      mcx_prepdomain(filename,cfg);
      cfg->his.maxmedia=cfg->medianum-1; /*skip media 0*/
@@ -731,7 +829,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      //cfg->his.colcount=cfg->medianum+1+(cfg->issaveexit)*6; /*column count=maxmedia+2*/
 
      if(in==stdin)
-     	fprintf(stdout,"Please specify the source type[pencil|cone|gaussian]:\n\t");
+     	MCX_FPRINTF(stdout,"Please specify the source type[pencil|cone|gaussian]:\n\t");
      if(fscanf(in,"%s", strtypestr)==1 && strtypestr[0]){
         int srctype=mcx_keylookup(strtypestr,srctypeid);
 	if(srctype==-1)
@@ -740,11 +838,11 @@ void mcx_loadconfig(FILE *in, Config *cfg){
            comm=fgets(comment,MAX_PATH_LENGTH,in);
 	   cfg->srctype=srctype;
 	   if(in==stdin)
-     	      fprintf(stdout,"Please specify the source parameters set 1 (4 floating-points):\n\t");
+     	      MCX_FPRINTF(stdout,"Please specify the source parameters set 1 (4 floating-points):\n\t");
            MCX_ASSERT(fscanf(in, "%f %f %f %f", &(cfg->srcparam1.x),
 	          &(cfg->srcparam1.y),&(cfg->srcparam1.z),&(cfg->srcparam1.w))==4);
 	   if(in==stdin)
-     	      fprintf(stdout,"Please specify the source parameters set 2 (4 floating-points):\n\t");
+     	      MCX_FPRINTF(stdout,"Please specify the source parameters set 2 (4 floating-points):\n\t");
            MCX_ASSERT(fscanf(in, "%f %f %f %f", &(cfg->srcparam2.x),
 	          &(cfg->srcparam2.y),&(cfg->srcparam2.z),&(cfg->srcparam2.w))==4);
            if(cfg->srctype==MCX_SRC_PATTERN && cfg->srcparam1.w*cfg->srcparam2.w>0){
@@ -816,7 +914,7 @@ void mcx_prepdomain(char *filename, Config *cfg){
      if(cfg->seed==SEED_FROM_FILE && cfg->seedfile[0]){
         if(cfg->respin>1 || cfg->respin<0){
 	   cfg->respin=1;
-	   fprintf(stderr,S_RED"WARNING: respin is disabled in the replay mode\n"S_RESET);
+	   MCX_FPRINTF(stderr,S_RED"WARNING: respin is disabled in the replay mode\n"S_RESET);
 	}
         mcx_loadseedfile(cfg);
      }
@@ -1186,23 +1284,30 @@ int mcx_loadjson(cJSON *root, Config *cfg){
 void mcx_saveconfig(FILE *out, Config *cfg){
      unsigned int i;
 
-     fprintf(out,"%ld\n", (cfg->nphoton) ); 
-     fprintf(out,"%d\n", (cfg->seed) );
-     fprintf(out,"%f %f %f\n", (cfg->srcpos.x),(cfg->srcpos.y),(cfg->srcpos.z) );
-     fprintf(out,"%f %f %f\n", (cfg->srcdir.x),(cfg->srcdir.y),(cfg->srcdir.z) );
-     fprintf(out,"%f %f %f\n", (cfg->tstart),(cfg->tend),(cfg->tstep) );
-     fprintf(out,"%f %d %d %d\n", (cfg->steps.x),(cfg->dim.x),(cfg->crop0.x),(cfg->crop1.x));
-     fprintf(out,"%f %d %d %d\n", (cfg->steps.y),(cfg->dim.y),(cfg->crop0.y),(cfg->crop1.y));
-     fprintf(out,"%f %d %d %d\n", (cfg->steps.z),(cfg->dim.z),(cfg->crop0.z),(cfg->crop1.z));
-     fprintf(out,"%d", (cfg->medianum));
+     MCX_FPRINTF(out,"%ld\n", (cfg->nphoton) ); 
+     MCX_FPRINTF(out,"%d\n", (cfg->seed) );
+     MCX_FPRINTF(out,"%f %f %f\n", (cfg->srcpos.x),(cfg->srcpos.y),(cfg->srcpos.z) );
+     MCX_FPRINTF(out,"%f %f %f\n", (cfg->srcdir.x),(cfg->srcdir.y),(cfg->srcdir.z) );
+     MCX_FPRINTF(out,"%f %f %f\n", (cfg->tstart),(cfg->tend),(cfg->tstep) );
+     MCX_FPRINTF(out,"%f %d %d %d\n", (cfg->steps.x),(cfg->dim.x),(cfg->crop0.x),(cfg->crop1.x));
+     MCX_FPRINTF(out,"%f %d %d %d\n", (cfg->steps.y),(cfg->dim.y),(cfg->crop0.y),(cfg->crop1.y));
+     MCX_FPRINTF(out,"%f %d %d %d\n", (cfg->steps.z),(cfg->dim.z),(cfg->crop0.z),(cfg->crop1.z));
+     MCX_FPRINTF(out,"%d", (cfg->medianum));
      for(i=0;i<cfg->medianum;i++){
-     	fprintf(out, "%f %f %f %f\n", (cfg->prop[i].mus),(cfg->prop[i].g),(cfg->prop[i].mua),(cfg->prop[i].n));
+     	MCX_FPRINTF(out, "%f %f %f %f\n", (cfg->prop[i].mus),(cfg->prop[i].g),(cfg->prop[i].mua),(cfg->prop[i].n));
      }
-     fprintf(out,"%d", (cfg->detnum));
+     MCX_FPRINTF(out,"%d", (cfg->detnum));
      for(i=0;i<cfg->detnum;i++){
-     	fprintf(out, "%f %f %f %f\n", (cfg->detpos[i].x),(cfg->detpos[i].y),(cfg->detpos[i].z),(cfg->detpos[i].w));
+     	MCX_FPRINTF(out, "%f %f %f %f\n", (cfg->detpos[i].x),(cfg->detpos[i].y),(cfg->detpos[i].z),(cfg->detpos[i].w));
      }
 }
+
+/**
+ * @brief Load media index data volume (.bin or .vol) to the memory
+ *
+ * @param[in] filename: file name to the binary volume data (support 1,2 and 4 bytes per voxel)
+ * @param[in] cfg: simulation configuration
+ */
 
 void mcx_loadvolume(char *filename,Config *cfg){
      unsigned int i,datalen,res;
@@ -1229,11 +1334,13 @@ void mcx_loadvolume(char *filename,Config *cfg){
      }
      datalen=cfg->dim.x*cfg->dim.y*cfg->dim.z;
      cfg->vol=(unsigned int*)malloc(sizeof(unsigned int)*datalen);
-     if(cfg->mediabyte==4)
+     if(cfg->mediabyte==MEDIA_AS_F2H)
+         inputvol=(unsigned char*)malloc(sizeof(unsigned char)*(datalen<<3));
+     else if(cfg->mediabyte>=4)
          inputvol=(unsigned char*)(cfg->vol);
      else
          inputvol=(unsigned char*)malloc(sizeof(unsigned char)*cfg->mediabyte*datalen);
-     res=fread(inputvol,sizeof(unsigned char)*cfg->mediabyte,datalen,fp);
+     res=fread(inputvol,sizeof(unsigned char)*(cfg->mediabyte==MEDIA_AS_F2H? 8 : MIN(cfg->mediabyte,4)),datalen,fp);
      fclose(fp);
      if(res!=datalen){
      	 mcx_error(-6,"file size does not match specified dimensions",__FILE__,__LINE__);
@@ -1246,15 +1353,51 @@ void mcx_loadvolume(char *filename,Config *cfg){
        unsigned short *val=(unsigned short *)inputvol;
        for(i=0;i<datalen;i++)
          cfg->vol[i]=val[i];
+     }else if(cfg->mediabyte==MEDIA_MUA_FLOAT){
+       union{
+           float f;
+	   uint  i;
+       } f2i;
+       float *val=(float *)inputvol;
+       for(i=0;i<datalen;i++){
+         f2i.f=val[i]*cfg->unitinmm;
+         cfg->vol[i]=f2i.i;
+       }
+     }else if(cfg->mediabyte==MEDIA_AS_F2H){
+        float *val=(float *)inputvol;
+	union{
+	    float f[2];
+	    unsigned int i[2];
+	    unsigned short h[2];
+	} f2h;
+	unsigned short tmp;
+        for(i=0;i<datalen;i++){
+	    f2h.f[0]=val[i<<1]*cfg->unitinmm;
+	    f2h.f[1]=val[(i<<1)+1]*cfg->unitinmm;
+
+	    f2h.h[0] = (f2h.i[0] >> 31) << 5;
+	    tmp = (f2h.i[0] >> 23) & 0xff;
+	    tmp = (tmp - 0x70) & ((unsigned int)((int)(0x70 - tmp) >> 4) >> 27);
+	    f2h.h[0] = (f2h.h[0] | tmp) << 10;
+	    f2h.h[0] |= (f2h.i[0] >> 13) & 0x3ff;
+
+	    f2h.h[1] = (f2h.i[1] >> 31) << 5;
+	    tmp = (f2h.i[1] >> 23) & 0xff;
+	    tmp = (tmp - 0x70) & ((unsigned int)((int)(0x70 - tmp) >> 4) >> 27);
+	    f2h.h[1] = (f2h.h[1] | tmp) << 10;
+	    f2h.h[1] |= (f2h.i[1] >> 13) & 0x3ff;
+
+            cfg->vol[i]=f2h.i[0];
+	}
      }
-     for(i=0;i<datalen;i++){
+     if(cfg->mediabyte<=4)
+       for(i=0;i<datalen;i++){
          if(cfg->vol[i]>=cfg->medianum)
             mcx_error(-6,"medium index exceeds the specified medium types",__FILE__,__LINE__);
      }
-     if(cfg->mediabyte<4)
+     if(cfg->mediabyte<4 || cfg->mediabyte==MEDIA_AS_F2H)
          free(inputvol);
 }
-
 
 /**
  * @brief Load previously saved photon seeds from an .mch file for replay
@@ -1415,7 +1558,7 @@ void  mcx_maskdet(Config *cfg){
 	   }
         }
         if(cfg->issavedet && count==0)
-              fprintf(stderr,S_RED"MCX WARNING: detector %d is not located on an interface, please check coordinates.\n"S_RESET,d+1);
+              MCX_FPRINTF(stderr,S_RED"MCX WARNING: detector %d is not located on an interface, please check coordinates.\n"S_RESET,d+1);
      }
 
      free(padvol);
@@ -1808,7 +1951,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 	  fclose(fp);
      }
      if(showkernel){
-	  fprintf(cfg->flog,"%s\n",cfg->clsource);
+	  MCX_FPRINTF(cfg->flog,"%s\n",cfg->clsource);
 	  exit(0);
      }
 
@@ -1885,58 +2028,6 @@ int mcx_isbinstr(const char * str){
         if(str[i]!='0' && str[i]!='1')
 	   return 0;
     return 1;
-}
-
-
- /**
- * @brief Retrieve mua for different cfg.vol formats to convert fluence back to energy in post-processing 
- *
- * @param[out] output: medium absorption coefficient for the current voxel
- * @param[in] mediaid: medium index of the current voxel
- * @param[in] cfg: simulation configuration
- */
- 
- float mcx_updatemua(unsigned int mediaid, Config *cfg){
-     float mua=0.f;
-     if(cfg->mediabyte<=4)
-         mua=cfg->prop[mediaid & MED_MASK].mua;
-     else if(cfg->mediabyte==MEDIA_MUA_FLOAT){
-         union{
-            float f;
-	    unsigned int i;
-         } med;
-         med.i=mediaid;
-         mua=fabs(med.f);
-     }else if(cfg->mediabyte==MEDIA_ASGN_BYTE){
-         union {
-            unsigned i;
-            unsigned char h[4];
-        } val;
-        val.i=mediaid & MED_MASK;
-        mua=val.h[0]*(1.f/255.f)*(cfg->prop[2].mua-cfg->prop[1].mua)+cfg->prop[1].mua;
-     }else if(cfg->mediabyte==MEDIA_AS_SHORT){
-         union {
-            unsigned int i;
-            unsigned short h[2];
-         } val;
-        val.i=mediaid & MED_MASK;
-        mua=val.h[0]*(1.f/65535.f)*(cfg->prop[2].mua-cfg->prop[1].mua)+cfg->prop[1].mua;
-     }
-     return mua;
- }
-
-/**
- * @brief Force flush the command line to print the message
- *
- * @param[in] cfg: simulation configuration
- */
-
-void mcx_flush(Config *cfg){
-#ifdef MCX_CONTAINER
-    mcx_matlab_flush();
-#else
-    fflush(cfg->flog);
-#endif
 }
 
 void mcx_printheader(Config *cfg){
