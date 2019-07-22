@@ -1282,6 +1282,8 @@ __kernel void mcx_main_loop(__global const uint *media,
 		  /** calculate the quality to be accummulated */
 		  if(gcfg->outputtype==otEnergy)
 		      weight=w0-p.w;
+		  else if(gcfg->outputtype==otFluence || gcfg->outputtype==otFlux)
+		      weight=(prop.x==0.f) ? 0.f : ((w0-p.w)/(prop.x));
 		  else if(gcfg->seed==SEED_FROM_FILE){
 		      if(gcfg->outputtype==otJacobian){
 		        weight=replayweight[(idx*gcfg->threadphoton+min(idx,gcfg->oddphoton-1)+(int)f.w)]*f.z;
@@ -1289,8 +1291,7 @@ __kernel void mcx_main_loop(__global const uint *media,
 			tshift=(int)(floor((photontof[tshift]-gcfg->twin0)*gcfg->Rtstep)) + 
 			   ( (gcfg->replaydet==-1)? ((photondetid[tshift]-1)*gcfg->maxgate) : 0);
 		      }
-		  }else
-		      weight=(prop.x==0.f) ? 0.f : ((w0-p.w)/(prop.x));
+		  }
 
                   GPUDEBUG(((__constant char*)"deposit to [%d] %e, w=%f\n",idx1dold,w0-p.w,p.w));
 #ifndef USE_ATOMIC
