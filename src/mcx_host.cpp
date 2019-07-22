@@ -290,9 +290,9 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cl_uint  totalcucore;
      cl_uint  devid=0;
      cl_mem gmedia,gproperty,gparam;
-     cl_mem greplaydetid=NULL,greplayw=NULL,greplaytof=NULL;
+     cl_mem greplaydetid=NULL,greplayw=NULL,greplaytof=NULL,gsrcpattern=NULL;
      cl_mem *gfield=NULL,*gdetphoton,*gseed=NULL,*genergy=NULL,*gseeddata=NULL;
-     cl_mem *gprogress=NULL,*gdetected=NULL,*gdetpos=NULL, *gsrcpattern=NULL, *gjumpdebug=NULL, *gdebugdata=NULL;
+     cl_mem *gprogress=NULL,*gdetected=NULL,*gdetpos=NULL, *gjumpdebug=NULL, *gdebugdata=NULL;
 
      cl_uint dimxyz=cfg->dim.x*cfg->dim.y*cfg->dim.z*((cfg->srctype==MCX_SRC_PATTERN || cfg->srctype==MCX_SRC_PATTERN3D) ? cfg->srcnum : 1);
 
@@ -360,7 +360,6 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      gprogress=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gdetected=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gdetpos=(cl_mem *)calloc(workdev,sizeof(cl_mem));
-     gsrcpattern=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gjumpdebug=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gdebugdata=(cl_mem *)malloc(workdev*sizeof(cl_mem));
      gseeddata=(cl_mem *)malloc(workdev*sizeof(cl_mem));
@@ -433,7 +432,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      }else{
          field=(cl_float *)calloc(sizeof(cl_float)*dimxyz,cfg->maxgate*2);
      }
-     Pdet=(float*)calloc(cfg->maxdetphoton,sizeof(float)*(cfg->medianum+1));
+     Pdet=(float*)calloc(cfg->maxdetphoton,sizeof(float)*hostdetreclen);
 
      if(cfg->seed==SEED_FROM_FILE && cfg->replaydet==-1)
          fieldlen=dimxyz*cfg->maxgate*cfg->detnum;
@@ -487,6 +486,12 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
          if(cfg->replay.detid)
 	     OCL_ASSERT(((greplaydetid=clCreateBuffer(mcxcontext,RO_MEM,sizeof(int)*cfg->nphoton,cfg->replay.detid,&status),status)));
      }
+     if(cfg->srctype==MCX_SRC_PATTERN)
+           OCL_ASSERT(((gsrcpattern=clCreateBuffer(mcxcontext,RO_MEM, sizeof(float)*(int)(cfg->srcparam1.w*cfg->srcparam2.w)*cfg->srcnum,cfg->srcpattern,&status),status)));
+     else if(cfg->srctype==MCX_SRC_PATTERN3D)
+           OCL_ASSERT(((gsrcpattern=clCreateBuffer(mcxcontext,RO_MEM, sizeof(float)*(int)(cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z)*cfg->srcnum,cfg->srcpattern,&status),status)));
+     else
+           gsrcpattern=NULL;
 
      for(i=0;i<workdev;i++){
        energy=(cl_float*)calloc(sizeof(cl_float),gpu[i].autothread<<1);
@@ -498,7 +503,8 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
            OCL_ASSERT(((gseed[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(RandType)*gpu[i].autothread*RAND_BUF_LEN,Pseed,&status),status)));
        }
        OCL_ASSERT(((gfield[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_float)*fieldlen*2,field,&status),status)));
-       OCL_ASSERT(((gdetphoton[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*cfg->maxdetphoton*(cfg->medianum+1),Pdet,&status),status)));
+       if(cfg->issavedet)
+           OCL_ASSERT(((gdetphoton[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*cfg->maxdetphoton*hostdetreclen,Pdet,&status),status)));
        OCL_ASSERT(((genergy[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(float)*(gpu[i].autothread<<1),energy,&status),status)));
        OCL_ASSERT(((gdetected[i]=clCreateBuffer(mcxcontext,RW_MEM, sizeof(cl_uint),&detected,&status),status)));
        if(cfg->debuglevel & MCX_DEBUG_MOVE){
@@ -513,12 +519,6 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
        }
        if(cfg->detnum>0)
            OCL_ASSERT(((gdetpos[i]=clCreateBuffer(mcxcontext,RO_MEM, cfg->detnum*sizeof(float4),cfg->detpos,&status),status)));
-       if(cfg->srctype==MCX_SRC_PATTERN)
-           OCL_ASSERT(((gsrcpattern[i]=clCreateBuffer(mcxcontext,RO_MEM, sizeof(float)*(int)(cfg->srcparam1.w*cfg->srcparam2.w)*cfg->srcnum,cfg->srcpattern,&status),status)));
-       else if(cfg->srctype==MCX_SRC_PATTERN3D)
-           OCL_ASSERT(((gsrcpattern[i]=clCreateBuffer(mcxcontext,RO_MEM, sizeof(float)*(int)(cfg->srcparam1.x*cfg->srcparam1.y*cfg->srcparam1.z)*cfg->srcnum,cfg->srcpattern,&status),status)));
-       else
-           gsrcpattern[i]=NULL;
        if(cfg->seed!=SEED_FROM_FILE)
            free(Pseed);
        free(energy);
@@ -598,9 +598,9 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 1, sizeof(cl_mem), (void*)(gfield+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 2, sizeof(cl_mem), (void*)(genergy+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 3, sizeof(cl_mem), (void*)(gseed+((cfg->seed!=SEED_FROM_FILE)?i:0)))));
-	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 4, sizeof(cl_mem), (void*)(gdetphoton+i))));
+	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 4, sizeof(cl_mem), (cfg->issavedet ? (void*)(gdetphoton+i) : NULL))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 5, sizeof(cl_mem), (void*)&gproperty)));
-	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 6, sizeof(cl_mem), (void*)(gsrcpattern+i))));
+	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 6, sizeof(cl_mem), (void*)&gsrcpattern)));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 7, sizeof(cl_mem), (void*)(gdetpos+i))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 8, sizeof(cl_mem), (void*)(gprogress))));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 9, sizeof(cl_mem), (void*)(gdetected+i))));
@@ -933,10 +933,13 @@ is more than what your have specified (%d), please use the -H option to specify 
          if(greplaydetid)
              clReleaseMemObject(greplaydetid);
      }
+     if(cfg->srctype==MCX_SRC_PATTERN || cfg->srctype==MCX_SRC_PATTERN3D)
+         clReleaseMemObject(gsrcpattern);
      for(i=0;i<workdev;i++){
          clReleaseMemObject(gfield[i]);
          clReleaseMemObject(gseed[i]);
-         clReleaseMemObject(gdetphoton[i]);
+	 if(cfg->issavedet)
+             clReleaseMemObject(gdetphoton[i]);
          clReleaseMemObject(genergy[i]);
          clReleaseMemObject(gdetected[i]);
 	 if(cfg->debuglevel & MCX_DEBUG_MOVE){
@@ -947,8 +950,6 @@ is more than what your have specified (%d), please use the -H option to specify 
              clReleaseMemObject(gdetpos[i]);
          if(cfg->issaveseed)
              clReleaseMemObject(gseeddata[i]);
-         if(cfg->srctype==MCX_SRC_PATTERN || cfg->srctype==MCX_SRC_PATTERN3D)
-             clReleaseMemObject(gsrcpattern[i]);
          clReleaseKernel(mcxkernel[i]);
      }
      free(gfield);
@@ -958,7 +959,6 @@ is more than what your have specified (%d), please use the -H option to specify 
      free(gprogress);
      free(gdetected);
      free(gdetpos);
-     free(gsrcpattern);
      free(gjumpdebug);
      free(gdebugdata);
      free(gseeddata);

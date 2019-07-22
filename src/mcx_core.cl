@@ -364,11 +364,15 @@ void savedetphoton(__global float *n_det,__global uint *detectedphoton,
 	    for(i=0;i<gcfg->partialdata;i++)
 		n_det[baseaddr++]=ppath[i]; ///< save partial pathlength to the memory
             if(SAVE_PEXIT(gcfg->savedetflag)){
-	            *((__global float3*)(n_det+baseaddr))=(float3)(p0->x,p0->y,p0->z);
+	            *((__global float*)(n_det+baseaddr))=p0->x;
+		    *((__global float*)(n_det+baseaddr+1))=p0->y;
+		    *((__global float*)(n_det+baseaddr+2))=p0->z;
 		    baseaddr+=3;
 	    }
 	    if(SAVE_VEXIT(gcfg->savedetflag)){
-		    *((__global float3*)(n_det+baseaddr))=(float3)(v->x,v->y,v->z);
+	            *((__global float*)(n_det+baseaddr))=v->x;
+		    *((__global float*)(n_det+baseaddr+1))=v->y;
+		    *((__global float*)(n_det+baseaddr+2))=v->z;
 		    baseaddr+=3;
 	    }
 	    if(SAVE_W0(gcfg->savedetflag))
@@ -814,7 +818,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
        */
 
       if(gcfg->seed==SEED_FROM_FILE){
-          int seedoffset=(threadid*gcfg->threadphoton+min(threadid,gcfg->oddphoton-1)+max(0,(int)f[0].w+1))*RAND_BUF_LEN;
+          int seedoffset=(threadid*gcfg->threadphoton+min(threadid,gcfg->oddphoton-1)+max(0,(int)f[0].w))*RAND_BUF_LEN;
           for(int i=0;i<RAND_BUF_LEN;i++)
 	      t[i]=rngseed[seedoffset+i];
       }
@@ -857,9 +861,9 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
     		      p[0].w=srcpattern[(int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w)];
     		      ppath[2]=p->w;
     		  }else{
-    		    *((uint *)(ppath+2))=((int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w));
+    		    *((__local uint *)(ppath+2))=((int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w));
     	            for(int i=0;i<gcfg->srcnum;i++)
-    		          ppath[i+3]=srcpattern[(*((uint *)(ppath+2)))*gcfg->srcnum+i];
+    		          ppath[i+3]=srcpattern[(*((__local uint *)(ppath+2)))*gcfg->srcnum+i];
     		    p[0].w=1.f;
 		  }
     #elif defined(MCX_SRC_PATTERN3D)  // need to prevent rx/ry=1 here
@@ -868,10 +872,10 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	                          (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.x)];
     		      ppath[2]=p->w;
     		  }else{
-    		      *((uint *)(ppath+2))=((int)(rz*JUST_BELOW_ONE*gcfg->srcparam1.z)*(int)(gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+
+    		      *((__local uint *)(ppath+2))=((int)(rz*JUST_BELOW_ONE*gcfg->srcparam1.z)*(int)(gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+
     	                              (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.x));
     	              for(int i=0;i<gcfg->srcnum;i++)
-    	                ppath[i+3]=srcpattern[(*((uint *)(ppath+2)))*gcfg->srcnum+i];
+    	                ppath[i+3]=srcpattern[(*((__local uint *)(ppath+2)))*gcfg->srcnum+i];
     		    p[0].w=1.f;
     		  }
     #elif defined(MCX_SRC_FOURIER)  // need to prevent rx/ry=1 here
@@ -1101,6 +1105,9 @@ __kernel void mcx_main_loop(__global const uint *media,
      __local RandType *sharedmem, __constant MCXParam *gcfg){
 
      int idx= get_global_id(0);
+     
+     if(idx>=gcfg->threadphoton*(get_local_size(0) * get_num_groups(0))+gcfg->oddphoton)
+         return;
 
      float4 p={0.f,0.f,0.f,-1.f};  //{x,y,z}: x,y,z coordinates,{w}:packet weight
      float4 v=gcfg->c0;  //{x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event
@@ -1118,6 +1125,7 @@ __kernel void mcx_main_loop(__global const uint *media,
 
      __local float *ppath=(__local float *)((__local char*)sharedmem+get_local_size(0)*(gcfg->issaveseed*RAND_BUF_LEN*sizeof(RandType)));
      __local int   blockphoton[1];
+
 #ifdef GROUP_LOAD_BALANCE
      if(get_local_id(0) == 0)
 	blockphoton[0] = gcfg->blockphoton + ((int)get_group_id(0) < gcfg->blockextra);
@@ -1250,13 +1258,7 @@ __kernel void mcx_main_loop(__global const uint *media,
           idx1dold=idx1d;
           idx1d=((int)floor(p.z)*gcfg->dimlen.y+(int)floor(p.y)*gcfg->dimlen.x+(int)floor(p.x));
           GPUDEBUG(((__constant char*)"idx1d [%d]->[%d]\n",idx1dold,idx1d));
-#ifdef MCX_SIMPLIFY_BRANCH
-	  mediaid=(any(isless(p.xyz,(float3)(0.f))) || any(isgreaterequal(p.xyz,(gcfg->maxidx.xyz))));
-	  idx1d=mediaid ? OUTSIDE_VOLUME : idx1d;
-	  mediaid=mediaid ? 0 : media[idx1d];
-          isdet=mediaid & DET_MASK;
-          mediaid &= MED_MASK;
-#else
+
           if(any(isless(p.xyz,(float3)(0.f))) || any(isgreaterequal(p.xyz,(gcfg->maxidx.xyz)))){
               /** if photon moves outside of the volume, set mediaid to 0 */
 	      mediaid=0;
@@ -1268,7 +1270,6 @@ __kernel void mcx_main_loop(__global const uint *media,
 	      isdet=mediaid & DET_MASK;  /** upper 16bit is the mask of the covered detector */
 	      mediaid &= MED_MASK;       /** lower 16bit is the medium index */
           }
-#endif
 
           GPUDEBUG(((__constant char*)"medium [%d]->[%d]\n",mediaidold,mediaid));
 
@@ -1306,15 +1307,14 @@ __kernel void mcx_main_loop(__global const uint *media,
 			    atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z+gcfg->dimlen.w], oldval);
 		  }
   #else
-                  int tshift=(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep));
 		  for(int i=0;i<gcfg->srcnum;i++){
 		      if(ppath[gcfg->w0offset+i]>0.f){
-		          float oldval=atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+], w0-p.w);
+		          float oldval=atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum], w0-p.w);
 			  if(oldval>MAX_ACCUM){
-				if(atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+], -oldval)<0.f)
-				    atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+], oldval);
+				if(atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum], -oldval)<0.f)
+				    atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum], oldval);
 				else
-				    atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum++gcfg->dimlen.w], oldval);
+				    atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+gcfg->dimlen.w], oldval);
 			  }
 		      }
 		  }
