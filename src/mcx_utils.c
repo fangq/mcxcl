@@ -254,7 +254,6 @@ void mcx_initcfg(Config *cfg){
 #else
      cfg->parentid=mpStandalone;
 #endif
-     cfg->seeddata=NULL;
      cfg->outputtype=otFlux;
      cfg->outputformat=ofMC2;
      cfg->srcdir.w=0.f;

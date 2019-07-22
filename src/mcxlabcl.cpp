@@ -40,14 +40,14 @@
   #include <omp.h>
 #endif
 
-#if defined(USE_XORSHIFT128P_RAND)
-    #define RAND_WORD_LEN 4
+#if defined(USE_LL5_RAND)
+    #define RAND_WORD_LEN 5       /**< number of Words per RNG state */
 #elif defined(USE_POSIX_RAND)
     #define RAND_WORD_LEN 4
 #elif defined(USE_MT_RAND)
     #define RAND_WORD_LEN 0
 #else
-    #define RAND_WORD_LEN 5       /**< number of Words per RNG state */
+    #define RAND_WORD_LEN 4
 #endif
 
 /**<  Macro to read the 1st scalar cfg member */
@@ -767,6 +767,7 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
 void mcx_replay_prep(Config *cfg){
     int i,j, hasdetid=0, offset;
     float plen;
+
     if(cfg->seed==SEED_FROM_FILE && detps==NULL)
         mexErrMsgTxt("you give cfg.seed for replay, but did not specify cfg.detphotons.\nPlease define it as the detphoton output from the baseline simulation");
     if(detps==NULL || cfg->seed!=SEED_FROM_FILE)
