@@ -35,10 +35,16 @@ extern "C" {
   #define RAND_BUF_LEN       2        //register arrays
 #endif
 
+#ifndef CL_MEM_LOCATION_HOST_NV
+  #define CL_MEM_LOCATION_HOST_NV                     (1 << 0)
+  typedef cl_bitfield         cl_mem_flags_NV;
+#endif
+
 #define RO_MEM             (CL_MEM_READ_ONLY  | CL_MEM_COPY_HOST_PTR)
 #define WO_MEM             (CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR)
 #define RW_MEM             (CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR)
 #define RW_PTR             (CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR)
+#define NV_PIN             CL_MEM_LOCATION_HOST_NV
 
 #define OCL_ASSERT(x)  ocl_assess((x),__FILE__,__LINE__)
 

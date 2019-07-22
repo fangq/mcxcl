@@ -467,10 +467,15 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      OCL_ASSERT(((gmedia=clCreateBuffer(mcxcontext,RO_MEM, sizeof(cl_uint)*(dimxyz),media,&status),status)));
      OCL_ASSERT(((gproperty=clCreateBuffer(mcxcontext,RO_MEM, cfg->medianum*sizeof(Medium),cfg->prop,&status),status)));
      OCL_ASSERT(((gparam=clCreateBuffer(mcxcontext,RO_MEM, sizeof(MCXParam),&param,&status),status)));
-     OCL_ASSERT(((gprogress[0]=clCreateBuffer(mcxcontext,RW_PTR, sizeof(cl_uint),NULL,&status),status)));
-     progress = (cl_uint *)clEnqueueMapBuffer(mcxqueue[0], gprogress[0], CL_TRUE, CL_MAP_WRITE, 0, sizeof(cl_uint), 0, NULL, NULL, NULL);
+
+     cl_mem (*clCreateBufferNV)(cl_context,cl_mem_flags, cl_mem_flags_NV, size_t, void*, cl_int*) = (cl_mem (*)(cl_context,cl_mem_flags, cl_mem_flags_NV, size_t, void*, cl_int*)) clGetExtensionFunctionAddressForPlatform(platform, "clCreateBufferNV");
+     if (clCreateBufferNV == NULL)
+         OCL_ASSERT(((gprogress[0]=clCreateBuffer(mcxcontext,RW_PTR, sizeof(cl_uint),NULL,&status),status)));
+     else
+         OCL_ASSERT(((gprogress[0]=clCreateBufferNV(mcxcontext,CL_MEM_READ_WRITE, NV_PIN, sizeof(cl_uint),NULL,&status),status)));
+
+     progress = (cl_uint *)clEnqueueMapBuffer(mcxqueue[0], gprogress[0], CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeof(cl_uint), 0, NULL, NULL, NULL);
      *progress=0;
-     clEnqueueUnmapMemObject(mcxqueue[0], gprogress[0], progress, 0, NULL, NULL);
      
      if(cfg->seed==SEED_FROM_FILE){
          // replay should only work with a single device
@@ -673,13 +678,8 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
 	     mcx_progressbar(-0.f,cfg);
 
-             progress = (cl_uint *)clEnqueueMapBuffer(mcxqueue[0], gprogress[0], CL_FALSE, CL_MAP_READ, 0, sizeof(cl_uint), 0, NULL, NULL, NULL);
-
 	     do{
                ndone = *progress;
-
-               MCX_FPRINTF(cfg->flog,"progress=%d\n",ndone);  // debug progress bar, will remove
-
 	       if (ndone > p0){
 		  mcx_progressbar(ndone/(threadphoton*1.45f),cfg);
 		  p0 = ndone;
@@ -688,9 +688,8 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	     }while (p0 < (param.threadphoton*1.45f));
              mcx_progressbar(1.0f,cfg);
              MCX_FPRINTF(cfg->flog,"\n");
-
-             clEnqueueUnmapMemObject(mcxqueue[0], gprogress[0], progress, 0, NULL, NULL);
            }
+           clEnqueueUnmapMemObject(mcxqueue[0], gprogress[0], progress, 0, NULL, NULL);
 
            //clWaitForEvents(workdev,waittoread);
            for(devid=0;devid<workdev;devid++)
