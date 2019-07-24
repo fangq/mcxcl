@@ -859,7 +859,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
     #if defined(MCX_SRC_PATTERN)  // need to prevent rx/ry=1 here
     	          if(gcfg->srcnum<=1){
     		      p[0].w=srcpattern[(int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w)];
-    		      ppath[2]=p->w;
+    		      ppath[3]=p->w;
     		  }else{
     		    *((__local uint *)(ppath+2))=((int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w));
     	            for(int i=0;i<gcfg->srcnum;i++)
@@ -870,7 +870,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
     	          if(gcfg->srcnum<=1){
                       p[0].w=srcpattern[(int)(rz*JUST_BELOW_ONE*gcfg->srcparam1.z)*(int)(gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+
 	                          (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.x)];
-    		      ppath[2]=p->w;
+    		      ppath[3]=p->w;
     		  }else{
     		      *((__local uint *)(ppath+2))=((int)(rz*JUST_BELOW_ONE*gcfg->srcparam1.z)*(int)(gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+
     	                              (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.x));
