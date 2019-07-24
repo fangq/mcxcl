@@ -1167,11 +1167,12 @@ __kernel void mcx_main_loop(__global const uint *media,
                        float tmp0=TWO_PI*rand_next_aangle(t); //next arimuth angle
                        MCX_SINCOS(tmp0,sphi,cphi);
                        GPUDEBUG(((__constant char*)"scat phi=%f\n",tmp0));
+		       tmp0=(v.w > gcfg->gscatter) ? 0.f : prop.z;
 
                        //Henyey-Greenstein Phase Function, "Handbook of Optical 
                        //Biomedical Diagnostics",2002,Chap3,p234, also see Boas2002
 
-                       if(prop.z>EPS){  //if prop.z is too small, the distribution of theta is bad
+                       if(tmp0>EPS){  //if prop.z is too small, the distribution of theta is bad
 		           tmp0=(1.f-prop.z*prop.z)/(1.f-prop.z+2.f*prop.z*rand_next_zangle(t));
 		           tmp0*=tmp0;
 		           tmp0=(1.f+prop.z*prop.z-tmp0)/(2.f*prop.z);
@@ -1188,7 +1189,6 @@ __kernel void mcx_main_loop(__global const uint *media,
                            MCX_SINCOS(theta,stheta,ctheta);
                        }
                        GPUDEBUG(((__constant char*)"scat theta=%f\n",theta));
-		       tmp0=(v.w > gcfg->gscatter) ? 0.f : prop.z;
 
 #ifdef SAVE_DETECTORS
                        if(SAVE_NSCAT(gcfg->savedetflag))
