@@ -1313,12 +1313,12 @@ __kernel void mcx_main_loop(__global const uint *media,
   #else
 		  for(int i=0;i<gcfg->srcnum;i++){
 		      if(ppath[gcfg->w0offset+i]>0.f){
-		          float oldval=atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum], weight);
+		          float oldval=atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+i], weight*ppath[gcfg->w0offset+i]);
 			  if(oldval>MAX_ACCUM){
-				if(atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum], -oldval)<0.f)
-				    atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum], oldval);
+				if(atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+i], -oldval)<0.f)
+				    atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+i], oldval);
 				else
-				    atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+gcfg->dimlen.w], oldval);
+				    atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+i+gcfg->dimlen.w], oldval);
 			  }
 		      }
 		  }

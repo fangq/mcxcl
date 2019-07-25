@@ -463,7 +463,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      if(cfg->debuglevel & MCX_DEBUG_MOVE && cfg->exportdebugdata==NULL)
          cfg->exportdebugdata=(float*)calloc(sizeof(float),(debuglen*cfg->maxjumpdebug));
 
-     OCL_ASSERT(((gmedia=clCreateBuffer(mcxcontext,RO_MEM, sizeof(cl_uint)*(dimxyz),media,&status),status)));
+     OCL_ASSERT(((gmedia=clCreateBuffer(mcxcontext,RO_MEM, sizeof(cl_uint)*(cfg->dim.x*cfg->dim.y*cfg->dim.z),media,&status),status)));
      OCL_ASSERT(((gproperty=clCreateBuffer(mcxcontext,RO_MEM, cfg->medianum*sizeof(Medium),cfg->prop,&status),status)));
      OCL_ASSERT(((gparam=clCreateBuffer(mcxcontext,RO_MEM, sizeof(MCXParam),&param,&status),status)));
 
@@ -917,9 +917,16 @@ is more than what your have specified (%d), please use the -H option to specify 
      // total energy here equals total simulated photons+unfinished photons for all threads
      MCX_FPRINTF(cfg->flog,"simulated %ld photons (%ld) with %d devices (repeat x%d)\nMCX simulation speed: "S_BOLD""S_BLUE"%.2f photon/ms"S_RESET"\n",
              cfg->nphoton,cfg->nphoton,workdev, cfg->respin,(double)cfg->nphoton/toc);
-     MCX_FPRINTF(cfg->flog,"total simulated energy: %.2f\tabsorbed: "S_BOLD""S_BLUE"%5.5f%%"S_RESET"\n(loss due to initial specular reflection is excluded in the total)\n",
+     if(cfg->srctype==MCX_SRC_PATTERN && cfg->srcnum>1){
+         for(i=0;i<cfg->srcnum;i++){
+	     MCX_FPRINTF(cfg->flog,"source #%d total simulated energy: %.2f\tabsorbed: "S_BOLD""S_BLUE"%5.5f%%"S_RESET"\n(loss due to initial specular reflection is excluded in the total)\n",
+                 i+1,energytot[i],energyabs[i]/energytot[i]*100.f);fflush(cfg->flog);
+	 }
+     }else{
+         MCX_FPRINTF(cfg->flog,"total simulated energy: %.2f\tabsorbed: "S_BOLD""S_BLUE"%5.5f%%"S_RESET"\n(loss due to initial specular reflection is excluded in the total)\n",
              cfg->energytot,(cfg->energytot-cfg->energyesc)/cfg->energytot*100.f);
-     fflush(cfg->flog);
+         fflush(cfg->flog);
+     }
 
      clReleaseMemObject(gmedia);
      clReleaseMemObject(gproperty);
