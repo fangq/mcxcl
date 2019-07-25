@@ -1,6 +1,21 @@
-clear all; close all
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MCXLAB - Monte Carlo eXtreme for MATLAB/Octave by Qianqina Fang
+%
+% In this example, we demonstrate light transport simulation in a digital
+% mouse atlas - Digimouse
+%
+% This demo is similar to the MCX simulation used for Fig. 2 in
+% [Fang2012], except this uses a voxelated model instead of a mesh.
+% 
+%
+% [Fang2012] Qianqian Fang and David R. Kaeli, "Accelerating mesh-based
+% Monte Carlo method on modern CPU architectures ," Biomed. Opt. Express
+% 3(12), 3223-3230 (2012)  
+%
+% This file is part of Monte Carlo eXtreme (MCX) URL:http://mcx.sf.net
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-eval('base','USE_MCXCL=1;');
+clear cfg;
 
 load digimouse.mat
 cfg.vol=digimouse;
@@ -47,10 +62,8 @@ cfg.gpuid=1;
 cfg.unitinmm=0.4*2;
 cfg.debuglevel='P';
 
-flux=mcxlab(cfg);
+flux=mcxlabcl(cfg);
 fcw=flux.data;
 mcxplotvol(log10(fcw));
 
 %mcx2json(cfg,'digimouse.json');
-
-eval('base','clear USE_MCXCL;');

@@ -1,5 +1,5 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MCXLAB-CL - Monte Carlo eXtreme for MATLAB/Octave by Qianqina Fang
+% MCXLAB - Monte Carlo eXtreme for MATLAB/Octave by Qianqina Fang
 %
 % MCX GPU Contest
 %
@@ -55,7 +55,7 @@ mcx_gpu_benchmarks
 %%  generate benchmark report
 
 mcxbenchmark.version=1;
-mcxbenchmark.mcxversion='$Date::2018-02-09 19:11:04 -05$';
+mcxbenchmark.mcxversion='$Date::                       $';
 mcxbenchmark.userinfo=struct('name',mcxuser{1},'email',mcxuser{2},'nickname',mcxuser{3},...
   'institution',mcxuser{4},'machine',mcxuser{5},'comment',mcxuser{6});
 
@@ -78,12 +78,12 @@ submitstr={'name',urlencode(mcxbenchmark.userinfo.nickname), 'time',sprintf('%ld
    'b3', sprintf('%.2f',speed(3)), 'score', sprintf('%.2f',mcxbenchmark.speedsum), ...
    'computer',urlencode(machinestr), 'report',urlencode(savejson(mcxbenchmark))};
 
-[s, status]=urlread('http://mcx.space/computebench/gpucontest.cgi','post',submitstr);
+[s, status]=urlread('http://mcx.space/gpubench/gpucontest.cgi','post',submitstr);
 pause(2);
 
 if(isempty(s))
     error('submission failed');
 elseif(strcmp(s,sprintf('SUCCESS\n')))
-    hs=msgbox({'Submission is successful.','Please browse http://mcx.space/computebench/ to see results.'},'Success','modal');
+    hs=msgbox({'Submission is successful.','Please browse http://mcx.space/gpubench/ to see results.'},'Success','modal');
     uiwait(hs);
 end

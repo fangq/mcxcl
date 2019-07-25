@@ -1,5 +1,5 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MCXLAB-CL - Monte Carlo eXtreme for MATLAB/Octave by Qianqina Fang
+% MCXLAB - Monte Carlo eXtreme for MATLAB/Octave by Qianqina Fang
 %
 % Speed benchmarks for MCXLAB (equivalent to the examples in mcx/examples/benchmark)
 %
@@ -7,8 +7,6 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 clear cfg
-
-eval('base','USE_MCXCL=1;');
 
 gpuinfo=mcxlabcl('gpuinfo');
 
@@ -133,5 +131,3 @@ mcxbenchmark.speedsum=sum(speed);
 if(~isempty(hbar))
     delete(hbar);
 end
-
-eval('base','USE_MCXCL=0;');

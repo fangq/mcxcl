@@ -1,7 +1,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MCXLAB-CL - Monte Carlo eXtreme for MATLAB/Octave by Qianqina Fang
+% MCXLAB - Monte Carlo eXtreme for MATLAB/Octave by Qianqina Fang
 %
-% In this example, we validate MCXLAB-CL with a homogeneous medium in a 
+% In this example, we validate MCXLAB with a homogeneous medium in a 
 % cubic domain. This is exactly the example shown in Fig.5 of Fang2009.
 %
 % You can also use the alternative optical properties that has a high g
@@ -11,7 +11,7 @@
 % of photon migration in 3D turbid media accelerated by graphics processing 
 % units," Opt. Express 17, 20178-20190 (2009)
 %
-% This file is part of Monte Carlo eXtreme OpenCL (MCX-CL) URL:http://mcx.space/mcxcl
+% This file is part of Monte Carlo eXtreme (MCX) URL:http://mcx.sf.net
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 if(exist('tddiffusion','file')~=2 | exist('cwdiffusion','file')~=2)

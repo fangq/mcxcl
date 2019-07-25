@@ -18,9 +18,6 @@
 
 clc
 clear
-
-eval('base','USE_MCXCL=1;');
-
 load('fullhead_atlas.mat');
 %% prepare cfg for MCX simulation
 clear cfg
@@ -50,7 +47,7 @@ cfg.autopilot=1;
 cfg.gpuid=1;
 
 %% run MCX simulation
-[flux]=mcxlab(cfg);
+[flux]=mcxlabcl(cfg);
 
 %% post-simulation data processing and visualization
 % convert time-resolved fluence to CW fluence
@@ -78,5 +75,3 @@ set(gca,'xlim', [10 165]);xlabel('x [mm]');
 set(gca,'clim',[-12 0]);
 set(gca,'fontsize',18);
 set(gca, 'FontName', 'Times New Roman');
-
-eval('base','clear USE_MCXCL;');

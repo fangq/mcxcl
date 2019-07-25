@@ -1,7 +1,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% MCXLAB-CL - Monte Carlo eXtreme for MATLAB/Octave by Qianqina Fang
+% MCXLAB - Monte Carlo eXtreme for MATLAB/Octave by Qianqina Fang
 %
-% In this example, we validate the MCXLAB-CL solver with a heterogeneous
+% In this example, we validate the MCXLAB solver with a heterogeneous
 % domain and the analytical solution of the diffusion model. We also 
 % demonstrate how to use sub-pixel resolution to refine the representation
 % of heterogeneities. The domain is consisted of a 6x6x6 cm box with a 
@@ -12,7 +12,7 @@
 % [Fang2010] Fang Q, "Mesh-based Monte Carlo method using fast ray-tracing
 %    in Plücker coordinates," Biomed. Opt. Express 1, 165-175 (2010) 
 %
-% This file is part of Monte Carlo eXtreme OpenCL (MCX-CL) URL:http://mcx.space/mcxcl
+% This file is part of Monte Carlo eXtreme (MCX) URL:http://mcx.sf.net
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 if(exist('sphdiffusionslab','file')~=2)
