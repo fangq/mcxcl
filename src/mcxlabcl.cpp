@@ -230,7 +230,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	
 	/** Initialize all buffers necessary to store the output variables */
 	if(nlhs>=1){
-            int fieldlen=cfg.dim.x*cfg.dim.y*cfg.dim.z*(int)((cfg.tend-cfg.tstart)/cfg.tstep+0.5);
+	    int fieldlen=cfg.dim.x*cfg.dim.y*cfg.dim.z*(int)((cfg.tend-cfg.tstart)/cfg.tstep+0.5)*cfg.srcnum;
+	    if(cfg.replay.seed!=NULL && cfg.replaydet==-1)
+	        fieldlen*=cfg.detnum;
 	    cfg.exportfield = (float*)calloc(fieldlen,sizeof(float));
 	}
 	if(nlhs>=2){
@@ -328,7 +330,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
         if(nlhs>=1){
 	    int fieldlen;
             fielddim[0]=cfg.srcnum*cfg.dim.x; fielddim[1]=cfg.dim.y; 
-	    fielddim[2]=cfg.dim.z; fielddim[3]=(int)((cfg.tend-cfg.tstart)/cfg.tstep+0.5)*cfg.srcnum;
+	    fielddim[2]=cfg.dim.z; fielddim[3]=(int)((cfg.tend-cfg.tstart)/cfg.tstep+0.5);
 	    if(cfg.replay.seed!=NULL && cfg.replaydet==-1)
 	        fielddim[4]=cfg.detnum;
 	    fieldlen=fielddim[0]*fielddim[1]*fielddim[2]*fielddim[3]*fielddim[4];
