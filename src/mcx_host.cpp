@@ -35,6 +35,7 @@ const char *sourceflag[]={"-DMCX_SRC_PENCIL","-DMCX_SRC_ISOTROPIC","-DMCX_SRC_CO
     "-DMCX_SRC_ZGAUSSIAN","-DMCX_SRC_LINE","-DMCX_SRC_SLIT","-DMCX_SRC_PENCILARRAY",
     "-DMCX_SRC_PATTERN3D"};
 
+const char *debugopt[]={"-DMCX_DEBUG_RNG","-DMCX_DEBUG_MOVE","-DMCX_DEBUG_PROGRESS"};
 
 char *print_cl_errstring(cl_int err) {
     switch (err) {
@@ -301,7 +302,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      float  *Pdet=NULL;
      float  *srcpw=NULL,*energytot=NULL,*energyabs=NULL; // for multi-srcpattern
-     char opt[MAX_PATH_LENGTH]={'\0'};
+     char opt[MAX_PATH_LENGTH<<1]={'\0'};
      GPUInfo *gpu=NULL;
      RandType *seeddata=NULL;
      RandType *Pseed=NULL;
@@ -546,6 +547,10 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      if(cfg->optlevel>=3)
          sprintf(opt+strlen(opt),"%s ","-DMCX_SIMPLIFY_BRANCH -DMCX_VECTOR_INDEX");
      
+     for(i=0;i<3;i++)
+         if(cfg->debuglevel & (1<<i))
+	     sprintf(opt+strlen(opt),"%s ",debugopt[i]);
+
      if((uint)cfg->srctype<sizeof(sourceflag)/sizeof(sourceflag[0]))
          sprintf(opt+strlen(opt),"%s ",sourceflag[(uint)cfg->srctype]);
 
@@ -681,11 +686,11 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	     do{
                ndone = *progress;
 	       if (ndone > p0){
-		  mcx_progressbar(ndone/(threadphoton*1.45f),cfg);
+		  mcx_progressbar(ndone/((threadphoton>>1)*4.5f),cfg);
 		  p0 = ndone;
 	       }
                sleep_ms(100);
-	     }while (p0 < (param.threadphoton*1.45f));
+	     }while (p0 < ((threadphoton>>1)*4.5f));
              mcx_progressbar(1.0f,cfg);
              MCX_FPRINTF(cfg->flog,"\n");
            }

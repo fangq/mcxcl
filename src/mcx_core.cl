@@ -67,9 +67,6 @@
 #define NULL               0
 #define MAX_ACCUM          1000.f
 
-#define MCX_DEBUG_RNG       1                   /**< MCX debug flags */
-#define MCX_DEBUG_MOVE      2
-#define MCX_DEBUG_PROGRESS  4
 #define MCX_DEBUG_REC_LEN   6  /**<  number of floating points per position saved when -D M is used for trajectory */
 
 #define MIN(a,b)           ((a)<(b)?(a):(b))
@@ -302,8 +299,10 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	   __local int *blockphoton, volatile __global uint *gprogress,
 	   __local RandType *photonseed, __global RandType gseeddata[],
 	   __global uint *gjumpdebug,__global float *gdebugdata);
-void savedebugdata(float4 *p,uint id,__global uint *gjumpdebug,__global float *gdebugdata,__constant MCXParam *gcfg);
 
+#ifdef MCX_DEBUG_MOVE
+void savedebugdata(float4 *p,uint id,__global uint *gjumpdebug,__global float *gdebugdata,__constant MCXParam *gcfg);
+#endif
 
 #ifdef USE_ATOMIC
 // OpenCL float atomicadd hack:
@@ -382,6 +381,7 @@ void savedetphoton(__global float *n_det,__global uint *detectedphoton,
 }
 #endif
 
+#ifdef MCX_DEBUG_MOVE
 /**
  * @brief Saving photon trajectory data for debugging purposes
  * @param[in] p: the position/weight of the current photon packet
@@ -401,6 +401,7 @@ void savedebugdata(float4 *p,uint id,__global uint *gjumpdebug,__global float *g
          gdebugdata[pos++]=0;
       }
 }
+#endif
 
 float mcx_nextafterf(float a, int dir){
       union{
@@ -1067,8 +1068,9 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
       f[0].w+=1.f; 
       updateproperty(prop,*mediaid,gproperty,gcfg);
 
-      if(gcfg->debuglevel & MCX_DEBUG_MOVE)
+#ifdef MCX_DEBUG_MOVE
           savedebugdata(p,(uint)f[0].w+threadid*gcfg->threadphoton+min(threadid,(threadid<gcfg->oddphoton)*threadid),gjumpdebug,gdebugdata,gcfg);
+#endif
 
       /**
         total energy enters the volume. for diverging/converting 
@@ -1085,11 +1087,13 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
       /**
        * If a progress bar is needed, only sum completed photons from the 1st, last and middle threads to determine progress bar
        */
-
-      if(gprogress && (gcfg->debuglevel & MCX_DEBUG_PROGRESS) && ((int)(f[0].w) & 1) && (threadid==0 || threadid==(int)(get_global_size(0) - 1)
-          || threadid==(int)(get_global_size(0)>>1))) { ///< use the 1st, middle and last thread for progress report
+#ifdef MCX_DEBUG_PROGRESS
+      if(((int)(f[0].w) & 1) && (threadid==0 || threadid==(int)(get_global_size(0) - 1)|| threadid==(int)(get_global_size(0)>>2) 
+          || threadid==(int)(get_global_size(0)>>1) || threadid==(int)(get_global_size(0)>>2)+(int)(get_global_size(0)>>1))) { 
+             ///< use the 1st, 1/4, 1/2, 3/4 and last thread for progress report
           gprogress[0]++;
       }
+#endif
       return 0;
 }
 
@@ -1223,8 +1227,9 @@ __kernel void mcx_main_loop(__global const uint *media,
                             GPUDEBUG(("atomic write to [%d] %e, w=%f\n",idx1d,tmp0*replayweight[(idx*gcfg->threadphoton+min(idx,gcfg->oddphoton-1)+(int)f.w)],p.w));
 #endif
                        }
-                       if(gcfg->debuglevel & MCX_DEBUG_MOVE)
+#ifdef MCX_DEBUG_MOVE
                            savedebugdata(&p,(uint)f.w+idx*gcfg->threadphoton+min(idx,(idx<gcfg->oddphoton)*idx),gjumpdebug,gdebugdata,gcfg);
+#endif
 	       }
 	       v.w=(int)v.w;
 	  }

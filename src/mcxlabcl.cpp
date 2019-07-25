@@ -285,7 +285,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 
         /** if 5th output presents, output the photon trajectory data */
         if(nlhs>=5){
-            mexWarnMsgTxt("Saving trajectory data is not yet supported by MCXLAB-CL, this output is ignored");
             fielddim[0]=MCX_DEBUG_REC_LEN; fielddim[1]=cfg.debugdatalen; // his.savedphoton is for one repetition, should correct
     	    fielddim[2]=0; fielddim[3]=0;
             mxSetFieldByNumber(plhs[4],jstruct,0, mxCreateNumericArray(2,fielddim,mxSINGLE_CLASS,mxREAL));
