@@ -1339,7 +1339,7 @@ __kernel void mcx_main_loop(__global const uint *media,
 		         p.y=mcx_nextafterf(convert_float_rte(p.y+((idx1d==OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.y: -gcfg->maxidx.y)),(v.y > 0.f)-(v.y < 0.f));
                      if(flipdir==2)
 		         p.z=mcx_nextafterf(convert_float_rte(p.z+((idx1d==OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.z: -gcfg->maxidx.z)),(v.z > 0.f)-(v.z < 0.f));
-		     if(any(isless(p.xyz,(float3)(0.f))) || any(isgreaterequal(p.xyz,(gcfg->maxidx.xyz)))) {
+		     if(!(any(isless(p.xyz,(float3)(0.f))) || any(isgreaterequal(p.xyz,(gcfg->maxidx.xyz))))) {
                 	 idx1d=((int)(floor(p.z))*gcfg->dimlen.y+(int)(floor(p.y))*gcfg->dimlen.x+(int)(floor(p.x)));
 	        	 mediaid=media[idx1d];
 	        	 isdet=mediaid & DET_MASK;  /** upper 16bit is the mask of the covered detector */
