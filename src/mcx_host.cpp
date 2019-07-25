@@ -602,7 +602,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 5, sizeof(cl_mem), (void*)&gproperty)));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 6, sizeof(cl_mem), (void*)&gsrcpattern)));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 7, sizeof(cl_mem), (void*)(gdetpos+i))));
-	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 8, sizeof(cl_mem), (void*)(gprogress))));
+	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 8, sizeof(cl_mem), (i==0)?((void*)(gprogress)):NULL)));
 	 OCL_ASSERT((clSetKernelArg(mcxkernel[i], 9, sizeof(cl_mem), (void*)(gdetected+i))));
          OCL_ASSERT((clSetKernelArg(mcxkernel[i],10, sizeof(cl_mem), ((cfg->seed==SEED_FROM_FILE) ? (void*)(&greplayw) : NULL) )));
          OCL_ASSERT((clSetKernelArg(mcxkernel[i],11, sizeof(cl_mem), ((cfg->seed==SEED_FROM_FILE) ? (void*)(&greplaytof) : NULL) )));

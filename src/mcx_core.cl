@@ -1086,7 +1086,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
        * If a progress bar is needed, only sum completed photons from the 1st, last and middle threads to determine progress bar
        */
 
-      if((gcfg->debuglevel & MCX_DEBUG_PROGRESS) && ((int)(f[0].w) & 1) && (threadid==0 || threadid==(int)(get_global_size(0) - 1)
+      if(gprogress && (gcfg->debuglevel & MCX_DEBUG_PROGRESS) && ((int)(f[0].w) & 1) && (threadid==0 || threadid==(int)(get_global_size(0) - 1)
           || threadid==(int)(get_global_size(0)>>1))) { ///< use the 1st, middle and last thread for progress report
           gprogress[0]++;
       }
