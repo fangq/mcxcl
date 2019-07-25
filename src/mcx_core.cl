@@ -859,7 +859,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
     #if defined(MCX_SRC_PATTERN)  // need to prevent rx/ry=1 here
     	          if(gcfg->srcnum<=1){
     		      p[0].w=srcpattern[(int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w)];
-    		      ppath[2]=p->w;
+    		      ppath[3]=p->w;
     		  }else{
     		    *((__local uint *)(ppath+2))=((int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w));
     	            for(int i=0;i<gcfg->srcnum;i++)
@@ -870,7 +870,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
     	          if(gcfg->srcnum<=1){
                       p[0].w=srcpattern[(int)(rz*JUST_BELOW_ONE*gcfg->srcparam1.z)*(int)(gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+
 	                          (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.x)];
-    		      ppath[2]=p->w;
+    		      ppath[3]=p->w;
     		  }else{
     		      *((__local uint *)(ppath+2))=((int)(rz*JUST_BELOW_ONE*gcfg->srcparam1.z)*(int)(gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+
     	                              (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.x));
@@ -1116,7 +1116,7 @@ __kernel void mcx_main_loop(__global const uint *media,
      uint idx1d, idx1dold;   //idx1dold is related to reflection
 
      uint   mediaid=gcfg->mediaidorig,mediaidold=0,isdet=0;
-     float  w0, Lmove;
+     float  w0, Lmove, pathlen=0.f;
      float  n1;   //reflection var
      int flipdir=0;
 
@@ -1167,11 +1167,12 @@ __kernel void mcx_main_loop(__global const uint *media,
                        float tmp0=TWO_PI*rand_next_aangle(t); //next arimuth angle
                        MCX_SINCOS(tmp0,sphi,cphi);
                        GPUDEBUG(((__constant char*)"scat phi=%f\n",tmp0));
+		       tmp0=(v.w > gcfg->gscatter) ? 0.f : prop.z;
 
                        //Henyey-Greenstein Phase Function, "Handbook of Optical 
                        //Biomedical Diagnostics",2002,Chap3,p234, also see Boas2002
 
-                       if(prop.z>EPS){  //if prop.z is too small, the distribution of theta is bad
+                       if(tmp0>EPS){  //if prop.z is too small, the distribution of theta is bad
 		           tmp0=(1.f-prop.z*prop.z)/(1.f-prop.z+2.f*prop.z*rand_next_zangle(t));
 		           tmp0*=tmp0;
 		           tmp0=(1.f+prop.z*prop.z-tmp0)/(2.f*prop.z);
@@ -1188,7 +1189,6 @@ __kernel void mcx_main_loop(__global const uint *media,
                            MCX_SINCOS(theta,stheta,ctheta);
                        }
                        GPUDEBUG(((__constant char*)"scat theta=%f\n",theta));
-		       tmp0=(v.w > gcfg->gscatter) ? 0.f : prop.z;
 
 #ifdef SAVE_DETECTORS
                        if(SAVE_NSCAT(gcfg->savedetflag))
@@ -1237,6 +1237,7 @@ __kernel void mcx_main_loop(__global const uint *media,
 	  float slen=f.z*prop.y*(v.w+1.f > gcfg->gscatter ? (1.f-prop.z) : 1.f); //unitless (minstep=grid, mus=1/grid)
 	  slen=fmin(slen,f.x);
 	  f.z=native_divide(slen,prop.y*(v.w+1.f > gcfg->gscatter ? (1.f-prop.z) : 1.f ));
+	  pathlen+=f.z;
 
           GPUDEBUG(((__constant char*)"p=[%f %f %f] -> <%f %f %f>*%f -> hit=[%f %f %f] flip=%d\n",p.x,p.y,p.z,v.x,v.y,v.z,f.z,htime.x,htime.y,htime.z,flipdir));
 
@@ -1289,19 +1290,20 @@ __kernel void mcx_main_loop(__global const uint *media,
 		      weight=(prop.x==0.f) ? 0.f : ((w0-p.w)/(prop.x));
 		  else if(gcfg->seed==SEED_FROM_FILE){
 		      if(gcfg->outputtype==otJacobian){
-		        weight=replayweight[(idx*gcfg->threadphoton+min(idx,gcfg->oddphoton-1)+(int)f.w)]*f.z;
-			tshift=(idx*gcfg->threadphoton+min(idx,gcfg->oddphoton-1)+(int)f.w);
+		        weight=replayweight[(idx*gcfg->threadphoton+min(idx,gcfg->oddphoton-1)+(int)f.w)-1]*pathlen;
+			tshift=(idx*gcfg->threadphoton+min(idx,gcfg->oddphoton-1)+(int)f.w-1);
 			tshift=(int)(floor((photontof[tshift]-gcfg->twin0)*gcfg->Rtstep)) + 
 			   ( (gcfg->replaydet==-1)? ((photondetid[tshift]-1)*gcfg->maxgate) : 0);
 		      }
 		  }
 
-                  GPUDEBUG(((__constant char*)"deposit to [%d] %e, w=%f\n",idx1dold,w0-p.w,p.w));
+                  GPUDEBUG(((__constant char*)"deposit to [%d] %e, w=%f\n",idx1dold,weight,p.w));
+		  if(weight>0.f){
 #ifndef USE_ATOMIC
-                  field[idx1dold+(int)(floor((f.y-gcfg->twin0)*gcfg->Rtstep))*gcfg->dimlen.z]+=w0-p.w;
+                  field[idx1dold+tshift*gcfg->dimlen.z]+=weight;
 #else
   #if !defined(MCX_SRC_PATTERN) && !defined(MCX_SRC_PATTERN3D)
-		  float oldval=atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], w0-p.w);
+		  float oldval=atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], weight);
 		  if(oldval>MAX_ACCUM){
 			if(atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], -oldval)<0.f)
 			    atomicadd(& field[idx1dold+tshift*gcfg->dimlen.z], oldval);
@@ -1311,20 +1313,22 @@ __kernel void mcx_main_loop(__global const uint *media,
   #else
 		  for(int i=0;i<gcfg->srcnum;i++){
 		      if(ppath[gcfg->w0offset+i]>0.f){
-		          float oldval=atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum], w0-p.w);
+		          float oldval=atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+i], weight*ppath[gcfg->w0offset+i]);
 			  if(oldval>MAX_ACCUM){
-				if(atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum], -oldval)<0.f)
-				    atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum], oldval);
+				if(atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+i], -oldval)<0.f)
+				    atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+i], oldval);
 				else
-				    atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+gcfg->dimlen.w], oldval);
+				    atomicadd(& field[(idx1dold+tshift*gcfg->dimlen.z)*gcfg->srcnum+i+gcfg->dimlen.w], oldval);
 			  }
 		      }
 		  }
   #endif
                   GPUDEBUG(((__constant char*)"atomic write to [%d] %e, w=%f\n",idx1dold,w0,p.w));
 #endif
+	          }
 	     }
 	     w0=p.w;
+	     pathlen=0.f;
 	  }
 	  /** launch new photon when exceed time window or moving from non-zero voxel to zero voxel without reflection */
           if((mediaid==0 && (((isdet & 0xF)==0 && (!gcfg->doreflect || (gcfg->doreflect && n1==gproperty[0].w))) || (isdet==bcAbsorb || isdet==bcCylic) )) || f.y>gcfg->twin1){
