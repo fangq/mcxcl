@@ -442,7 +442,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cachebox.y=(cp1.y-cp0.y+1)*(cp1.x-cp0.x+1);
      dimlen.x=cfg->dim.x;
      dimlen.y=cfg->dim.x*cfg->dim.y;
-     dimlen.z=dimxyz;
+     dimlen.z=cfg->dim.x*cfg->dim.y*cfg->dim.z;
      dimlen.w=fieldlen;
 
      memcpy(&(param.dimlen.x),&(dimlen.x),sizeof(uint4));
@@ -835,7 +835,7 @@ is more than what your have specified (%d), please use the -H option to specify 
 	     }else{
 	         for(uint j=0;j<cfg->maxgate;j++)
 		     for(uint k=0;k<dimlen.z;k++)
-		         mcx_kahanSum(&energyabs[i],&kahanc,cfg->exportfield[j*dimxyz+(k*cfg->srcnum+i)]*mcx_updatemua((uint)cfg->vol[j],cfg));
+		         mcx_kahanSum(&energyabs[i],&kahanc,cfg->exportfield[j*dimxyz+(k*cfg->srcnum+i)]*mcx_updatemua((uint)cfg->vol[k],cfg));
 	     }
 	 }
      }
