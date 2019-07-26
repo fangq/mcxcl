@@ -214,7 +214,7 @@ function varargout=mcxlabcl(varargin)
 %      cfg.debuglevel:  debug flag string (case insensitive), one or a combination of ['R','M','P'], no space
 %                    'R':  debug RNG, output fluence.data is filled with 0-1 random numbers
 %                    'M':  return photon trajectory data as the 5th output
-%                    'P':  show progress bar - default
+%                    'P':  show progress bar
 %      cfg.maxjumpdebug: [10000000|int] when trajectory is requested in the output, 
 %                     use this parameter to set the maximum position stored. By default,
 %                     only the first 1e6 positions are stored.
