@@ -235,7 +235,7 @@ static float xorshift128p_nextf (__private RandType t[RAND_BUF_LEN]){
    return s1.f[0] - 1.0f;
 }
 
-static void copystate(__private RandType t[RAND_BUF_LEN], __local RandType tnew[RAND_BUF_LEN]){
+static void copystate(__private RandType *t, __local RandType *tnew){
     tnew[0]=t[0];
     tnew[1]=t[1];
 }
@@ -269,18 +269,21 @@ float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]){
 
 /* function prototypes */
 
-void clearpath(__local float *p, int maxmediatype);
+void clearpath(__local float *p, uint maxmediatype);
 float mcx_nextafterf(float a, int dir);
 float hitgrid(float4 *p0, float4 *v, FLOAT4VEC *htime, int *id);
 void rotatevector(float4 *v, float stheta, float ctheta, float sphi, float cphi);
 void transmit(float4 *v, float n1, float n2,int flipdir);
 float reflectcoeff(float4 *v, float n1, float n2, int flipdir);
 int skipvoid(float4 *p,float4 *v,float4 *f,__global const uint *media, __constant float4 *gproperty, __constant MCXParam *gcfg);
+void rotatevector2d(float4 *v, float stheta, float ctheta, int is2d);
+void updateproperty(FLOAT4VEC *prop, unsigned int mediaid,__constant float4 *gproperty,__constant MCXParam *gcfg);
+
 #ifdef MCX_SAVE_DETECTORS
 uint finddetector(float4 *p0,__constant float4 *gdetpos,__constant MCXParam *gcfg);
 void savedetphoton(__global float *n_det,__global uint *detectedphoton,
                    __local float *ppath,float4 *p0,float4 *v,
-  		   __local RandType t[RAND_BUF_LEN], __global RandType *seeddata, 
+  		   __local RandType *t, __global RandType *seeddata, 
                    __constant float4 *gdetpos,__constant MCXParam *gcfg);
 void saveexitppath(__global float *n_det,__local float *ppath,float4 *p0,uint *idx1d, __constant MCXParam *gcfg);
 #endif
@@ -291,7 +294,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	   __constant float4 *gproperty, __global const uint *media, __global float *srcpattern,
 	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid,
 	   __local int *blockphoton, volatile __global uint *gprogress,
-	   __local RandType *photonseed, __global RandType gseeddata[],
+	   __local RandType *photonseed, __global RandType *gseeddata,
 	   __global uint *gjumpdebug,__global float *gdebugdata);
 
 #ifdef MCX_DEBUG_MOVE
@@ -310,7 +313,7 @@ inline float atomicadd(volatile __global float* address, const float value){
 }
 #endif
 
-void clearpath(__local float *p, int maxmediatype){
+void clearpath(__local float *p, uint maxmediatype){
       uint i;
       for(i=0;i<maxmediatype;i++)
       	   p[i]=0.f;
@@ -335,14 +338,14 @@ void saveexitppath(__global float *n_det,__local float *ppath,float4 *p0,uint *i
 	      return;
           uint baseaddr=(*idx1d)*gcfg->reclen;
 	  n_det[baseaddr]+=p0[0].w;
-	  for(int i=0;i<gcfg->maxmedia;i++)
+	  for(uint i=0;i<gcfg->maxmedia;i++)
 		n_det[baseaddr+i]+=ppath[i]*p0[0].w;
       }
 }
 
 void savedetphoton(__global float *n_det,__global uint *detectedphoton,
                    __local float *ppath,float4 *p0,float4 *v,
-		   __local RandType t[RAND_BUF_LEN], __global RandType *seeddata, 
+		   __local RandType *t, __global RandType *seeddata, 
 		   __constant float4 *gdetpos,__constant MCXParam *gcfg){
       uint detid=finddetector(p0,gdetpos,gcfg);
       if(detid){
@@ -745,7 +748,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	   __constant float4 *gproperty, __global const uint *media, __global float *srcpattern,
 	   __constant float4 *gdetpos,__constant MCXParam *gcfg,int threadid, 
 	   __local int *blockphoton, volatile __global uint *gprogress,
-	   __local RandType *photonseed, __global RandType gseeddata[],
+	   __local RandType *photonseed, __global RandType *gseeddata,
 	   __global uint *gjumpdebug,__global float *gdebugdata){
 
       *w0=1.f;     ///< reuse to count for launchattempt
@@ -1098,13 +1101,13 @@ __kernel void mcx_main_loop(__global const uint *media,
      __global float *field, __global float *genergy, __global uint *n_seed,
      __global float *n_det,__constant float4 *gproperty,__global float *srcpattern,
      __constant float4 *gdetpos, volatile __global uint *gprogress,__global uint *detectedphoton,
-     __global float replayweight[],__global float photontof[],__global int photondetid[], 
+     __global float *replayweight,__global float *photontof,__global int *photondetid, 
      __global RandType *gseeddata,__global uint *gjumpdebug,__global float *gdebugdata,
      __local RandType *sharedmem, __constant MCXParam *gcfg){
 
      int idx= get_global_id(0);
      
-     if(idx>=gcfg->threadphoton*(get_local_size(0) * get_num_groups(0))+gcfg->oddphoton)
+     if((uint)idx>=gcfg->threadphoton*(get_local_size(0) * get_num_groups(0))+gcfg->oddphoton)
          return;
 
      float4 p={0.f,0.f,0.f,-1.f};  //{x,y,z}: x,y,z coordinates,{w}:packet weight
