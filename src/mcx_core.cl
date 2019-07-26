@@ -240,10 +240,6 @@ static void copystate(__private RandType t[RAND_BUF_LEN], __local RandType tnew[
     tnew[1]=t[1];
 }
 
-// generate random number for the next zenith angle
-static void rand_need_more(__private RandType t[RAND_BUF_LEN]){
-}
-
 static float rand_uniform01(__private RandType t[RAND_BUF_LEN]){
     return xorshift128p_nextf(t);
 }
@@ -255,8 +251,6 @@ static void xorshift128p_seed (__global uint *seed, __private RandType t[RAND_BU
 
 static void gpu_rng_init(__private RandType t[RAND_BUF_LEN], __global uint *n_seed, int idx){
     xorshift128p_seed((n_seed+idx*RAND_SEED_LEN),t);
-}
-static void gpu_rng_reseed(__private RandType t[RAND_BUF_LEN],__global uint *cpuseed,uint idx,float reseed){
 }
 
 #endif
@@ -340,9 +334,9 @@ void saveexitppath(__global float *n_det,__local float *ppath,float4 *p0,uint *i
           if(*idx1d>=gcfg->maxdetphoton)
 	      return;
           uint baseaddr=(*idx1d)*gcfg->reclen;
-	  n_det[baseaddr]+=p0->w;
+	  n_det[baseaddr]+=p0[0].w;
 	  for(int i=0;i<gcfg->maxmedia;i++)
-		n_det[baseaddr+i]+=ppath[i]*p0->w;
+		n_det[baseaddr+i]+=ppath[i]*p0[0].w;
       }
 }
 
@@ -363,15 +357,15 @@ void savedetphoton(__global float *n_det,__global uint *detectedphoton,
 	    for(i=0;i<gcfg->partialdata;i++)
 		n_det[baseaddr++]=ppath[i]; ///< save partial pathlength to the memory
             if(SAVE_PEXIT(gcfg->savedetflag)){
-	            *((__global float*)(n_det+baseaddr))=p0->x;
-		    *((__global float*)(n_det+baseaddr+1))=p0->y;
-		    *((__global float*)(n_det+baseaddr+2))=p0->z;
+	            *((__global float*)(n_det+baseaddr))=p0[0].x;
+		    *((__global float*)(n_det+baseaddr+1))=p0[0].y;
+		    *((__global float*)(n_det+baseaddr+2))=p0[0].z;
 		    baseaddr+=3;
 	    }
 	    if(SAVE_VEXIT(gcfg->savedetflag)){
-	            *((__global float*)(n_det+baseaddr))=v->x;
-		    *((__global float*)(n_det+baseaddr+1))=v->y;
-		    *((__global float*)(n_det+baseaddr+2))=v->z;
+	            *((__global float*)(n_det+baseaddr))=v[0].x;
+		    *((__global float*)(n_det+baseaddr+1))=v[0].y;
+		    *((__global float*)(n_det+baseaddr+2))=v[0].z;
 		    baseaddr+=3;
 	    }
 	    if(SAVE_W0(gcfg->savedetflag))
@@ -394,10 +388,10 @@ void savedebugdata(float4 *p,uint id,__global uint *gjumpdebug,__global float *g
       if(pos<gcfg->maxjumpdebug){
          pos*=MCX_DEBUG_REC_LEN;
          ((__global uint *)gdebugdata)[pos++]=id;
-         gdebugdata[pos++]=p->x;
-         gdebugdata[pos++]=p->y;
-         gdebugdata[pos++]=p->z;
-         gdebugdata[pos++]=p->w;
+         gdebugdata[pos++]=p[0].x;
+         gdebugdata[pos++]=p[0].y;
+         gdebugdata[pos++]=p[0].z;
+         gdebugdata[pos++]=p[0].w;
          gdebugdata[pos++]=0;
       }
 }
@@ -607,8 +601,8 @@ void updateproperty(FLOAT4VEC *prop, unsigned int mediaid,__constant float4 *gpr
 	  if(gcfg->mediaformat<=4)
 	      *((FLOAT4VEC*)(prop))=gproperty[mediaid & MED_MASK];
           else if(gcfg->mediaformat==MEDIA_MUA_FLOAT){
-	      prop->x=fabs(*((float *)&mediaid));
-              prop->w=gproperty[(!(mediaid & MED_MASK))==0].w;
+	      prop[0].x=fabs(*((float *)&mediaid));
+              prop[0].w=gproperty[(!(mediaid & MED_MASK))==0].w;
 #ifdef USE_HALF
 	  }else if(gcfg->mediaformat==MEDIA_AS_F2H||gcfg->mediaformat==MEDIA_AS_HALF){
 	      union {
@@ -616,9 +610,9 @@ void updateproperty(FLOAT4VEC *prop, unsigned int mediaid,__constant float4 *gpr
                  half h[2];
               } val;
 	      val.i=mediaid & MED_MASK;
-	      prop->x=fabs(convert_float(val.h[0]));
-	      prop->y=fabs(convert_float(val.h[1]));
-	      prop->w=gproperty[(!(mediaid & MED_MASK))==0].w;
+	      prop[0].x=fabs(convert_float(val.h[0]));
+	      prop[0].y=fabs(convert_float(val.h[1]));
+	      prop[0].w=gproperty[(!(mediaid & MED_MASK))==0].w;
 #endif
 	  }else if(gcfg->mediaformat==MEDIA_ASGN_BYTE){
 	      union {
@@ -626,19 +620,19 @@ void updateproperty(FLOAT4VEC *prop, unsigned int mediaid,__constant float4 *gpr
                  unsigned char h[4];
               } val;
 	      val.i=mediaid & MED_MASK;
-	      prop->x=val.h[0]*(1.f/255.f)*(gproperty[2].x-gproperty[1].x)+gproperty[1].x;
-	      prop->y=val.h[1]*(1.f/255.f)*(gproperty[2].y-gproperty[1].y)+gproperty[1].y;
-	      prop->z=val.h[2]*(1.f/255.f)*(gproperty[2].z-gproperty[1].z)+gproperty[1].z;
-	      prop->w=val.h[3]*(1.f/127.f)*(gproperty[2].w-gproperty[1].w)+gproperty[1].w;
+	      prop[0].x=val.h[0]*(1.f/255.f)*(gproperty[2].x-gproperty[1].x)+gproperty[1].x;
+	      prop[0].y=val.h[1]*(1.f/255.f)*(gproperty[2].y-gproperty[1].y)+gproperty[1].y;
+	      prop[0].z=val.h[2]*(1.f/255.f)*(gproperty[2].z-gproperty[1].z)+gproperty[1].z;
+	      prop[0].w=val.h[3]*(1.f/127.f)*(gproperty[2].w-gproperty[1].w)+gproperty[1].w;
           }else if(gcfg->mediaformat==MEDIA_AS_SHORT){
 	      union {
                  unsigned int i;
                  unsigned short h[2];
               } val;
 	      val.i=mediaid & MED_MASK;
-	      prop->x=val.h[0]*(1.f/65535.f)*(gproperty[2].x-gproperty[1].x)+gproperty[1].x;
-	      prop->y=val.h[1]*(1.f/65535.f)*(gproperty[2].y-gproperty[1].y)+gproperty[1].y;
-	      prop->w=gproperty[(!(mediaid & MED_MASK))==0].w;
+	      prop[0].x=val.h[0]*(1.f/65535.f)*(gproperty[2].x-gproperty[1].x)+gproperty[1].x;
+	      prop[0].y=val.h[1]*(1.f/65535.f)*(gproperty[2].y-gproperty[1].y)+gproperty[1].y;
+	      prop[0].w=gproperty[(!(mediaid & MED_MASK))==0].w;
           }
 }
 
@@ -784,9 +778,9 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 		  for(int i=0;i<gcfg->srcnum;i++){
 		    if(ppath[gcfg->w0offset+i]>0.f){
   #ifdef USE_ATOMIC
-                        atomicadd(& field[(*idx1d+tshift*gcfg->dimlen.z)*gcfg->srcnum+i],-p->w*ppath[gcfg->w0offset+i]);
+                        atomicadd(& field[(*idx1d+tshift*gcfg->dimlen.z)*gcfg->srcnum+i],-p[0].w*ppath[gcfg->w0offset+i]);
   #else
-	                field[(*idx1d+tshift*gcfg->dimlen.z)*gcfg->srcnum+i]+=-p->w*ppath[gcfg->w0offset+i];
+	                field[(*idx1d+tshift*gcfg->dimlen.z)*gcfg->srcnum+i]+=-p[0].w*ppath[gcfg->w0offset+i];
   #endif
 		    }
 		  }
@@ -860,7 +854,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
     #if defined(MCX_SRC_PATTERN)  // need to prevent rx/ry=1 here
     	          if(gcfg->srcnum<=1){
     		      p[0].w=srcpattern[(int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w)];
-    		      ppath[3]=p->w;
+    		      ppath[3]=p[0].w;
     		  }else{
     		    *((__local uint *)(ppath+2))=((int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w));
     	            for(int i=0;i<gcfg->srcnum;i++)
@@ -871,7 +865,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
     	          if(gcfg->srcnum<=1){
                       p[0].w=srcpattern[(int)(rz*JUST_BELOW_ONE*gcfg->srcparam1.z)*(int)(gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+
 	                          (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.x)];
-    		      ppath[3]=p->w;
+    		      ppath[3]=p[0].w;
     		  }else{
     		      *((__local uint *)(ppath+2))=((int)(rz*JUST_BELOW_ONE*gcfg->srcparam1.z)*(int)(gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+
     	                              (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.x));
@@ -1078,8 +1072,8 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
         loss. This is different from the wide-field MMC, where the 
         total launched energy includes the specular reflection loss
        */
-      ppath[1]+=p->w;
-      *w0=p->w;
+      ppath[1]+=p[0].w;
+      *w0=p[0].w;
       ppath[2]=((gcfg->srcnum>1)? ppath[2] : p[0].w); // store initial weight
       v[0].w=EPS;
       *Lmove=0.f;
