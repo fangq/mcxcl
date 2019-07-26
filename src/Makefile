@@ -48,6 +48,9 @@ ifeq ($(HAS_CUDA), 1)
   CUCCOPT +=-I$(CUDA_LIB)/include -DUSE_OS_TIMER #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
   CCOPT += -I$(CUDA_LIB)/include -DUSE_OS_TIMER
   LIBOPENCLDIR=$(CUDA_LIB)/lib64
+  ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
+     LIBOPENCLDIR=$(CUDA_LIB)/lib/x64
+  endif
   INCLUDEDIRS +=-I$(CUDA_LIB)/include
 endif
 
