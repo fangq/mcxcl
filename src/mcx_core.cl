@@ -1278,7 +1278,7 @@ __kernel void mcx_main_loop(__global const uint *media,
 
           GPUDEBUG(((__constant char*)"medium [%d]->[%d]\n",mediaidold,mediaid));
 
-	  if(idx1d!=idx1dold && idx1dold>0 && mediaidold){
+	  if(idx1d!=idx1dold && idx1dold>=0 && mediaidold){
              GPUDEBUG(((__constant char*)"field add to %d->%f(%d)\n",idx1dold,w0-p.w,(int)f.w));
              // if t is within the time window, which spans cfg->maxgate*cfg->tstep wide
              if(gcfg->save2pt && f.y>=gcfg->twin0 && f.y<gcfg->twin1){
