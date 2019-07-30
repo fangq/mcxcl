@@ -74,7 +74,7 @@ const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--printgpu","--root","--optlevel","--kernel","--verbose","--compileropt",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
 		 "--mediabyte","--unitinmm","--atomic","--saveexit","--saveref",
-		 "--internalsrc","--savedetflag","--gscatter","--saveseed","--specular"
+		 "--internalsrc","--savedetflag","--gscatter","--saveseed","--specular",
 		 "--momentum","--replaydet","--outputtype","--voidtime","--showkernel",""};
 
 /**
