@@ -68,7 +68,7 @@ if(isfield(json,'Shapes'))
     cfg.shapes=savejson('',json.Shapes);
 end
 
-if(isfield(json,'Domain'))
+if(isfield(json,'Domain') && isfield(json.Domain,'VolumeFile'))
     [fpath, fname, fext]=fileparts(json.Domain.VolumeFile);
     switch(fext)
         case '.json'

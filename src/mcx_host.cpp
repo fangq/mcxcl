@@ -563,6 +563,8 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
          sprintf(opt+strlen(opt)," -DMCX_DO_REFLECTION");
      if(cfg->internalsrc || (param.mediaidorig && (cfg->srctype==MCX_SRC_PENCIL || cfg->srctype==MCX_SRC_CONE || cfg->srctype==MCX_SRC_ISOTROPIC)))
          sprintf(opt+strlen(opt)," -DINTERNAL_SOURCE");
+     if(workdev==1 && gpu[0].vendor == dvIntel)
+         sprintf(opt+strlen(opt)," -DMCX_USE_CPU");
 
      MCX_FPRINTF(cfg->flog,"Building kernel with option: %s\n",opt);
      status=clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);
@@ -680,17 +682,20 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
            if((param.debuglevel & MCX_DEBUG_PROGRESS)){
 	     int p0 = 0, ndone=-1;
 	     int threadphoton=(int)(cfg->nphoton*cfg->workload[0]/(fullload*gpu[0].autothread*cfg->respin));
+	     float maxval=((threadphoton>>1)*4.5f);
+	     if(workdev==1 && gpu[0].vendor == dvIntel)
+                    maxval=cfg->nphoton*0.95f;
 
 	     mcx_progressbar(-0.f,cfg);
 
 	     do{
                ndone = *progress;
 	       if (ndone > p0){
-		  mcx_progressbar(ndone/((threadphoton>>1)*4.5f),cfg);
+		  mcx_progressbar(ndone/maxval,cfg);
 		  p0 = ndone;
 	       }
                sleep_ms(100);
-	     }while (p0 < ((threadphoton>>1)*4.5f));
+	     }while (p0 < maxval);
              mcx_progressbar(1.0f,cfg);
              MCX_FPRINTF(cfg->flog,"\n");
            }
