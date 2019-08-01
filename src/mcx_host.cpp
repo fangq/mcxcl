@@ -185,14 +185,14 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
         		  cuinfo.autoblock=64;
 			  cuinfo.core=cuinfo.sm;
 
-                          if(strstr(cuinfo.name,"NVIDIA") && j==0){
+                          if((strstr(cuinfo.name,"NVIDIA") || strstr(pbuf,"NVIDIA")) && !cuinfo.iscpu){
                                if(!strstr(pbuf,"Apple")){
                                    OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_COMPUTE_CAPABILITY_MAJOR_NV,sizeof(cl_uint),(void*)&cuinfo.major,NULL)));
                                    OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_COMPUTE_CAPABILITY_MINOR_NV,sizeof(cl_uint),(void*)&cuinfo.minor,NULL)));
                                }
                                cuinfo.core=cuinfo.sm*mcx_nv_corecount(cuinfo.major,cuinfo.minor);
 			       cuinfo.vendor=dvNVIDIA;
-                          }else if(strstr(cuinfo.name,"AMD") && j==0){
+                          }else if((strstr(cuinfo.name,"AMD") || strstr(pbuf,"AMD")) && !cuinfo.iscpu){
                                int corepersm=0;
                                if(!strstr(pbuf,"Apple")){
                                    OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GFXIP_MAJOR_AMD,sizeof(cl_uint),(void*)&cuinfo.major,NULL)));
