@@ -23,9 +23,7 @@
 #include "tictoc.h"
 #include "mcx_const.h"
 
-#ifndef USE_OS_TIMER
-    extern cl_event kernelevent;
-#endif
+cl_event kernelevent;
 
 const char *VendorList[]={"Unknown","NVIDIA","AMD","Intel","IntelGPU"};
 
@@ -174,6 +172,7 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
 		          GPUInfo cuinfo={0};
                           cuinfo.platformid=i;
         		  cuinfo.id=cuid+1;
+                          cuinfo.iscpu=j;
 			  cuinfo.devcount=devnum;
 
         	          OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_NAME,100,(void*)cuinfo.name,NULL)));
@@ -185,28 +184,37 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
         		  cuinfo.maxgate=cfg->maxgate;
         		  cuinfo.autoblock=64;
 			  cuinfo.core=cuinfo.sm;
-                          if(strstr(pbuf,"NVIDIA") && j==0){
-                               OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_COMPUTE_CAPABILITY_MAJOR_NV,sizeof(cl_uint),(void*)&cuinfo.major,NULL)));
-                               OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_COMPUTE_CAPABILITY_MINOR_NV,sizeof(cl_uint),(void*)&cuinfo.minor,NULL)));
+
+                          if(strstr(cuinfo.name,"NVIDIA") && j==0){
+                               if(!strstr(pbuf,"Apple")){
+                                   OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_COMPUTE_CAPABILITY_MAJOR_NV,sizeof(cl_uint),(void*)&cuinfo.major,NULL)));
+                                   OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_COMPUTE_CAPABILITY_MINOR_NV,sizeof(cl_uint),(void*)&cuinfo.minor,NULL)));
+                               }
                                cuinfo.core=cuinfo.sm*mcx_nv_corecount(cuinfo.major,cuinfo.minor);
 			       cuinfo.vendor=dvNVIDIA;
-                          }else if(strstr(pbuf,"AMD") && j==0){
+                          }else if(strstr(cuinfo.name,"AMD") && j==0){
                                int corepersm=0;
-                               OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GFXIP_MAJOR_AMD,sizeof(cl_uint),(void*)&cuinfo.major,NULL)));
-                               OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GFXIP_MINOR_AMD,sizeof(cl_uint),(void*)&cuinfo.minor,NULL)));
-                               OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_BOARD_NAME_AMD,100,(void*)cuinfo.name,NULL)));
-                               OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_SIMD_PER_COMPUTE_UNIT_AMD,sizeof(cl_uint),(void*)&corepersm,NULL)));
-                               corepersm=(corepersm==0) ? 2 : corepersm;
-                               cuinfo.core=(cuinfo.sm*corepersm<<4);
+                               if(!strstr(pbuf,"Apple")){
+                                   OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GFXIP_MAJOR_AMD,sizeof(cl_uint),(void*)&cuinfo.major,NULL)));
+                                   OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_GFXIP_MINOR_AMD,sizeof(cl_uint),(void*)&cuinfo.minor,NULL)));
+                                   OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_BOARD_NAME_AMD,100,(void*)cuinfo.name,NULL)));
+                                   OCL_ASSERT((clGetDeviceInfo(devices[k],CL_DEVICE_SIMD_PER_COMPUTE_UNIT_AMD,sizeof(cl_uint),(void*)&corepersm,NULL)));
+                                   corepersm=(corepersm==0) ? 2 : corepersm;
+                                   cuinfo.core=(cuinfo.sm*corepersm<<4);
+                               }
                                cuinfo.autoblock=64;
                                cuinfo.vendor=dvAMD;
-                          }else if(strstr(pbuf,"Intel") && strstr(cuinfo.name,"Graphics") && j==0){
+                          }else if(strstr(cuinfo.name,"Intel") && strstr(cuinfo.name,"Graphics") && j==0){
                                cuinfo.autoblock=64;
 			       cuinfo.vendor=dvIntelGPU;
-                          }else if(strstr(pbuf,"Intel")){
+                          }else if(strstr(cuinfo.name,"Intel")){
 			       cuinfo.vendor=dvIntel;
 			  }
-        		  cuinfo.autothread=cuinfo.autoblock * cuinfo.core;
+                          if(strstr(pbuf,"Apple") && j>0){
+                               cuinfo.autoblock=1;
+                               cuinfo.autothread=1024;
+                          }else
+                               cuinfo.autothread=cuinfo.autoblock * cuinfo.core;
 
 			  if(cfg->isgpuinfo){
                 		MCX_FPRINTF(stdout,S_BLUE"============ %s device ID %d [%d of %d]: %s  ============\n"S_RESET,devname[j],cuid,k+1,devnum,cuinfo.name);
@@ -217,10 +225,10 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
                 		MCX_FPRINTF(stdout," Constant memory :\t%ld B\n",(unsigned long)cuinfo.constmem);
                 		MCX_FPRINTF(stdout," Clock speed     :\t%d MHz\n",cuinfo.clock);
 
-                                if(strstr(pbuf,"NVIDIA")){
+                                if(strstr(cuinfo.name,"NVIDIA") && !strstr(pbuf,"Apple")){
                                      MCX_FPRINTF(stdout," Compute Capacity:\t%d.%d\n",cuinfo.major,cuinfo.minor);
                                      MCX_FPRINTF(stdout," Stream Processor:\t%d\n",cuinfo.core);
-                                }else if(strstr(pbuf,"AMD") && j==0){
+                                }else if(strstr(cuinfo.name,"AMD") && !strstr(pbuf,"Apple") && j==0){
                                      MCX_FPRINTF(stdout," GFXIP version:   \t%d.%d\n",cuinfo.major,cuinfo.minor);
                                      MCX_FPRINTF(stdout," Stream Processor:\t%d\n",cuinfo.core);
                                 }
@@ -563,7 +571,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
          sprintf(opt+strlen(opt)," -DMCX_DO_REFLECTION");
      if(cfg->internalsrc || (param.mediaidorig && (cfg->srctype==MCX_SRC_PENCIL || cfg->srctype==MCX_SRC_CONE || cfg->srctype==MCX_SRC_ISOTROPIC)))
          sprintf(opt+strlen(opt)," -DINTERNAL_SOURCE");
-     if(workdev==1 && gpu[0].vendor == dvIntel)
+     if(workdev==1 && gpu[0].iscpu)
          sprintf(opt+strlen(opt)," -DMCX_USE_CPU");
 
      MCX_FPRINTF(cfg->flog,"Building kernel with option: %s\n",opt);
@@ -671,19 +679,16 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 	       param.blockextra  =(int)(np*cfg->workload[devid]/(fullload*cfg->respin)-param.blockphoton*nblock);
                OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid],gparam,CL_TRUE,0,sizeof(MCXParam),&param, 0, NULL, NULL)));
                OCL_ASSERT((clSetKernelArg(mcxkernel[devid],17, sizeof(cl_mem), (void*)&gparam)));
+
                // launch mcxkernel
-#ifndef USE_OS_TIMER
                OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,&gpu[devid].autothread,&gpu[devid].autoblock, 0, NULL, &kernelevent)));
-#else
-               OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid],mcxkernel[devid],1,NULL,&gpu[devid].autothread,&gpu[devid].autoblock, 0, NULL, NULL)));
-#endif
                OCL_ASSERT((clFlush(mcxqueue[devid])));
            }
            if((param.debuglevel & MCX_DEBUG_PROGRESS)){
-	     int p0 = 0, ndone=-1;
+	     int p0 = 0, ndone=-1, kernelstatus=0;
 	     int threadphoton=(int)(cfg->nphoton*cfg->workload[0]/(fullload*gpu[0].autothread*cfg->respin));
 	     float maxval=((threadphoton>>1)*4.5f);
-	     if(workdev==1 && gpu[0].vendor == dvIntel)
+	     if(workdev==1 && gpu[0].iscpu)
                     maxval=cfg->nphoton*0.95f;
 
 	     mcx_progressbar(-0.f,cfg);
@@ -695,6 +700,9 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 		  p0 = ndone;
 	       }
                sleep_ms(100);
+               OCL_ASSERT((clGetEventInfo(kernelevent,CL_EVENT_COMMAND_EXECUTION_STATUS,sizeof(cl_int),&kernelstatus,NULL)));
+               if(kernelstatus==CL_COMPLETE)
+                  break;
 	     }while (p0 < maxval);
              mcx_progressbar(1.0f,cfg);
              MCX_FPRINTF(cfg->flog,"\n");
@@ -991,9 +999,8 @@ is more than what your have specified (%d), please use the -H option to specify 
      free(mcxqueue);
      clReleaseProgram(mcxprogram);
      clReleaseContext(mcxcontext);
-#ifndef USE_OS_TIMER
      clReleaseEvent(kernelevent);
-#endif
+
      free(field);
      free(srcpw);
      free(energytot);
