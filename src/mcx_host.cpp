@@ -567,7 +567,9 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
          sprintf(opt+strlen(opt)," -DUSE_ATOMIC");
      if(cfg->issavedet)
          sprintf(opt+strlen(opt)," -DMCX_SAVE_DETECTORS");
-     if(cfg->isreflect)
+
+     char allabsorb[]={bcAbsorb,bcAbsorb,bcAbsorb,bcAbsorb,bcAbsorb,bcAbsorb,0};
+     if(cfg->isreflect || strcmp(cfg->bc,allabsorb))
          sprintf(opt+strlen(opt)," -DMCX_DO_REFLECTION");
      if(cfg->internalsrc || (param.mediaidorig && (cfg->srctype==MCX_SRC_PENCIL || cfg->srctype==MCX_SRC_CONE || cfg->srctype==MCX_SRC_ISOTROPIC)))
          sprintf(opt+strlen(opt)," -DINTERNAL_SOURCE");
