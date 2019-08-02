@@ -479,9 +479,13 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      cl_mem (*clCreateBufferNV)(cl_context,cl_mem_flags, cl_mem_flags_NV, size_t, void*, cl_int*) = (cl_mem (*)(cl_context,cl_mem_flags, cl_mem_flags_NV, size_t, void*, cl_int*)) clGetExtensionFunctionAddressForPlatform(platform, "clCreateBufferNV");
      if (clCreateBufferNV == NULL)
          OCL_ASSERT(((gprogress[0]=clCreateBuffer(mcxcontext,RW_PTR, sizeof(cl_uint),NULL,&status),status)));
-     else
-         OCL_ASSERT(((gprogress[0]=clCreateBufferNV(mcxcontext,CL_MEM_READ_WRITE, NV_PIN, sizeof(cl_uint),NULL,&status),status)));
-
+     else{
+         gprogress[0]=clCreateBufferNV(mcxcontext,CL_MEM_READ_WRITE, NV_PIN, sizeof(cl_uint),NULL,&status);
+         if(status==CL_INVALID_VALUE){
+             MCX_FPRINTF(cfg->flog,"Warning: to use the progress bar feature, you need to upgrade your NVIDIA GPU driver to 399.x or newer. Without the update, your progress bar may appear to be static (despite the simulation is running)\n");
+             OCL_ASSERT(((gprogress[0]=clCreateBuffer(mcxcontext,RW_PTR, sizeof(cl_uint),NULL,&status),status)));
+         }
+     }
      progress = (cl_uint *)clEnqueueMapBuffer(mcxqueue[0], gprogress[0], CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeof(cl_uint), 0, NULL, NULL, NULL);
      *progress=0;
      
