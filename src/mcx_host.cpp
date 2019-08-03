@@ -25,7 +25,7 @@
 
 cl_event kernelevent;
 
-const char *VendorList[]={"Unknown","NVIDIA","AMD","Intel","IntelGPU"};
+const char *VendorList[]={"Unknown","NVIDIA","AMD","Intel","IntelGPU","AppleCPU"};
 
 const char *sourceflag[]={"-DMCX_SRC_PENCIL","-DMCX_SRC_ISOTROPIC","-DMCX_SRC_CONE",
     "-DMCX_SRC_GAUSSIAN","-DMCX_SRC_PLANAR","-DMCX_SRC_PATTERN","-DMCX_SRC_FOURIER",
@@ -211,8 +211,9 @@ cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *ac
 			       cuinfo.vendor=dvIntel;
 			  }
                           if(strstr(pbuf,"Apple") && j>0){
+                               cuinfo.vendor=dvAppleCPU;
                                cuinfo.autoblock=1;
-                               cuinfo.autothread=1024;
+                               cuinfo.autothread=2048;
                           }else
                                cuinfo.autothread=cuinfo.autoblock * cuinfo.core;
 
