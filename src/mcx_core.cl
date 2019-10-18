@@ -62,7 +62,7 @@
 #define SEED_FROM_FILE      -999                   /**< special flag indicating to read seeds from an mch file for replay */
 
 #define DET_MASK           0x80000000              /**< mask of the sign bit to get the detector */
-#define MED_MASK           0x0000FFFF              /**< mask of the lower 16bit to get the medium index */
+#define MED_MASK           0x7FFFFFFF              /**< mask of the remaining bits to get the medium index */
 #define MIX_MASK           0x7FFF0000              /**< mask of the upper 16bit to get the volume mix ratio */
 #define NULL               0
 #define MAX_ACCUM          1000.f
@@ -1062,7 +1062,8 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
       /**
        * Now a photon is successfully launched, perform necssary initialization for a new trajectory
        */
-      f[0].w+=1.f; 
+      f[0].w+=1.f;
+      *prop=TOFLOAT4(gproperty[1]);   
       updateproperty(prop,*mediaid,gproperty,gcfg);
 
 #ifdef MCX_DEBUG_MOVE
