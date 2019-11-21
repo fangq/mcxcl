@@ -1,34 +1,42 @@
----------------------------------------------------------------------
-                   Monte Carlo eXtreme  (MCX-CL)
-                         OpenCL Edition
----------------------------------------------------------------------
+# Monte Carlo eXtreme  (MCX-CL) OpenCL Edition
 
-Author: Qianqian Fang <q.fang at neu.edu>
-License: GNU General Public License version 3 (GPLv3)
-Version: 0.9 (Eternity - beta)
-Website: http://mcx.space
+**Author:** Qianqian Fang <q.fang at neu.edu>
 
----------------------------------------------------------------------
+**License:** GNU General Public License version 3 (GPLv3)
 
-Table of Content:
+**Version:** 0.9 (Eternity - beta)
+
+**Website:** [ http://mcx.space]( http://mcx.space)
+
+
+
+### Table of Contents:
 
 O.    What's New
+
 I.    Introduction
+
 II.   Requirement and Installation
+
 III.  Running Simulations
+
 IV.   Using JSON-formatted input files
+
 V.    Using JSON-formatted shape description files
+
 VI.   Using MCXLAB in MATLAB and Octave
+
 VII.  Using MCX Studio GUI
+
 VIII. Interpreting the Outputs
+
 IX.   Best practices guide
+
 X.    Acknowledgement
+
 XI.   Reference
 
-
----------------------------------------------------------------------
-
-O.    What's New
+### O.    What's New
 
 In MCX-CL v2019.3 (0.9), we added a list of major new additions, including
 
@@ -58,14 +66,9 @@ Compared to MCX v2019.3 (1.4.8), MCX-CL has not yet supported the below features
 * 2D simulations
 * Support photon numbers over 2^31-1 in one simulation
 
-[Yuan2018] Yaoshen Yuan, Leiming Yu, Zafer Doğan, Qianqian Fang*, 
-"Graphics processing units-accelerated adaptive nonlocal means filter for denoising 
-three-dimensional Monte Carlo photon transport simulations," 
-J. of Biomedical Optics, 23(12), 121618 (2018), URL: https://doi.org/10.1117/1.JBO.23.12.121618
+>	[Yuan2018] Yaoshen Yuan, Leiming Yu, Zafer Doğan, Qianqian Fang*, "Graphics processing units-accelerated adaptive nonlocal means filter for denoising three-dimensional Monte Carlo photon transport simulations," J. of Biomedical Optics, 23(12), 121618 (2018), URL: https://doi.org/10.1117/1.JBO.23.12.121618
 
----------------------------------------------------------------------
-
-I.  Introduction
+### I.  Introduction
 
 Monte Carlo eXtreme (MCX) is a fast photon transport simulation 
 software for 3D heterogeneous turbid media. By taking advantage of 
@@ -83,37 +86,30 @@ is highly portable, highly scalable and is feature rich like MCX.
 
 The details of MCX-CL can be found in the below paper
 
-[Yu2018] Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang, \
-"Scalable and massively parallel Monte Carlo photon transport simulations \
-for heterogeneous computing platforms," J. Biomed. Optics, 23(1), 010504 (2018) .
+>	[Yu2018] Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang, "Scalable and massively parallel Monte Carlo photon transport simulations for heterogeneous computing platforms," J. Biomed. Optics, 23(1), 010504 (2018) .
 
 A short summary of the main features includes:
 
-*. 3D heterogeneous media represented by voxelated array
-*. support over a dozen source forms, including wide-field and pattern illuminations
-*. boundary reflection support
-*. time-resolved photon transport simulations
-*. saving photon partial path lengths and trajectories
-*. optimized random number generators
-*. build-in flux/fluence normalization to output Green's functions
-*. user adjustable voxel resolution
-*. improved accuracy with atomic operations
-*. cross-platform graphical user interface
-*. native Matlab/Octave support for high usability
-*. flexible JSON interface for future extensions
-*. multi-GPU support
+* 3D heterogeneous media represented by voxelated array
+* support over a dozen source forms, including wide-field and pattern illuminations
+* boundary reflection support
+* time-resolved photon transport simulations
+* saving photon partial path lengths and trajectories
+* optimized random number generators
+* build-in flux/fluence normalization to output Green's functions
+* user adjustable voxel resolution
+* improved accuracy with atomic operations
+* cross-platform graphical user interface
+* native Matlab/Octave support for high usability
+* flexible JSON interface for future extensions
+* multi-GPU support
 
 MCX-CL can be used on Windows, Linux and Mac OS. Multiple user 
 interfaces are provided, including
 
-- command line mode: mcxcl can be executed in the command line, best suited \
-  for batch data processing
-- graphical user interface with MCXStudio: MCXStudio is a unified GUI program \
-  for MCX, MCX-CL and MMC. One can intuitively set all parameters, including \
-  GPU settings, MC settings and domain design, in the cross-platform interface
-- calling inside MATLAB/Octave: mcxlabcl is a mex function, one can call it \
-  inside MATLAB or GNU Octave to get all functionalities as the command line \
-  version.
+- **Command line mode:** mcxcl can be executed in the command line, best suited for batch data processing
+- **Graphical User Interface with MCXStudio:** MCXStudio is a unified GUI program for MCX, MCX-CL and MMC. One can intuitively set all parameters, including GPU settings, MC settings and domain design, in the cross-platform interface
+- **Calling inside MATLAB/Octave:** mcxlabcl is a mex function, one can call it inside MATLAB or GNU Octave to get all functionalities as the command line version.
   
 If a user is familiar with MATLAB/Octave, it is highly recommended to 
 use MCXCL in MATLAB/Octave to ease data visualization. If one prefers a 
@@ -121,23 +117,23 @@ GUI, please use MCXStudio to start.  For users who are familiar with MCX/MCXCL
 and need it for regular data processing, using the command line mode is 
 recommended.
 
----------------------------------------------------------------------------
-II. Requirement and Installation
+
+### II. Requirement and Installation
 
 With the up-to-date driver installed for your computers, MCXCL can run on
 almost all computers. The requirements for using this software include
 
-*. a CPU, or
-*. a CUDA capable NVIDIA graphics card, or
-*. an AMD graphics card
+* a CPU, or
+* a CUDA capable NVIDIA graphics card, or
+* an AMD graphics card
 and
-*. pre-installed graphics driver - typically includes the OpenCL library (libOpenCL.* or OpenCL.dll)
+* pre-installed graphics driver - typically includes the OpenCL library (libOpenCL.* or OpenCL.dll)
 
 For speed differences between different CPUs/GPUs made by different vendors, please
 see your above paper [1] and our websites
 
-http://mcx.space/computebench/
-http://mcx.space/mcxcl
+- http://mcx.space/computebench/
+- http://mcx.space/mcxcl
 
 Generally speaking, AMD and NVIDIA high-end dedicated GPU performs the best, about 20-60x 
 faster than a multi-core CPU; Intel's integrated GPU is about 3-4 times faster than
@@ -159,7 +155,7 @@ The below installation steps can be browsed online at
 http://mcx.space/wiki/index.cgi/wiki/index.cgi?Workshop/MCX18Preparation/MethodA
 
 
-=== # Step 1. Verify your CPU/GPU support ==
+## Step 1. Verify your CPU/GPU support
 
 MCX-CL supports a wide-range of processors, including Intel/AMD CPUs 
 and GPUs from NVIDIA/AMD/Intel. If your computer has been working previously,
@@ -167,17 +163,13 @@ in most cases, MCX-CL can simply run out-of-box. However, if you have trouble,
 please follow the below detailed steps to verify and setup your OS to run
 MCX-CL.
 
-==== # Verify GPU/CPU support ===
+- #### Verify GPU/CPU support
 
 To verify if you have installed the OpenCL or CUDA support, you may
 
-* if you have a windows machine, download and install the \
- [https://www.voidtools.com/ Everything Search] tool (a small and 
- fast file name search utility), and type '''"opencl.dll"''' in the search bar
-** '''Expected result''': you must see <tt>OpenCL.dll</tt> (or \
-  <tt>nvopencl.dll</tt> if you have an NVIDIA GPU) installed in the \
-  <tt>Windows\System32</tt> directory.
-* if you have an Mac, open a terminal, and type <tt>ls /System/Library/Frameworks/OpenCL.framework/Versions/A/OpenCL</tt>
+* if you have a windows machine, download and install the [https://www.voidtools.com/ Everything Search] tool (a small and 
+ fast file name search utility), and type '''"opencl.dll"''' in the search bar ** '''Expected result''': you must see <tt>OpenCL.dll</tt> (or <tt>nvopencl.dll</tt> if you have an NVIDIA GPU) installed in the <tt>Windows\System32</tt> directory.
+* if you have a Mac, open a terminal, and type <tt>ls /System/Library/Frameworks/OpenCL.framework/Versions/A/OpenCL</tt>
 ** '''Expected result''': you should not see an error.
 * if you have a Linux laptop, open a terminal, and type <tt>locate libOpenCL.so</tt>, 
 ** '''Expected result''': you should see one or multiple libOpenCL files
@@ -185,7 +177,7 @@ To verify if you have installed the OpenCL or CUDA support, you may
 If the <tt>OpenCL.dll</tt> file is not found on your system, please 
 read the below sections. Otherwise, please go to Step 2: Install MATLAB.
 
-==== # Computers without discrete GPUs ===
+- #### Computers without discrete GPUs
 
 In many cases, your computer runs on an Intel CPU with integrated graphics. In 
 this case, please make sure you have installed the latest Intel graphics drivers. 
@@ -194,27 +186,18 @@ graphics works smoothly, please skip this step.
 
 If you want to double check, for Windows machine, you can download the 
 "Intel Driver&Support Assistant" to check if you have installed the 
-graphics drivers
+graphics drivers from https://downloadcenter.intel.com/download/24345/Intel-Driver-Support-Assistant
 
-https://downloadcenter.intel.com/download/24345/Intel-Driver-Support-Assistant
-
-for a Mac, you need to use your App store to update the driver, see the 
-below link for details
-
-https://www.intel.com/content/www/us/en/support/articles/000022440/graphics-drivers.html
+For a Mac, you need to use your App store to update the driver, see the 
+below link for details https://www.intel.com/content/www/us/en/support/articles/000022440/graphics-drivers.html
 
 for a Linux (for example Ubuntu) laptop, the intel CPU OpenCL run-time 
-can be downloaded from
-
-https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
+can be downloaded from https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
 
 if you want to use both Intel CPU and GPU on Linux, you need to install 
-the OpenCL™ 2.0 GPU/CPU driver package for Linux* (this involves compiling a new kernel)
+the OpenCL™ 2.0 GPU/CPU driver package for Linux* (this involves compiling a new kernel) https://software.intel.com/en-us/articles/opencl-drivers#latest_linux_driver
 
-https://software.intel.com/en-us/articles/opencl-drivers#latest_linux_driver
-
-
-==== # Computers with discrete GPUs ===
+- #### Computers with discrete GPUs
 
 If you have a computer with a discrete GPU, you need to make sure your 
 discrete GPU is configured with the appropriate GPU 
@@ -224,32 +207,26 @@ installed.
 
 If your GPU driver was not installed, and would like to install, or upgrade 
 from an older version, for an NVIDIA GPU, you may browse this link to 
-install the matching driver
+install the matching driver from http://www.nvidia.com/Download/index.aspx
 
-http://www.nvidia.com/Download/index.aspx
-
-if your GPU is an AMD GPU, please use the below link
-
-https://support.amd.com/en-us/download
+If your GPU is an AMD GPU, please use the below link https://support.amd.com/en-us/download
 
 It is also possible to simultaneously access Intel CPU along with your 
 discrete GPU. In this case, you need to download the latest Intel OpenCL 
-Runtime for CPU only if you haven't installed it already. 
+Runtime for CPU only if you haven't installed it already from https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
 
-https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
-
-Note: if you have an NVIDIA GPU, there is no need to install CUDA in 
+**Note:** If you have an NVIDIA GPU, there is no need to install CUDA in 
 order for you to run MCX/MCXLAB.
 
 
-=== # Step 2. Install MATLAB or GNU Octave =
+## Step 2. Install MATLAB or GNU Octave =
 
 One must install either a MATLAB or GNU Octave if one needs to use mcxlabcl.
 If you use a Mac or Linux laptop, you need to create a link (if this link does
 not exist) so that your system can find MATLAB. To do this you start a terminal, 
 and type
 
- sudo ln -s /path/to/matlab /usr/local/bin
+	sudo ln -s /path/to/matlab /usr/local/bin
 
 please replace <tt>/path/to/matlab</tt> to the actual <tt>matlab</tt> command 
 full path (for Mac, this is typically <tt>/Application/MATLAB_R20???.app/bin/matlab</tt>, 
@@ -261,25 +238,23 @@ To verify your computer has MATLAB installed, please start a terminal on a
 Mac or Linux, or type "cmd" and enter in Windows start menu, in the terminal, 
 type "<tt>matlab</tt>" and enter, you should see MATLAB starts.
 
-=== # Step 3. Download MCXCL ==
+## Step 3. Download MCXCL
 
 One can download two separate MCXCL packages (standalone mcxcl binary, and mcxlabcl)
 or download the integrated MCXStudio package (which contains mcx, mcxcl, mmc, mcxlab, 
 mcxlabcl and mmclab) where both packages, and many more, are included. The latest
 stable released can be found on the MCX's website. However, if you want to use the
 latest (but sometimes containing half-implemented features) software, you can access
-the nightly-built packages from
-
-http://mcx.space/nightly/
+the nightly-built packages from http://mcx.space/nightly/
 
 If one has downloaded the mcxcl binary package, after extraction, you may open
 a terminal (on Windows, type cmd the Start menu), cd mcxcl folder and then cd
 the bin subfolder. Please type "mcxcl" and enter, if the binary is compatible with
 your OS, you should see the printed help info. The next step is to run 
 
- mcxcl -L
+	mcxcl -L
 
-this will query your system and find any hardware that can run mcxcl. If your
+This will query your system and find any hardware that can run mcxcl. If your
 hardware (CPU and GPU) have proper driver installed, the above command will typically
 return 1 or more available computing hardware. Then you can move to the next step.
 
@@ -291,7 +266,6 @@ installing dedicated GPU or use a different computer.
 
 In the case one has installed the MCXStudio package, you may follow the below 
 procedure to test for hardware compatibility.
-
 
 Please click on the folder matching your operating system (for example, if you run 
 a 64bit Windows, you need to navigate into <tt>win64</tt> folder), and download 
@@ -321,10 +295,10 @@ with a few executables and 3 subfolders underneath. See the folder structure bel
 
 Please make sure that your downloaded <tt>MCXStudio</tt> must match your operating system.
 
-==== # Notes for Mac Users ===
+- #### Notes for Mac Users
 '''For Mac users:''' Please unzip the package under your '''[https://www.cnet.com/how-to/how-to-find-your-macs-home-folder-and-add-it-to-finder/ home directory]''' directly (Shift+Command+H).
 
-==== # Notes for Windows Users ===
+- #### Notes for Windows Users
 When you start MCXStudio, you may see a dialog to ask you to modify the TdrDelay key 
 in the registry so that mcx can run more than 5 seconds. If you select Yes, some 
 of you may get an error saying you do not have permission. 
@@ -337,9 +311,9 @@ Alternatively, one should open file browser, navigate into mcxcl/setup/win64 fol
 and right-click on the "apply_timeout_registry_fix.bat" file and select 
 "Run as Administrator".
 
-'''You must reboot your computer for this change to be effective!'''
+	You must reboot your computer for this change to be effective!
 
-=== # Step 4. Start MCXStudio and query GPU information ==
+## Step 4. Start MCXStudio and query GPU information
 
 Now, navigate to the MCXStudio folder (i.e. the top folder of the extracted 
 software structure). On Windows, right-click on the executable named <tt>"mcxstudio.exe"</tt> 
@@ -347,8 +321,8 @@ and select "Run as Administrator" for the first time only; on the Linux,
 double click on the <tt>mcxstudio</tt> executable; on the Mac, open a 
 terminal and type
 
- cd ~/MCXStudio
- open mcxstudio.app
+	cd ~/MCXStudio
+	open mcxstudio.app
 
 First, click on the "New" button to the top-left (green plus icon), 
 select the 3rd option "<tt>NVIDIA/AMD/Intel CPUs/GPUs (MCX-CL)</tt>", 
@@ -399,7 +373,7 @@ If you have Intel CPU with Integrated GPU, you should be able to see a section w
 the CPU is listed, or both the CPU and the integrated GPU.
 
 
-=== # Step 5. Run a trial simulation ==
+## Step 5. Run a trial simulation
 
 If your above GPU query was successful, you should now see in the middle panel 
 of the MCXStudio window, under the Section entitled "GPU Settings", in a check-box 
@@ -412,7 +386,7 @@ Now, you can then run a trial simulation, by first clicking on the "Validate"
 button (blue check-mark icon), and then click on "Run" (the button to the 
 right of validate). This will launch an MCXCL simulation. The output window 
 will show again, and you can see the messages printed from the simulation, 
-similar to the output below
+similar to the output below:
 
 <pre>"-- Command: --"
 mcxcl --session "preptest"  --input "/drives/taote1/users/fangq/Download/MCXStudio/Output/mcxclsessions/preptest/preptest.json" --root "/drives/taote1/users/fangq/Download/MCXStudio/Output/mcxclsessions/preptest" --outputformat mc2 --gpu 10 --autopilot 1 --photon 10000000 --normalize 1 --save2pt 1 --reflect 1 --savedet 1 --unitinmm 1.00 --saveseed 0 --seed "1648335518" --compileropt "-D USE_ATOMIC" --array 0 --dumpmask 0 --repeat 1  --maxdetphoton 10000000
@@ -463,31 +437,28 @@ device from the "GPU Settings" section, and run the simulation again.
 
 If your GPU/CPU gives the below error (found on HD4400 GPU and 4th gen Intel CPUs)
 
-  error: OpenCL extension 'cl_khr_fp64' is unsupported
-  MCXCL ERROR(11):Error: Failed to build program executable! in unit mcx_host.cpp:510
+	error: OpenCL extension 'cl_khr_fp64' is unsupported
+	MCXCL ERROR(11):Error: Failed to build program executable! in unit mcx_host.cpp:510
 
 You may add 
 
-   -J "-DUSE_LL5_RAND"
+	-J "-DUSE_LL5_RAND"
 
 in the <tt>MCXStudio GUI</tt>\<tt>Advanced Settings</tt>\<tt>Additional Parameters</tt> 
 field. This should allow it to run, but please verify the absorption fraction 
 is ~27%. For 4th generation Intel CPU, we found that install the Intel CPU 
-OpenCL run-time can produce correct simulations. Please download it from here
+OpenCL run-time can produce correct simulations. Please download it from https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
 
-https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
-
-=== # Step 6. Test MATLAB for visualization ==
+## Step 6. Test MATLAB for visualization
 
 From v2019.3, MCXStudio provides builtin 3D volume visualization, this step is no longer needed.
 
-
-=== # Step 7. Setting up MATLAB search path ==
+## Step 7. Setting up MATLAB search path
 
 The next step is to set up the search paths for MCXLAB/MMCLAB. You need to 
 start MATLAB, and in the Command window, please type 
 
- pathtool
+	pathtool
 
 this will popup a window. Click on the "Add with Subfolders ..." button 
 (the 2nd from the top), then browse the MCXStudio folder, then select 
@@ -496,34 +467,34 @@ Before you quick this window, click on the "Save" button.
 
 To verify if your MCXLAB/MMCLAB/MCXLABCL has been installed properly, please type
 
- which mcxlab
- which mmclab
- which mcxlabcl
+	which mcxlab
+	which mmclab
+	which mcxlabcl
 
 you should see their full paths printed. 
 
 
 To see if you can run MCXLAB-CL in your environment, please type 
 
- USE_MCXCL=1   ''%define this line in the base workspace, all subsequent mcxlab calls will use mcxcl''
- info=mcxlab('gpuinfo')
- clear USE_MCXCL
+	USE_MCXCL=1   ''%define this line in the base workspace, all subsequent mcxlab calls will use mcxcl''
+	info=mcxlab('gpuinfo')
+	clear USE_MCXCL
 
 this should print a list of CPU/GPU devices using which you can run the MC simulations.
 
-upload:matlab_gpu_verify.png
+	upload: matlab_gpu_verify.png
 
 If you do not see any output, that means your CPU/GPU OpenCL driver was not installed 
 properly, you need to go back to Steps 1-2.
 
 If you have an NVIDIA GPU, and have installed the proper GPU driver, you may run
 
- info=mcxlab('gpuinfo')  % notice the command is mcxlab instead of mcxlabcl
+	info=mcxlab('gpuinfo')  % notice the command is mcxlab instead of mcxlabcl
 
 this should print a list of NVIDIA GPU from the MATLAB window.
 
----------------------------------------------------------------------------
-III.Running Simulations
+
+### III.Running Simulations
 
 To run a simulation, the minimum input is a configuration (text) file,
 and a volume (a binary file with each byte representing a medium 
@@ -620,13 +591,13 @@ where possible parameters include (the first value in [*|*] is the default)
 
 == Example ==
 example: (autopilot mode)
-       mcxcl -A 1 -n 1e7 -f input.json -G 1
+	mcxcl -A 1 -n 1e7 -f input.json -G 1
 or (manual mode)
-       mcxcl -t 16384 -T 64 -n 1e7 -f input.json -s test -r 2 -d 1 -b 1 -G 1
+	mcxcl -t 16384 -T 64 -n 1e7 -f input.json -s test -r 2 -d 1 -b 1 -G 1
 or (use multiple devices - 1st,2nd and 4th GPUs - together with equal load)
-       mcxcl -A -n 1e7 -f input.json -G 1101 -W 10,10,10
+	mcxcl -A -n 1e7 -f input.json -G 1101 -W 10,10,10
 or (use inline domain definition)
-       mcxcl -f input.json -P '{"Shapes":[{"ZLayers":[[1,10,1],[11,30,2],[31,60,3]]}]}'
+	mcxcl -f input.json -P '{"Shapes":[{"ZLayers":[[1,10,1],[11,30,2],[31,60,3]]}]}'
 </pre>
 
  the above command will launch 1024 GPU threads (-t) with every 64 threads
@@ -642,6 +613,7 @@ Currently, MCX supports a modified version of the input file format used
 for tMCimg. (The difference is that MCX allows comments)
 A typical MCX input file looks like this:
 
+<pre>
 1000000              # total photon, use -n to overwrite in the command line
 29012392             # RNG seed, negative to generate
 30.0 30.0 0.0 1      # source position (in grid unit), the last num (optional) sets srcfrom0 (-z)
@@ -661,6 +633,7 @@ semi60x60x60.bin     # volume ('unsigned char' binary format)
 pencil               # source type (optional)
 0 0 0 0              # parameters (4 floats) for the selected source
 0 0 0 0              # additional source parameters
+</pre>
 
 Note that the scattering coefficient mus=musp/(1-g).
 
@@ -693,8 +666,7 @@ input file, (e.g, "-g 20") MCX will stop when the 10 time-gates are
 completed. If you use the autopilot mode (-A), then the time-gates
 are automatically estimated for you.
 
----------------------------------------------------------------------------
-IV. Using JSON-formatted input files
+### IV. Using JSON-formatted input files
 
 Starting from version 0.7.9, MCX accepts a JSON-formatted input file in
 addition to the conventional tMCimg-like input format. JSON 
@@ -706,6 +678,7 @@ and easy-to-interface with other applications (like MATLAB).
 A sample JSON input file can be found under the examples/quicktest
 folder. The same file, qtest.json, is also shown below:
 
+<pre>
  {
     "Help": {
       "[en]": {
@@ -779,6 +752,7 @@ folder. The same file, qtest.json, is also shown below:
 	]
     }
  }
+</pre>
 
 A JSON input file requiers several root objects, namely "Domain", "Session", 
 "Forward" and "Optode". Other root sections, like "Help", will be ignored. 
@@ -802,11 +776,13 @@ recommended. In the alternative format, you can use
  "rootobj_name.field_name": value 
 to represent any parameter directly in the root level. For example
 
+<pre>
  {
     "Domain.VolumeFile": "semi60x60x60.json",
     "Session.Photons": 10000000,
     ...
  }
+</pre>
 
 You can even mix the alternative format with the standard format. 
 If any input parameter has values in both formats in a single input 
@@ -816,7 +792,7 @@ To invoke the JSON-formatted input file in your simulations, you
 can use the "-f" command line option with MCX, just like using an 
 .inp file. For example:
 
-  mcxcl -A -n 20 -f onecube.json -s onecubejson
+ 	mcxcl -A -n 20 -f onecube.json -s onecubejson
 
 The input file must have a ".json" suffix in order for MCX to 
 recognize. If the input information is set in both command line,
@@ -827,8 +803,7 @@ to 20; when using "-s onecubejson", the "Session"/"ID" value is modified.
 If your JSON input file is invalid, MCX will quit and point out
 where the format is incorrect.
 
----------------------------------------------------------------------------
-V. Using JSON-formatted shape description files
+### V. Using JSON-formatted shape description files
 
 Starting from v0.7.9, MCX can also use a shape 
 description file in the place of the volume file.
@@ -839,8 +814,9 @@ syntax and can be easily understood and shared with others.
 Samples on how to use the shape files are included under
 the example/shapetest folder. 
 
-The sample shape file, shapes.json, is shown below:
+The sample shape file, <tt>shapes.json</tt>, is shown below:
 
+<pre>
  {
   "MCX_Shape_Command_Help":{
      "Shapes::Common Rules": "Shapes is an array object. The Tag field sets the voxel value for each
@@ -875,6 +851,7 @@ The sample shape file, shapes.json, is shown below:
      {"ZLayers":  [[1,10,1],[11,30,2],[31,50,3]]}
   ]
  }
+</pre>
 
 A shape file must contain a "Shapes" object in the root level.
 Other root-level fields are ignored. The "Shapes" object is a
@@ -897,7 +874,7 @@ put the file name in Line#6 of yoru .inp file, or set as the
 value for Domain.VolumeFile field in a .json input file. 
 In these cases, a shape file must have a suffix of .json.
 
-You can also merge the Shapes section with a .json input file
+You can also merge the Shapes section with a <tt>.json</tt> input file
 by simply appending the Shapes section to the root-level object.
 You can find an example, jsonshape_allinone.json, under 
 examples/shapetest. In this case, you no longer need to define
@@ -906,7 +883,7 @@ the "VolumeFile" field in the input.
 Another way to use Shapes is to specify it using the -P (or --shapes)
 command line flag. For example:
 
- mcxcl -f input.json -P '{"Shapes":[{"ZLayers":[[1,10,1],[11,30,2],[31,60,3]]}]}'
+	mcxcl -f input.json -P '{"Shapes":[{"ZLayers":[[1,10,1],[11,30,2],[31,60,3]]}]}'
 
 This will first initialize a volume based on the settings in the 
 input .json file, and then rasterize new objects to the domain and 
@@ -916,8 +893,7 @@ For both JSON-formatted input and shape files, you can use
 the JSONlab toolbox [4] to load and process in MATLAB.
 
 
----------------------------------------------------------------------------
-VI. Using mcxlabcl in MATLAB and Octave
+### VI. Using mcxlabcl in MATLAB and Octave
 
 mcxlabcl is the native MEX version of MCX-CL for Matlab and GNU Octave. It includes
 the entire MCX-CL code in a MEX function which can be called directly inside
@@ -927,7 +903,7 @@ and interact. Matlab/Octave also provides convenient plotting and data
 analysis functions. With mcxlabcl, your analysis can be streamlined and speed-
 up without involving disk files.
 
-Please read the mcxlab/README.txt file for more details on how to
+Please read the mcxlab/README file for more details on how to
 install and use MCXLAB.
 
 Specifically, please add the path to mcxlabcl.m and mcxcl.mex* to your
@@ -936,26 +912,26 @@ MATLAB or octave following Step 7 in Section II Installation.
 To use mcxlabcl, the first step is to see if your system has any supported
 processors. To do this, you can use one of the following 3 ways
 
- info=mcxlabcl('gpuinfo')
+	info=mcxlabcl('gpuinfo')
 
 or run
 
- info=mcxlab('gpuinfo','opencl')
+	info=mcxlab('gpuinfo','opencl')
 
 or
 
- USE_MCXCL=1
- info=mcxlab('gpuinfo')
+	USE_MCXCL=1
+	info=mcxlab('gpuinfo')
 
 Overall, mcxlabcl and mcxlab is highly compatible with nearly identical features
 and interfaces. If yo have a working mcxlab script, the simpliest way to use it
 with mcxlabcl on non-NVIDIA devices is to insert the below command
 
- eval('base','USE_MCXCL=1;');
+	eval('base','USE_MCXCL=1;');
 
 at the begining of the script, and insert 
 
- eval('base','USE_MCXCL=0;');
+	eval('base','USE_MCXCL=0;');
 
 at the end of the script.
 
@@ -965,16 +941,15 @@ and features. If you have a previously written MCXLAB script, you are likely abl
 to run it without modification when calling mcxlabcl. All you need to do
 is to define
 
- USE_OPENCL=1
+	USE_OPENCL=1
  
 in matlab's base workspace (command line window). Alternatively, you may replace
-mcxlab() calls by mcxlab(...,'opencl'), or by mcxlabcl().
+<tt>mcxlab()</tt> calls by mcxlab(...,'opencl'), or by mcxlabcl().
 
 Please make sure you select the fastest processor on your system by using the cfg.gpuid
 field. 
 
----------------------------------------------------------------------------
-VII. Using MCXStudio GUI
+### VII. Using MCXStudio GUI
 
 MCXStudio is a graphics user interface (GUI) for MCX/MCXCL and MMC. It gives users
 a straightforward way to set the command line options and simulation
@@ -1016,13 +991,12 @@ be saved as a project file (with .mcxp extension) by clicking the
 to MCX Studio by clicking the "Load" button.
 
 
----------------------------------------------------------------------------
-VIII. Interpreting the Output
+### VIII. Interpreting the Output
 
 MCX/MCX-CL output consists of two parts, the flux volume 
 file and messages printed on the screen.
 
-8.1 Output files
+##### 8.1 Output files
 
 An mc2 file contains the fluence-rate distribution from the simulation in 
 the given medium. By default, this fluence-rate is a normalized solution 
@@ -1036,7 +1010,7 @@ By default, MCX produces the '''Green's function''' of the
 '''fluence rate'''  for the given domain and source. Sometime it is also 
 known as the time-domain "two-point" function. If you run MCX with the following command
 
-  mcxcl -f input.inp -s output ....
+	mcxcl -f input.inp -s output ....
 
 the fluence-rate data will be saved in a file named "output.dat" under
 the current folder. If you run MCX without "-s output", the
@@ -1060,7 +1034,7 @@ MCX paper [6] (MCX and MMC outputs share the same meanings).
 Please be aware that the output flux is calculated at each time-window 
 defined in the input file. For example, if you type 
 
- 0.e+00 5.e-09 1e-10  # time-gates(s): start, end, step
+	0.e+00 5.e-09 1e-10  # time-gates(s): start, end, step
 
 in the 5th row in the input file, MCX will produce 50 fluence-rate
 snapshots, corresponding to the time-windows at [0 0.1] ns, 
@@ -1082,8 +1056,8 @@ To get a continuous-wave solution, run a simulation with a sufficiently
 long time window, and sum the flux along the time dimension, for 
 example
 
-   fluence=loadmc2('output.mc2',[60 60 60 10],'float');
-   cw_mcx=sum(fluence,4);
+	fluence=loadmc2('output.mc2',[60 60 60 10],'float');
+	cw_mcx=sum(fluence,4);
 
 Note that for time-resolved simulations, the corresponding solution
 in the results approximates the flux at the center point
@@ -1092,52 +1066,30 @@ setting is [t0,t0+dt,t0+2dt,t0+3dt...,t1], the time points for the
 snapshots stored in the solution file is located at 
 [t0+dt/2, t0+3*dt/2, t0+5*dt/2, ... ,t1-dt/2]
 
-A more detailed interpretation of the output data can be found at 
-http://mcx.sf.net/cgi-bin/index.cgi?MMC/Doc/FAQ#How_do_I_interpret_MMC_s_output_data
+A more detailed interpretation of the output data can be found at http://mcx.sf.net/cgi-bin/index.cgi?MMC/Doc/FAQ#How_do_I_interpret_MMC_s_output_data
 
-MCX can also output "current density" (J(r,t), unit W/m^2, same as Phi(r,t)) -
-referring to the expected number of photons or Joule of energy flowing
-through a unit area pointing towards a particular direction per unit time.
-The current density can be calculated at the boundary of the domain by two means:
+MCX can also output "current density" (J(r,t), unit W/m^2, same as Phi(r,t)) - referring to the expected number of photons or Joule of energy flowing through a unit area pointing towards a particular direction per unit time. The current density can be calculated at the boundary of the domain by two means:
 
-1. using the detected photon partial path output (i.e. the second output of mcxlab.m),
-one can compute the total energy E received by a detector, then one can
-divide E by the area/aperture of the detector to obtain the J(r) at a detector
-(E should be calculated as a function of t by using the time-of-fly of detected
-photons, the E(t)/A gives J(r,t); if you integrate all time gates, the total E/A
-gives the current I(r), instead of the current density).
+1. using the detected photon partial path output (i.e. the second output of mcxlab.m), one can compute the total energy E received by a detector, then one can divide E by the area/aperture of the detector to obtain the J(r) at a detector (E should be calculated as a function of t by using the time-of-fly of detected photons, the <tt>E(t)/A</tt> gives <tt>J(r,t)</tt>; if you integrate all time gates, the total E/A gives the current I(r), instead of the current density).
 
-2. use -X 1 or --saveref/cfg.issaveref option in mcx to enable the
-diffuse reflectance recordings on the boundary. the diffuse reflectance
-is represented by the current density J(r) flowing outward from the domain.
+2. use <tt>-X 1 or --saveref/cfg.issaveref</tt> option in mcx to enable the diffuse reflectance recordings on the boundary. the diffuse reflectance is represented by the current density J(r) flowing outward from the domain.
 
-The current density has, as mentioned, the same unit as fluence rate,
-but the difference is that J(r,t) is a vector, and Phi(r,t) is a scalar. Both measuring
-the energy flow across a small area (the are has direction in the case of J) per unit
+The current density has, as mentioned, the same unit as fluence rate, but the difference is that J(r,t) is a vector, and Phi(r,t) is a scalar. Both measuring the energy flow across a small area (the are has direction in the case of J) per unit
 time.
 
-You can find more rigorous definitions of these quantities in Lihong Wang's
-Biomedical Optics book, Chapter 5.
+You can find more rigorous definitions of these quantities in Lihong Wang's Biomedical Optics book, Chapter 5.
 
-8.2 Console print messages
+##### 8.2 Console print messages
 
-Timing information is printed on the screen (stdout). The 
-clock starts (at time T0) right before the initialization data is copied 
-from CPU to GPU. For each simulation, the elapsed time from T0
-is printed (in ms). Also the accumulated elapsed time is printed for 
-all memory transaction from GPU to CPU.
+Timing information is printed on the screen (stdout). The clock starts (at time T0) right before the initialization data is copied from CPU to GPU. For each simulation, the elapsed time from T0 is printed (in ms). Also the accumulated elapsed time is printed for all memory transaction from GPU to CPU.
 
-When a user specifies "-D P" in the command line, or set cfg.debuglevel='P',
-MCXCL or MCXLABCL prints a progress bar showing the percentage of completition.
+When a user specifies <tt>-D P</tt> in the command line, or set <tt>cfg.debuglevel='P', MCXCL or MCXLABCL</tt> prints a progress bar showing the percentage of completition.
 
----------------------------------------------------------------------------
-IX. Best practices guide
+### IX. Best practices guide
 
-To maximize MCX-CL's performance on your hardware, you should follow the
-best practices guide listed below:
+To maximize MCX-CL's performance on your hardware, you should follow the best practices guide listed below:
 
-=== Use dedicated GPUs ===
-A dedicated GPU is a GPU that is not connected to a monitor. If you use
+**Use dedicated GPUs:** A dedicated GPU is a GPU that is not connected to a monitor. If you use
 a non-dedicated GPU, any kernel (GPU function) can not run more than a
 few seconds. This greatly limits the efficiency of MCX. To set up a 
 dedicated GPU, it is suggested to install two graphics cards on your 
@@ -1150,17 +1102,15 @@ stop X server), or use the "-r" flag to divide the total simulation
 into a set of simulations with less photons, so that each simulation 
 only lasts a few seconds.
 
-=== Launch as many threads as possible ===
-It has been shown that MCX-CL's speed is related to the thread number (-t).
+**Launch as many threads as possible:** It has been shown that MCX-CL's speed is related to the thread number (-t).
 Generally, the more threads, the better speed, until all GPU resources
 are fully occupied. For higher-end GPUs, a thread number over 10,000 
 is recommended. Please use the autopilot mode, "-A", to let MCX determine
 the "optimal" thread number when you are not sure what to use.
 
----------------------------------------------------------------------------
-X. Acknowledgement
+### X. Acknowledgement
 
-=== cJSON library by Dave Gamble ===
+**cJSON library by Dave Gamble**
 
   Files included: mcx/src/cJSON folder
 
@@ -1184,7 +1134,7 @@ X. Acknowledgement
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
   
-=== myslicer toolbox by Anders Brun ===
+**myslicer toolbox by Anders Brun**
 
   Files included: mcx/utils/{islicer.m, slice3i.m, image3i.m}
   
@@ -1216,23 +1166,20 @@ X. Acknowledgement
   POSSIBILITY OF SUCH DAMAGE.
 
 
----------------------------------------------------------------------------
-XI. Reference
+### XI. Reference
 
 
-[1] Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,
-"Scalable and massively parallel Monte Carlo photon transport simulations \
-for heterogeneous computing platforms," J. Biomed. Optics, 23(1), 010504 (2018) .
+[1] Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang, "Scalable and massively parallel Monte Carlo photon transport simulations for heterogeneous computing platforms", J. Biomed. Optics, 23(1), 010504 (2018) .
 
-[2] Qianqian Fang and David A. Boas, "Monte Carlo Simulation of Photon \
-Migration in 3D Turbid Media Accelerated by Graphics Processing Units,"
-Optics Express, vol. 17, issue 22, pp. 20178-20190 (2009).
+[2] Qianqian Fang and David A. Boas, "Monte Carlo Simulation of Photon Migration in 3D Turbid Media Accelerated by Graphics Processing Units, "Optics Express, vol. 17, issue 22, pp. 20178-20190 (2009).
 
 If you used MCX in your research, the authors of this software would like
 you to cite the above paper in your related publications.
 
-Links: 
+**Links:** 
 
 [1] http://www.nvidia.com/object/cuda_get.html
+
 [2] http://www.nvidia.com/object/cuda_learn_products.html
+
 [3] http://en.wikipedia.org/wiki/Row-major_order
