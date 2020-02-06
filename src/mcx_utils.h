@@ -11,6 +11,7 @@
     #include <omp.h>
 #endif
 
+#define MAX_FULL_PATH       2048
 #define MAX_PATH_LENGTH     1024
 #define MAX_SESSION_LENGTH  256
 #define MAX_DEVICE          256

@@ -388,8 +388,8 @@ void mcx_savenii(float *dat, size_t len, char* name, int type32bit, int outputfo
 
 void mcx_savedata(float *dat, int len, Config *cfg){
      FILE *fp;
-     char name[MAX_PATH_LENGTH];
-     char fname[MAX_PATH_LENGTH];
+     char name[MAX_FULL_PATH];
+     char fname[MAX_FULL_PATH];
      unsigned int glformat=GL_RGBA32F;
 
      if(cfg->rootpath[0])
@@ -417,7 +417,7 @@ void mcx_savedata(float *dat, int len, Config *cfg){
 
 void mcx_savedetphoton(float *ppath, void *seeds, int count, int doappend, Config *cfg){
 	FILE *fp;
-	char fhistory[MAX_PATH_LENGTH], filetag;
+	char fhistory[MAX_FULL_PATH], filetag;
 	filetag=((cfg->his.detected==0  && cfg->his.savedphoton) ? 't' : 'h');
         if(cfg->rootpath[0])
                 sprintf(fhistory,"%s%c%s.mc%c",cfg->rootpath,pathsep,cfg->session,filetag);
@@ -568,7 +568,7 @@ int mkpath(char* dir_path, int mode){
       }
       *p=pathsep;
     }
-    if(dir_path[strlen(p)-1]==pathsep)
+    if(p && dir_path[strlen(p)-1]==pathsep)
         dir_path[strlen(p)-1]='\0';
     return 0;
 }
@@ -658,7 +658,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      unsigned int gates,itmp;
      size_t count;
      float dtmp;
-     char filename[MAX_PATH_LENGTH]={0}, strtypestr[MAX_SESSION_LENGTH], comment[MAX_PATH_LENGTH],*comm;
+     char filename[MAX_PATH_LENGTH]={0}, strtypestr[MAX_SESSION_LENGTH], comment[MAX_FULL_PATH],*comm;
      
      if(in==stdin)
      	MCX_FPRINTF(stdout,"Please specify the total number of photons: [1000000]\n\t");
@@ -970,7 +970,7 @@ void mcx_prepdomain(char *filename, Config *cfg){
 int mcx_loadjson(cJSON *root, Config *cfg){
      unsigned int i;
      cJSON *Domain, *Optode, *Forward, *Session, *Shapes, *tmp, *subitem;
-     char filename[MAX_PATH_LENGTH]={'\0'};
+     char filename[MAX_FULL_PATH]={'\0'};
      Domain  = cJSON_GetObjectItem(root,"Domain");
      Optode  = cJSON_GetObjectItem(root,"Optode");
      Session = cJSON_GetObjectItem(root,"Session");
@@ -1574,7 +1574,7 @@ void mcx_dumpmask(Config *cfg){
 	 cover the circle.
      */
 
-     char fname[MAX_PATH_LENGTH];
+     char fname[MAX_FULL_PATH];
      if(cfg->rootpath[0])
          sprintf(fname,"%s%c%s_vol",cfg->rootpath,pathsep,cfg->session);
      else
