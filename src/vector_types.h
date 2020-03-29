@@ -7,8 +7,12 @@
 #ifndef _MMC_VECTOR_H
 #define _MMC_VECTOR_H
 
-#ifdef _WIN32
-    #define __attribute__(A) /* do nothing */
+#ifdef _MSC_VER
+    #define PRE_ALIGN(x) __declspec(align(x))
+    #define POST_ALIGN(x)
+#else
+    #define PRE_ALIGN(x)
+    #define POST_ALIGN(x) __attribute__ ((aligned(x)))
 #endif
 
 /**
@@ -18,9 +22,9 @@
  the data structure is 16byte aligned to facilitate SSE operations
 */
 
-typedef struct MMC_float4{
+typedef struct PRE_ALIGN(16) MMC_float4{
     float x,y,z,w;
-} float4 __attribute__ ((aligned(16)));
+} float4 POST_ALIGN(16);
 
 /**
  \struct MMC_float3 vector_types.h
@@ -29,7 +33,7 @@ typedef struct MMC_float4{
  if SSE is enabled, float3 is identical to float4
 */
 
-#ifdef MMC_USE_SSE
+#if defined(MMC_USE_SSE) || defined(USE_OPENCL)
  typedef struct MMC_float4 float3;
 #else
  typedef struct MMC_float3{
@@ -59,9 +63,9 @@ typedef struct MMC_int3{
  \struct MMC_int4 vector_types.h
  \brief  unsigned integer quadraplet {ix,iy,iz,iw}
 */
-typedef struct MMC_int4{
+typedef struct PRE_ALIGN(16) MMC_int4{
     int x,y,z,w;
-} int4 __attribute__ ((aligned(16)));
+} int4 POST_ALIGN(16);
 
 /**
  \struct MMC_uint3 vector_types.h
@@ -75,9 +79,9 @@ typedef struct MMC_uint3{
  \struct MMC_uint3 vector_types.h
  \brief  unsigned integer triplet {ix,iy,iz}
 */
-typedef struct MMC_uint4{
+typedef struct PRE_ALIGN(16) MMC_uint4{
     unsigned int x,y,z,w;
-} uint4 __attribute__ ((aligned(16)));
+} uint4 POST_ALIGN(16);
 
 /**
  \struct MMC_uint2 vector_types.h

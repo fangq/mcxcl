@@ -36,7 +36,7 @@ typedef struct MCXMedium{
 	float mus;
 	float g;
 	float n;
-} Medium __attribute__ ((aligned (16)));  /*this order shall match prop.{xyzw} in mcx_main_loop*/
+} Medium POST_ALIGN(16);  /*this order shall match prop.{xyzw} in mcx_main_loop*/
 
 typedef struct MCXHistoryHeader{
 	char magic[4];

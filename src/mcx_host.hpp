@@ -108,7 +108,7 @@ typedef struct KernelParams {
   cl_int    replaydet;                     /**< select which detector to replay, 0 for all, -1 save all separately */
   cl_uint   srcnum;               /**< total number of source patterns */
   cl_char   bc[8];               /**< boundary conditions */
-} MCXParam __attribute__ ((aligned (16)));
+} MCXParam POST_ALIGN(16);
 
 void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy);
 cl_platform_id mcx_list_gpu(Config *cfg,unsigned int *activedev,cl_device_id *activedevlist,GPUInfo **info);
