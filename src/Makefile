@@ -78,6 +78,15 @@ ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   EXESUFFIX=.exe
   MEX=cmd /c mex
   DLLFLAG=
+else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
+  MW_MINGW64_LOC=/c/msys64/usr/
+  MEX        :=cmd //c mex.bat -v
+  INCLUDEDIRS+=-I"./mingw64/include"
+  LIBOPENCL   ="c:\Windows\System32\OpenCL.dll"
+  LINKOPT=-g -L$(LIBOPENCLDIR) $(LIBOPENCL) -static
+  MKMEXOPT    =-f mexopts_msys2_gcc.xml COMPFLAGS='$$COMPFLAGS $(CCFLAGS) $(USERCCFLAGS)' LDFLAGS='$$LDFLAGS -static $(OPENMPLIB) $(LIBOPENCL) $(MEXLINKOPT)' $(FASTMATH) -outdir ../mmclab
+  EXTRALIB   +=-static
+  DLLFLAG    =
 else ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
   INCLUDEDIRS=-I/System/Library/Frameworks/OpenCL.framework/Headers
   LIBOPENCL=-framework OpenCL
