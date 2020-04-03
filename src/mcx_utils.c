@@ -308,7 +308,7 @@ void mcx_cleargpuinfo(GPUInfo **gpuinfo){
 
 void mcx_savenii(float *dat, size_t len, char* name, int type32bit, int outputformatid, Config *cfg){
      FILE *fp;
-     char fname[MAX_PATH_LENGTH]={'\0'};
+     char fname[MAX_FULL_PATH+100]={'\0'};
      nifti_1_header hdr;
      nifti1_extender pad={{0,0,0,0}};
      float *logval=dat;
@@ -389,7 +389,7 @@ void mcx_savenii(float *dat, size_t len, char* name, int type32bit, int outputfo
 void mcx_savedata(float *dat, int len, Config *cfg){
      FILE *fp;
      char name[MAX_FULL_PATH];
-     char fname[MAX_FULL_PATH];
+     char fname[MAX_FULL_PATH+100];
      unsigned int glformat=GL_RGBA32F;
 
      if(cfg->rootpath[0])
@@ -630,7 +630,7 @@ void mcx_readconfig(char *fname, Config *cfg){
         }
         if(fp!=NULL) fclose(fp);
 	if(cfg->session[0]=='\0'){
-	    strncpy(cfg->session,fname,MAX_SESSION_LENGTH);
+	    strncpy(cfg->session,fname,MAX_SESSION_LENGTH-1);
 	}
      }
      if(cfg->rootpath[0]!='\0'){
@@ -716,7 +716,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
 #else
          sprintf(comment,"%s/%s",cfg->rootpath,filename);
 #endif
-         strncpy(filename,comment,MAX_PATH_LENGTH);
+         memcpy(filename,comment,MAX_PATH_LENGTH);
      }
      comm=fgets(comment,MAX_PATH_LENGTH,in);
 
@@ -892,7 +892,11 @@ void mcx_prepdomain(char *filename, Config *cfg){
 	     if(cfg->shapedata && strstr(cfg->shapedata,":")!=NULL){
 	          int status;
      		  Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
-        	  if(cfg->issrcfrom0) memset(&(grid.orig.x),0,sizeof(float3));
+                  if(cfg->issrcfrom0){
+                      grid.orig.x=0.f;
+                      grid.orig.y=0.f;
+                      grid.orig.z=0.f;
+                  }                  
 		  status=mcx_parse_shapestring(&grid,cfg->shapedata);
 		  if(status){
 		      MCX_ERROR(status,mcx_last_shapeerror());
@@ -982,7 +986,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
 	cJSON *meds,*val;
 	val=FIND_JSON_OBJ("VolumeFile","Domain.VolumeFile",Domain);
 	if(val){
-          strncpy(volfile, val->valuestring, MAX_PATH_LENGTH);
+          strncpy(volfile, val->valuestring, MAX_PATH_LENGTH-1);
           if(cfg->rootpath[0]){
 #ifdef WIN32
            sprintf(filename,"%s\\%s",cfg->rootpath,volfile);
@@ -1215,7 +1219,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
         }
      }
      if(Session){
-        char val[1];
+        char val[2]={'\0'};
 	if(!flagset['E'])      cfg->seed=FIND_JSON_KEY("RNGSeed","Session.RNGSeed",Session,-1,valueint);
         if(!flagset['n'])      cfg->nphoton=FIND_JSON_KEY("Photons","Session.Photons",Session,0,valuedouble);
         if(cfg->session[0]=='\0')  strncpy(cfg->session, FIND_JSON_KEY("ID","Session.ID",Session,"default",valuestring), MAX_SESSION_LENGTH);
@@ -1262,7 +1266,11 @@ int mcx_loadjson(cJSON *root, Config *cfg){
          if(Shapes){
              int status;
              Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
-             if(cfg->issrcfrom0) memset(&(grid.orig.x),0,sizeof(float3));
+             if(cfg->issrcfrom0){
+                grid.orig.x=0.f;
+                grid.orig.y=0.f;
+                grid.orig.z=0.f;
+             }
 	     status=mcx_parse_jsonshapes(root, &grid);
 	     if(status){
 	         MCX_ERROR(status,mcx_last_shapeerror());
@@ -1318,7 +1326,11 @@ void mcx_loadvolume(char *filename,Config *cfg){
      if(strstr(filename,".json")!=NULL){
          int status;
          Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
-	 if(cfg->issrcfrom0) memset(&(grid.orig.x),0,sizeof(float3));
+	 if(cfg->issrcfrom0){
+                grid.orig.x=0.f;
+                grid.orig.y=0.f;
+                grid.orig.z=0.f;
+         }
          status=mcx_load_jsonshapes(&grid,filename);
 	 if(status){
 	     MCX_ERROR(status,mcx_last_shapeerror());
@@ -1818,7 +1830,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 				i=mcx_readarg(argc,argv,i,cfg->compileropt+strlen(cfg->compileropt),"string");
 				break;
                      case 'D':
-                                if(i<argc-1 && isalpha(argv[i+1][0]) )
+                                if(i<argc-1 && isalpha((int)argv[i+1][0]) )
                                         cfg->debuglevel=mcx_parsedebugopt(argv[++i],debugflag);
                                 else
                                         i=mcx_readarg(argc,argv,i,&(cfg->debuglevel),"int");
@@ -1838,7 +1850,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
  				if (cfg->issaveref) cfg->issaveref=1;
  				break;
 		     case 'w':
-			        if(i+1<argc && isalpha(argv[i+1][0]) ){
+			        if(i+1<argc && isalpha((int)argv[i+1][0]) ){
 				    cfg->savedetflag=mcx_parsedebugopt(argv[++i],saveflag);
 			        }else
 				    i=mcx_readarg(argc,argv,i,&(cfg->savedetflag),"int");
@@ -1895,7 +1907,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     case 'K':
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->maxdetphoton),"int");
 		     	        break;
-				if(i+1<argc && isalpha(argv[i+1][0]) ){
+				if(i+1<argc && isalpha((int)argv[i+1][0]) ){
 				    cfg->mediabyte=mcx_keylookup(argv[++i],mediaformat);
 				    if(cfg->mediabyte==-1)
 				        MCX_ERROR(-1,"Unsupported media format.");

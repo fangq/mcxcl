@@ -13,7 +13,7 @@
 
 #define MAX_FULL_PATH       2048
 #define MAX_PATH_LENGTH     1024
-#define MAX_SESSION_LENGTH  256
+#define MAX_SESSION_LENGTH  64
 #define MAX_DEVICE          256
 
 #define MCX_ASSERT(x)  mcx_assess((x),"assert error",__FILE__,__LINE__)

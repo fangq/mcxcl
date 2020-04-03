@@ -15,7 +15,7 @@ INCLUDEDIRS=
 
 CUCCOPT:=
 CCOPT=-g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER 
-CPPOPT:=$(CCOPT) -Wno-variadic-macros
+CPPOPT:=$(CCOPT)
 CCOPT+=-std=c99
 
 DLLFLAG=-fPIC
@@ -72,19 +72,21 @@ CLPROGRAM=mcx_core
 ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   CCC=nvcc
   LINKOPT=-L$(LIBOPENCLDIR) -lOpenCL
-  INCLUDEDIRS +=-I/c/CUDA/include
+  INCLUDEDIRS +=-I"./mingw64/include"
   CPPOPT =-c  -D_CRT_SECURE_NO_DEPRECATE -DWIN32
   OBJSUFFIX=.obj
   EXESUFFIX=.exe
-  MEX=cmd /c mex
+  LIBOPENCL   ="c:\Windows\System32\OpenCL.dll"
+  MEXCCOPT+=-DMX_COMPAT_32
+  EXTRALIB   +=-static
+  MEX        :=cmd /c mex.bat -v -f mexopts_msys2_gcc.xml
   DLLFLAG=
 else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
-  MW_MINGW64_LOC=/c/msys64/usr/
-  MEX        :=cmd //c mex.bat -v
+  MW_MINGW64_LOC=/c/ProgramData/MATLAB/SupportPackages/R2017b/3P.instrset/mingw_w64.instrset/
+  MEX        :=cmd //c mex.bat -f mexopts_msys2_gcc.xml
   INCLUDEDIRS+=-I"./mingw64/include"
   LIBOPENCL   ="c:\Windows\System32\OpenCL.dll"
-  LINKOPT=-g -L$(LIBOPENCLDIR) $(LIBOPENCL) -static
-  MKMEXOPT    =-f mexopts_msys2_gcc.xml COMPFLAGS='$$COMPFLAGS $(CCFLAGS) $(USERCCFLAGS)' LDFLAGS='$$LDFLAGS -static $(OPENMPLIB) $(LIBOPENCL) $(MEXLINKOPT)' $(FASTMATH) -outdir ../mmclab
+  MEXCCOPT+=-DMX_COMPAT_32
   EXTRALIB   +=-static
   DLLFLAG    =
 else ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
@@ -96,10 +98,15 @@ else
   LINKOPT=-g -L$(LIBOPENCLDIR) $(LIBOPENCL)
 endif
 
+ifeq ($(findstring x86_64,$(ARCH)), x86_64)
+  CCOPT  +=-m64
+  CPPOPT +=-m64
+endif
+
 all static: CUCCOPT+=
 
 mex:        AR=$(MEX)
-mex:        LINKOPT+= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER  $(MEXCCOPT) $(USERCCOPT)' LDFLAGS='-L$$TMW_ROOT$$MATLABROOT/sys/os/$$ARCH $$LDFLAGS -g -L$(LIBOPENCLDIR) $(LIBOPENCL) $(USERLINKOPT)'
+mex:        LINKOPT+= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LDFLAGS='$$LDFLAGS -g -L$(LIBOPENCLDIR) $(LIBOPENCL) $(USERLINKOPT)' COMPFLAGS='' DEFINES=''
 mex oct:    OUTPUT_DIR=../mcxlabcl
 mex:        OUTPUTFLAG:=-output
 mex:        BINARY=mcxcl

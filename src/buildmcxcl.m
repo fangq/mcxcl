@@ -1,4 +1,4 @@
-function buildmmc(varargin)
+function buildmcxcl(varargin)
 %
 % Format:
 %    buildmex or buildmex('option1',value1,'option2',value2,...)
@@ -47,7 +47,7 @@ end
 opt=struct(varargin{:});
 pname='mcx';
 
-cflags=' -g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER  -std=c99  -DMCX_CONTAINER -c ';
+cflags=' -g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -std=c99 -DMCX_CONTAINER -c ';
 
 filelist={'mcx_utils.c','tictoc.c','cjson/cJSON.c','mcx_host.cpp',...
     'mcxcl.c','mcx_shapes.c','mcxlabcl.cpp'};
@@ -71,11 +71,13 @@ end
 if(~exist('OCTAVE_VERSION','builtin'))
     for i=1:length(filelist)
         flag='CFLAGS';
+        cflag=cflags;
         if(regexp(filelist{i},'\.[Cc][Pp][Pp]$'))
             flag='CXXFLAGS';
+            cflag=regexprep(cflags,'-std=c99','-std=gnu++0x');
         end
-        disp(sprintf('mex OBJEXT=.o %s=''%s'' -c ''%s'' ',flag,cflags,filelist{i}));
-        eval(sprintf('mex OBJEXT=.o %s=''%s'' -c ''%s'' ',flag,cflags,filelist{i}));
+        disp(sprintf('mex OBJEXT=.o %s=''%s'' -c ''%s'' ',flag,cflag,filelist{i}));
+        eval(sprintf('mex OBJEXT=.o %s=''%s'' -c ''%s'' ',flag,cflag,filelist{i}));
     end
     if(isfield(opt,'lib'))
         linkflags=[linkflags ' ' opt.lib];
