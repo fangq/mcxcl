@@ -39,6 +39,8 @@ CUDA_PATH ?= /usr/local/cuda
 
 ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   CUDA_LIB:="$(shell echo $$CUDA_PATH | sed 's:\\:/:g')"
+else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
+  CUDA_LIB:="$(shell echo $$CUDA_PATH | sed 's:\\:/:g')"
 else
   CUDA_LIB:="$(shell echo $(CUDA_PATH) | sed 's:\\:/:g')"
 endif
@@ -84,8 +86,9 @@ ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
 else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
   MW_MINGW64_LOC=/c/ProgramData/MATLAB/SupportPackages/R2017b/3P.instrset/mingw_w64.instrset/
   MEX        :=cmd //c mex.bat -f mexopts_msys2_gcc.xml
-  INCLUDEDIRS+=-I"./mingw64/include"
+  INCLUDEDIRS+=-L$(LIBOPENCLDIR) -I"./mingw64/include"
   LIBOPENCL   ="c:\Windows\System32\OpenCL.dll"
+  LINKOPT=-L$(LIBOPENCLDIR) $(LIBOPENCL) $(EXTRALIB)
   MEXCCOPT+=-DMX_COMPAT_32
   EXTRALIB   +=-static
   DLLFLAG    =
