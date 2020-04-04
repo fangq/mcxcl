@@ -76,22 +76,31 @@ if(~exist('OCTAVE_VERSION','builtin'))
             flag='CXXFLAGS';
             cflag=regexprep(cflags,'-std=c99','-std=gnu++0x');
         end
-        disp(sprintf('mex OBJEXT=.o %s=''%s'' -c ''%s'' ',flag,cflag,filelist{i}));
+        fprintf(1, 'mex OBJEXT=.o %s=''%s'' -c ''%s'' \n',flag,cflag,filelist{i});
         eval(sprintf('mex OBJEXT=.o %s=''%s'' -c ''%s'' ',flag,cflag,filelist{i}));
     end
     if(isfield(opt,'lib'))
         linkflags=[linkflags ' ' opt.lib];
     end
     fn=dir('*.o');
-    fprintf('mex %s -output %scl -outdir ../%slabcl %s=''%s'' \n',strjoin({fn.name}),pname,pname,linkvar,linkflags);
+    fprintf(stdout,'mex %s -output %scl -outdir ../%slabcl %s=''%s'' \n',strjoin({fn.name}),pname,pname,linkvar,linkflags);
     eval(sprintf('mex %s -output %scl -outdir ../%slabcl %s=''%s'' ',strjoin({fn.name}),pname,pname,linkvar,linkflags));
 else
     linkflags=regexprep(linkflags,['[\\]*\$' linkvar],'');
     for i=1:length(filelist)
-        cmd=sprintf('mex %s -c ''%s'' ',cflags,filelist{i});
-        disp(cmd);
+        cflag=cflags;
+        if(regexp(filelist{i},'\.[Cc][Pp][Pp]$'))
+            cflag=regexprep(cflags,'-std=c99','-std=gnu++0x');
+            cflag=[cflag,' -Wno-variadic-macros'];
+        end
+        cmd=sprintf('mex %s -c ''%s'' ',cflag,filelist{i});
+        fprintf(stdout,'%s\n',cmd);
+	fflush(stdout);
         eval(cmd);
     end
     fn=dir('*.o');
-    eval(sprintf('mex %s -o ../%slabcl/%scl %s ',strjoin({fn.name}),pname,pname,linkflags));
+    cmd=sprintf('mex %s -o ../%slabcl/%scl %s ',strjoin({fn.name}),pname,pname,linkflags);
+    fprintf(stdout,'%s\n',cmd);
+    fflush(stdout);
+    eval(cmd);
 end
