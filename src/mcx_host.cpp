@@ -541,13 +541,13 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      mcx_printheader(cfg);
 
      tic=StartTimer();
-     if(cfg->issavedet)
+     if(cfg->issavedet){
          MCX_FPRINTF(cfg->flog,"- variant name: [%s] compiled with OpenCL version [%d]\n",
              "Detective MCXCL",CL_VERSION_1_0);
-     else
+     }else{
          MCX_FPRINTF(cfg->flog,"- code name: [Vanilla MCXCL] compiled with OpenCL version [%d]\n",
              CL_VERSION_1_0);
-
+     }
      MCX_FPRINTF(cfg->flog,"- compiled with: [RNG] %s [Seed Length] %d\n",MCX_RNG_NAME,RAND_SEED_LEN);
      MCX_FPRINTF(cfg->flog,"initializing streams ...\t");
 
