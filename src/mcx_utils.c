@@ -27,7 +27,7 @@
 #include <ctype.h>
 #include <errno.h>
 
-#ifndef WIN32
+#ifdef _POSIX_SOURCE
   #include <sys/ioctl.h>
 #endif
 #include <sys/stat.h>
