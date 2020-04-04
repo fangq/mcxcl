@@ -47,8 +47,8 @@ endif
 
 HAS_CUDA := $(shell [ -d $(CUDA_LIB) ] && echo "1" )
 ifeq ($(HAS_CUDA), 1)
-  CUCCOPT +=-I$(CUDA_LIB)/include -DUSE_OS_TIMER #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
-  CCOPT += -I$(CUDA_LIB)/include -DUSE_OS_TIMER
+  CUCCOPT +=-DUSE_OS_TIMER #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
+  CCOPT +=-DUSE_OS_TIMER
   LIBOPENCLDIR=$(CUDA_LIB)/lib64
   ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
      LIBOPENCLDIR=$(CUDA_LIB)/lib/x64
@@ -86,7 +86,7 @@ ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
 else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
   MW_MINGW64_LOC?=/c/msys64/usr
   MEX        :=cmd //c mex.bat -f mexopts_msys2_gcc.xml
-  INCLUDEDIRS+=-L$(LIBOPENCLDIR) -I"./mingw64/include"
+  INCLUDEDIRS+=-I"./mingw64/include"
   LIBOPENCL   ="c:\Windows\System32\OpenCL.dll"
   LINKOPT=-L$(LIBOPENCLDIR) $(LIBOPENCL) $(EXTRALIB)
   MEXCCOPT+=-DMX_COMPAT_32
@@ -115,7 +115,6 @@ mex:        OUTPUTFLAG:=-output
 mex:        BINARY=mcxcl
 mex oct:    CUCCOPT+=$(DLLFLAG) -DMCX_CONTAINER
 mex oct:    CCOPT+=$(DLLFLAG) -DMCX_CONTAINER
-mex oct:    CPPOPT+=$(DLLFLAG) -DMCX_CONTAINER
 mex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
 
 oct:        BINARY=mcxcl.mex
