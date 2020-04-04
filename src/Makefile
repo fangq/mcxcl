@@ -84,7 +84,7 @@ ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   MEX        :=cmd /c mex.bat -v -f mexopts_msys2_gcc.xml
   DLLFLAG=
 else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
-  MW_MINGW64_LOC=/c/ProgramData/MATLAB/SupportPackages/R2017b/3P.instrset/mingw_w64.instrset/
+  MW_MINGW64_LOC?=/c/msys64/usr
   MEX        :=cmd //c mex.bat -f mexopts_msys2_gcc.xml
   INCLUDEDIRS+=-L$(LIBOPENCLDIR) -I"./mingw64/include"
   LIBOPENCL   ="c:\Windows\System32\OpenCL.dll"
