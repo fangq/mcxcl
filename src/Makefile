@@ -58,7 +58,7 @@ endif
 
 LIBOPENCLDIR ?= /usr/lib/x86_64-linux-gnu
 
-LIBOPENCL=-lOpenCL
+LIBOPENCL?=-lOpenCL
 
 OBJSUFFIX=.o
 EXESUFFIX=
@@ -76,7 +76,7 @@ ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   LINKOPT=-L$(LIBOPENCLDIR) $(LIBOPENCL) $(EXTRALIB)
   INCLUDEDIRS +=-I"./mingw64/include"
   CPPOPT =-c  -D_CRT_SECURE_NO_DEPRECATE -DWIN32
-  OBJSUFFIX=.obj
+  OBJSUFFIX=.o
   EXESUFFIX=.exe
   LIBOPENCL   ="c:\Windows\System32\OpenCL.dll"
   MEXCCOPT+=-DMX_COMPAT_32
@@ -116,9 +116,10 @@ mex:        BINARY=mcxcl
 mex oct:    CUCCOPT+=$(DLLFLAG) -DMCX_CONTAINER
 mex oct:    CCOPT+=$(DLLFLAG) -DMCX_CONTAINER
 mex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
+mex oct:    DLLFLAG=
 
 oct:        BINARY=mcxcl.mex
-oct:        AR= CXXFLAGS='$(MEXCCOPT) $(USERCCOPT)' LFLAGS='-g -L$(LIBOPENCLDIR) $(LIBOPENCL) $(USERLINKOPT)' LDFLAGS='$(LFLAGS)' mkoctfile
+oct:        AR= CXXFLAGS='$(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LFLAGS='-g -L$(LIBOPENCLDIR) $(LIBOPENCL) $(USERLINKOPT)' LDFLAGS='$(LFLAGS)' mkoctfile
 oct:        LINKOPT=--mex mcxlabcl.cpp $(INCLUDEDIRS)
 
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
