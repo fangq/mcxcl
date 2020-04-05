@@ -1,16 +1,16 @@
 function buildmcxcl(varargin)
 %
 % Format:
-%    buildmex or buildmex('option1',value1,'option2',value2,...)
+%    buildmcxcl or buildmcxcl('option1',value1,'option2',value2,...)
 %
-% Compiling script for mmclab mex file in MATLAB and GNU Octave. 
+% Compiling script for mcxlabcl mex file in MATLAB and GNU Octave. 
 % If compiled successfully, the output mex file can be found in the 
-% mmc/mmclab folder (or ../mmclab using relative path from mmc/src)
+% mcxcl/mcxlabcl folder (or ../mcxlabcl using relative path from mcxcl/src)
 %
 % Author: Qianqian Fang <q.fang at neu.edu>
 %
 % Input:
-%    options: without any option, this script compiles mmc.mex* using
+%    options: without any option, this script compiles mcxcl.mex* using
 %    default settings. Supported options include
 %      'include': a string made of sequences of ' -I"/folder/path" ' that 
 %            can be included for compilation (format similar to the -I
@@ -22,7 +22,7 @@ function buildmcxcl(varargin)
 %
 % Dependency (Windows only):
 %  1.If you have MATLAB R2017b or later, you may skip this step.
-%    To compile mmclab in MATLAB R2017a or earlier on Windows, you must 
+%    To compile mcxlabcl in MATLAB R2017a or earlier on Windows, you must 
 %    pre-install the MATLAB support for MinGW-w64 compiler 
 %    https://www.mathworks.com/matlabcentral/fileexchange/52848-matlab-support-for-mingw-w64-c-c-compiler
 %
