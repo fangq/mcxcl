@@ -76,6 +76,7 @@ ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   LINKOPT=-L$(LIBOPENCLDIR) $(LIBOPENCL) $(EXTRALIB)
   INCLUDEDIRS +=-I"./mingw64/include"
   CPPOPT =-c  -D_CRT_SECURE_NO_DEPRECATE -DWIN32
+  CCOPT +=-D__USE_MINGW_ANSI_STDIO=1
   OBJSUFFIX=.o
   EXESUFFIX=.exe
   LIBOPENCL   ="c:\Windows\System32\OpenCL.dll"
@@ -86,6 +87,7 @@ ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
 else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
   MW_MINGW64_LOC?=/c/msys64/usr
   MEX        :=cmd //c mex.bat -f mexopts_msys2_gcc.xml
+  CCOPT +=-D__USE_MINGW_ANSI_STDIO=1
   INCLUDEDIRS+=-I"./mingw64/include"
   LIBOPENCL   ="c:\Windows\System32\OpenCL.dll"
   LINKOPT=-L$(LIBOPENCLDIR) $(LIBOPENCL) $(EXTRALIB)

@@ -662,11 +662,11 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      
      if(in==stdin)
      	MCX_FPRINTF(stdout,"Please specify the total number of photons: [1000000]\n\t");
-     MCX_ASSERT(fscanf(in,"%lu", &(count) )==1); 
+     MCX_ASSERT(fscanf(in,"%zu", &(count) )==1); 
      if(cfg->nphoton==0) cfg->nphoton=count;
      comm=fgets(comment,MAX_PATH_LENGTH,in);
      if(in==stdin)
-     	MCX_FPRINTF(stdout,"%ld\nPlease specify the random number generator seed: [1234567]\n\t",cfg->nphoton);
+     	MCX_FPRINTF(stdout,"%zu\nPlease specify the random number generator seed: [1234567]\n\t",cfg->nphoton);
      if(cfg->seed==0){
         MCX_ASSERT(fscanf(in,"%d", &(cfg->seed) )==1);
      }else{
@@ -1293,7 +1293,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
 void mcx_saveconfig(FILE *out, Config *cfg){
      unsigned int i;
 
-     MCX_FPRINTF(out,"%ld\n", (cfg->nphoton) ); 
+     MCX_FPRINTF(out,"%zu\n", (cfg->nphoton) ); 
      MCX_FPRINTF(out,"%d\n", (cfg->seed) );
      MCX_FPRINTF(out,"%f %f %f\n", (cfg->srcpos.x),(cfg->srcpos.y),(cfg->srcpos.z) );
      MCX_FPRINTF(out,"%f %f %f\n", (cfg->srcdir.x),(cfg->srcdir.y),(cfg->srcdir.z) );
