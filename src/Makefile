@@ -11,7 +11,7 @@ MEX=mex
 
 BINARY=mcxcl
 OUTPUT_DIR=../bin
-INCLUDEDIRS=
+INCLUDEDIRS=-Izmat -Izmat/easylzma -I/usr/local/cuda/include -Iubj
 
 CUCCOPT:=
 CCOPT=-g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER 
@@ -22,6 +22,9 @@ DLLFLAG=-fPIC
 OMP=-fopenmp
 OUTPUTFLAG:=-o
 XXD=xxd
+
+ZMATLIB    :=libzmat.a
+USERLINKOPT?=$(ZMATLIB) -lz
 
 # setup for amd
 AMDAPPSDKROOT ?=/opt/AMDAPPSDK-3.0
@@ -68,7 +71,7 @@ MAKE       := make
 ECHO       := echo
 MKDIR      := mkdir
 
-FILES=mcx_host mcx_utils tictoc mcxcl mcx_shapes cjson/cJSON
+FILES=mcx_host mcx_utils tictoc mcxcl mcx_shapes cjson/cJSON ubj/ubjw
 CLPROGRAM=mcx_core
 
 ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
@@ -84,6 +87,8 @@ ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   EXTRALIB   +=-static
   MEX        :=cmd /c mex.bat -v -f mexopts_msys2_gcc.xml
   DLLFLAG=
+  ZMATLIB    :=zmat/zmatlib.obj zmat/lz4/lz4.obj zmat/lz4/lz4hc.obj zmat/easylzma/*.obj zmat/easylzma/pavlov/*.obj
+  USERLINKOPT:=$(ZMATLIB) -lzlib
 else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
   MW_MINGW64_LOC?=/c/msys64/usr
   MEX        :=cmd //c mex.bat -f mexopts_msys2_gcc.xml
@@ -118,7 +123,6 @@ mex:        BINARY=mcxcl
 mex oct:    CUCCOPT+=$(DLLFLAG) -DMCX_CONTAINER
 mex oct:    CCOPT+=$(DLLFLAG) -DMCX_CONTAINER
 mex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
-mex oct:    DLLFLAG=
 
 oct:        BINARY=mcxcl.mex
 oct:        AR= CXXFLAGS='$(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LFLAGS='-g -L$(LIBOPENCLDIR) $(LIBOPENCL) $(USERLINKOPT)' LDFLAGS='$(LFLAGS)' mkoctfile
@@ -132,8 +136,8 @@ all mex oct intelcpu static : $(OUTPUT_DIR)/$(BINARY)
 makedirs:
 	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) $(OUTPUT_DIR); fi
 
-$(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(OBJS)
-	$(AR) $(OBJS) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY)
+$(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(ZMATLIB) $(OBJS)
+	$(AR) $(OBJS) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY) $(USERLINKOPT)
 
 %$(CLHEADER): mcx_core.cl xxd %.cl
 	$(XXD) -i $(CLPROGRAM).cl | sed 's/\([0-9a-f]\)$$/\0, 0x00/' > $(CLPROGRAM).clh
@@ -149,8 +153,12 @@ intelcpu:
 
 static: LINKOPT:=-Wl,-Bstatic  -Wl,-Bdynamic -static-libgcc -static-libstdc++ $(LINKOPT) -Wl,-Bstatic -lm -Wl,-Bdynamic
 
+$(ZMATLIB):
+	-$(MAKE) -C zmat lib AR=ar CPPOPT="$(DLLFLAG)" CCOPT="$(DLLFLAG)" USERLINKOPT=
+
 clean:
-	-rm -f $(OBJS) $(CLSOURCE) $(OUTPUT_DIR)/$(BINARY)$(EXESUFFIX) $(OUTPUT_DIR)/$(BINARY)_atomic$(EXESUFFIX)
+	-$(MAKE) -C zmat clean
+	-rm -f $(OBJS) $(CLSOURCE) $(OUTPUT_DIR)/$(BINARY)$(EXESUFFIX) $(OUTPUT_DIR)/$(BINARY)_atomic$(EXESUFFIX) $(ZMATLIB)
 xxd:
 	@if [ -z `which ${XXD}` ]; then \
 	    echo "Please first install 'xxd' utility. For Ubuntu/Debian, use 'sudo apt-get install vim-common'; for Windows, please select xxd in cygwin64 installer."; exit 1;\

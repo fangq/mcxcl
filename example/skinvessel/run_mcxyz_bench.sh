@@ -1,3 +1,3 @@
 #!/bin/sh
 
-../../bin/mcxcl -f mcxyz_bench.json -e 0.01 -d 0 "$@"
+../../bin/mcxcl --bench skinvessel -n 1e7 -e 0.01 -d 0 -F bnii "$@"

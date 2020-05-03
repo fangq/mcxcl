@@ -1,2 +1,2 @@
 #!/bin/sh
-../../bin/mcxcl -A 1 -n 1e8 -f colin27.json -F nii $@
+../../bin/mcxcl --bench colin27 -n 1e8 -D P -F jnii $@

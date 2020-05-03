@@ -27,9 +27,13 @@
 
 enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS};   /**< types of output */
 enum TMCXParent  {mpStandalone, mpMATLAB};
-enum TOutputFormat {ofMC2, ofNifti, ofAnalyze, ofUBJSON, ofTX3};
+enum TOutputFormat {ofMC2, ofNifti, ofAnalyze, ofUBJSON, ofTX3, ofJNifti, ofBJNifti};
 enum TDeviceVendor {dvUnknown, dvNVIDIA, dvAMD, dvIntel, dvIntelGPU, dvAppleCPU};
 enum TBoundary {bcUnknown, bcReflect, bcAbsorb, bcMirror, bcCylic};            /**< boundary conditions */
+enum TBJData {JDB_mixed, JDB_nulltype, JDB_noop,JDB_true,JDB_false,
+     JDB_char,JDB_string,JDB_hp,JDB_int8,JDB_uint8,JDB_int16,JDB_int32,
+     JDB_int64,JDB_single,JDB_double,JDB_array,JDB_object,JDB_numtypes,
+     JDB_uint16=10,JDB_uint32,JDB_uint64};
 
 typedef struct MCXMedium{
 	float mua;
@@ -134,6 +138,8 @@ typedef struct MCXConfig{
 	char issaveexit;             /**<1 save the exit position and dir of a detected photon, 0 do not save*/
 	char isatomic;      /*1 use atomic operations, 0 no atomic*/
 	char issaveref;              /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
+        char isdumpjson;             /**<1 to save json */
+	int  zipid;                  /**<data zip method "zlib","gzip","base64","lzip","lzma","lz4","lz4hc"*/
 	char srctype;                /**<0:pencil,1:isotropic,2:cone,3:gaussian,4:planar,5:pattern,\
                                          6:fourier,7:arcsine,8:disk,9:fourierx,10:fourierx2d,11:zgaussian,12:line,13:slit*/
         char autopilot;     /**<1 optimal setting for dedicated card, 2, for non dedicated card*/
@@ -167,7 +173,7 @@ typedef struct MCXConfig{
 	void *seeddata;              /**<poiinter to a buffer where detected photon seeds are stored*/
         int replaydet;               /**<the detector id for which to replay the detected photons, start from 1*/
         char seedfile[MAX_PATH_LENGTH];/**<if the seed is specified as a file (mch), mcx will replay the photons*/
-
+        char jsonfile[MAX_PATH_LENGTH];/**<if the seed is specified as a file (mch), mcx will replay the photons*/
 	unsigned int maxjumpdebug;   /**<num of  photon scattering events to save when saving photon trajectory is enabled*/
 	unsigned int debugdatalen;   /**<max number of photon trajectory position length*/
 	unsigned int gscatter;       /**<after how many scattering events that we can use mus' instead of mus */
@@ -185,7 +191,7 @@ typedef struct MCXConfig{
 #ifdef	__cplusplus
 extern "C" {
 #endif
-void mcx_savedata(float *dat, int len, Config *cfg);
+void mcx_savedata(float *dat, size_t len, Config *cfg);
 void mcx_savenii(float *dat, size_t len, char* name, int type32bit, int outputformatid, Config *cfg);
 void mcx_error(const int id,const char *msg,const char *file,const int linenum);
 void mcx_assess(const int id,const char *msg,const char *file,const int linenum);
@@ -198,7 +204,7 @@ void mcx_initcfg(Config *cfg);
 void mcx_clearcfg(Config *cfg);
 void mcx_parsecmd(int argc, char* argv[], Config *cfg);
 void mcx_usage(Config *cfg,char *exename);
-void mcx_loadvolume(char *filename,Config *cfg);
+void mcx_loadvolume(char *filename,Config *cfg,int isbuf);
 void mcx_normalize(float field[], float scale, int fieldlen, int option, int pidx, int srcnum);
 int  mcx_readarg(int argc, char *argv[], int id, void *output,const char *type);
 void mcx_printlog(Config *cfg, const char *str);
@@ -208,6 +214,8 @@ void mcx_prepdomain(char *filename, Config *cfg);
 void mcx_createfluence(float **fluence, Config *cfg);
 void mcx_clearfluence(float **fluence);
 void mcx_convertrow2col(unsigned int **vol, uint4 *dim);
+void mcx_convertcol2row(unsigned int **vol, uint3 *dim);
+void mcx_convertcol2row4d(unsigned int **vol, uint4 *dim);
 void mcx_savedetphoton(float *ppath, void *seeds, int count, int seedbyte, Config *cfg);
 int  mcx_loadjson(cJSON *root, Config *cfg);
 int  mcx_keylookup(char *key, const char *table[]);
@@ -222,6 +230,13 @@ void mcx_flush(Config *cfg);
 void mcx_loadseedfile(Config *cfg);
 void mcx_kahanSum(float *sum, float *kahanc, float input);
 float mcx_updatemua(unsigned int mediaid, Config *cfg);
+void mcx_savejdata(char *filename, Config *cfg);
+int  mcx_jdataencode(void *vol,  int ndim, uint *dims, char *type, int byte, int zipid, void *obj, int isubj, Config *cfg);
+int  mcx_jdatadecode(void **vol, int *ndim, uint *dims, int maxdim, char **type, cJSON *obj, Config *cfg);
+void mcx_savejnii(float *vol, int ndim, uint *dims, float *voxelsize, char* name, int isfloat, Config *cfg);
+void mcx_savebnii(float *vol, int ndim, uint *dims, float *voxelsize, char* name, int isfloat, Config *cfg);
+void mcx_savejdet(float *ppath, void *seeds, uint count, int doappend, Config *cfg);
+
 
 #ifdef MCX_CONTAINER
 #ifdef __cplusplus

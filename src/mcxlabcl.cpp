@@ -469,7 +469,7 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
     GET_VEC4_FIELD(cfg,srcparam2)
     else if(strcmp(name,"vol")==0){
         dimtype dimxyz;
-        int i;
+        dimtype i;
         cfg->mediabyte=0;
         arraydim=mxGetDimensions(item);
 
@@ -662,7 +662,7 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
 	double *val=mxGetPr(item);
 	if(cfg->srcpattern) free(cfg->srcpattern);
         cfg->srcpattern=(float*)malloc(arraydim[0]*arraydim[1]*dimz*sizeof(float));
-        for(int i=0;i<arraydim[0]*arraydim[1]*dimz;i++)
+        for(dimtype i=0;i<arraydim[0]*arraydim[1]*dimz;i++)
              cfg->srcpattern[i]=val[i];
         printf("mcx.srcpattern=[%d %d %d];\n",arraydim[0],arraydim[1],dimz);
     }else if(strcmp(name,"shapes")==0){
@@ -738,7 +738,7 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
 	arraydim=mxGetDimensions(item);
 	if(arraydim[0]*arraydim[1]>MAX_DEVICE)
 	     mexErrMsgTxt("the workload list can not be longer than 256");
-	for(int i=0;i<arraydim[0]*arraydim[1];i++)
+	for(dimtype i=0;i<arraydim[0]*arraydim[1];i++)
 	     cfg->workload[i]=val[i];
         printf("mcx.workload=<<%d>>;\n",arraydim[0]*arraydim[1]);
     }else{

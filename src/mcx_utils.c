@@ -35,6 +35,9 @@
 #include "mcx_utils.h"
 #include "mcx_shapes.h"
 #include "mcx_const.h"
+#include "mcx_bench.h"
+#include "zmat/zmatlib.h"
+#include "ubj/ubj.h"
 
 #ifdef MCX_EMBED_CL
     #include "mcx_core.clh"
@@ -50,6 +53,15 @@
                                 ((tmp=cJSON_GetObjectItem(root,idfull))==0 ? NULL : tmp) \
                      : tmp)
 
+#define UBJ_WRITE_KEY(ctx, key,  type, val)    {ubjw_write_key( (ctx), (key)); ubjw_write_##type((ctx), (val));}
+#define UBJ_WRITE_ARRAY(ctx, type, nlen, val)  {ubjw_write_buffer( (ctx), (uint8_t*)(val), JDB_##type, (nlen));}
+
+#define ubjw_write_single ubjw_write_float32
+#define ubjw_write_double ubjw_write_float64
+#define ubjw_write_uint16 ubjw_write_int16
+#define ubjw_write_uint32 ubjw_write_int32
+#define ubjw_write_uint64 ubjw_write_int64
+
 /**
  * Short command line options
  * If a short command line option is '-' that means it only has long/verbose option.
@@ -59,7 +71,7 @@
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W','z',
                  'd','r','S','p','e','U','R','l','L','M','I','-','o','k','v','J',
                  'A','P','E','F','H','K','u','-','x','X','-','w','-','q','V','m',
-		 'Y','O','-','-','\0'};
+		 'Y','O','-','-','-','-','Z','\0'};
 
 /**
  * Long command line options
@@ -75,7 +87,8 @@ const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
 		 "--mediabyte","--unitinmm","--atomic","--saveexit","--saveref",
 		 "--internalsrc","--savedetflag","--gscatter","--saveseed","--specular",
-		 "--momentum","--replaydet","--outputtype","--voidtime","--showkernel",""};
+		 "--momentum","--replaydet","--outputtype","--voidtime","--showkernel",
+		 "--bench","--dumpjson","--zip",""};
 
 /**
  * Debug flags
@@ -105,13 +118,13 @@ const char saveflag[]={'D','S','P','M','X','V','W','\0'};
  * Output data types
  * x: fluence rate
  * f: fluence
- * e: energy deposit
+ * e: energy deposition
  * j: jacobian for mua
  * p: scattering counts for computing Jacobians for mus
  */
 
 const char outputtype[]={'x','f','e','j','p','m','\0'};
-const char *outputformat[]={"mc2","nii","hdr","ubj","tx3",""};
+const char *outputformat[]={"mc2","nii","hdr","ubj","tx3","jnii","bnii",""};
 
 /**
  * Boundary condition (BC) types
@@ -138,8 +151,12 @@ const char *srctypeid[]={"pencil","isotropic","cone","gaussian","planar",
  * User can specify the source type using a string
  */
 
-const unsigned int mediaformatid[]={1,2,4,100,101,102,103,104,0};
-const char *mediaformat[]={"byte","short","integer","muamus_float","mua_float","muamus_half","asgn_byte","muamus_short",""};
+const unsigned int mediaformatid[]={1,2,4,98,99,100,101,102,103,104,0};
+const char *mediaformat[]={"byte","short","integer","mixlabel","labelplus",
+     "muamus_float","mua_float","muamus_half","asgn_byte","muamus_short",""};
+
+const char *zipformat[]={"zlib","gzip","base64","lzip","lzma","lz4","lz4hc",""};
+
 
 void mcx_initcfg(Config *cfg){
      cfg->medianum=0;
@@ -183,6 +200,8 @@ void mcx_initcfg(Config *cfg){
      cfg->ismomentum=0;
      cfg->gscatter=1e9;     /** by default, honor anisotropy for all scattering, use --gscatter to reduce it */
      cfg->isspecular=0;
+     cfg->isdumpjson=0;
+     cfg->zipid=zmZlib;
 
      cfg->srctype=0;;         /** use pencil beam as default source type */
      cfg->maxvoidstep=1000;
@@ -257,6 +276,8 @@ void mcx_initcfg(Config *cfg){
      cfg->outputtype=otFlux;
      cfg->outputformat=ofMC2;
      cfg->srcdir.w=0.f;
+     memset(cfg->jsonfile,0,MAX_PATH_LENGTH);
+     
 }
 
 void mcx_clearcfg(Config *cfg){
@@ -288,6 +309,8 @@ void mcx_clearcfg(Config *cfg){
         free(cfg->exportdebugdata);
      if(cfg->seeddata)
         free(cfg->seeddata);
+     if(cfg->shapedata)
+       free(cfg->shapedata);
 
      mcx_initcfg(cfg);
 }
@@ -334,13 +357,18 @@ void mcx_savenii(float *dat, size_t len, char* name, int type32bit, int outputfo
      }else{
          short *mask=(short*)logval;
 	 for(i=0;i<len;i++){
-	    mask[i]    =(((unsigned int *)dat)[i] & MED_MASK);
-	    mask[i+len]=(((unsigned int *)dat)[i] & DET_MASK)>>16;
+           mask[(i<<1)]    =(((unsigned int *)dat)[i] & MED_MASK);
+           mask[(i<<1)+1]=(((unsigned int *)dat)[i] & DET_MASK)>>31;
 	 }
 	 hdr.datatype = NIFTI_TYPE_UINT16;
 	 hdr.bitpix = 16;
-         hdr.dim[4] = 2;
-         hdr.pixdim[4] = 1.f;
+         hdr.dim[1] = 2;
+         hdr.dim[2] = cfg->dim.x;
+         hdr.dim[3] = cfg->dim.y;
+         hdr.dim[4] = cfg->dim.z;
+         hdr.pixdim[4] = cfg->unitinmm;
+         hdr.pixdim[1] = 1.f;
+
      }
      if (outputformatid==ofNifti){
 	strncpy(hdr.magic, "n+1\0", 4);
@@ -355,18 +383,18 @@ void mcx_savenii(float *dat, size_t len, char* name, int type32bit, int outputfo
      sprintf(fname,"%s.%s",name,outputformat[outputformatid]);
 
      if (( fp = fopen(fname,"wb")) == NULL)
-             mcx_error(-9, "Error opening header file for write",__FILE__,__LINE__);
+             MCX_ERROR(-9, "Error opening header file for write");
 
      if (fwrite(&hdr, MIN_HEADER_SIZE, 1, fp) != 1)
-             mcx_error(-9, "Error writing header file",__FILE__,__LINE__);
+             MCX_ERROR(-9, "Error writing header file");
 
      if (outputformatid==ofNifti) {
          if (fwrite(&pad, 4, 1, fp) != 1)
-             mcx_error(-9, "Error writing header file extension pad",__FILE__,__LINE__);
+             MCX_ERROR(-9, "Error writing header file extension pad");
 
          if (fwrite(logval, (size_t)(hdr.bitpix>>3), hdr.dim[1]*hdr.dim[2]*hdr.dim[3]*hdr.dim[4], fp) !=
 	          hdr.dim[1]*hdr.dim[2]*hdr.dim[3]*hdr.dim[4])
-             mcx_error(-9, "Error writing data to file",__FILE__,__LINE__);
+             MCX_ERROR(-9, "Error writing data to file");
 	 fclose(fp);
      }else if(outputformatid==ofAnalyze){
          fclose(fp);  /* close .hdr file */
@@ -375,21 +403,247 @@ void mcx_savenii(float *dat, size_t len, char* name, int type32bit, int outputfo
 
          fp = fopen(fname,"wb");
          if (fp == NULL)
-             mcx_error(-9, "Error opening img file for write",__FILE__,__LINE__);
+             MCX_ERROR(-9, "Error opening img file for write");
          if (fwrite(logval, (size_t)(hdr.bitpix>>3), hdr.dim[1]*hdr.dim[2]*hdr.dim[3]*hdr.dim[4], fp) != 
 	       hdr.dim[1]*hdr.dim[2]*hdr.dim[3]*hdr.dim[4])
-             mcx_error(-9, "Error writing img file",__FILE__,__LINE__);
+             MCX_ERROR(-9, "Error writing img file");
 
          fclose(fp);
      }else
-         mcx_error(-9, "Output format is not supported",__FILE__,__LINE__);
+         MCX_ERROR(-9, "Output format is not supported");
      free(logval);
 }
 
-void mcx_savedata(float *dat, int len, Config *cfg){
+/**
+ * @brief Save volumetric output (fluence etc) to a binary JNIfTI/JSON/JData format file
+ *
+ * @param[in] dat: volumetric data to be saved
+ * @param[in] len: total byte length of the data to be saved
+ * @param[in] name: output file name (will append '.nii')
+ * @param[in] type32bit: type of the data, only support 32bit per record
+ * @param[in] outputformatid: decide if save as nii or analyze format
+ * @param[in] cfg: simulation configuration
+ */
+
+void mcx_savebnii(float *vol, int ndim, uint *dims, float *voxelsize, char* name, int isfloat, Config *cfg){
+     FILE *fp;
+     char fname[MAX_FULL_PATH]={'\0'};
+     int affine[]={0,0,1,0,0,0};
+     size_t datalen=sizeof(int), outputlen=0;
+
+     ubjw_context_t *root=NULL;
+     unsigned char *jsonstr=NULL;
+
+     for(int i=0;i<ndim;i++)
+         datalen*=dims[i];
+     jsonstr=malloc(datalen<<1);
+     root=ubjw_open_memory(jsonstr,jsonstr+(datalen<<1));
+     
+     /* the "NIFTIHeader" section */
+     ubjw_begin_object(root,UBJ_MIXED,0);
+         ubjw_write_key(root,"NIFTIHeader");
+	 ubjw_begin_object(root,UBJ_MIXED,0);
+	     UBJ_WRITE_KEY(root,"NIIHeaderSize", uint16, 348);
+	     ubjw_write_key(root,"Dim");
+	     UBJ_WRITE_ARRAY(root, uint32, ndim, dims);
+	     UBJ_WRITE_KEY(root,"Param1", uint8, 0);
+	     UBJ_WRITE_KEY(root,"Param2", uint8, 0);
+	     UBJ_WRITE_KEY(root,"Param3", uint8, 0);
+	     UBJ_WRITE_KEY(root,"Intent", uint8, 0);
+	     UBJ_WRITE_KEY(root,"DataType", string, ((isfloat?"single":"uint32")));
+	     UBJ_WRITE_KEY(root,"BitDepth", uint8, 32);
+	     UBJ_WRITE_KEY(root,"FirstSliceID", uint8, 0);
+	     ubjw_write_key(root,"VoxelSize");
+	     UBJ_WRITE_ARRAY(root, single, ndim, voxelsize);
+	     ubjw_write_key(root,"Orientation");
+	     ubjw_begin_object(root,UBJ_MIXED,3);
+	         UBJ_WRITE_KEY(root,"x", char, 'r');
+		 UBJ_WRITE_KEY(root,"y", char, 'a');
+		 UBJ_WRITE_KEY(root,"z", char, 's');
+	     ubjw_end(root);
+	     UBJ_WRITE_KEY(root,"ScaleSlope", uint8, 1);
+	     UBJ_WRITE_KEY(root,"ScaleOffset", uint8, 1);
+	     UBJ_WRITE_KEY(root,"LastSliceID", uint32, cfg->maxgate);
+	     UBJ_WRITE_KEY(root,"SliceType", uint8, 1);
+	     ubjw_write_key(root,"Unit");
+	     ubjw_begin_object(root,UBJ_MIXED,2);
+	         UBJ_WRITE_KEY(root,"L", string, "mm");
+		 UBJ_WRITE_KEY(root,"T", string, "s");
+	     ubjw_end(root);
+	     UBJ_WRITE_KEY(root,"MaxIntensity", uint32, 1);
+	     UBJ_WRITE_KEY(root,"MinIntensity", uint32, 0);
+	     UBJ_WRITE_KEY(root,"SliceTime", uint8, 0);
+	     UBJ_WRITE_KEY(root,"TimeOffset", uint8, 0);
+
+	     if(cfg->outputtype>=0){
+		const char *typestr[]={"MCX volumetric output: Fluence rate (W/mm^2)","MCX volumetric output: Fluence (J/mm^2)", 
+		"MCX volumetric output: Energy density (J/mm^3)","MCX volumetric output: Jacobian for mua (J/mm)","MCX volumetric output: Scattering count",
+		"MCX volumetric output: Partial momentum transfer"};
+		     UBJ_WRITE_KEY(root,"Description", string, typestr[(int)cfg->outputtype]);
+	     }else
+		UBJ_WRITE_KEY(root, "Description", string, "MCX volumetric output");
+	     UBJ_WRITE_KEY(root, "AuxFile", string, "");
+	     UBJ_WRITE_KEY(root,"QForm", uint8, 0);
+	     UBJ_WRITE_KEY(root,"SForm", uint8, 1);
+	     ubjw_write_key(root,"Quatern");
+	     ubjw_begin_object(root,UBJ_MIXED,3);
+	         UBJ_WRITE_KEY(root,"b", uint8, 0);
+		 UBJ_WRITE_KEY(root,"c", uint8, 0);
+		 UBJ_WRITE_KEY(root,"d", uint8, 0);
+	     ubjw_end(root);
+	     ubjw_write_key(root,"QuaternOffset");
+	     ubjw_begin_object(root,UBJ_MIXED,3);
+	         UBJ_WRITE_KEY(root,"x", uint8, 0);
+		 UBJ_WRITE_KEY(root,"y", uint8, 0);
+		 UBJ_WRITE_KEY(root,"z", uint8, 0);
+	     ubjw_end(root);
+             ubjw_write_key(root,"Affine");
+	     ubjw_begin_array(root ,UBJ_MIXED, 0);
+	         UBJ_WRITE_ARRAY(root, int32, 4, affine+2);
+		 UBJ_WRITE_ARRAY(root, int32, 4, affine+1);
+		 UBJ_WRITE_ARRAY(root, int32, 4, affine);
+	     ubjw_end(root);
+	     UBJ_WRITE_KEY(root,"Name", string, cfg->session);
+	     UBJ_WRITE_KEY(root,"NIIFormat", string, "JNIfTI v0.4");
+         ubjw_end(root);
+
+	 ubjw_write_key(root,"NIFTIData");
+         
+	 /* the "NIFTIData" section stores volumetric data */
+	 ubjw_begin_object(root,UBJ_MIXED,0);
+         if(mcx_jdataencode(vol,ndim,dims,(isfloat?"single":"uint32"), 4, cfg->zipid, root, 1, cfg))
+	      MCX_ERROR(-1,"error when converting to JSON");
+         ubjw_end(root);
+     ubjw_end(root);
+
+     /* now save JSON to file */
+     outputlen = ubjw_close_context(root);
+
+     if(jsonstr==NULL)
+         MCX_ERROR(-1,"error when converting to JSON");
+
+     sprintf(fname,"%s.bnii",name);
+
+     fp=fopen(fname,"wb");
+     if(fp==NULL)
+	  MCX_ERROR(-1,"error opening file to write");
+     fwrite(jsonstr,outputlen, 1, fp);
+     fclose(fp);
+
+     if(jsonstr)
+         free(jsonstr); 
+}
+
+
+/**
+ * @brief Save volumetric output (fluence etc) to a JNIfTI/JSON/JData format file
+ *
+ * @param[in] dat: volumetric data to be saved
+ * @param[in] len: total byte length of the data to be saved
+ * @param[in] name: output file name (will append '.nii')
+ * @param[in] type32bit: type of the data, only support 32bit per record
+ * @param[in] outputformatid: decide if save as nii or analyze format
+ * @param[in] cfg: simulation configuration
+ */
+
+void mcx_savejnii(float *vol, int ndim, uint *dims, float *voxelsize, char* name, int isfloat, Config *cfg){
+     FILE *fp;
+     char fname[MAX_FULL_PATH]={'\0'};
+     int affine[]={0,0,1,0,0,0};
+
+     cJSON *root=NULL, *hdr=NULL, *dat=NULL, *sub=NULL;
+     char *jsonstr=NULL;
+     root=cJSON_CreateObject();
+     
+     /* the "NIFTIHeader" section */
+     cJSON_AddItemToObject(root, "NIFTIHeader", hdr = cJSON_CreateObject());
+     cJSON_AddNumberToObject(hdr, "NIIHeaderSize", 348);
+     cJSON_AddItemToObject(hdr, "Dim", cJSON_CreateIntArray((int*)dims,ndim));
+     cJSON_AddNumberToObject(hdr, "Param1", 0);
+     cJSON_AddNumberToObject(hdr, "Param2", 0);
+     cJSON_AddNumberToObject(hdr, "Param3", 0);
+     cJSON_AddNumberToObject(hdr, "Intent", 0);
+     cJSON_AddStringToObject(hdr, "DataType", (isfloat?"single":"uint32"));
+     cJSON_AddNumberToObject(hdr, "BitDepth", 32);
+     cJSON_AddNumberToObject(hdr, "FirstSliceID", 0);
+     cJSON_AddItemToObject(hdr, "VoxelSize", cJSON_CreateFloatArray(voxelsize,ndim));
+     cJSON_AddItemToObject(hdr, "Orientation", sub=cJSON_CreateObject());
+     cJSON_AddStringToObject(sub, "x", "r");
+     cJSON_AddStringToObject(sub, "y", "a");
+     cJSON_AddStringToObject(sub, "z", "s");
+     cJSON_AddNumberToObject(hdr, "ScaleSlope", 1);
+     cJSON_AddNumberToObject(hdr, "ScaleOffset", 0);
+     cJSON_AddNumberToObject(hdr, "LastSliceID", cfg->maxgate);
+     cJSON_AddNumberToObject(hdr, "SliceType", 1);
+     cJSON_AddItemToObject(hdr, "Unit", sub=cJSON_CreateObject());
+     cJSON_AddStringToObject(sub, "L", "mm");
+     cJSON_AddStringToObject(sub, "T", "s");
+     cJSON_AddNumberToObject(hdr, "MaxIntensity", 1);
+     cJSON_AddNumberToObject(hdr, "MinIntensity", 0);
+     cJSON_AddNumberToObject(hdr, "SliceTime", 0);
+     cJSON_AddNumberToObject(hdr, "TimeOffset", 0);
+     if(cfg->outputtype>=0){
+        const char *typestr[]={"MCX volumetric output: Fluence rate (W/mm^2)","MCX volumetric output: Fluence (J/mm^2)", 
+	"MCX volumetric output: Energy density (J/mm^3)","MCX volumetric output: Jacobian for mua (J/mm)","MCX volumetric output: Scattering count",
+	"MCX volumetric output: Partial momentum transfer"};
+	cJSON_AddStringToObject(hdr, "Description", typestr[(int)cfg->outputtype]);
+     }else
+        cJSON_AddStringToObject(hdr, "Description", "MCX volumetric output");
+     cJSON_AddStringToObject(hdr, "AuxFile", "");
+     cJSON_AddNumberToObject(hdr, "QForm", 0);
+     cJSON_AddNumberToObject(hdr, "SForm", 1);
+     cJSON_AddItemToObject(hdr, "Quatern", sub=cJSON_CreateObject());
+     cJSON_AddNumberToObject(sub, "b", 0);
+     cJSON_AddNumberToObject(sub, "c", 0);
+     cJSON_AddNumberToObject(sub, "d", 0);
+     cJSON_AddItemToObject(hdr, "QuaternOffset", sub=cJSON_CreateObject());
+     cJSON_AddNumberToObject(sub, "x", 0);
+     cJSON_AddNumberToObject(sub, "y", 0);
+     cJSON_AddNumberToObject(sub, "z", 0);
+     cJSON_AddItemToObject(hdr, "Affine", sub=cJSON_CreateArray());
+     cJSON_AddItemToArray(sub, cJSON_CreateIntArray(affine+2,4));
+     cJSON_AddItemToArray(sub, cJSON_CreateIntArray(affine+1,4));
+     cJSON_AddItemToArray(sub, cJSON_CreateIntArray(affine,4));
+     cJSON_AddStringToObject(hdr, "Name", cfg->session);
+     cJSON_AddStringToObject(hdr, "NIIFormat", "JNIfTI v0.4");
+
+     /* the "NIFTIData" section stores volumetric data */
+     cJSON_AddItemToObject(root, "NIFTIData",   dat = cJSON_CreateObject());
+     if(mcx_jdataencode(vol,ndim,dims,(isfloat?"single":"uint32"), 4, cfg->zipid, dat, 0, cfg))
+         MCX_ERROR(-1,"error when converting to JSON");
+
+     /* now save JSON to file */
+     jsonstr=cJSON_Print(root);
+     if(jsonstr==NULL)
+         MCX_ERROR(-1,"error when converting to JSON");
+
+     sprintf(fname,"%s.jnii",name);
+
+     fp=fopen(fname,"wt");
+     if(fp==NULL)
+	  MCX_ERROR(-1,"error opening file to write");
+     fprintf(fp,"%s\n",jsonstr);
+     fclose(fp);
+
+     if(jsonstr)
+         free(jsonstr);
+     if(root)
+         cJSON_Delete(root);   
+}
+
+
+/**
+ * @brief Save volumetric output (fluence etc) to mc2 format binary file
+ *
+ * @param[in] dat: volumetric data to be saved
+ * @param[in] len: total byte length of the data to be saved
+ * @param[in] cfg: simulation configuration
+ */
+
+void mcx_savedata(float *dat, size_t len, Config *cfg){
      FILE *fp;
      char name[MAX_FULL_PATH];
-     char fname[MAX_FULL_PATH+100];
+     char fname[MAX_FULL_PATH];
      unsigned int glformat=GL_RGBA32F;
 
      if(cfg->rootpath[0])
@@ -400,12 +654,38 @@ void mcx_savedata(float *dat, int len, Config *cfg){
      if(cfg->outputformat==ofNifti || cfg->outputformat==ofAnalyze){
          mcx_savenii(dat, len, name, NIFTI_TYPE_FLOAT32, cfg->outputformat, cfg);
          return;
+     }else if(cfg->outputformat==ofJNifti || cfg->outputformat==ofBJNifti){
+	 int d1=(cfg->maxgate==1);
+	 if(cfg->seed==SEED_FROM_FILE && cfg->replaydet==-1 && (cfg->detnum>1 || cfg->srcnum>1)){
+             uint dims[5]={cfg->detnum*cfg->srcnum, cfg->maxgate, cfg->dim.z, cfg->dim.y, cfg->dim.x};
+             float voxelsize[]={1,cfg->tstep,cfg->steps.z,cfg->steps.y,cfg->steps.x};
+	     if(cfg->outputformat==ofJNifti)
+                 mcx_savejnii(dat, 5, dims, voxelsize, name, 1, cfg);
+	     else
+	         mcx_savebnii(dat, 5, dims, voxelsize, name, 1, cfg);
+	 }else{
+             uint dims[]={cfg->dim.x,cfg->dim.y,cfg->dim.z,cfg->maxgate};
+             float voxelsize[]={cfg->steps.x,cfg->steps.y,cfg->steps.z,cfg->tstep};
+	     size_t datalen=cfg->dim.x*cfg->dim.y*cfg->dim.z*cfg->maxgate;
+	     uint *buf=(uint *)malloc(datalen*sizeof(float));
+	     memcpy(buf,dat,datalen*sizeof(float));
+	     if(d1)
+	         mcx_convertcol2row(&buf, (uint3 *)dims);
+	     else
+	         mcx_convertcol2row4d(&buf, (uint4 *)dims);
+	     if(cfg->outputformat==ofJNifti)
+	         mcx_savejnii((float*)buf, 4-d1, dims, voxelsize, name, 1, cfg);
+	     else
+	         mcx_savebnii((float*)buf, 4-d1, dims, voxelsize, name, 1, cfg);
+	     free(buf);
+	 }
+         return;
      }
      sprintf(fname,"%s.%s",name,outputformat[(int)cfg->outputformat]);
      fp=fopen(fname,"wb");
 
      if(fp==NULL){
-	mcx_error(-2,"can not save data to disk",__FILE__,__LINE__);
+	MCX_ERROR(-2,"can not save data to disk");
      }
      if(cfg->outputformat==ofTX3){
 	fwrite(&glformat,sizeof(unsigned int),1,fp);
@@ -415,9 +695,24 @@ void mcx_savedata(float *dat, int len, Config *cfg){
      fclose(fp);
 }
 
+
+/**
+ * @brief Save detected photon data to mch format binary file
+ *
+ * @param[in] ppath: buffer pointing to the detected photon data (partial path etc)
+ * @param[in] seeds: buffer pointing to the detected photon seed data
+ * @param[in] count: number of detected photons
+ * @param[in] doappend: flag if the new data is appended or write from the begining
+ * @param[in] cfg: simulation configuration
+ */
+
 void mcx_savedetphoton(float *ppath, void *seeds, int count, int doappend, Config *cfg){
 	FILE *fp;
 	char fhistory[MAX_FULL_PATH], filetag;
+	if(cfg->outputformat==ofJNifti || cfg->outputformat==ofBJNifti){
+	    mcx_savejdet(ppath,seeds,count,doappend,cfg);
+	    return;
+	}
 	filetag=((cfg->his.detected==0  && cfg->his.savedphoton) ? 't' : 'h');
         if(cfg->rootpath[0])
                 sprintf(fhistory,"%s%c%s.mc%c",cfg->rootpath,pathsep,cfg->session,filetag);
@@ -429,7 +724,7 @@ void mcx_savedetphoton(float *ppath, void *seeds, int count, int doappend, Confi
            fp=fopen(fhistory,"wb");
 	}
 	if(fp==NULL){
-	   mcx_error(-2,"can not save data to disk",__FILE__,__LINE__);
+	   MCX_ERROR(-2,"can not save data to disk");
         }
 	fwrite(&(cfg->his),sizeof(History),1,fp);
 	fwrite(ppath,sizeof(float),count*cfg->his.colcount,fp);
@@ -437,6 +732,140 @@ void mcx_savedetphoton(float *ppath, void *seeds, int count, int doappend, Confi
            fwrite(seeds,cfg->his.seedbyte,count,fp);
 	fclose(fp);
 }
+
+/**
+ * @brief Save detected photon data to mch format binary file
+ *
+ * @param[in] ppath: buffer pointing to the detected photon data (partial path etc)
+ * @param[in] seeds: buffer pointing to the detected photon seed data
+ * @param[in] count: number of detected photons
+ * @param[in] doappend: flag if the new data is appended or write from the begining
+ * @param[in] cfg: simulation configuration
+ */
+
+void mcx_savejdet(float *ppath, void *seeds, uint count, int doappend, Config *cfg){
+	FILE *fp;
+	char fhistory[MAX_FULL_PATH], filetag;
+        cJSON *root=NULL, *obj=NULL, *hdr=NULL, *dat=NULL, *sub=NULL;
+        char *jsonstr=NULL;
+	int col=0;
+
+        root=cJSON_CreateObject();
+
+        /* the "NIFTIHeader" section */
+        cJSON_AddItemToObject(root, "MCXData", obj = cJSON_CreateObject());
+	cJSON_AddItemToObject(obj, "Info", hdr = cJSON_CreateObject());
+        cJSON_AddNumberToObject(hdr, "Version", cfg->his.version);
+	cJSON_AddNumberToObject(hdr, "MediaNum", cfg->his.maxmedia);
+	cJSON_AddNumberToObject(hdr, "DetNum", cfg->his.detnum);
+	cJSON_AddNumberToObject(hdr, "ColumnNum", cfg->his.colcount);
+	cJSON_AddNumberToObject(hdr, "TotalPhoton", cfg->his.totalphoton);
+	cJSON_AddNumberToObject(hdr, "DetectedPhoton", count);
+	cJSON_AddNumberToObject(hdr, "SavedPhoton", cfg->his.savedphoton);
+	cJSON_AddNumberToObject(hdr, "LengthUnit", cfg->his.unitinmm);
+	cJSON_AddNumberToObject(hdr, "SeedByte", cfg->his.seedbyte);
+	cJSON_AddNumberToObject(hdr, "Normalizer", cfg->his.normalizer);
+	cJSON_AddNumberToObject(hdr, "Repeat", cfg->his.respin);
+	cJSON_AddNumberToObject(hdr, "SrcNum", cfg->his.srcnum);
+	cJSON_AddNumberToObject(hdr, "SaveDetFlag", cfg->his.savedetflag);
+	cJSON_AddItemToObject(hdr, "Media", sub = cJSON_CreateArray());
+	for(int i=0;i<cfg->medianum;i++){
+	     cJSON_AddItemToArray(sub,dat=cJSON_CreateObject());
+	     cJSON_AddNumberToObject(dat, "mua", cfg->prop[i].mua/cfg->unitinmm);
+	     cJSON_AddNumberToObject(dat, "mus", cfg->prop[i].mus/cfg->unitinmm);
+	     cJSON_AddNumberToObject(dat, "g",   cfg->prop[i].g);
+	     cJSON_AddNumberToObject(dat, "n",   cfg->prop[i].n);
+	}
+
+        if(cfg->his.detected==0  && cfg->his.savedphoton){
+	    char colnum[]={1,3,1};
+	    char *dtype[]={"uint32","single","single"};
+	    char *dname[]={"photonid","p","w0"};
+	    cJSON_AddItemToObject(obj, "Trajectory", dat = cJSON_CreateObject());
+	    for(int id=0;id<sizeof(colnum);id++){
+		uint dims[2]={count,colnum[id]};
+		float *buf=(float *)calloc(dims[0]*dims[1],sizeof(float));
+		for(int i=0;i<dims[0];i++)
+		    for(int j=0;j<dims[1];j++)
+			buf[i*dims[1]+j]=ppath[i*cfg->his.colcount+col+j];
+		cJSON_AddItemToObject(dat, dname[id], sub = cJSON_CreateObject());
+		if(mcx_jdataencode(buf,2,dims,dtype[id], 4, cfg->zipid, sub, 0, cfg))
+		    MCX_ERROR(-1,"error when converting to JSON");
+		free(buf);
+		col+=dims[1];
+	    }
+	}else{
+	    char colnum[]={1,cfg->his.maxmedia,cfg->his.maxmedia,cfg->his.maxmedia,3,3,1};
+	    char *dtype[]={"uint32","uint32","single","single","single","single","single"};
+	    char *dname[]={"detid","nscat","ppath","mom","p","v","w0"};
+	    cJSON_AddItemToObject(obj, "PhotonData", dat = cJSON_CreateObject());
+	    for(int id=0;id<sizeof(colnum);id++){
+	      if((cfg->savedetflag >> id) & 0x1){
+		uint dims[2]={count,colnum[id]};
+		void *val=NULL;
+		float *fbuf=NULL;
+		uint  *ibuf=NULL;
+		if(!strcmp(dtype[id],"uint32")){
+		    ibuf=(uint *)calloc(dims[0]*dims[1],sizeof(uint));
+		    for(int i=0;i<dims[0];i++)
+			for(int j=0;j<dims[1];j++)
+			    ibuf[i*dims[1]+j]=ppath[i*cfg->his.colcount+col+j];
+		    val=(void*)ibuf;
+		}else{
+		    fbuf=(float *)calloc(dims[0]*dims[1],sizeof(float));
+		    for(int i=0;i<dims[0];i++)
+			for(int j=0;j<dims[1];j++)
+			    fbuf[i*dims[1]+j]=ppath[i*cfg->his.colcount+col+j];
+		    val=(void*)fbuf;
+		}
+		cJSON_AddItemToObject(dat, dname[id], sub = cJSON_CreateObject());
+		if(mcx_jdataencode(val,2,dims,dtype[id], 4, cfg->zipid, sub, 0, cfg))
+		    MCX_ERROR(-1,"error when converting to JSON");
+		free(val);
+		col+=dims[1];
+	      }
+	    }
+	}
+	if(cfg->issaveseed && seeds!=NULL){
+	    uint dims[2]={count,cfg->his.seedbyte};
+            cJSON_AddItemToObject(dat, "seed", sub = cJSON_CreateObject());
+	    if(mcx_jdataencode(seeds,2,dims,"uint8", 1, cfg->zipid, sub, 0, cfg))
+                MCX_ERROR(-1,"error when converting to JSON");
+	}
+
+        /* now save JSON to file */
+        jsonstr=cJSON_Print(root);
+        if(jsonstr==NULL)
+            MCX_ERROR(-1,"error when converting to JSON");
+
+	filetag=((cfg->his.detected==0  && cfg->his.savedphoton) ? 't' : 'h');
+        if(cfg->rootpath[0])
+                sprintf(fhistory,"%s%c%s_%s.jdat",cfg->rootpath,pathsep,cfg->session,(filetag=='t'?"traj":"detp"));
+        else
+                sprintf(fhistory,"%s_%s.jdat",cfg->session,(filetag=='t'?"traj":"detp"));
+
+	if(doappend){
+           fp=fopen(fhistory,"at");
+	}else{
+           fp=fopen(fhistory,"wt");
+	}
+	if(fp==NULL)
+	   MCX_ERROR(-2,"can not save data to disk");
+        fprintf(fp,"%s\n",jsonstr);
+        fclose(fp);
+
+        if(jsonstr)
+           free(jsonstr);
+        if(root)
+           cJSON_Delete(root);   
+}
+
+/**
+ * @brief Print a message to the console or a log file
+ *
+ * @param[in] cfg: simulation configuration
+ * @param[in] str: a string to be printed
+ */
 
 void mcx_printlog(Config *cfg, const char *str){
      if(cfg->flog!=NULL){ /*stdout is 1*/
@@ -587,7 +1016,7 @@ void mcx_readconfig(char *fname, Config *cfg){
      	mcx_loadconfig(stdin,cfg);
      }else{
         FILE *fp=fopen(fname,"rt");
-        if(fp==NULL && fname[0]!='{') mcx_error(-2,"can not load the specified config file",__FILE__,__LINE__);
+        if(fp==NULL && fname[0]!='{') MCX_ERROR(-2,"can not load the specified config file");
         if(strstr(fname,".json")!=NULL || fname[0]=='{'){
             char *jbuf;
             int len;
@@ -601,7 +1030,7 @@ void mcx_readconfig(char *fname, Config *cfg){
                 jbuf=(char *)malloc(len);
                 rewind(fp);
                 if(fread(jbuf,len-1,1,fp)!=1)
-                    mcx_error(-2,"reading input file is terminated",__FILE__,__LINE__);
+                    MCX_ERROR(-2,"reading input file is terminated");
                 jbuf[len-1]='\0';
             }else
 		jbuf=fname;
@@ -622,7 +1051,7 @@ void mcx_readconfig(char *fname, Config *cfg){
                    MCX_FPRINTF(stderr,"<error>%.50s\n",ptrold);
                 }
                 if(fp!=NULL) free(jbuf);
-                mcx_error(-9,"invalid JSON input file",__FILE__,__LINE__);
+                MCX_ERROR(-9,"invalid JSON input file");
             }
             if(fp!=NULL) free(jbuf);
         }else{
@@ -637,7 +1066,7 @@ void mcx_readconfig(char *fname, Config *cfg){
 	struct stat st = {0};
 	if (stat((const char *)cfg->rootpath, &st) == -1) {
 	    if(mkpath(cfg->rootpath, 0755))
-	       mcx_error(-9,"can not create output folder",__FILE__,__LINE__);
+	       MCX_ERROR(-9,"can not create output folder");
 	}
      }
 }
@@ -647,7 +1076,7 @@ void mcx_writeconfig(const char *fname, Config *cfg){
      	mcx_saveconfig(stdout,cfg);
      else{
      	FILE *fp=fopen(fname,"wt");
-	if(fp==NULL) mcx_error(-2,"can not write to the specified config file",__FILE__,__LINE__);
+	if(fp==NULL) MCX_ERROR(-2,"can not write to the specified config file");
 	mcx_saveconfig(fp,cfg);     
 	fclose(fp);
      }
@@ -701,7 +1130,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      	MCX_FPRINTF(stdout,"%f %f %f\nPlease specify the path to the volume binary file:\n\t",
                                    cfg->tstart,cfg->tend,cfg->tstep);
      if(cfg->tstart>cfg->tend || cfg->tstep==0.f){
-         mcx_error(-9,"incorrect time gate settings",__FILE__,__LINE__);
+         MCX_ERROR(-9,"incorrect time gate settings");
      }
      gates=(unsigned int)((cfg->tend-cfg->tstart)/cfg->tstep+0.5);
      if(cfg->maxgate==0)
@@ -738,7 +1167,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      comm=fgets(comment,MAX_PATH_LENGTH,in);
 
      if(cfg->steps.x!=cfg->steps.y || cfg->steps.y!=cfg->steps.z)
-        mcx_error(-9,"MCX currently does not support anisotropic voxels",__FILE__,__LINE__);
+        MCX_ERROR(-9,"MCX currently does not support anisotropic voxels");
 
      if(cfg->steps.x!=1.f && cfg->unitinmm==1.f)
         cfg->unitinmm=cfg->steps.x;
@@ -801,7 +1230,7 @@ void mcx_loadconfig(FILE *in, Config *cfg){
      if(in==stdin)
      	MCX_FPRINTF(stdout,"%d %f\n",cfg->detnum,cfg->detradius);
      if(cfg->medianum+cfg->detnum>MAX_PROP+MAX_DETECTORS)
-         mcx_error(-4,"input media types plus detector number exceeds the maximum total (4000)",__FILE__,__LINE__);
+         MCX_ERROR(-4,"input media types plus detector number exceeds the maximum total (4000)");
 
      cfg->detpos=(float4*)malloc(sizeof(float4)*cfg->detnum);
      if(cfg->issavedet && cfg->detnum==0) 
@@ -886,9 +1315,13 @@ void mcx_loadconfig(FILE *in, Config *cfg){
  */
 
 void mcx_prepdomain(char *filename, Config *cfg){
+     if(cfg->isdumpjson==2){
+	  mcx_savejdata(cfg->jsonfile, cfg);
+	  exit(0);
+     }
      if(filename[0] || cfg->vol){
         if(cfg->vol==NULL){
-	     mcx_loadvolume(filename,cfg);
+	     mcx_loadvolume(filename,cfg,0);
 	     if(cfg->shapedata && strstr(cfg->shapedata,":")!=NULL){
 	          int status;
      		  Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
@@ -913,7 +1346,7 @@ void mcx_prepdomain(char *filename, Config *cfg){
 	if(cfg->isdumpmask)
 	        mcx_dumpmask(cfg);
      }else{
-     	mcx_error(-4,"one must specify a binary volume file in order to run the simulation",__FILE__,__LINE__);
+     	MCX_ERROR(-4,"one must specify a binary volume file in order to run the simulation");
      }
      if(cfg->seed==SEED_FROM_FILE && cfg->seedfile[0]){
         if(cfg->respin>1 || cfg->respin<0){
@@ -968,6 +1401,10 @@ void mcx_prepdomain(char *filename, Config *cfg){
 	    cfg->maxdetphoton=cfg->dim.x*cfg->dim.y*cfg->dim.z;
         }
 	cfg->savedetflag=0x5;
+     }
+     if(cfg->isdumpjson==1){
+	  mcx_savejdata(cfg->jsonfile, cfg);
+	  exit(0);
      }
 }
 
@@ -1057,7 +1494,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
            }
 	}
 	if(cfg->steps.x!=cfg->steps.y || cfg->steps.y!=cfg->steps.z)
-           mcx_error(-9,"MCX currently does not support anisotropic voxels",__FILE__,__LINE__);
+           MCX_ERROR(-9,"MCX currently does not support anisotropic voxels");
 
 	if(cfg->steps.x!=1.f && cfg->unitinmm==1.f)
            cfg->unitinmm=cfg->steps.x;
@@ -1179,7 +1616,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
                          cfg->srcpattern=(float*)calloc(nx*ny*nz*cfg->srcnum,sizeof(float));
                          if(fread((void*)cfg->srcpattern,sizeof(float),nx*ny*nz*cfg->srcnum,fid)!=nx*ny*nz*cfg->srcnum){
 			     fclose(fid);
-			     mcx_error(-2,"srcpattern file size does not match the specified data size",__FILE__,__LINE__);
+			     MCX_ERROR(-2,"srcpattern file size does not match the specified data size");
 			 }
 			 fclose(fid);
                      }
@@ -1235,16 +1672,26 @@ int mcx_loadjson(cJSON *root, Config *cfg){
         if(!flagset['A'])   cfg->autopilot=FIND_JSON_KEY("DoAutoThread","Session.DoAutoThread",Session,cfg->autopilot,valueint);
 	if(!flagset['m'])   cfg->ismomentum=FIND_JSON_KEY("DoDCS","Session.DoDCS",Session,cfg->ismomentum,valueint);
 	if(!flagset['V'])   cfg->isspecular=FIND_JSON_KEY("DoSpecular","Session.DoSpecular",Session,cfg->isspecular,valueint);
-	if(!flagset['D'])   cfg->debuglevel=mcx_parsedebugopt(FIND_JSON_KEY("DebugFlag","Session.DebugFlag",Session,"",valuestring),debugflag);
-	cfg->savedetflag=mcx_parsedebugopt(FIND_JSON_KEY("SaveDataMask","Session.SaveDataMask",Session,"",valuestring),saveflag);
+	if(!flagset['D']){
+	    if(FIND_JSON_KEY("DebugFlag","Session.DebugFlag",Session,"",valuestring))
+	       cfg->debuglevel=mcx_parsedebugopt(FIND_JSON_KEY("DebugFlag","Session.DebugFlag",Session,"",valuestring),debugflag);
+	    else
+	       cfg->debuglevel=FIND_JSON_KEY("DebugFlag","Session.DebugFlag",Session,0,valueint);
+	}
+	if(!flagset['w']){
+	    if(FIND_JSON_KEY("SaveDataMask","Session.SaveDataMask",Session,"DP",valuestring))
+	        cfg->savedetflag=mcx_parsedebugopt(FIND_JSON_KEY("SaveDataMask","Session.SaveDataMask",Session,"DP",valuestring),saveflag);
+	    else
+	        cfg->savedetflag=FIND_JSON_KEY("SaveDataMask","Session.SaveDataMask",Session,5,valueint);
+	}
 
         if(!cfg->outputformat)  cfg->outputformat=mcx_keylookup((char *)FIND_JSON_KEY("OutputFormat","Session.OutputFormat",Session,"mc2",valuestring),outputformat);
         if(cfg->outputformat<0)
-                mcx_error(-2,"the specified output format is not recognized",__FILE__,__LINE__);
+                MCX_ERROR(-2,"the specified output format is not recognized");
 
 	strncpy(val,FIND_JSON_KEY("OutputType","Session.OutputType",Session,outputtype+cfg->outputtype,valuestring),1);
 	if(mcx_lookupindex(val, outputtype)){
-		mcx_error(-2,"the specified output data type is not recognized",__FILE__,__LINE__);
+		MCX_ERROR(-2,"the specified output data type is not recognized");
 	}
 	if(!flagset['O']) cfg->outputtype=val[0];
      }
@@ -1254,7 +1701,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
         cfg->tend  =FIND_JSON_KEY("T1","Forward.T1",Forward,0.0,valuedouble);
         cfg->tstep =FIND_JSON_KEY("Dt","Forward.Dt",Forward,0.0,valuedouble);
 	if(cfg->tstart>cfg->tend || cfg->tstep==0.f)
-            mcx_error(-9,"incorrect time gate settings",__FILE__,__LINE__);
+            MCX_ERROR(-9,"incorrect time gate settings");
 
         gates=(uint)((cfg->tend-cfg->tstart)/cfg->tstep+0.5);
         if(cfg->maxgate==0)
@@ -1264,16 +1711,24 @@ int mcx_loadjson(cJSON *root, Config *cfg){
      }
      if(filename[0]=='\0'){
          if(Shapes){
-             int status;
-             Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
-             if(cfg->issrcfrom0){
-                grid.orig.x=0.f;
-                grid.orig.y=0.f;
-                grid.orig.z=0.f;
-             }
-	     status=mcx_parse_jsonshapes(root, &grid);
-	     if(status){
-	         MCX_ERROR(status,mcx_last_shapeerror());
+	     if(!FIND_JSON_OBJ("_ArraySize_","Volume._ArraySize_",Shapes) && !cfg->shapedata)
+	         cfg->shapedata=cJSON_Print(Shapes);
+	     
+	     if(FIND_JSON_OBJ("_ArrayZipData_","Volume._ArrayZipData_",Shapes)){
+	         int ndim;
+		 char *type=NULL, *buf=NULL;
+	         if(mcx_jdatadecode((void **)&buf, &ndim, &(cfg->dim.x), 3, &type, Shapes,cfg)==0)
+		     mcx_loadvolume(buf,cfg,1);
+		 if(buf)
+		     free(buf);
+	     }else{
+		 int status;
+		 Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
+		 if(cfg->issrcfrom0) memset(&(grid.orig.x),0,sizeof(float3));
+		 status=mcx_parse_jsonshapes(root, &grid);
+		 if(status){
+		     MCX_ERROR(status,mcx_last_shapeerror());
+		 }
 	     }
 	 }else{
 	     MCX_ERROR(-1,"You must either define Domain.VolumeFile, or define a Shapes section");
@@ -1312,34 +1767,192 @@ void mcx_saveconfig(FILE *out, Config *cfg){
 }
 
 /**
+ * @brief Save simulation settings to an inp file
+ *
+ * @param[in] out: handle to the output file
+ * @param[in] cfg: simulation configuration
+ */
+
+void mcx_savejdata(char *filename, Config *cfg){
+     cJSON *root=NULL, *obj=NULL, *sub=NULL, *tmp=NULL;
+     char *jsonstr=NULL;
+     root=cJSON_CreateObject();
+     
+     /* the "Session" section */
+     cJSON_AddItemToObject(root, "Session", obj = cJSON_CreateObject());
+     cJSON_AddStringToObject(obj, "ID", cfg->session);
+     cJSON_AddNumberToObject(obj, "Photons", cfg->nphoton);
+     cJSON_AddNumberToObject(obj, "RNGSeed", (uint)cfg->seed);
+     if(cfg->isreflect>1)
+         cJSON_AddNumberToObject(obj, "DoMismatch", cfg->isreflect);
+     else
+         cJSON_AddBoolToObject(obj, "DoMismatch", cfg->isreflect);
+     cJSON_AddBoolToObject(obj, "DoSaveVolume", cfg->issave2pt);
+     if(cfg->isreflect>1)
+         cJSON_AddNumberToObject(obj, "DoNormalize", cfg->isnormalized);
+     else
+         cJSON_AddBoolToObject(obj, "DoNormalize", cfg->isnormalized);
+     cJSON_AddBoolToObject(obj, "DoPartialPath", cfg->issavedet);
+     if(cfg->issaveref)
+         cJSON_AddNumberToObject(obj, "DoSaveRef", cfg->issaveref);
+     else
+         cJSON_AddBoolToObject(obj, "DoSaveRef", cfg->issaveref);
+     cJSON_AddBoolToObject(obj, "DoSaveExit", cfg->issaveexit);
+     cJSON_AddBoolToObject(obj, "DoSaveSeed", cfg->issaveseed);
+     cJSON_AddBoolToObject(obj, "DoAutoThread", cfg->autopilot);
+     cJSON_AddBoolToObject(obj, "DoDCS", cfg->ismomentum);
+     cJSON_AddBoolToObject(obj, "DoSpecular", cfg->isspecular);
+     if(cfg->rootpath[0]!='\0')
+         cJSON_AddStringToObject(obj, "RootPath", cfg->rootpath);
+
+     cJSON_AddNumberToObject(obj, "DebugFlag", cfg->debuglevel);
+     cJSON_AddNumberToObject(obj, "SaveDataMask", cfg->savedetflag);
+     if(cfg->outputformat>=0)
+	cJSON_AddStringToObject(obj, "OutputFormat", outputformat[(int)cfg->outputformat]);
+     if(cfg->outputtype>=0){
+        char outputtypestr[2]={'\0'};
+	outputtypestr[0]=outputtype[(int)cfg->outputtype];
+	cJSON_AddStringToObject(obj, "OutputType", outputtypestr);
+     }
+
+     /* the "Forward" section */
+     cJSON_AddItemToObject(root, "Forward", obj = cJSON_CreateObject());
+     cJSON_AddNumberToObject(obj, "T0", cfg->tstart);
+     cJSON_AddNumberToObject(obj, "T1", cfg->tend);
+     cJSON_AddNumberToObject(obj, "Dt", cfg->tstep);
+     
+     /* the "Domain" section */
+     cJSON_AddItemToObject(root, "Domain", obj = cJSON_CreateObject());
+     for(int i=0;i<sizeof(mediaformatid)/sizeof(int);i++){
+	 if(cfg->mediabyte==mediaformatid[i]){
+	     cJSON_AddStringToObject(obj, "MediaFormat", mediaformat[i]);
+	     break;
+	 }
+     }
+     cJSON_AddNumberToObject(obj, "LengthUnit", cfg->unitinmm);
+     cJSON_AddItemToObject(obj, "Media", sub = cJSON_CreateArray());
+     for(int i=0;i<cfg->medianum;i++){
+	 cJSON_AddItemToArray(sub,tmp=cJSON_CreateObject());
+	 cJSON_AddNumberToObject(tmp, "mua", cfg->prop[i].mua/cfg->unitinmm);
+	 cJSON_AddNumberToObject(tmp, "mus", cfg->prop[i].mus/cfg->unitinmm);
+	 cJSON_AddNumberToObject(tmp, "g",   cfg->prop[i].g);
+	 cJSON_AddNumberToObject(tmp, "n",   cfg->prop[i].n);
+     }
+     cJSON_AddItemToObject(obj, "Dim", cJSON_CreateIntArray((int *)&(cfg->dim.x),3));
+     cJSON_AddNumberToObject(obj, "OriginType", 1);
+     
+     /* the "Optode" section */
+     cJSON_AddItemToObject(root, "Optode", obj = cJSON_CreateObject());
+     cJSON_AddItemToObject(obj, "Source", sub = cJSON_CreateObject());
+     if(cfg->srctype>=0)
+	 cJSON_AddStringToObject(sub, "Type", srctypeid[(int)cfg->srctype]);
+
+     cJSON_AddItemToObject(sub, "Pos", cJSON_CreateFloatArray(&(cfg->srcpos.x),3));
+     cJSON_AddItemToObject(sub, "Dir", cJSON_CreateFloatArray(&(cfg->srcdir.x),4));
+     cJSON_AddItemToObject(sub, "Param1", cJSON_CreateFloatArray(&(cfg->srcparam1.x),4));
+     cJSON_AddItemToObject(sub, "Param2", cJSON_CreateFloatArray(&(cfg->srcparam2.x),4));
+     cJSON_AddNumberToObject(sub, "SrcNum", cfg->srcnum);
+
+     cJSON_AddItemToObject(obj, "Detector", sub = cJSON_CreateArray());
+     for(int i=0;i<cfg->detnum;i++){
+	 cJSON_AddItemToArray(sub, tmp = cJSON_CreateObject());
+	 cJSON_AddItemToObject(tmp, "Pos", cJSON_CreateFloatArray(&(cfg->detpos[i].x),3));
+         cJSON_AddNumberToObject(tmp, "R", cfg->detpos[i].w);
+     }
+
+     /* save "Shapes" constructs, prioritize over saving volume for smaller size */
+     if(cfg->shapedata){
+	 cJSON *shape=cJSON_Parse(cfg->shapedata), *sp;
+	 if(shape==NULL)
+		MCX_ERROR(-1,"the input shape construct is not a valid JSON object");
+	 sp=FIND_JSON_OBJ("Shapes","Shapes",shape);
+	 if(sp==NULL)
+		sp=shape;
+         cJSON_AddItemToObject(root, "Shapes", sp);
+     }else{ /* if shape info is not available, save volume to JData constructs */
+         uint datalen=cfg->dim.x*cfg->dim.y*cfg->dim.z;
+	 size_t outputbytes=datalen*sizeof(int);
+	 unsigned char *buf=(unsigned char *)calloc(datalen,sizeof(int));
+	 uint  *vol;
+         int ret=0;
+
+	 /*converting volume to the minimal size*/
+	 memcpy(buf,cfg->vol,datalen*sizeof(int));
+	 mcx_convertcol2row((uint **)(&buf),(uint3 *)&cfg->dim);
+         vol=(uint *)buf;
+
+	 if(cfg->mediabyte==1){
+	    outputbytes=datalen;
+	    for(int i=0;i<datalen;i++)
+	       buf[i]=vol[i] & 0xFF;
+	 }else if(cfg->mediabyte==2){
+	    unsigned short *p=(unsigned short *)buf;
+	    outputbytes=datalen*sizeof(short);
+	    for(int i=0;i<datalen;i++)
+	       p[i]=vol[i] & 0xFFFF;
+	 }else{
+	    for(int i=0;i<datalen;i++)
+	       vol[i]=vol[i] & MED_MASK;
+	 }
+
+	 obj = cJSON_CreateObject();
+	 ret=mcx_jdataencode(buf,3,&cfg->dim.x,(cfg->mediabyte==1 ? "uint8" : (cfg->mediabyte==2 ? "uint16" : "uint32")),
+	     outputbytes/datalen, cfg->zipid, obj, 0, cfg);
+         if(buf)
+             free(buf);
+
+	 if(ret)
+	     MCX_ERROR(ret,"data compression or base64 encoding failed");
+	 else
+	     cJSON_AddItemToObject(root, "Shapes", obj);
+     }
+
+     /* now save JSON to file */
+     jsonstr=cJSON_Print(root);
+     if(jsonstr==NULL)
+         MCX_ERROR(-1,"error when converting to JSON");
+
+     if(!strcmp(filename,"-"))
+         fprintf(cfg->flog, "%s\n",jsonstr);
+     else{
+	 FILE *fp=fopen(filename,"wt");
+	 if(fp==NULL)
+	     MCX_ERROR(-1,"error opening file to write");
+	 fprintf(fp,"%s\n",jsonstr);
+	 fclose(fp);
+     }
+     if(jsonstr)
+         free(jsonstr);
+     if(root)
+         cJSON_Delete(root);     
+}
+
+/**
  * @brief Load media index data volume (.bin or .vol) to the memory
  *
  * @param[in] filename: file name to the binary volume data (support 1,2 and 4 bytes per voxel)
  * @param[in] cfg: simulation configuration
  */
 
-void mcx_loadvolume(char *filename,Config *cfg){
+void mcx_loadvolume(char *filename,Config *cfg,int isbuf){
      unsigned int i,datalen,res;
      unsigned char *inputvol=NULL;
      FILE *fp;
-     
-     if(strstr(filename,".json")!=NULL){
-         int status;
-         Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
-	 if(cfg->issrcfrom0){
-                grid.orig.x=0.f;
-                grid.orig.y=0.f;
-                grid.orig.z=0.f;
-         }
-         status=mcx_load_jsonshapes(&grid,filename);
-	 if(status){
-	     MCX_ERROR(status,mcx_last_shapeerror());
+     if(!isbuf){
+	 if(strstr(filename,".json")!=NULL){
+	     int status;
+	     Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
+	     if(cfg->issrcfrom0) memset(&(grid.orig.x),0,sizeof(float3));
+	     status=mcx_load_jsonshapes(&grid,filename);
+	     if(status){
+		 MCX_ERROR(status,mcx_last_shapeerror());
+	     }
+	     return;
 	 }
-	 return;
-     }
-     fp=fopen(filename,"rb");
-     if(fp==NULL){
-     	     mcx_error(-5,"the specified binary volume file does not exist",__FILE__,__LINE__);
+	 fp=fopen(filename,"rb");
+	 if(fp==NULL){
+		 MCX_ERROR(-5,"the specified binary volume file does not exist");
+	 }
      }
      if(cfg->vol){
      	     free(cfg->vol);
@@ -1347,17 +1960,21 @@ void mcx_loadvolume(char *filename,Config *cfg){
      }
      datalen=cfg->dim.x*cfg->dim.y*cfg->dim.z;
      cfg->vol=(unsigned int*)malloc(sizeof(unsigned int)*datalen);
-     if(cfg->mediabyte==MEDIA_AS_F2H)
-         inputvol=(unsigned char*)malloc(sizeof(unsigned char)*(datalen<<3));
-     else if(cfg->mediabyte>=4)
-         inputvol=(unsigned char*)(cfg->vol);
-     else
-         inputvol=(unsigned char*)malloc(sizeof(unsigned char)*cfg->mediabyte*datalen);
-     res=fread(inputvol,sizeof(unsigned char)*(cfg->mediabyte==MEDIA_AS_F2H? 8 : MIN(cfg->mediabyte,4)),datalen,fp);
-     fclose(fp);
-     if(res!=datalen){
-     	 mcx_error(-6,"file size does not match specified dimensions",__FILE__,__LINE__);
-     }
+     if(!isbuf){
+	 if(cfg->mediabyte==MEDIA_AS_F2H)
+	     inputvol=(unsigned char*)malloc(sizeof(unsigned char)*(datalen<<3));
+	 else if(cfg->mediabyte>=4)
+	     inputvol=(unsigned char*)(cfg->vol);
+	 else
+	     inputvol=(unsigned char*)malloc(sizeof(unsigned char)*cfg->mediabyte*datalen);
+	 res=fread(inputvol,sizeof(unsigned char)*(cfg->mediabyte==MEDIA_AS_F2H? 8 : MIN(cfg->mediabyte,4)),datalen,fp);
+	 fclose(fp);
+	 if(res!=datalen){
+	     MCX_ERROR(-6,"file size does not match specified dimensions");
+	 }
+     }else
+         inputvol=(unsigned char *)filename;
+
      if(cfg->mediabyte==1){  /*convert all format into 4-byte int index*/
        unsigned char *val=inputvol;
        for(i=0;i<datalen;i++)
@@ -1406,9 +2023,9 @@ void mcx_loadvolume(char *filename,Config *cfg){
      if(cfg->mediabyte<=4)
        for(i=0;i<datalen;i++){
          if(cfg->vol[i]>=cfg->medianum)
-            mcx_error(-6,"medium index exceeds the specified medium types",__FILE__,__LINE__);
+            MCX_ERROR(-6,"medium index exceeds the specified medium types");
      }
-     if(cfg->mediabyte<4 || cfg->mediabyte==MEDIA_AS_F2H)
+     if(!isbuf && (cfg->mediabyte<4 || cfg->mediabyte==MEDIA_AS_F2H))
          free(inputvol);
 }
 
@@ -1422,21 +2039,21 @@ void mcx_loadseedfile(Config *cfg){
     History his;
     FILE *fp=fopen(cfg->seedfile,"rb");
     if(fp==NULL)
-        mcx_error(-7,"can not open the specified history file",__FILE__,__LINE__);
+        MCX_ERROR(-7,"can not open the specified history file");
     if(fread(&his,sizeof(History),1,fp)!=1)
-        mcx_error(-7,"error when reading the history file",__FILE__,__LINE__);
+        MCX_ERROR(-7,"error when reading the history file");
     if(his.savedphoton==0 || his.seedbyte==0){
-	mcx_error(-7,"history file does not contain seed data, please re-run your simulation with '-q 1'",__FILE__,__LINE__);
+	MCX_ERROR(-7,"history file does not contain seed data, please re-run your simulation with '-q 1'");
     }
     if(his.maxmedia!=cfg->medianum-1)
-        mcx_error(-7,"the history file was generated with a different media setting",__FILE__,__LINE__);
+        MCX_ERROR(-7,"the history file was generated with a different media setting");
     if(fseek(fp,his.savedphoton*his.colcount*sizeof(float),SEEK_CUR))
-        mcx_error(-7,"illegal history file",__FILE__,__LINE__);
+        MCX_ERROR(-7,"illegal history file");
     cfg->replay.seed=malloc(his.savedphoton*his.seedbyte);
     if(cfg->replay.seed==NULL)
-        mcx_error(-7,"can not allocate memory",__FILE__,__LINE__);
+        MCX_ERROR(-7,"can not allocate memory");
     if(fread(cfg->replay.seed,his.seedbyte,his.savedphoton,fp)!=his.savedphoton)
-        mcx_error(-7,"error when reading the seed data",__FILE__,__LINE__);
+        MCX_ERROR(-7,"error when reading the seed data");
     cfg->seed=SEED_FROM_FILE;
     cfg->nphoton=his.savedphoton;
 
@@ -1447,7 +2064,7 @@ void mcx_loadseedfile(Config *cfg){
        offset=SAVE_NSCAT(his.savedetflag)*his.maxmedia;
 
        if(((!hasdetid) && cfg->detnum>1) || !SAVE_PPATH(his.savedetflag))
-           mcx_error(-7,"please rerun the baseline simulation and save detector ID (D) and partial-path (P) using '-w DP'",__FILE__,__LINE__);
+           MCX_ERROR(-7,"please rerun the baseline simulation and save detector ID (D) and partial-path (P) using '-w DP'");
 
        ppath=(float*)malloc(his.savedphoton*his.colcount*sizeof(float));
        cfg->replay.weight=(float*)malloc(his.savedphoton*sizeof(float));
@@ -1455,7 +2072,7 @@ void mcx_loadseedfile(Config *cfg){
        cfg->replay.detid=(int*)calloc(his.savedphoton,sizeof(int));
        fseek(fp,sizeof(his),SEEK_SET);
        if(fread(ppath,his.colcount*sizeof(float),his.savedphoton,fp)!=his.savedphoton)
-           mcx_error(-7,"error when reading the seed data",__FILE__,__LINE__);
+           MCX_ERROR(-7,"error when reading the seed data");
 
        cfg->nphoton=0;
        for(i=0;i<his.savedphoton;i++)
@@ -1483,6 +2100,13 @@ void mcx_loadseedfile(Config *cfg){
     fclose(fp);
 }
 
+/**
+ * @brief Convert a row-major (C/C++) array to a column-major (MATLAB/FORTRAN) array
+ *
+ * @param[in,out] vol: a 3D array (wrapped in 1D) to be converted
+ * @param[in] dim: the dimensions of the 3D array
+ */
+
 void  mcx_convertrow2col(unsigned int **vol, uint4 *dim){
      uint x,y,z;
      unsigned int dimxy,dimyz;
@@ -1497,8 +2121,65 @@ void  mcx_convertrow2col(unsigned int **vol, uint4 *dim){
      for(x=0;x<dim->x;x++)
       for(y=0;y<dim->y;y++)
        for(z=0;z<dim->z;z++){
-                newvol[z*dimxy+y*dim->x+x]=*vol[x*dimyz+y*dim->z+z];
+                newvol[z*dimxy+y*dim->x+x]=(*vol)[x*dimyz+y*dim->z+z];
        }
+     free(*vol);
+     *vol=newvol;
+}
+
+/**
+ * @brief Convert a column-major (MATLAB/FORTRAN) array to a row-major (C/C++) array
+ *
+ * @param[in,out] vol: a 3D array (wrapped in 1D) to be converted
+ * @param[in] dim: the dimensions of the 3D array
+ */
+
+void  mcx_convertcol2row(unsigned int **vol, uint3 *dim){
+     uint x,y,z;
+     unsigned int dimxy,dimyz;
+     unsigned int *newvol=NULL;
+
+     if(*vol==NULL || dim->x==0 || dim->y==0 || dim->z==0){
+     	return;
+     }
+     newvol=(unsigned int*)malloc(sizeof(unsigned int)*dim->x*dim->y*dim->z);
+     dimxy=dim->x*dim->y;
+     dimyz=dim->y*dim->z;
+     for(z=0;z<dim->z;z++)
+      for(y=0;y<dim->y;y++)
+       for(x=0;x<dim->x;x++){
+       		newvol[x*dimyz+y*dim->z+z]=(*vol)[z*dimxy+y*dim->x+x];
+       }
+     free(*vol);
+     *vol=newvol;
+}
+
+/**
+ * @brief Convert a column-major (MATLAB/FORTRAN) array to a row-major (C/C++) array
+ *
+ * @param[in,out] vol: a 3D array (wrapped in 1D) to be converted
+ * @param[in] dim: the dimensions of the 3D array
+ */
+
+void  mcx_convertcol2row4d(unsigned int **vol, uint4 *dim){
+     uint x,y,z,w;
+     unsigned int dimxyz, dimyzw, dimxy, dimzw;
+     unsigned int *newvol=NULL;
+
+     if(*vol==NULL || dim->x==0 || dim->y==0 || dim->z==0 || dim->w==0){
+     	return;
+     }
+     newvol=(unsigned int*)malloc(sizeof(unsigned int)*dim->x*dim->y*dim->z*dim->w);
+     dimxyz=dim->x*dim->y*dim->z;
+     dimyzw=dim->y*dim->z*dim->w;
+     dimxy=dim->x*dim->y;
+     dimzw=dim->z*dim->w;
+     for(w=0;w<dim->w;w++)
+       for(z=0;z<dim->z;z++)
+         for(y=0;y<dim->y;y++)
+           for(x=0;x<dim->x;x++){
+       		newvol[x*dimyzw+y*dimzw+z*dim->w+w]=(*vol)[w*dimxyz+z*dimxy+y*dim->x+x];
+           }
      free(*vol);
      *vol=newvol;
 }
@@ -1577,27 +2258,178 @@ void  mcx_maskdet(Config *cfg){
      free(padvol);
 }
 
-void mcx_dumpmask(Config *cfg){
-     /**
-         To test the results, you should use -M to dump the det-mask, load 
-	 it in matlab, and plot the interface containing the detector with
-	 pcolor() (has the matching index), and then draw a circle with the
-	 radius and center set in the input file. the pixels should completely
-	 cover the circle.
-     */
+/**
+ * @brief Save the pre-masked volume (with detector ID) to an nii file
+ *
+ * To test the results, you should use -M to dump the det-mask, load 
+ * it in matlab, and plot the interface containing the detector with
+ * pcolor() (has the matching index), and then draw a circle with the
+ * radius and center set in the input file. the pixels should completely
+ * cover the circle.
+ *
+ * @param[in] cfg: simulation configuration
+ */
 
+void mcx_dumpmask(Config *cfg){
      char fname[MAX_FULL_PATH];
      if(cfg->rootpath[0])
          sprintf(fname,"%s%c%s_vol",cfg->rootpath,pathsep,cfg->session);
      else
          sprintf(fname,"%s_vol",cfg->session);
-
-     mcx_savenii((float *)cfg->vol, cfg->dim.x*cfg->dim.y*cfg->dim.z, fname, NIFTI_TYPE_UINT32, ofNifti, cfg);
-     if(cfg->isdumpmask==1){ /*if dumpmask>1, simulation will also run*/
-         MCX_FPRINTF(cfg->flog,"volume mask is saved as uint16 format in %s",fname);
+     if(cfg->outputformat==ofJNifti || cfg->outputformat==ofBJNifti){
+         uint dims[]={cfg->dim.x,cfg->dim.y,cfg->dim.z};
+	 size_t datalen=sizeof(uint)*cfg->dim.x*cfg->dim.y*cfg->dim.z;
+         float voxelsize[]={cfg->steps.x,cfg->steps.y,cfg->steps.z};
+	 uint *buf=malloc(datalen);
+	 memcpy(buf,cfg->vol,datalen);
+	 mcx_convertcol2row((uint **)(&buf), (uint3 *)dims);
+	 if(cfg->outputformat==ofJNifti)
+             mcx_savejnii((float *)buf, 3, dims, voxelsize, fname, 0, cfg);
+	 else
+	     mcx_savebnii((float *)buf, 3, dims, voxelsize, fname, 0, cfg);
+	 free(buf);
+     }else
+         mcx_savenii((float *)cfg->vol, cfg->dim.x*cfg->dim.y*cfg->dim.z, fname, NIFTI_TYPE_UINT32, ofNifti, cfg);
+     if(cfg->isdumpmask==1 && cfg->isdumpjson==0){ /*if dumpmask>1, simulation will also run*/
+         MCX_FPRINTF(cfg->flog,"volume mask is saved in %s\n",fname);
          exit(0);
      }
 }
+
+
+/**
+ * @brief Decode an ND array from JSON/JData construct and output to a volumetric array
+ *
+ * The JData specification defines a portable way to encode and share volumetric
+ * ND arrays and other complex data structures, such as trees, graphs and tables.
+ * This function is capable of importing any ND numerical arrays in the JData
+ * construct in to a generic array, permitting data decompression and base64 decoding.
+ *
+ * @param[in] vol: a pointer that points to the ND array buffer
+ * @param[in] ndim: the number of dimensions
+ * @param[in] dims: an integer pointer that points to the dimensional vector
+ * @param[in] type: a string of JData data types, such as "uint8" "float32", "int32" etc
+ * @param[in] byte: number of byte per voxel
+ * @param[in] zipid: zip method: 0:zlib,1:gzip,2:base64,3:lzma,4:lzip,5:lz4,6:lz4hc
+ * @param[in] obj: a pre-created cJSON object to store the output JData fields
+ */
+
+int  mcx_jdatadecode(void **vol, int *ndim, uint *dims, int maxdim, char **type, cJSON *obj, Config *cfg){
+     int ret=0;
+     cJSON * ztype=NULL;
+     cJSON * vsize=cJSON_GetObjectItem(obj,"_ArraySize_");
+     cJSON * vtype=cJSON_GetObjectItem(obj,"_ArrayType_");
+     cJSON * vdata=cJSON_GetObjectItem(obj,"_ArrayData_");
+     if(!vdata){
+         ztype=cJSON_GetObjectItem(obj,"_ArrayZipType_");
+         vdata=cJSON_GetObjectItem(obj,"_ArrayZipData_");
+     }
+     if(vtype){
+         *type=vtype->valuestring;
+         cfg->mediabyte=4;
+	 if(strstr(*type,"int8"))
+	     cfg->mediabyte=1;
+	 else if(strstr(*type,"int16"))
+	     cfg->mediabyte=2;
+	 else if(strstr(*type,"double") || strstr(*type,"int64"))
+	     MCX_ERROR(-1,"8-byte volume array is not supported");
+     }
+     if(vdata){
+         if(vsize){
+	     cJSON *tmp=vsize->child;
+             *ndim=cJSON_GetArraySize(vsize);
+	     for(int i=0;i<MIN(maxdim,*ndim);i++){
+		 dims[i]=tmp->valueint;
+		 tmp=tmp->next;
+	     }
+	 }
+         if(ztype){
+	     size_t len, newlen;
+	     int status=0;
+	     char *buf=NULL;
+	     int zipid=mcx_keylookup((char *)(ztype->valuestring),zipformat);
+	     ret=zmat_decode(strlen(vdata->valuestring), (unsigned char *)vdata->valuestring, &len, (unsigned char **)&buf, zmBase64, &status);
+	     if(!ret && vsize){
+                if(*vol)
+                   free(*vol);
+	         ret=zmat_decode(len, (unsigned char *)buf, &newlen, (unsigned char **)(vol), zipid, &status);
+	     }
+	     if(buf)
+	         free(buf);
+	     cfg->isrowmajor=1;
+	 }else
+	     MCX_ERROR(-1,"Only compressed JData array constructs are supported");
+     }else
+         MCX_ERROR(-1,"No _ArrayZipData_ field is found");
+     return ret;
+}
+
+/**
+ * @brief Export an ND volumetric image to JSON/JData encoded construct
+ *
+ * The JData specification defines a portable way to encode and share volumetric
+ * ND arrays and other complex data structures, such as trees, graphs and tables.
+ * This function is capable of exporting any ND numerical arrays into a JData
+ * construct, permitting data compression and base64 encoding.
+ *
+ * @param[in] vol: a pointer that points to the ND array buffer
+ * @param[in] ndim: the number of dimensions
+ * @param[in] dims: an integer pointer that points to the dimensional vector
+ * @param[in] type: a string of JData data types, such as "uint8" "float32", "int32" etc
+ * @param[in] byte: number of byte per voxel
+ * @param[in] zipid: zip method: 0:zlib,1:gzip,2:base64,3:lzma,4:lzip,5:lz4,6:lz4hc
+ * @param[in] obj: a pre-created cJSON object to store the output JData fields
+ */
+ 
+int  mcx_jdataencode(void *vol, int ndim, uint *dims, char *type, int byte, int zipid, void *obj, int isubj, Config *cfg){
+     uint datalen=1;
+     size_t compressedbytes, totalbytes;
+     unsigned char *compressed=NULL, *buf=NULL;
+     int ret=0, status=0;
+
+     for(int i=0;i<ndim;i++)
+         datalen*=dims[i];
+     totalbytes=datalen*byte;
+
+     if(!cfg->isdumpjson)
+        MCX_FPRINTF(stdout,"compressing data [%s] ...", zipformat[zipid]);
+
+     /*compress data using zlib*/
+     ret=zmat_encode(totalbytes, (unsigned char *)vol, &compressedbytes, (unsigned char **)&compressed, zipid, &status);
+     if(!ret){
+         if(!cfg->isdumpjson)
+             MCX_FPRINTF(stdout,"compression ratio: %.1f%%\t",compressedbytes*100.f/totalbytes);
+	 if(isubj){
+	      ubjw_context_t *item=(ubjw_context_t *)obj;
+	      UBJ_WRITE_KEY(item, "_ArrayType_", string, type);
+	      ubjw_write_key(item,"_ArraySize_");
+	      UBJ_WRITE_ARRAY(item, uint32, ndim, dims);
+	      UBJ_WRITE_KEY(item, "_ArrayZipType_", string, zipformat[zipid]);
+	      UBJ_WRITE_KEY(item, "_ArrayZipSize_", uint32, datalen);
+	      ubjw_write_key(item,"_ArrayZipData_");
+              ubjw_write_buffer(item,compressed,UBJ_UINT8,compressedbytes);
+         }else{
+	     totalbytes=0;
+	     /*encode data using base64*/
+	     ret=zmat_encode(compressedbytes, compressed, &totalbytes, (unsigned char **)&buf, zmBase64, &status);
+	     if(!cfg->isdumpjson)
+		 MCX_FPRINTF(stdout,"after encoding: %.1f%%\n",totalbytes*100.f/(datalen*byte));
+	     if(!ret){
+		 cJSON_AddStringToObject((cJSON*)obj, "_ArrayType_", type);
+		 cJSON_AddItemToObject((cJSON*)obj,   "_ArraySize_", cJSON_CreateIntArray((int *)dims,ndim));
+		 cJSON_AddStringToObject((cJSON*)obj, "_ArrayZipType_", zipformat[zipid]);
+		 cJSON_AddNumberToObject((cJSON*)obj, "_ArrayZipSize_", datalen);
+		 cJSON_AddStringToObject((cJSON*)obj, "_ArrayZipData_", (char *)buf);
+	     }
+	 }
+     }
+     if(compressed)
+         free(compressed);
+     if(buf)
+         free(buf);
+     return ret;
+}
+
 
 /**
  * @brief Print a progress bar
@@ -1686,7 +2518,7 @@ int mcx_readarg(int argc, char *argv[], int id, void *output,const char *type){
 	     }
 	 }
      }else{
-     	 mcx_error(-1,"incomplete input",__FILE__,__LINE__);
+     	 MCX_ERROR(-1,"incomplete input");
      }
      return id+1;
 }
@@ -1704,7 +2536,7 @@ int mcx_remap(char *opt){
     return 1;
 }
 void mcx_parsecmd(int argc, char* argv[], Config *cfg){
-     int i=1,isinteractive=1,issavelog=0,showkernel=0;
+     int i=1,isinteractive=1,issavelog=0,showkernel=0, len;
      char filename[MAX_PATH_LENGTH]={0}, *jsoninput=NULL;
      char logfile[MAX_PATH_LENGTH]={0};
      float np=0.f;
@@ -1730,7 +2562,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 				exit(0);
 		     case 'i':
 				if(filename[0]){
-					mcx_error(-2,"you can not specify both interactive mode and config file",__FILE__,__LINE__);
+					MCX_ERROR(-2,"you can not specify both interactive mode and config file");
 				}
 		     		isinteractive=1;
 				break;
@@ -1837,9 +2669,9 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                                 break;
 		     case 'F':
                                 if(i>=argc)
-                                        mcx_error(-1,"incomplete input",__FILE__,__LINE__);
+                                        MCX_ERROR(-1,"incomplete input");
                                 if((cfg->outputformat=mcx_keylookup(argv[++i], outputformat))<0)
-                                        mcx_error(-2,"the specified output data type is not recognized",__FILE__,__LINE__);
+                                        MCX_ERROR(-2,"the specified output data type is not recognized");
                                 break;
 		     case 'x':
  		                i=mcx_readarg(argc,argv,i,&(cfg->issaveexit),"char");
@@ -1848,6 +2680,12 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     case 'X':
  		                i=mcx_readarg(argc,argv,i,&(cfg->issaveref),"char");
  				if (cfg->issaveref) cfg->issaveref=1;
+ 				break;
+		     case 'Z':
+			        if(i+1<argc && isalpha(argv[i+1][0]) ){
+				    cfg->zipid=mcx_keylookup(argv[++i],zipformat);
+			        }else
+				    i=mcx_readarg(argc,argv,i,&(cfg->zipid),"int");
  				break;
 		     case 'w':
 			        if(i+1<argc && isalpha((int)argv[i+1][0]) ){
@@ -1866,7 +2704,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                                     if(gpuid>0 && gpuid<MAX_DEVICE)
                                          cfg->deviceid[gpuid-1]='1';
                                     else
-                                         mcx_error(-2,"GPU id can not be more than 256",__FILE__,__LINE__);
+                                         MCX_ERROR(-2,"GPU id can not be more than 256");
                                     break;
                                 }
                      case 'W':
@@ -1885,12 +2723,16 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->maxdetphoton),"int");
 		     	        break;
                      case 'P':
-                                cfg->shapedata=argv[++i];
+		                len=strlen(argv[i]);
+                                if(cfg->shapedata)
+				    free(cfg->shapedata);
+				cfg->shapedata=(char *)malloc(len);
+				memcpy(cfg->shapedata,argv[++i],len);
                                 break;
                      case 'E':
 				if(i<argc-1 && strstr(argv[i+1],".mch")!=NULL){ /*give an mch file to initialize the seed*/
 #if defined(USE_LL5_RAND)
-					mcx_error(-1,"seeding file is not supported in this binary",__FILE__,__LINE__);
+					MCX_ERROR(-1,"seeding file is not supported in this binary");
 #else
                                         i=mcx_readarg(argc,argv,i,cfg->seedfile,"string");
 					cfg->seed=SEED_FROM_FILE;
@@ -1901,7 +2743,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                      case 'O':
                                 i=mcx_readarg(argc,argv,i,&(cfg->outputtype),"string");
 				if(mcx_lookupindex(&(cfg->outputtype), outputtype)){
-                                        mcx_error(-2,"the specified output data type is not recognized",__FILE__,__LINE__);
+                                        MCX_ERROR(-2,"the specified output data type is not recognized");
                                 }
                                 break;
 		     case 'K':
@@ -1932,7 +2774,31 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                                      i=mcx_readarg(argc,argv,i,&showkernel,"char");
                                 else if(strcmp(argv[i]+2,"internalsrc")==0)
 		                     i=mcx_readarg(argc,argv,i,&(cfg->internalsrc),"int");
-                                else
+                                else if(strcmp(argv[i]+2,"dumpjson")==0){
+				     cfg->jsonfile[0]='-';
+				     if(i+1>=argc){
+				         cfg->isdumpjson=1;
+					 i++;
+				     }else if(i+1<argc && (isalpha(argv[i+1][0]) || argv[i+1][0]=='-')){
+				         cfg->isdumpjson=1;
+				         memcpy(cfg->jsonfile,argv[i+1],MIN(strlen(argv[i+1]),MAX_PATH_LENGTH));
+					 i++;
+			             }else
+				         i=mcx_readarg(argc,argv,i,&(cfg->isdumpjson),"int");
+                                }else if(strcmp(argv[i]+2,"bench")==0){
+                                     if(i+1<argc && isalpha(argv[i+1][0]) ){
+				         int idx=mcx_keylookup(argv[++i],benchname);
+					 if(idx==-1)
+					     MCX_ERROR(-1,"Unsupported bechmark.");
+					 isinteractive=0;
+					 jsoninput=(char *)benchjson[idx];
+			             }else{
+				         MCX_FPRINTF(cfg->flog,"Built-in benchmarks:\n");
+				         for(int i=0;i<sizeof(benchname)/sizeof(char*)-1;i++)
+					     MCX_FPRINTF(cfg->flog,"\t%s\n",benchname[i]);
+				         exit(0);
+				     }
+                                }else
                                      MCX_FPRINTF(cfg->flog,"unknown verbose option: --%s\n",argv[i]+2);
 		     	        break;
 		}
@@ -1951,7 +2817,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
      	  FILE *fp=fopen(cfg->kernelfile,"rb");
 	  int srclen;
 	  if(fp==NULL){
-	  	mcx_error(-10,"the specified OpenCL kernel file does not exist!",__FILE__,__LINE__);
+	  	MCX_ERROR(-10,"the specified OpenCL kernel file does not exist!");
 	  }
 	  fseek(fp,0,SEEK_END);
 	  srclen=ftell(fp);
@@ -2067,6 +2933,8 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 \n"S_BOLD S_CYAN"\
 == Required option ==\n"S_RESET"\
  -f config     (--input)       read an input file in .json or .inp format\n\
+ --bench ['cube60','skinvessel',..] run a buint-in benchmark specified by name\n\
+                               run --bench without parameter to get a list\n\
 \n"S_BOLD S_CYAN"\
 == MC options ==\n"S_RESET"\
  -n [0|int]    (--photon)      total photon number (exponential form accepted)\n\
@@ -2128,6 +2996,9 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 \n"S_BOLD S_CYAN"\
 == Output options ==\n"S_RESET"\
  -s sessionid  (--session)     a string to label all output file names\n\
+ -O [X|XFEJP]  (--outputtype)  X - output flux, F - fluence, E - energy density\n\
+                               J - Jacobian (replay mode),   P - scattering\n\
+                               event counts at each voxel (replay mode only)\n\
  -d [1|0]      (--savedet)     1 to save photon info at detectors; 0 not save\n\
  -w [DP|DSPMXVW](--savedetflag)a string controlling detected photon data fields\n\
     /case insensitive/         1 D  output detector ID (1)\n\
@@ -2153,12 +3024,34 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -S [1|0]      (--save2pt)     1 to save the flux field; 0 do not save\n\
  -F [mc2|...] (--outputformat) fluence data output format:\n\
                                mc2 - MCX mc2 format (binary 32bit float)\n\
-                               nii - Nifti format\n\
+                               jnii - JNIfTI format (http://openjdata.org)\n\
+                               bnii - Binary JNIfTI (http://openjdata.org)\n\
+                               nii - NIfTI format\n\
                                hdr - Analyze 7.5 hdr/img format\n\
                                tx3 - GL texture data for rendering (GL_RGBA32F)\n\
- -O [X|XFEJP]  (--outputtype)  X - output flux, F - fluence, E - energy deposit\n\
-                               J - Jacobian (replay mode),   P - scattering\n\
-                               event counts at each voxel (replay mode only)\n\
+	the bnii/jnii formats support compression (-Z) and generate small files\n\
+	load jnii (JSON) and bnii (UBJSON) files using below lightweight libs:\n\
+	  MATLAB/Octave: JNIfTI toolbox   https://github.com/fangq/jnifti, \n\
+	  MATLAB/Octave: JSONLab toolbox  https://github.com/fangq/jsonlab, \n\
+	  Python:        PyJData:         https://pypi.org/project/jdata\n\
+	  JavaScript:    JSData:          https://github.com/fangq/jsdata\n\
+ -Z [zlib|...] (--zip)         set compression method if -F jnii or --dumpjson\n\
+                               is used (when saving data to JSON/JNIfTI format)\n\
+			       0 zlib: zip format (moderate compression,fast) \n\
+			       1 gzip: gzip format (compatible with *.gz)\n\
+			       2 base64: base64 encoding with no compression\n\
+			       3 lzip: lzip format (high compression,very slow)\n\
+			       4 lzma: lzma format (high compression,very slow)\n\
+			       5 lz4: LZ4 format (low compression,extrem. fast)\n\
+			       6 lz4hc: LZ4HC format (moderate compression,fast)\n\
+ --dumpjson [-,2,'file.json']  export all settings, including volume data using\n\
+                               JSON/JData (http://openjdata.org) format for \n\
+			       easy sharing; can be reused using -f\n\
+			       if followed by nothing or '-', mcx will print\n\
+			       the JSON to the console; write to a file if file\n\
+			       name is specified; by default, prints settings\n\
+			       after pre-processing; '--dumpjson 2' prints \n\
+			       raw inputs before pre-processing\n\
 \n"S_BOLD S_CYAN"\
 == User IO options ==\n"S_RESET"\
  -h            (--help)        print this message\n\

@@ -11,13 +11,23 @@ atlas template (Colin27). There are 7 tissue types:
 5: white matter
 6: air cavities in the brain
 
-To run the simulation, you must first unzip the domain binary file using 
-unlzma on Linux or 7-zip on Windows. For example, on Linux:
-
- unlzma colin27_v3.bin.lzma
 
 This demo is identical to the MCX simulation used for Fig.6 in
 the original MCX paper [Fang2009].
+
+This example is a built-in dataset in MCX. Run "mcx --bench" to show
+the full list of built-in examples.
+
+The JSON files (.json, .jnii) utlizes the JData specifiation (https://github.com/fangq/jdata) 
+to include binary data with compression support. Please download JSONLab from
+
+https://github.com/fangq/jsonlab
+
+to open these files in MATLAB and GNU Octave, or PyJData from 
+
+https://github.com/fangq/pyjdata
+
+to open such in Python.
 
 
  [Fang2009] Qianqian Fang and David A. Boas, "Monte Carlo simulation

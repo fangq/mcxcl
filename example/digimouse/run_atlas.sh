@@ -1,2 +1,2 @@
 #!/bin/sh
-../../bin/mcxcl -A 1 -n 1e8 -f digimouse.json  $@
+../../bin/mcxcl -A -n 1e8 -f digimouse.json -F jnii -D P  $@
