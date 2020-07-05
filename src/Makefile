@@ -75,7 +75,6 @@ FILES=mcx_host mcx_utils tictoc mcxcl mcx_shapes cjson/cJSON ubj/ubjw
 CLPROGRAM=mcx_core
 
 ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
-  CCC=nvcc
   LINKOPT=-L$(LIBOPENCLDIR) $(LIBOPENCL) $(EXTRALIB)
   INCLUDEDIRS +=-I"./mingw64/include"
   CPPOPT =-c  -D_CRT_SECURE_NO_DEPRECATE -DWIN32
@@ -116,7 +115,7 @@ endif
 all static: CUCCOPT+=
 
 mex:        AR=$(MEX)
-mex:        LINKOPT= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LDFLAGS='$$LDFLAGS -g $(USERLINKOPT)' COMPFLAGS='' DEFINES='' CXXLIBS='$$CXXLIBS -L$(LIBOPENCLDIR) $(LIBOPENCL)'
+mex:        LINKOPT= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LDFLAGS='$$LDFLAGS -g ' COMPFLAGS='' DEFINES='' CXXLIBS='$$CXXLIBS -L$(LIBOPENCLDIR) $(LIBOPENCL)'
 mex oct:    OUTPUT_DIR=../mcxlabcl
 mex:        OUTPUTFLAG:=-output
 mex:        BINARY=mcxcl
@@ -125,7 +124,7 @@ mex oct:    CCOPT+=$(DLLFLAG) -DMCX_CONTAINER
 mex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
 
 oct:        BINARY=mcxcl.mex
-oct:        AR= CXXFLAGS='$(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LFLAGS='-g -L$(LIBOPENCLDIR) $(LIBOPENCL) $(USERLINKOPT)' LDFLAGS='$(LFLAGS)' mkoctfile
+oct:        AR= CXXFLAGS='$(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LFLAGS='-g -L$(LIBOPENCLDIR) $(LIBOPENCL)' LDFLAGS='$(LFLAGS)' mkoctfile
 oct:        LINKOPT=--mex mcxlabcl.cpp $(INCLUDEDIRS)
 
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
@@ -154,7 +153,7 @@ intelcpu:
 static: LINKOPT:=-Wl,-Bstatic  -Wl,-Bdynamic -static-libgcc -static-libstdc++ $(LINKOPT) -Wl,-Bstatic -lm -Wl,-Bdynamic
 
 $(ZMATLIB):
-	-$(MAKE) -C zmat lib AR=ar CPPOPT="$(DLLFLAG)" CCOPT="$(DLLFLAG)" CC=cc USERLINKOPT=
+	-$(MAKE) -C zmat lib AR=ar CPPOPT="$(DLLFLAG)" CCOPT="$(DLLFLAG)" USERLINKOPT=
 
 clean:
 	-$(MAKE) -C zmat clean
