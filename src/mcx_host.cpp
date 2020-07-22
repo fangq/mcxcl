@@ -612,7 +612,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
          oddphoton=(int)(cfg->nphoton*cfg->workload[i]/(fullload*cfg->respin)-threadphoton*gpu[i].autothread);
 	 sharedbuf=gpu[i].autoblock*(cfg->issaveseed*(RAND_BUF_LEN*sizeof(RandType))+sizeof(float)*(param.w0offset+cfg->srcnum));
 
-         MCX_FPRINTF(cfg->flog,"- [device %d(%d): %s] threadph=%d oddphoton=%d np=%.1f nthread=%d nblock=%d sharedbuf=%d\n",i, gpu[i].id, gpu[i].name,threadphoton,oddphoton,
+         MCX_FPRINTF(cfg->flog,"- [device %d(%d): %s] threadph=%d extra=%d np=%.0f nthread=%d nblock=%d sharedbuf=%d\n",i, gpu[i].id, gpu[i].name,threadphoton,oddphoton,
                cfg->nphoton*cfg->workload[i]/fullload,(int)gpu[i].autothread,(int)gpu[i].autoblock,sharedbuf);
 
 	 OCL_ASSERT(((mcxkernel[i] = clCreateKernel(mcxprogram, "mcx_main_loop", &status),status)));
