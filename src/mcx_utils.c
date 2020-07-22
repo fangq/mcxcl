@@ -83,7 +83,7 @@ const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
                  "--reflect","--bc","--debug","--devicelist","--gpu","--workload","--srcfrom0",
 		 "--savedet","--repeat","--save2pt","--printlen","--minenergy",
                  "--normalize","--skipradius","--log","--listgpu","--dumpmask",
-                 "--printgpu","--root","--optlevel","--kernel","--verbose","--compileropt",
+                 "--printgpu","--root","--optlevel","--kernel","--version","--compileropt",
                  "--autopilot","--shapes","--seed","--outputformat","--maxdetphoton",
 		 "--mediabyte","--unitinmm","--atomic","--saveexit","--saveref",
 		 "--internalsrc","--savedetflag","--gscatter","--saveseed","--specular",
@@ -193,7 +193,6 @@ void mcx_initcfg(Config *cfg){
      cfg->flog=stdout;
      cfg->sradius=0.f;
      cfg->rootpath[0]='\0';
-     cfg->isverbose=0;
      cfg->internalsrc=0;
      cfg->savedetflag=0x5;
      cfg->his.savedetflag=cfg->savedetflag;
@@ -2639,14 +2638,14 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
                      case 'l':
                                 issavelog=1;
                                 break;
-		     case 'L':  
+		     case 'L':
 		                cfg->isgpuinfo=2;
 		                break;
-		     case 'I':  
+		     case 'I':
 		                cfg->isgpuinfo=1;
 		                break;
-		     case 'v':  
-		                cfg->isverbose=1;
+		     case 'v':
+                                mcx_version(cfg);
 		                break;
 		     case 'V':
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->isspecular),"char");
