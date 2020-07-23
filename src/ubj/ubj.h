@@ -103,9 +103,9 @@ typedef struct ubjr_context_t_s ubjr_context_t;
 
 //Open up a reader context for reading using a custom calllback
 ubjr_context_t* ubjr_open_callback(void* userdata,
-	size_t(*read_cb)(void* data, size_t size, size_t count, void* userdata),
-	int(*peek_cb)(void* userdata),
-	int(*close_cb)(void* userdata),
+	size_t(*read_cb)(void* data, size_t size, size_t count, FILE* userdata),
+	int(*peek_cb)(FILE* userdata),
+	int(*close_cb)(FILE* userdata),
 	void(*error_cb)(const char* error_msg)
 	);
 
