@@ -31,12 +31,7 @@ matrix:
       - MAKE=make
 
 before_install:
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt-get install ocl-icd-libopencl1 opencl-headers ocl-icd-opencl-dev liboctave-dev; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then 
-         sudo add-apt-repository -y ppa:intel-opencl/intel-opencl;
-         sudo apt-get -q update;
-         sudo apt-get -y install intel-opencl;
-    fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt-get install ocl-icd-libopencl1 opencl-headers ocl-icd-opencl-dev liboctave-dev beignet; fi
   - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install opencl-intel-cpu-runtime; fi
 
 addons:
@@ -46,6 +41,7 @@ addons:
     - opencl-headers
     - ocl-icd-opencl-dev
     - liboctave-dev
+    - beignet
     update: true
 
 script:
