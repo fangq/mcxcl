@@ -1042,11 +1042,11 @@ the fluence-rate data will be saved in a file named `output.dat` under
 the current folder. If you run MCX without `-s output`, the
 output file will be named as `input.inp.dat`.
 
-To understand this further, you need to know that a **fluence-rate `(Phi(r,t))`** is
+To understand this further, you need to know that a **fluence-rate `Phi(r,t)`** is
 measured by number of particles passing through an infinitesimal 
 spherical surface per **unit time** at **a given location** regardless of directions.
-The unit of the MCX output is `W/mm<sup>2</sup> = J/(mm<sup>2</sup>s)`, if it is interpreted as the 
-"energy fluence-rate" [6], or `1/(mm<sup>2</sup>s)`, if the output is interpreted as the 
+The unit of the MCX output is <sup>W</sup>&frasl;<sub>mm<sup>2</sup> s </sub> = <sup>J</sup>&frasl;<sub>mm<sup>2</sup>s</sub>, if it is interpreted as the 
+"energy fluence-rate" [6], or <sup>1</sup>&frasl;<sub>mm<sup>2</sup>s </sub>, if the output is interpreted as the 
 "particle fluence-rate" [6].
 
 The Green's function of the fluence-rate means that it is produced
@@ -1088,21 +1088,21 @@ example
 Note that for time-resolved simulations, the corresponding solution
 in the results approximates the flux at the center point
 of each time window. For example, if the simulation time window 
-setting is [t0,t0+dt,t0+2dt,t0+3dt...,t1], the time points for the 
+setting is [t<sub>0</sub>,t<sub>0</sub>+dt,t<sub>0</sub>+2dt,t<sub>0</sub>+3dt...,t1], the time points for the 
 snapshots stored in the solution file is located at 
-[t0+dt/2, t0+3*dt/2, t0+5*dt/2, ... ,t1-dt/2]
+[t<sub>0</sub>+dt/2, t<sub>0</sub>+3*dt/2, t<sub>0</sub>+5*dt/2, ... ,t<sub>1</sub>-dt/2]
 
 A more detailed interpretation of the output data can be found at 
 <http://mcx.sf.net/cgi-bin/index.cgi?MMC/Doc/FAQ#How_do_I_interpret_MMC_s_output_data>
 
-MCX can also output "current density" (`J(r,t)`, unit `W/m^2`, same as 
+MCX can also output "current density" (`J(r,t)`, unit <sup>W</sup>&frasl;<sub>m<sup>2<sup></sub>, same as 
 `Phi(r,t)`) - referring to the expected number of photons or Joule of energy 
 flowing through a unit area pointing towards a particular direction per unit
 time. The current density can be calculated at the boundary of the domain by 
 two means:
 
 1. using the detected photon partial path output (i.e. the second output of 
- mcxlab.m), one can compute the total energy `E` received by a detector, then one 
+ mcxlab.m), one can compute the total energy **E** received by a detector, then one 
  can divide E by the area/aperture of the detector to obtain the `J(r)` at a 
  detector (E should be calculated as a function of t by using the time-of-fly of 
  detected photons, the `E(t)/A` gives `J(r,t)`; if you integrate all time gates, 
@@ -1119,7 +1119,6 @@ time.
 
 You can find more rigorous definitions of these quantities in Lihong Wang's 
 Biomedical Optics book, Chapter 5.
-
 
 ##### Console print messages
 
