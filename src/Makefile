@@ -67,7 +67,7 @@ OBJSUFFIX=.o
 EXESUFFIX=
 CLHEADER=.clh
 
-MAKE       := make
+MAKE       ?= make
 ECHO       := echo
 MKDIR      := mkdir
 
@@ -139,7 +139,7 @@ $(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(ZMATLIB) $(OBJS)
 	$(AR) $(OBJS) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY) $(USERLINKOPT)
 
 %$(CLHEADER): mcx_core.cl xxd %.cl
-	$(XXD) -i $(CLPROGRAM).cl | sed 's/\([0-9a-f]\)$$/\0, 0x00/' > $(CLPROGRAM).clh
+	$(XXD) -i $(CLPROGRAM).cl | sed "s/\([0-9a-f]\)$$/\0, 0x00/" > $(CLPROGRAM).clh
 
 %$(OBJSUFFIX): %.c
 	$(CC) $(INCLUDEDIRS) $(CCOPT) -c -o $@  $<
