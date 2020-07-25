@@ -98,6 +98,15 @@ else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
   MEXCCOPT+=-DMX_COMPAT_32
   EXTRALIB   +=-static
   DLLFLAG    =
+else ifeq ($(findstring MSYS,$(PLATFORM)), MSYS)
+  MEX        :=cmd //c mex.bat -f mexopts_msys2_gcc.xml
+  CCOPT +=-D__USE_MINGW_ANSI_STDIO=1
+  INCLUDEDIRS+=-I"./mingw64/include"
+  LIBOPENCL   ="c:\Windows\System32\OpenCL.dll"
+  LINKOPT=-L$(LIBOPENCLDIR) $(LIBOPENCL) $(EXTRALIB)
+  MEXCCOPT+=-DMX_COMPAT_32
+  EXTRALIB   +=-static
+  DLLFLAG    =
 else ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
   INCLUDEDIRS+=-I/System/Library/Frameworks/OpenCL.framework/Headers
   LIBOPENCL=-framework OpenCL
@@ -139,7 +148,7 @@ $(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(ZMATLIB) $(OBJS)
 	$(AR) $(OBJS) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY) $(USERLINKOPT)
 
 %$(CLHEADER): mcx_core.cl xxd %.cl
-	$(XXD) -i $(CLPROGRAM).cl | sed "s/\([0-9a-f]\)$$/\0, 0x00/" > $(CLPROGRAM).clh
+	$(XXD) -i $(CLPROGRAM).cl | sed 's/\([0-9a-f]\)$$/\0, 0x00/' > $(CLPROGRAM).clh
 
 %$(OBJSUFFIX): %.c
 	$(CC) $(INCLUDEDIRS) $(CCOPT) -c -o $@  $<
