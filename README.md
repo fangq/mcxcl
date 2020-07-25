@@ -1102,7 +1102,7 @@ time. The current density can be calculated at the boundary of the domain by
 two means:
 
 1. using the detected photon partial path output (i.e. the second output of 
- mcxlab.m), one can compute the total energy **E** received by a detector, then one 
+ mcxlab.m), one can compute the total energy `E` received by a detector, then one 
  can divide E by the area/aperture of the detector to obtain the `J(r)` at a 
  detector (E should be calculated as a function of t by using the time-of-fly of 
  detected photons, the `E(t)/A` gives `J(r,t)`; if you integrate all time gates, 
