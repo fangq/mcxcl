@@ -28,7 +28,7 @@ Table of Contents:
   * [Using MCXStudio GUI](#using-mcxstudio-gui)
   * [Interpreting the Output](#interpreting-the-output)
     + [Output files](#output-files)
-    + [TL;DR for output units](#tl;dr-for-output-units)
+    + [Guide for output units](#guide-for-output-units)
     + [Console print messages](#console-print-messages)
   * [Best practices guide](#best-practices-guide)
   * [Acknowledgement](#acknowledgement)
@@ -1121,7 +1121,7 @@ time.
 You can find more rigorous definitions of these quantities in Lihong Wang's 
 Biomedical Optics book, Chapter 5.
 
-##### TL;DR for output units
+##### Guide for output units
 
 - Flux (<sup>W</sup> &frasl; <sub> mm<sup>2</sup> J </sub>): Normalized energy flux/fluence-rate. 
 Or (<sup>1</sup> &frasl; <sub> mm<sup>2</sup> s </sub>) which is the normalized particle fluence-rate.
