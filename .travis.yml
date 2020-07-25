@@ -47,3 +47,4 @@ script:
     - if [ "$TRAVIS_OS_NAME" = "linux" ]; then ${MAKE} -C src oct; fi
     - if [ "$TRAVIS_OS_NAME" = "linux" ]; then ${MAKE} -C src clean; fi
     - ${MAKE} -C src
+    - bin/mcxcl -L
