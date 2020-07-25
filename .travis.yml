@@ -10,13 +10,25 @@ matrix:
     - os: linux
       name: Ubuntu 16.04
       dist: xenial
+      env:
+      - BADGE=Ubuntu_16.04
+      - MAKE=make
     - os: linux
       name: Ubuntu 18.04
       dist: bionic
+      env:
+      - BADGE=Ubuntu_18.04
+      - MAKE=make
     - os: windows
       name: Windows
+      env:
+      - BADGE=Windows
+      - MAKE=mingw32-make
     - os: osx
       name: OSX
+      env:
+      - BADGE=OSX
+      - MAKE=make
 
 before_install:
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt-get install ocl-icd-libopencl1 opencl-headers ocl-icd-opencl-dev liboctave-dev; fi
@@ -32,12 +44,6 @@ addons:
     update: true
 
 script:
-    - if [ "$TRAVIS_OS_NAME" = "linux" ]; then
-         make -C src oct;
-         make -C src clean;
-         make -C src;
-      elif [ "$TRAVIS_OS_NAME" = "windows" ] ; then
-         mingw32-make -C src;
-      else
-         make -C src;
-      fi
+    - if [ "$TRAVIS_OS_NAME" = "linux" ]; then ${MAKE} -C src oct; fi
+    - if [ "$TRAVIS_OS_NAME" = "linux" ]; then ${MAKE} -C src clean; fi
+    - ${MAKE} -C src
