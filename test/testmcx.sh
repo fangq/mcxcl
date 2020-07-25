@@ -1,13 +1,17 @@
 #!/bin/sh
 
 fail=0
-echo "test binary file ... "
 MCX=../bin/mcxcl
 PARAM=$@
+LDD=`which ldd`
+if [ -z "$LDD" ]; then LDD="otool -L"; fi
+
+echo "test binary file ... "
+
 if [ ! -f $MCX ]; then echo "mcx binary does not exit"; fail=$((fail+1)); else echo "ok"; fi
 
 echo "test libraries ... "
-temp=`ldd $MCX | grep 'not found'`
+temp=`$LDD $MCX | grep 'not found'`
 if [ ! -z "$temp" ]; then echo "library missing: $temp"; fail=$((fail+1)); else echo "ok"; fi 
 
 echo "test execution permission ... "
@@ -38,7 +42,7 @@ temp=`$MCX --bench colin27 --dumpjson - | grep '"_ArrayZipData_":\s*"eJzs3Yl666o
 if [ -z "$temp" ]; then echo "fail to dump json input with volume from builtin example"; fail=$((fail+1)); else echo "ok"; fi
 
 echo "test exporting builtin volume with gzip compression ... "
-temp=`$MCX --bench colin27 --dumpjson - --zip gzip | grep -o -E '"_ArrayZipData_":\s*"H4sIAAAAAAAAA\+z'`
+temp=`$MCX --bench colin27 --dumpjson - --zip gzip | grep -o -E '"_ArrayZipData_":\s*"H4sIAAAAAAAA[EA]\+z'`
 if [ -z "$temp" ]; then echo "fail to set gzip compression for volume exporting"; fail=$((fail+1)); else echo "ok"; fi
 
 echo "test homogeneous domain simulation ... "
