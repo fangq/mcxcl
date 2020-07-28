@@ -28,6 +28,7 @@ Table of Contents:
   * [Using MCXStudio GUI](#using-mcxstudio-gui)
   * [Interpreting the Output](#interpreting-the-output)
     + [Output files](#output-files)
+    + [Guide for output units](#guide-for-output-units)
     + [Console print messages](#console-print-messages)
   * [Best practices guide](#best-practices-guide)
   * [Acknowledgement](#acknowledgement)
@@ -1119,6 +1120,21 @@ time.
 
 You can find more rigorous definitions of these quantities in Lihong Wang's 
 Biomedical Optics book, Chapter 5.
+
+##### Guide for output units
+
+- Flux (<sup>W</sup> &frasl; <sub> mm<sup>2</sup> J </sub>): Normalized energy flux/fluence-rate. 
+Or (<sup>1</sup> &frasl; <sub> mm<sup>2</sup> s </sub>) which is the normalized particle fluence-rate.
+
+- Fluence (<sup>J</sup> &frasl; <sub> mm<sup>2</sup> J </sub>): Normalized energy fluence. 
+Or (<sup>1</sup> &frasl; <sub> mm<sup>2</sup> </sub>) which is the normalized particle fluence.
+	
+- Energy (<sup>J</sup> &frasl; <sub> mm<sup>2</sup> J </sub>): Normalized energy deposition. 
+Or (<sup>1</sup> &frasl; <sub> mm<sup>3</sup> </sub>) which is the normalized particle deposition.
+
+For example if one wanted an image of the fluence through their system 
+(such that `--outputtype` is `fluence`) you would multiply the output from `mcxcl` by
+the amount of joules delivered. 
 
 ##### Console print messages
 
