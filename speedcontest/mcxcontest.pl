@@ -124,7 +124,7 @@ sub listgpu(){
 	printf("Running '$MCX -L' to inquire GPUs ...\n");
 
 	if($mcxoutput =~ /Global [mM]emory/){
-		my @gpustr=split(/=+\s+GPU .*\s+=+/,$mcxoutput);
+		my @gpustr=split(/=+\s+[CG]PU .*\s+=+/,$mcxoutput);
 		foreach my $gpurec (@gpustr){
 			my @gpudata=split(/\n/,$gpurec);
 			my %gpuinfo=();
@@ -316,7 +316,7 @@ sub submitresult(){
 	$form{'score'}=$report{'speedsum'};
 	$form{'computer'}=$report{'userinfo'}{'machine'}.":/";
 	foreach my $gpu (@{$report{'gpu'}}){
-		my $gpuname=%{$gpu}{'name'};
+		my $gpuname=$gpu->{'name'};
 		$gpuname=~s/\s*GeForce\s*//g;
 		$gpuname=~s/\s*NVIDIA\s*//g;
 		$form{'computer'}.=$gpuname."/";
@@ -324,7 +324,7 @@ sub submitresult(){
 	$form{'report'}= encode_json($report);
 
 	print "Do you want to see the full data to be submitted ([yes]/no)?";
-	my $ans=<STDIN>;
+	$ans=<STDIN>;
 	chomp $ans;
 	if($ans =~/^yes/i || $ans eq ''){
 		print "---------------- begin data -----------------\n";
@@ -346,7 +346,7 @@ sub submitresult(){
 			die("fail to submit benchmark data") if($content eq '');
 		}
 		if($response->is_success && $content=~/success/i){
-			print "Submission is successful, please browse http://mcx.space/gpubench/ to see the result\n";
+			print "Submission is successful, please browse http://mcx.space/computebench/ to see the result\n";
 		}
 	}
 }
