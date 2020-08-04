@@ -781,9 +781,9 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 		  for(int i=0;i<gcfg->srcnum;i++){
 		    if(ppath[gcfg->w0offset+i]>0.f){
   #ifdef USE_ATOMIC
-                        atomicadd(& field[(*idx1d+tshift*gcfg->dimlen.z)*gcfg->srcnum+i],-p[0].w*ppath[gcfg->w0offset+i]);
+                        atomicadd(& field[(*idx1d+tshift*gcfg->dimlen.z)*gcfg->srcnum+i],-((gcfg->srcnum==1)?p[0].w:p[0].w*ppath[gcfg->w0offset+i]));
   #else
-	                field[(*idx1d+tshift*gcfg->dimlen.z)*gcfg->srcnum+i]+=-p[0].w*ppath[gcfg->w0offset+i];
+	                field[(*idx1d+tshift*gcfg->dimlen.z)*gcfg->srcnum+i]+=-((gcfg->srcnum==1)?p[0].w:p[0].w*ppath[gcfg->w0offset+i]);
   #endif
 		    }
 		  }
