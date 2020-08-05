@@ -13,28 +13,33 @@
 
 use strict;
 use warnings;
+use Term::ANSIColor qw(:constants);
 
 my $MCX="../bin/mcxcl";
 my $URL="http://mcx.space/computebench/";
 my $POSTURL="http://mcx.space/computebench/gpucontest.cgi";
 
 my %report=();
-my %jsonopt=(utf8 => 1, pretty => 1);
+my $prettyjson=1;
 
 # parse commandline options
 my $options='';
 my $mcxopt='-n 1e8';
 while(my $opt = $ARGV[0]) {
-    if($opt =~ /^-[ocsl-]/){
-        if($opt eq '-c'){
-		$jsonopt{'pretty'}=0;
-	}elsif($opt eq '-s'){
+    if($opt =~ /^-[coslnGW-]/){
+        if($opt eq '-s'){
 		$options.='s';
+	}elsif($opt eq '-c'){
+		$prettyjson=0;
 	}elsif($opt eq '-l'){
 		$options.='l';
 	}elsif($opt eq '-o'){
 		shift;
 		$mcxopt=shift;
+		next;
+	}elsif($opt =~ /^-[nGW]$/){
+		shift;
+		$mcxopt=" ".shift;
 		next;
 	}elsif($opt eq '--bin'){
 		shift;
@@ -49,17 +54,18 @@ while(my $opt = $ARGV[0]) {
 		$POSTURL=shift;
 		next;
 	}elsif($opt eq '--help'){
-		printf("%s - running MCX-CL benchmarks and submit to MCX-CL Speed Contest
+		printf("mcxcontest - running MCX-CL benchmarks and submit to MCX-CL Speed Contest
 	Format: %s <option1> <option2> ...\n
 The supported options include (multiple parameters can be used, separated by spaces)
 	-s      submit result to MCX Speed Contest by default (will ask if not used)
+        -c      print JSON in compact form, otherwise, print in the indented form
 	-l      compare your benchmark with other GPUs submitted by other users
-	-c      print JSON in compact form, otherwise, print in the indented form
 	-o 'mcx options'   supply additional mcx command line options, such as '-n 1e6'
-	--bin /path/to/mcx  manually specify mcx binary location (default: ../bin/mcxcl)
+	-n <num> / -G <01> / -W <w1,w2,..> additional mcx command options add after those in -o
+	--bin /path/to/mcxcl manually specify mcx binary location (default: ../bin/mcxcl)
 	--get url  specify mcx benchmark web link (default: http://mcx.space/computebench)
 	--post url specify submission link (default: http://mcx.space/computebench/gpucontest.cgi)\n",
-		$0,$0);
+		$0);
 		exit 0;
 	}else{
 		die('invalid command line option');
@@ -87,7 +93,10 @@ $report{'speedsum'}=$report{'benchmark1'}{'speed'}+$report{'benchmark2'}{'speed'
 $report{'version'}=1;
 $report{'mcxversion'}=$report{'benchmark1'}{'mcxversion'};
 
-printf("Speed test completed\nYour device(s) score is %.0f\n",$report{'speedsum'});
+print("Speed test completed\nYour device(s) score is ");
+print(RED);
+printf("%.0f\n",$report{'speedsum'});
+print(RESET);
 
 ## download report and compare
 
@@ -110,7 +119,7 @@ if(! ($options=~/s/)){
 	chomp $ans; 
 }
 if($options=~/s/ || $ans =~/^yes/i){
-	&submitresult(\%report,$POSTURL,\%jsonopt);
+	&submitresult(\%report,$POSTURL,$prettyjson);
 }
 $ans='';
 
@@ -123,7 +132,7 @@ sub listgpu(){
 
 	printf("Running '$MCX -L' to inquire GPUs ...\n");
 
-	if($mcxoutput =~ /Global [mM]emory/){
+	if($mcxoutput =~ /Global Memory/i){
 		my @gpustr=split(/=+\s+[CG]PU .*\s+=+/,$mcxoutput);
 		foreach my $gpurec (@gpustr){
 			my @gpudata=split(/\n/,$gpurec);
@@ -136,17 +145,19 @@ sub listgpu(){
 				}elsif($info =~ /Compute Capability\s*:\s*(\d+)\.(\d+)/){
 					$gpuinfo{'major'}=$1+0;
 					$gpuinfo{'minor'}=$2+0;
-				}elsif($info =~ /Global [mM]emory\s*:\s*(\d+)\s*B/){
+				}elsif($info =~ /Global Memory\s*:\s*(\d+)\s*B/i){
 					$gpuinfo{'globalmem'}=$1+0;
-				}elsif($info =~ /Constant [mM]emory\s*:\s*(\d+)\s*B/){
+				}elsif($info =~ /Constant Memory\s*:\s*(\d+)\s*B/i){
 					$gpuinfo{'constmem'}=$1+0;
-				}elsif($info =~ /Shared [mM]emory\s*:\s*(\d+)\s*B/){
+				}elsif($info =~ /Shared Memory\s*:\s*(\d+)\s*B/i){
 					$gpuinfo{'sharedmem'}=$1+0;
 				}elsif($info =~ /Registers\s*:\s*(\d+)$/){
 					$gpuinfo{'regcount'}=$1+0;
-				}elsif($info =~ /Clock [Ss]peed\s*:\s*([0-9.]+)\s+GHz/){
+				}elsif($info =~ /Clock Speed\s*:\s*([0-9.]+)\s+GHz/i){
 					$gpuinfo{'clock'}=$1*1e6;
-				}elsif($info =~ /Compute units*\s*:\s*(\d+)$/){
+				}elsif($info =~ /Compute units\s*:\s*(\d+)$/){
+					$gpuinfo{'core'}=$1+0;
+				}elsif($info =~ /Number of SM.*\s*:\s*(\d+)$/){
 					$gpuinfo{'sm'}=$1+0;
 				}elsif($info =~ /Auto-thread\s*:\s*(\d+)$/){
 					$gpuinfo{'autothread'}=$1+0;
@@ -173,14 +184,14 @@ sub listgpu(){
 			my $mask=$1;
 			my $count=0;
 			if($mask =~/^[01]+$/){
-				foreach my $i (split(undef,$mask)){
+				foreach my $i (split(//,$mask)){
 					if($count>=@{$report{$keyname}}){
 						last;
 					}
 					push(@newgpu,$report{$keyname}[$count])  if($i==1);
 					$count++;
 				}
-			}elsif($mask < @{$report{$keyname}}){
+			}elsif($mask <= @{$report{$keyname}}){
 				push(@newgpu,$report{$keyname}[$mask-1]);
 			}
 			@{$report{$keyname}} = @newgpu;
@@ -196,7 +207,7 @@ sub runbench(){
 	my $mcxoutput=`$MCX --bench $benchname $mcxopt`;
 	$mcxoutput=~s/\e\[\d+(?>(;\d+)*)m//g;
 
-	printf("Running benchmark '$MCX --bench $benchname $mcxopt' ...\n");
+	printf("Running benchmark '$MCX --bench $benchname $mcxopt' ... ");
 
 	if($mcxoutput =~ /total simulated energy:/){
 		my @lines=split(/\n/,$mcxoutput);
@@ -207,6 +218,9 @@ sub runbench(){
 				$bench{'stat'}{'nphoton'}=$1;
 			}elsif($line =~ /simulation speed:\s*([-0-9.]+)/){
 				$bench{'speed'}=$1+0;
+                                printf(RED);
+                                printf("Speed: %.0f photon/ms", $bench{'speed'});
+                                printf(RESET);
 			}elsif($line =~ /total simulated energy:\s*([-0-9.]+)\s*absorbed: ([-0-9.]+)%/){
 				$bench{'stat'}{'energytot'}=$1+0;
 				$bench{'stat'}{'absorbfrac'}=$2+0;
@@ -233,18 +247,20 @@ sub runbench(){
 	}else{
                 die('$benchname failed, output incomplete');
 	}
+        print("\n");
 }
 
 #==============================================================================
 
 sub comparegpu(){
-	use LWP::Simple qw(get);
-	use Term::ANSIColor qw(:constants);
 
 	my ($url)=@_;
-	my $database = get $url;
-	if(!defined($database)){
-		$database = `curl --silent $url`;
+	my $database;
+        $database = `curl --silent $url`;
+
+        if($database eq ''){
+                eval("use LWP::Simple qw(get);");
+                $database = get $url;
 		die("fail to download database from $url") if($database eq '');
 	}
 	my @res=split(/\n/,$database);
@@ -279,11 +295,11 @@ sub comparegpu(){
 #==============================================================================
 
 sub submitresult(){
-	use LWP::UserAgent ();
 	use JSON::PP;
 
-	my ($report, $url, $jsonopt)=@_;
+	my ($report, $url, $ispretty)=@_;
 	my %form=();
+	my $ans='';
 	my %userinfo=(
 	  "name"=>"Please provide your full name (will not publish)",
 	  "email"=>"Please provide your email (will not publish)[required]",
@@ -295,7 +311,7 @@ sub submitresult(){
 	my @formitem=('name','email','institution','nickname','machine','comment');
 	foreach my $key (@formitem){
 		print $userinfo{$key}."\n\t";
-		my $ans=<STDIN>;
+		$ans=<STDIN>;
 		chomp $ans;
 		if(($key eq 'nickname' || $key eq 'email' ||  $key eq 'machine' ) && $ans eq ''){
 			while($ans eq ''){
@@ -321,15 +337,19 @@ sub submitresult(){
 		$gpuname=~s/\s*NVIDIA\s*//g;
 		$form{'computer'}.=$gpuname."/";
 	}
-	$form{'report'}= encode_json($report);
+
+	my $json = JSON::PP->new;
+        $json = $json->pretty($ispretty);
+
+	$form{'report'}= $json->encode($report);
 
 	print "Do you want to see the full data to be submitted ([yes]/no)?";
 	$ans=<STDIN>;
 	chomp $ans;
 	if($ans =~/^yes/i || $ans eq ''){
 		print "---------------- begin data -----------------\n";
-		print encode_json(\%form);
-		print "----------------- end data ------------------\n";
+		print $json->encode(\%form);
+		print "\n----------------- end data ------------------\n";
 	}
         $ans='';
 
@@ -337,15 +357,16 @@ sub submitresult(){
 	$ans=<STDIN>;
 	chomp $ans;
 	if($ans =~/^yes/i || $ans eq ''){
-		my $ua      = LWP::UserAgent->new(); 
-		my $response = $ua->post( $url, \%form);
-		my $content = $response->decoded_content;
-		if(!defined($content)){
-			$content=system("curl --header 'Content-Type: application/json' --request POST --data '" . encode_json(\%form)."' $url");
-			print("return: $content");
+		my $submitdata=$json->encode(\%form);
+		my $content=`curl --header 'Content-Type: application/json' --request POST --data '$submitdata' $url`;
+		if($content eq ''){
+	                eval("use LWP::UserAgent ();");
+			my $ua      = LWP::UserAgent->new(); 
+			my $response = $ua->post( $url, \%form);
+			$content = $response->decoded_content;
 			die("fail to submit benchmark data") if($content eq '');
 		}
-		if($response->is_success && $content=~/success/i){
+		if($content=~/success/i){
 			print "Submission is successful, please browse http://mcx.space/computebench/ to see the result\n";
 		}
 	}
