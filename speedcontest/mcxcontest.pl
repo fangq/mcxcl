@@ -260,13 +260,13 @@ sub runbench(){
 			$report{$keyname}=\%bench;
 			my $absfrac=$bench{'stat'}{'absorbfrac'};
 			if(abs($absfrac - $absorb)/$absorb > 0.1){
-				die('$benchname failed (expected $absorb, got $absfrac), can not continue');
+				die("$benchname failed (expected $absorb, got $absfrac), can not continue");
 			}
 		}else{
-			die('$benchname failed, output incomplete');
+			die("$benchname failed, output incomplete");
 		}
 	}else{
-                die('$benchname failed, output incomplete');
+                die("$benchname failed, output incomplete");
 	}
         print("\n");
 }
@@ -297,7 +297,7 @@ sub comparegpu(){
 	    $wid=80;
 	}
 
-	my $maxscore=0;
+	my $maxscore=$report{'speedsum'};
 	foreach my $id (($pos-5)..($pos+4)){
 		next if($id<0 || $id>$#res);
 		my $linewid=$wid-37;
