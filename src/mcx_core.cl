@@ -601,13 +601,13 @@ float reflectcoeff(float4 *v, float n1, float n2, int flipdir){
  */
  
 void updateproperty(FLOAT4VEC *prop, unsigned int mediaid,__constant float4 *gproperty,__constant MCXParam *gcfg){
-	  if(gcfg->mediaformat<=4)
+#if MED_TYPE <=4
 	      *((FLOAT4VEC*)(prop))=gproperty[mediaid & MED_MASK];
-          else if(gcfg->mediaformat==MEDIA_MUA_FLOAT){
+#elif MED_TYPE==MEDIA_MUA_FLOAT
 	      prop[0].x=fabs(*((float *)&mediaid));
               prop[0].w=gproperty[(!(mediaid & MED_MASK))==0].w;
+#elif MED_TYPE==MEDIA_MUA_FLOAT || MED_TYPE==MEDIA_AS_HALF
 #ifdef USE_HALF
-	  }else if(gcfg->mediaformat==MEDIA_AS_F2H||gcfg->mediaformat==MEDIA_AS_HALF){
 	      union {
                  unsigned int i;
                  half h[2];
@@ -617,7 +617,7 @@ void updateproperty(FLOAT4VEC *prop, unsigned int mediaid,__constant float4 *gpr
 	      prop[0].y=fabs(convert_float(val.h[1]));
 	      prop[0].w=gproperty[(!(mediaid & MED_MASK))==0].w;
 #endif
-	  }else if(gcfg->mediaformat==MEDIA_ASGN_BYTE){
+#elif MED_TYPE==MEDIA_ASGN_BYTE
 	      union {
                  unsigned int i;
                  unsigned char h[4];
@@ -627,7 +627,7 @@ void updateproperty(FLOAT4VEC *prop, unsigned int mediaid,__constant float4 *gpr
 	      prop[0].y=val.h[1]*(1.f/255.f)*(gproperty[2].y-gproperty[1].y)+gproperty[1].y;
 	      prop[0].z=val.h[2]*(1.f/255.f)*(gproperty[2].z-gproperty[1].z)+gproperty[1].z;
 	      prop[0].w=val.h[3]*(1.f/127.f)*(gproperty[2].w-gproperty[1].w)+gproperty[1].w;
-          }else if(gcfg->mediaformat==MEDIA_AS_SHORT){
+#elif MED_TYPE==MEDIA_AS_SHORT
 	      union {
                  unsigned int i;
                  unsigned short h[2];
@@ -636,7 +636,7 @@ void updateproperty(FLOAT4VEC *prop, unsigned int mediaid,__constant float4 *gpr
 	      prop[0].x=val.h[0]*(1.f/65535.f)*(gproperty[2].x-gproperty[1].x)+gproperty[1].x;
 	      prop[0].y=val.h[1]*(1.f/65535.f)*(gproperty[2].y-gproperty[1].y)+gproperty[1].y;
 	      prop[0].w=gproperty[(!(mediaid & MED_MASK))==0].w;
-          }
+#endif
 }
 
 #ifndef INTERNAL_SOURCE

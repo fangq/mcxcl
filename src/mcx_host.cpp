@@ -571,6 +571,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      if((uint)cfg->srctype<sizeof(sourceflag)/sizeof(sourceflag[0]))
          sprintf(opt+strlen(opt),"%s ",sourceflag[(uint)cfg->srctype]);
+     sprintf(opt+strlen(opt)," -DMED_TYPE=%d ",cfg->mediabyte);
 
      sprintf(opt+strlen(opt),"%s",cfg->compileropt);
      if(cfg->isatomic)
