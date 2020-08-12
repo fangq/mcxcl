@@ -563,7 +563,9 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      OCL_ASSERT(((mcxprogram=clCreateProgramWithSource(mcxcontext, 1,(const char **)&(cfg->clsource), NULL, &status),status)));
 
      if(cfg->optlevel>=1)
-         sprintf(opt,"%s ","-cl-mad-enable -DMCX_USE_NATIVE");
+         sprintf(opt,"%s ","-cl-mad-enable -DMCX_USE_NATIVE -DGROUP_LOAD_BALANCE");
+     if(cfg->optlevel>=2)
+         sprintf(opt+strlen(opt),"%s ","-DUSE_MACRO_CONST");
      if(cfg->optlevel>=3)
          sprintf(opt+strlen(opt),"%s ","-DMCX_SIMPLIFY_BRANCH -DMCX_VECTOR_INDEX");
      
@@ -581,7 +583,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      if(cfg->issavedet)
          sprintf(opt+strlen(opt)," -DMCX_SAVE_DETECTORS");
 
-     if(strstr(cfg->compileropt,"USE_MACRO_CONST")){
+     if(strstr(opt,"USE_MACRO_CONST")){
 	IPARAM_TO_MACRO(opt,param,detnum);
 	IPARAM_TO_MACRO(opt,param,doreflect);
 	IPARAM_TO_MACRO(opt,param,gscatter);
