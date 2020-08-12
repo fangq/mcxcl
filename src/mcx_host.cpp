@@ -23,6 +23,9 @@
 #include "tictoc.h"
 #include "mcx_const.h"
 
+#define IPARAM_TO_MACRO(macro,a,b) sprintf(macro+strlen(macro)," -Dgcfg%s=%u ",   #b,(a.b))
+#define FPARAM_TO_MACRO(macro,a,b) sprintf(macro+strlen(macro)," -Dgcfg%s=%.10e ",#b,(a.b))
+
 cl_event kernelevent;
 
 const char *VendorList[]={"Unknown","NVIDIA","AMD","Intel","IntelGPU","AppleCPU"};
@@ -577,6 +580,39 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
          sprintf(opt+strlen(opt)," -DUSE_ATOMIC");
      if(cfg->issavedet)
          sprintf(opt+strlen(opt)," -DMCX_SAVE_DETECTORS");
+
+     if(strstr(cfg->compileropt,"USE_MACRO_CONST")){
+	IPARAM_TO_MACRO(opt,param,detnum);
+	IPARAM_TO_MACRO(opt,param,doreflect);
+	IPARAM_TO_MACRO(opt,param,gscatter);
+	IPARAM_TO_MACRO(opt,param,idx1dorig);
+	IPARAM_TO_MACRO(opt,param,is2d);
+	IPARAM_TO_MACRO(opt,param,issaveref);
+	IPARAM_TO_MACRO(opt,param,issaveseed);
+	IPARAM_TO_MACRO(opt,param,isspecular);
+	IPARAM_TO_MACRO(opt,param,maxdetphoton);
+	IPARAM_TO_MACRO(opt,param,maxgate);
+	IPARAM_TO_MACRO(opt,param,maxjumpdebug);
+	IPARAM_TO_MACRO(opt,param,maxmedia);
+	IPARAM_TO_MACRO(opt,param,maxvoidstep);
+	IPARAM_TO_MACRO(opt,param,mediaformat);
+	IPARAM_TO_MACRO(opt,param,mediaidorig);
+	FPARAM_TO_MACRO(opt,param,minaccumtime);
+	FPARAM_TO_MACRO(opt,param,minenergy);
+	FPARAM_TO_MACRO(opt,param,oneoverc0);
+	IPARAM_TO_MACRO(opt,param,outputtype);
+	IPARAM_TO_MACRO(opt,param,partialdata);
+	IPARAM_TO_MACRO(opt,param,reclen);
+	IPARAM_TO_MACRO(opt,param,replaydet);
+	IPARAM_TO_MACRO(opt,param,save2pt);
+	IPARAM_TO_MACRO(opt,param,savedet);
+	IPARAM_TO_MACRO(opt,param,savedetflag);
+	IPARAM_TO_MACRO(opt,param,seed);
+	IPARAM_TO_MACRO(opt,param,srcnum);
+	IPARAM_TO_MACRO(opt,param,voidtime);
+	IPARAM_TO_MACRO(opt,param,w0offset);
+	FPARAM_TO_MACRO(opt,param,Rtstep);
+     }
 
      char allabsorb[]={bcAbsorb,bcAbsorb,bcAbsorb,bcAbsorb,bcAbsorb,bcAbsorb,0};
      char allunknown[]={0,0,0,0,0,0,0,0};
