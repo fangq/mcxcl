@@ -851,44 +851,44 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
     #if defined(MCX_SRC_PATTERN3D) 
 	            rz=rand_uniform01(t);
 	            p[0]=(float4)(p[0].x+rx*gcfg->srcparam1.x,
-		 		         p[0].y+ry*gcfg->srcparam1).y,
-				         p[0].z+rz*gcfg->srcparam1).z,
+		 		         p[0].y+ry*gcfg->srcparam1.y,
+				         p[0].z+rz*gcfg->srcparam1.z,
 				         p[0].w);
     #else
-	            p[0]=(float4)(p[0].x+rx*gcfg->srcparam1).x+ry*gcfg->srcparam2).x,
-				       p[0].y+rx*gcfg->srcparam1).y+ry*gcfg->srcparam2).y,
-				       p[0].z+rx*gcfg->srcparam1).z+ry*gcfg->srcparam2).z,
+	            p[0]=(float4)(p[0].x+rx*gcfg->srcparam1.x+ry*gcfg->srcparam2.x,
+				       p[0].y+rx*gcfg->srcparam1.y+ry*gcfg->srcparam2.y,
+				       p[0].z+rx*gcfg->srcparam1.z+ry*gcfg->srcparam2.z,
 				       p[0].w);
     #endif
     #if defined(MCX_SRC_PATTERN)  // need to prevent rx/ry=1 here
     	          if(GPU_PARAM(gcfg,srcnum)<=1){
-    		      p[0].w=srcpattern[(int)(ry*JUST_BELOW_ONE*gcfg->srcparam2).w)*(int)(gcfg->srcparam1).w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1).w)];
+    		      p[0].w=srcpattern[(int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w)];
     		      ppath[3]=p[0].w;
     		  }else{
-    		    *((__local uint *)(ppath+2))=((int)(ry*JUST_BELOW_ONE*gcfg->srcparam2).w)*(int)(gcfg->srcparam1).w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1).w));
+    		    *((__local uint *)(ppath+2))=((int)(ry*JUST_BELOW_ONE*gcfg->srcparam2.w)*(int)(gcfg->srcparam1.w)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.w));
     	            for(int i=0;i<GPU_PARAM(gcfg,srcnum);i++)
     		          ppath[i+3]=srcpattern[(*((__local uint *)(ppath+2)))*GPU_PARAM(gcfg,srcnum)+i];
     		    p[0].w=1.f;
 		  }
     #elif defined(MCX_SRC_PATTERN3D)  // need to prevent rx/ry=1 here
     	          if(GPU_PARAM(gcfg,srcnum)<=1){
-                      p[0].w=srcpattern[(int)(rz*JUST_BELOW_ONE*gcfg->srcparam1).z)*(int)(gcfg->srcparam1).y)*(int)(gcfg->srcparam1).x)+
-	                          (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1).y)*(int)(gcfg->srcparam1).x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1).x)];
+                      p[0].w=srcpattern[(int)(rz*JUST_BELOW_ONE*gcfg->srcparam1.z)*(int)(gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+
+	                          (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.x)];
     		      ppath[3]=p[0].w;
     		  }else{
-    		      *((__local uint *)(ppath+2))=((int)(rz*JUST_BELOW_ONE*gcfg->srcparam1).z)*(int)(gcfg->srcparam1).y)*(int)(gcfg->srcparam1).x)+
-    	                              (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1).y)*(int)(gcfg->srcparam1).x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1).x));
+    		      *((__local uint *)(ppath+2))=((int)(rz*JUST_BELOW_ONE*gcfg->srcparam1.z)*(int)(gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+
+    	                              (int)(ry*JUST_BELOW_ONE*gcfg->srcparam1.y)*(int)(gcfg->srcparam1.x)+(int)(rx*JUST_BELOW_ONE*gcfg->srcparam1.x));
     	              for(int i=0;i<GPU_PARAM(gcfg,srcnum);i++)
     	                ppath[i+3]=srcpattern[(*((__local uint *)(ppath+2)))*GPU_PARAM(gcfg,srcnum)+i];
     		    p[0].w=1.f;
     		  }
     #elif defined(MCX_SRC_FOURIER)  // need to prevent rx/ry=1 here
-		  p[0].w=(MCX_MATHFUN(cos)((floor(gcfg->srcparam1).w)*rx+floor(gcfg->srcparam2).w)*ry
-			  +gcfg->srcparam1).w-floor(gcfg->srcparam1).w))*TWO_PI)*(1.f-gcfg->srcparam2).w+floor(gcfg->srcparam2).w))+1.f)*0.5f; //between 0 and 1
+		  p[0].w=(MCX_MATHFUN(cos)((floor(gcfg->srcparam1.w)*rx+floor(gcfg->srcparam2.w)*ry
+			  +gcfg->srcparam1.w-floor(gcfg->srcparam1.w))*TWO_PI)*(1.f-gcfg->srcparam2.w+floor(gcfg->srcparam2.w))+1.f)*0.5f; //between 0 and 1
     #elif defined(MCX_SRC_PENCILARRAY)  // need to prevent rx/ry=1 here
-		  p[0].x=gcfg->ps.x+ floor(rx*gcfg->srcparam1).w)*gcfg->srcparam1).x/(gcfg->srcparam1).w-1.f)+floor(ry*gcfg->srcparam2).w)*gcfg->srcparam2).x/(gcfg->srcparam2).w-1.f);
-		  p[0].y=gcfg->ps.y+ floor(rx*gcfg->srcparam1).w)*gcfg->srcparam1).y/(gcfg->srcparam1).w-1.f)+floor(ry*gcfg->srcparam2).w)*gcfg->srcparam2).y/(gcfg->srcparam2).w-1.f);
-		  p[0].z=gcfg->ps.z+ floor(rx*gcfg->srcparam1).w)*gcfg->srcparam1).z/(gcfg->srcparam1).w-1.f)+floor(ry*gcfg->srcparam2).w)*gcfg->srcparam2).z/(gcfg->srcparam2).w-1.f);
+		  p[0].x=gcfg->ps.x+ floor(rx*gcfg->srcparam1.w)*gcfg->srcparam1.x/(gcfg->srcparam1.w-1.f)+floor(ry*gcfg->srcparam2.w)*gcfg->srcparam2.x/(gcfg->srcparam2.w-1.f);
+		  p[0].y=gcfg->ps.y+ floor(rx*gcfg->srcparam1.w)*gcfg->srcparam1.y/(gcfg->srcparam1.w-1.f)+floor(ry*gcfg->srcparam2.w)*gcfg->srcparam2.y/(gcfg->srcparam2.w-1.f);
+		  p[0].z=gcfg->ps.z+ floor(rx*gcfg->srcparam1.w)*gcfg->srcparam1.z/(gcfg->srcparam1.w-1.f)+floor(ry*gcfg->srcparam2.w)*gcfg->srcparam2.z/(gcfg->srcparam2.w-1.f);
     #endif
 	      *idx1d=((int)(floor(p[0].z))*gcfg->dimlen.y+(int)(floor(p[0].y))*gcfg->dimlen.x+(int)(floor(p[0].x)));
 	      if(p[0].x<0.f || p[0].y<0.f || p[0].z<0.f || p[0].x>=gcfg->maxidx.x || p[0].y>=gcfg->maxidx.y || p[0].z>=gcfg->maxidx.z){
@@ -896,26 +896,26 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	      }else{
 		  *mediaid=media[*idx1d];
 	      }
-              *prop=TOFLOAT4((float4)(prop[0].x+(gcfg->srcparam1).x+gcfg->srcparam2).x)*0.5f,
-	                 prop[0].y+(gcfg->srcparam1).y+gcfg->srcparam2).y)*0.5f,
-			 prop[0].z+(gcfg->srcparam1).z+gcfg->srcparam2).z)*0.5f,0.f));
+              *prop=TOFLOAT4((float4)(prop[0].x+(gcfg->srcparam1.x+gcfg->srcparam2.x)*0.5f,
+	                 prop[0].y+(gcfg->srcparam1.y+gcfg->srcparam2.y)*0.5f,
+			 prop[0].z+(gcfg->srcparam1.z+gcfg->srcparam2.z)*0.5f,0.f));
 #elif defined(MCX_SRC_FOURIERX) || defined(MCX_SRC_FOURIERX2D) // [v1x][v1y][v1z][|v2|]; [kx][ky][phi0][M], unit(v0) x unit(v1)=unit(v2)
 	      float rx=rand_uniform01(t);
 	      float ry=rand_uniform01(t);
 	      float4 v2=gcfg->srcparam1);
 	      // calculate v2 based on v2=|v2| * unit(v0) x unit(v1)
-	      v2.w*=rsqrt(gcfg->srcparam1).x*gcfg->srcparam1).x+gcfg->srcparam1).y*gcfg->srcparam1).y+gcfg->srcparam1).z*gcfg->srcparam1).z);
-	      v2.x=v2.w*(gcfg->c0.y*gcfg->srcparam1).z - gcfg->c0.z*gcfg->srcparam1).y);
-	      v2.y=v2.w*(gcfg->c0.z*gcfg->srcparam1).x - gcfg->c0.x*gcfg->srcparam1).z); 
-	      v2.z=v2.w*(gcfg->c0.x*gcfg->srcparam1).y - gcfg->c0.y*gcfg->srcparam1).x);
-	      p[0]=(float4)(p[0].x+rx*gcfg->srcparam1).x+ry*v2.x,
-				   p[0].y+rx*gcfg->srcparam1).y+ry*v2.y,
-				   p[0].z+rx*gcfg->srcparam1).z+ry*v2.z,
+	      v2.w*=rsqrt(gcfg->srcparam1.x*gcfg->srcparam1.x+gcfg->srcparam1.y*gcfg->srcparam1.y+gcfg->srcparam1.z*gcfg->srcparam1.z);
+	      v2.x=v2.w*(gcfg->c0.y*gcfg->srcparam1.z - gcfg->c0.z*gcfg->srcparam1.y);
+	      v2.y=v2.w*(gcfg->c0.z*gcfg->srcparam1.x - gcfg->c0.x*gcfg->srcparam1.z); 
+	      v2.z=v2.w*(gcfg->c0.x*gcfg->srcparam1.y - gcfg->c0.y*gcfg->srcparam1.x);
+	      p[0]=(float4)(p[0].x+rx*gcfg->srcparam1.x+ry*v2.x,
+				   p[0].y+rx*gcfg->srcparam1.y+ry*v2.y,
+				   p[0].z+rx*gcfg->srcparam1.z+ry*v2.z,
 				   p[0].w);
     #if defined(MCX_SRC_FOURIERX2D)
-		 p[0].w=(MCX_MATHFUN(sin)((gcfg->srcparam2).x*rx+gcfg->srcparam2).z)*TWO_PI)*MCX_MATHFUN(sin)((gcfg->srcparam2).y*ry+gcfg->srcparam2).w)*TWO_PI)+1.f)*0.5f; //between 0 and 1
+		 p[0].w=(MCX_MATHFUN(sin)((gcfg->srcparam2.x*rx+gcfg->srcparam2.z)*TWO_PI)*MCX_MATHFUN(sin)((gcfg->srcparam2.y*ry+gcfg->srcparam2.w)*TWO_PI)+1.f)*0.5f; //between 0 and 1
     #else
-		 p[0].w=(MCX_MATHFUN(cos)((gcfg->srcparam2).x*rx+gcfg->srcparam2).y*ry+gcfg->srcparam2).z)*TWO_PI)*(1.f-gcfg->srcparam2).w)+1.f)*0.5f; //between 0 and 1
+		 p[0].w=(MCX_MATHFUN(cos)((gcfg->srcparam2.x*rx+gcfg->srcparam2.y*ry+gcfg->srcparam2.z)*TWO_PI)*(1.f-gcfg->srcparam2.w)+1.f)*0.5f; //between 0 and 1
     #endif
 
 	      *idx1d=((int)(floor(p[0].z))*gcfg->dimlen.y+(int)(floor(p[0].y))*gcfg->dimlen.x+(int)(floor(p[0].x)));
@@ -924,9 +924,9 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	      }else{
 		  *mediaid=media[*idx1d];
 	      }
-              *prop=TOFLOAT4((float4)(prop[0].x+(gcfg->srcparam1).x+v2.x)*0.5f,
-	                 prop[0].y+(gcfg->srcparam1).y+v2.y)*0.5f,
-			 prop[0].z+(gcfg->srcparam1).z+v2.z)*0.5f,0.f));
+              *prop=TOFLOAT4((float4)(prop[0].x+(gcfg->srcparam1.x+v2.x)*0.5f,
+	                 prop[0].y+(gcfg->srcparam1.y+v2.y)*0.5f,
+			 prop[0].z+(gcfg->srcparam1.z+v2.z)*0.5f,0.f));
 #elif defined(MCX_SRC_DISK) || defined(MCX_SRC_GAUSSIAN) // uniform disk distribution or Gaussian-beam
 	      // Uniform disk point picking
 	      // http://mathworld.wolfram.com/DiskPointPicking.html
@@ -935,13 +935,13 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	      MCX_SINCOS(phi,sphi,cphi);
 	      float r;
     #if defined(MCX_SRC_DISK)
-		  r=sqrt(rand_uniform01(t))*gcfg->srcparam1).x;
+		  r=sqrt(rand_uniform01(t))*gcfg->srcparam1.x;
     #else
-	      if(fabs(gcfg->c0.w) < 1e-5f || fabs(gcfg->srcparam1).y) < 1e-5f)
-	          r=sqrt(-0.5f*log(rand_uniform01(t)))*gcfg->srcparam1).x;
+	      if(fabs(gcfg->c0.w) < 1e-5f || fabs(gcfg->srcparam1.y) < 1e-5f)
+	          r=sqrt(-0.5f*log(rand_uniform01(t)))*gcfg->srcparam1.x;
 	      else{
-	          r=gcfg->srcparam1).x*gcfg->srcparam1).x*M_PI/gcfg->srcparam1).y; //Rayleigh range
-	          r=sqrt(-0.5f*log(rand_uniform01(t))*(1.f+(gcfg->c0.w*gcfg->c0.w/(r*r))))*gcfg->srcparam1).x;
+	          r=gcfg->srcparam1.x*gcfg->srcparam1.x*M_PI/gcfg->srcparam1.y; //Rayleigh range
+	          r=sqrt(-0.5f*log(rand_uniform01(t))*(1.f+(gcfg->c0.w*gcfg->c0.w/(r*r))))*gcfg->srcparam1.x;
               }
     #endif
 	      if( v[0].z>-1.f+EPS && v[0].z<1.f-EPS ) {
@@ -973,8 +973,8 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	      MCX_SINCOS(ang,sphi,cphi);
     #if defined(MCX_SRC_CONE) // a solid-angle section of a uniform sphere
 		  do{
-		      ang=(gcfg->srcparam1).y>0) ? TWO_PI*rand_uniform01(t) : acos(2.f*rand_uniform01(t)-1.f); //sine distribution
-		  }while(ang>gcfg->srcparam1).x);
+		      ang=(gcfg->srcparam1.y>0) ? TWO_PI*rand_uniform01(t) : acos(2.f*rand_uniform01(t)-1.f); //sine distribution
+		  }while(ang>gcfg->srcparam1.x);
     #else
             #if defined(MCX_SRC_ISOTROPIC) // a solid-angle section of a uniform sphere
 		      ang=acos(2.f*rand_uniform01(t)-1.f); //sine distribution
@@ -989,15 +989,15 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	      float ang,stheta,ctheta,sphi,cphi;
 	      ang=TWO_PI*rand_uniform01(t); //next arimuth angle
 	      MCX_SINCOS(ang,sphi,cphi);
-	      ang=sqrt(-2.f*log(rand_uniform01(t)))*(1.f-2.f*rand_uniform01(t))*gcfg->srcparam1).x;
+	      ang=sqrt(-2.f*log(rand_uniform01(t)))*(1.f-2.f*rand_uniform01(t))*gcfg->srcparam1.x;
 	      MCX_SINCOS(ang,stheta,ctheta);
 	      rotatevector(v,stheta,ctheta,sphi,cphi);
               *Lmove=0.f;
 #elif defined(MCX_SRC_LINE) || defined(MCX_SRC_SLIT) 
 	      float r=rand_uniform01(t);
-	      p[0]=(float4)(p[0].x+r*gcfg->srcparam1).x,
-				   p[0].y+r*gcfg->srcparam1).y,
-				   p[0].z+r*gcfg->srcparam1).z,
+	      p[0]=(float4)(p[0].x+r*gcfg->srcparam1.x,
+				   p[0].y+r*gcfg->srcparam1.y,
+				   p[0].z+r*gcfg->srcparam1.z,
 				   p[0].w);
     #if defined(MCX_SRC_LINE)
 		      float s,q;
@@ -1009,9 +1009,9 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
     #else
               *Lmove=-1.f;
     #endif
-              *prop=TOFLOAT4((float4)(prop[0].x+(gcfg->srcparam1).x)*0.5f,
-	                 prop[0].y+(gcfg->srcparam1).y)*0.5f,
-			 prop[0].z+(gcfg->srcparam1).z)*0.5f,0.f));
+              *prop=TOFLOAT4((float4)(prop[0].x+(gcfg->srcparam1.x)*0.5f,
+	                 prop[0].y+(gcfg->srcparam1.y)*0.5f,
+			 prop[0].z+(gcfg->srcparam1.z)*0.5f,0.f));
 #endif
           /**
            * If beam focus is set, determine the incident angle
