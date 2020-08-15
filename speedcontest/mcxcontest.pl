@@ -6,12 +6,12 @@
 # Author:  Qianqian Fang <q.fang at neu.edu>
 # License: GPLv3
 # Version: 0.5
-# URL:     http://mcx.space/gpubench
+# URL:     http://mcx.space/computebench
 # Github:  https://github.com/fangq/mcx/
 #
 ###############################################################################
 #
-# Dependencies:  
+# Dependencies:
 #
 # For Linux and Mac OS: no additional package is needed, Perl is supported by default
 #
@@ -47,17 +47,17 @@ while(my $opt = $ARGV[0]) {
 		$prettyjson=0;
 	}elsif($opt eq '-l'){
 		$options.='l';
-        }elsif($opt eq '-L'){
-                system("$MCX -L");
-                exit 0;
+	}elsif($opt eq '-L'){
+		system("$MCX -L");
+		exit 0;
 	}elsif($opt eq '-o'){
 		shift;
 		$mcxopt=shift;
 		next;
-	}elsif($opt =~ /^-[nGW]$/){
-		shift;
-		$mcxopt.=" $opt ".shift;
-		next;
+        }elsif($opt =~ /^-[nGW]$/){
+                shift;
+                $mcxopt.=" $opt ".shift;
+                next;
 	}elsif($opt eq '--bin'){
 		shift;
 		$MCX=shift;
@@ -71,16 +71,16 @@ while(my $opt = $ARGV[0]) {
 		$POSTURL=shift;
 		next;
 	}elsif($opt eq '--help'){
-		printf("mcxcontest - running MCX-CL benchmarks and submit to MCX-CL Speed Contest
+		printf("mcxcontest - running MCX benchmarks and submit to MCX Speed Contest
 	Format: %s <option1> <option2> ...\n
 The supported options include (multiple parameters can be used, separated by spaces)
 	-s      submit result to MCX Speed Contest by default (will ask if not used)
         -c      print JSON in compact form, otherwise, print in the indented form
-        -l      compare your GPU with other GPUs in the database (will ask if not used)
-        -L      list all GPUs supported on your system
+	-l      compare your GPU with other GPUs in the database (will ask if not used)
+	-L      list all GPUs supported on your system
 	-o 'mcx options'   supply additional mcx command line options, such as '-n 1e6'
 	-n <num> / -G <01> / -W <w1,w2,..> additional mcx command options add after those in -o
-	--bin /path/to/mcxcl manually specify mcx binary location (default: ../bin/mcxcl)
+	--bin /path/to/mcxcl  manually specify mcx binary location (default: ../bin/mcx)
 	--get url  specify mcx benchmark web link (default: http://mcx.space/computebench)
 	--post url specify submission link (default: http://mcx.space/computebench/gpucontest.cgi)\n",
 		$0);
@@ -160,7 +160,7 @@ sub listgpu(){
 					$gpuinfo{'name'}=$3;
 					$gpuinfo{'id'}=$1+0;
 					$gpuinfo{'devcount'}=$2+0;
-				}elsif($info =~ /Compute Capability\s*:\s*(\d+)\.(\d+)/){
+				}elsif($info =~ /Compute Capability\s*:\s*(\d+)\.(\d+)/i){
 					$gpuinfo{'major'}=$1+0;
 					$gpuinfo{'minor'}=$2+0;
 				}elsif($info =~ /Global Memory\s*:\s*(\d+)\s*B/i){
@@ -253,20 +253,20 @@ sub runbench(){
 				$bench{'mcxversion'}=$1;
 			}
 		}
-                if($mcxopt=~/-W\s+['"]*\s*(([0-9.-]+\s*,\s*)*[0-9.-]+)\s*['"]*/ || $mcxopt=~/--workload\s+['"]*\s*(([0-9.-]+\s*,\s*)*[0-9.-]+)\s*['"]*/){
-                        $bench{'workload'}="[$1]";
-                }
+		if($mcxopt=~/-W\s+['"]*\s*(([0-9.-]+\s*,\s*)*[0-9.-]+)\s*['"]*/ || $mcxopt=~/--workload\s+['"]*\s*(([0-9.-]+\s*,\s*)*[0-9.-]+)\s*['"]*/){
+			$bench{'workload'}="[$1]";
+        	}
 		if(%bench){
 			$report{$keyname}=\%bench;
 			my $absfrac=$bench{'stat'}{'absorbfrac'};
 			if(abs($absfrac - $absorb)/$absorb > 0.1){
-				die("$benchname failed (expected $absorb, got $absfrac), can not continue");
+				die('$benchname failed (expected $absorb, got $absfrac), can not continue');
 			}
 		}else{
-			die("$benchname failed, output incomplete");
+			die('$benchname failed, output incomplete');
 		}
 	}else{
-                die("$benchname failed, output incomplete");
+                die('$benchname failed, output incomplete');
 	}
         print("\n");
 }
@@ -274,15 +274,14 @@ sub runbench(){
 #==============================================================================
 
 sub comparegpu(){
-
 	my ($url)=@_;
 	my $database;
         $database = `curl --silent $url`;
 
-        if($database eq ''){
-                eval("use LWP::Simple qw(get);");
-                $database = get $url;
-		die("fail to download database from $url") if($database eq '');
+        if(!defined($database)){
+                eval("use LWP::Simple; 1") or warn "LWP::Simple is not available: $@";
+                $database = get($url);
+		die("fail to download database from $url") if(!defined($database));
 	}
 	my @res=split(/\n/,$database);
 	my $pos=0;
@@ -374,14 +373,14 @@ sub submitresult(){
 	}
         $ans='';
 
-        print "\nFinal confirmation - please type enter or yes to submit, type no to cancel ([yes]/no)?";
+	print "\nFinal confirmation - please type enter or yes to submit, type no to cancel ([yes]/no)?";
 	$ans=<STDIN>;
 	chomp $ans;
 	if($ans =~/^yes/i || $ans eq ''){
 		my $submitdata=$json->encode(\%form);
 		my $content=`curl --header 'Content-Type: application/json' --request POST --data '$submitdata' $url`;
 		if($content eq ''){
-	                eval("use LWP::UserAgent ();");
+	                eval("use LWP::UserAgent (); 1")  or warn "LWP::UserAgent is not available: $@";;
 			my $ua      = LWP::UserAgent->new(); 
 			my $response = $ua->post( $url, \%form);
 			$content = $response->decoded_content;
