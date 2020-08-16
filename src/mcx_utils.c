@@ -66,12 +66,13 @@
  * Short command line options
  * If a short command line option is '-' that means it only has long/verbose option.
  * Array terminates with '\0'.
+ * Currently un-used options: cCdjNQy0-9
  */
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W','z',
                  'd','r','S','p','e','U','R','l','L','M','I','-','o','k','v','J',
                  'A','P','E','F','H','K','u','-','x','X','-','w','-','q','V','m',
-		 'Y','O','-','-','-','-','Z','\0'};
+		 'Y','O','-','-','-','-','Z','-','\0'};
 
 /**
  * Long command line options
@@ -88,7 +89,7 @@ const char *fullopt[]={"--help","--interactive","--input","--photon","--move",
 		 "--mediabyte","--unitinmm","--atomic","--saveexit","--saveref",
 		 "--internalsrc","--savedetflag","--gscatter","--saveseed","--specular",
 		 "--momentum","--replaydet","--outputtype","--voidtime","--showkernel",
-		 "--bench","--dumpjson","--zip",""};
+		 "--bench","--dumpjson","--zip","--json",""};
 
 /**
  * Debug flags
@@ -219,6 +220,7 @@ void mcx_initcfg(Config *cfg){
      cfg->isdumpmask=0;
      cfg->autopilot=1;
      cfg->shapedata=NULL;
+     cfg->extrajson=NULL;
      cfg->optlevel=1;
      cfg->srcnum=1;
 
@@ -310,6 +312,8 @@ void mcx_clearcfg(Config *cfg){
         free(cfg->seeddata);
      if(cfg->shapedata)
        free(cfg->shapedata);
+     if(cfg->extrajson)
+       free(cfg->extrajson);
 
      mcx_initcfg(cfg);
 }
@@ -1365,6 +1369,15 @@ void mcx_prepdomain(char *filename, Config *cfg){
 		 cfg->prop[i].g=1.f;
              }
      }
+     if(cfg->vol && cfg->mediabyte <= 4){
+         unsigned int fieldlen=cfg->dim.x*cfg->dim.y*cfg->dim.z;
+         unsigned int maxlabel=0;
+         for(uint i=0;i<fieldlen;i++)
+            maxlabel=MAX(maxlabel,(cfg->vol[i]&MED_MASK));
+         if(cfg->medianum<=maxlabel)
+            MCX_ERROR(-4,"input media optical properties are less than the labels in the volume");
+     }
+
      for(int i=0;i<MAX_DEVICE;i++)
         if(cfg->deviceid[i]=='0')
            cfg->deviceid[i]='\0';
@@ -1451,17 +1464,27 @@ int mcx_loadjson(cJSON *root, Config *cfg){
              cfg->medianum=cJSON_GetArraySize(meds);
              if(cfg->medianum>MAX_PROP)
                  MCX_ERROR(-4,"input media types exceed the maximum (255)");
+             if(cfg->prop)
+                 free(cfg->prop);
              cfg->prop=(Medium*)malloc(sizeof(Medium)*cfg->medianum);
              for(i=0;i<cfg->medianum;i++){
-               cJSON *val=FIND_JSON_OBJ("mua",(MCX_ERROR(-1,"You must specify absorption coeff, default in 1/mm"),""),med);
-               if(val) cfg->prop[i].mua=val->valuedouble;
-	       val=FIND_JSON_OBJ("mus",(MCX_ERROR(-1,"You must specify scattering coeff, default in 1/mm"),""),med);
-               if(val) cfg->prop[i].mus=val->valuedouble;
-	       val=FIND_JSON_OBJ("g",(MCX_ERROR(-1,"You must specify anisotropy [0-1]"),""),med);
-               if(val) cfg->prop[i].g=val->valuedouble;
-	       val=FIND_JSON_OBJ("n",(MCX_ERROR(-1,"You must specify refractive index"),""),med);
-	       if(val) cfg->prop[i].n=val->valuedouble;
-
+               if(cJSON_IsObject(med)){
+                   cJSON *val=FIND_JSON_OBJ("mua",(MCX_ERROR(-1,"You must specify absorption coeff, default in 1/mm"),""),med);
+                   if(val) cfg->prop[i].mua=val->valuedouble;
+                   val=FIND_JSON_OBJ("mus",(MCX_ERROR(-1,"You must specify scattering coeff, default in 1/mm"),""),med);
+                   if(val) cfg->prop[i].mus=val->valuedouble;
+                   val=FIND_JSON_OBJ("g",(MCX_ERROR(-1,"You must specify anisotropy [0-1]"),""),med);
+                   if(val) cfg->prop[i].g=val->valuedouble;
+                   val=FIND_JSON_OBJ("n",(MCX_ERROR(-1,"You must specify refractive index"),""),med);
+                   if(val) cfg->prop[i].n=val->valuedouble;
+               }else if(cJSON_IsArray(med)){
+                   cfg->prop[i].mua=med->child->valuedouble;
+                   cfg->prop[i].mus=med->child->next->valuedouble;
+                   cfg->prop[i].g=med->child->next->next->valuedouble;
+                   cfg->prop[i].n=med->child->next->next->next->valuedouble;
+	       }else{
+                   MCX_ERROR(-1,"Session.Media must be either an array of objects or array of 4-elem numerical arrays");
+               }
                med=med->next;
                if(med==NULL) break;
              }
@@ -1479,7 +1502,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
            cfg->dim.y=val->child->next->valueint;
            cfg->dim.z=val->child->next->next->valueint;
 	}else{
-	   if(!Shapes)
+           if(!Shapes && (!(cfg->extrajson && cfg->extrajson[0]=='_')) )
 	      MCX_ERROR(-1,"You must specify the dimension of the volume");
 	}
 	val=FIND_JSON_OBJ("Step","Domain.Step",Domain);
@@ -1712,7 +1735,11 @@ int mcx_loadjson(cJSON *root, Config *cfg){
          if(Shapes){
 	     if(!FIND_JSON_OBJ("_ArraySize_","Volume._ArraySize_",Shapes) && !cfg->shapedata)
 	         cfg->shapedata=cJSON_Print(Shapes);
-	     
+             if(cfg->extrajson && cfg->extrajson[0]=='_'){
+                 if(cfg->shapedata)
+                     free(cfg->shapedata);
+                 cfg->shapedata=cJSON_Print(Shapes);
+             }
 	     if(FIND_JSON_OBJ("_ArrayZipData_","Volume._ArrayZipData_",Shapes)){
 	         int ndim;
 		 char *type=NULL, *buf=NULL;
@@ -1729,7 +1756,7 @@ int mcx_loadjson(cJSON *root, Config *cfg){
 		     MCX_ERROR(status,mcx_last_shapeerror());
 		 }
 	     }
-	 }else{
+         }else if(!(cfg->extrajson && cfg->extrajson[0]=='_')){
 	     MCX_ERROR(-1,"You must either define Domain.VolumeFile, or define a Shapes section");
 	 }
      }else if(Shapes){
@@ -2548,9 +2575,8 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
      	    if(argv[i][0]=='-'){
 		if(argv[i][1]=='-'){
 			if(mcx_remap(argv[i])){
-				MCX_FPRINTF(cfg->flog,"unknown verbose option %s\n", argv[i]);
-				i+=2;
-				continue;
+                                MCX_FPRINTF(cfg->flog,"Command option: %s",argv[i]);
+                                MCX_ERROR(-2,"unknown verbose option");
 			}
 		}
 		if(argv[i][1]<='z' && argv[i][1]>='A')
@@ -2797,9 +2823,22 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 					     MCX_FPRINTF(cfg->flog,"\t%s\n",benchname[i]);
 				         exit(0);
 				     }
+                                }else if(strcmp(argv[i]+2,"json")==0){
+                                    if(i+1<argc){
+                                       len=strlen(argv[i+1]);
+                                       if(cfg->extrajson)
+                                           free(cfg->extrajson);
+                                       cfg->extrajson=(char *)calloc(1,len+1);
+                                       memcpy(cfg->extrajson,argv[++i],len);
+                                    }else
+                                       MCX_ERROR(-1,"json fragment is expected after --json");
                                 }else
                                      MCX_FPRINTF(cfg->flog,"unknown verbose option: --%s\n",argv[i]+2);
 		     	        break;
+                     default:
+                                MCX_FPRINTF(cfg->flog,"Command option: %s",argv[i]);
+                                MCX_ERROR(-2,"unknown short option");
+                                break;
 		}
 	    }
 	    i++;
@@ -2843,6 +2882,20 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 	  }else{
              mcx_readconfig(filename,cfg);
           }
+          if(cfg->extrajson){
+             cJSON *jroot = cJSON_Parse(cfg->extrajson);
+             if(jroot){
+               cfg->extrajson[0]='_';
+                mcx_loadjson(jroot,cfg);
+                cJSON_Delete(jroot);
+             }else{
+               MCX_ERROR(-1,"invalid json fragment following --json");
+            }
+          }
+     }
+     if(cfg->isdumpjson==3){
+         mcx_savejdata(cfg->jsonfile, cfg);
+         exit(0);
      }
 }
 
