@@ -186,7 +186,7 @@ typedef struct MCXConfig{
 	int parentid;
         uint optlevel;
 	uint mediabyte;
-	char bc[8];                  /**<boundary condition flag for [-x,-y,-z,+x,+y,+z,unused,unused] */
+	char bc[12];                 /**<boundary condition flag for [-x,-y,-z,+x,+y,+z, det(-x,-y,-z,+x,+y,+z)] */
 } Config;
 
 #ifdef	__cplusplus

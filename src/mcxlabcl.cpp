@@ -637,7 +637,7 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
         if (status != 0)
              mexWarnMsgTxt("not enough space. string is truncated.");
         cfg->savedetflag=mcx_parsedebugopt(savedetflag,saveflag);
-	printf("mcx.savedetflag='%d';\n",cfg->savedetflag);
+	printf("mcx.savedetflag=%d;\n",cfg->savedetflag);
     }else if(strcmp(name,"debuglevel")==0){
         int len=mxGetNumberOfElements(item);
         const char debugflag[]={'R','M','P','\0'};
@@ -675,7 +675,7 @@ void mcx_set_field(const mxArray *root,const mxArray *item,int idx, Config *cfg)
         jsonshapes[len]='\0';
     }else if(strcmp(name,"bc")==0){
         int len=mxGetNumberOfElements(item);
-        if(!mxIsChar(item) || len==0 || len>7)
+        if(!mxIsChar(item) || len==0 || len>12)
              mexErrMsgTxt("the 'bc' field must be a non-empty string");
 
         mxGetString(item, cfg->bc, len+1);
@@ -821,9 +821,10 @@ void mcx_replay_prep(Config *cfg){
  */
 
 void mcx_validate_config(Config *cfg){
-     int i;
+     int i, isbcdet=0;
      uint gates;
      const char boundarycond[]={'_','r','a','m','c','\0'};
+     const char boundarydetflag[]={'0','1','\0'};
      unsigned int partialdata=(cfg->medianum-1)*(SAVE_NSCAT(cfg->savedetflag)+SAVE_PPATH(cfg->savedetflag)+SAVE_MOM(cfg->savedetflag));
      unsigned int hostdetreclen=partialdata+SAVE_DETID(cfg->savedetflag)+3*(SAVE_PEXIT(cfg->savedetflag)+SAVE_VEXIT(cfg->savedetflag))+SAVE_W0(cfg->savedetflag);
 
@@ -879,6 +880,13 @@ void mcx_validate_config(Config *cfg){
         if(cfg->bc[i]>='A' && mcx_lookupindex(cfg->bc+i,boundarycond))
 	   mexErrMsgTxt("unknown boundary condition specifier");
 
+     for(i=6;i<12;i++){
+        if(cfg->bc[i]>='0' && mcx_lookupindex(cfg->bc+i,boundarydetflag))
+	   mexErrMsgTxt("unknown boundary detection flags");
+	if(cfg->bc[i])
+	   isbcdet=1;
+     }
+
      if(cfg->medianum){
         for(uint i=0;i<cfg->medianum;i++)
              if(cfg->prop[i].mus==0.f){
@@ -893,7 +901,7 @@ void mcx_validate_config(Config *cfg){
 		cfg->prop[i].mua*=cfg->unitinmm;
         }
      }
-     if(cfg->issavedet && cfg->detnum==0) 
+     if(cfg->issavedet && cfg->detnum==0 && isbcdet==0)
       	cfg->issavedet=0;
      if(cfg->issavedet==0){
          cfg->issaveexit=0;

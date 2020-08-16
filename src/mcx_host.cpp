@@ -563,11 +563,13 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      OCL_ASSERT(((mcxprogram=clCreateProgramWithSource(mcxcontext, 1,(const char **)&(cfg->clsource), NULL, &status),status)));
 
      if(cfg->optlevel>=1)
-         sprintf(opt,"%s ","-cl-mad-enable -DMCX_USE_NATIVE -DGROUP_LOAD_BALANCE");
+         sprintf(opt,"%s ","-cl-mad-enable -DMCX_USE_NATIVE");
      if(cfg->optlevel>=2)
          sprintf(opt+strlen(opt),"%s ","-DUSE_MACRO_CONST");
      if(cfg->optlevel>=3)
          sprintf(opt+strlen(opt),"%s ","-DMCX_SIMPLIFY_BRANCH -DMCX_VECTOR_INDEX");
+     if(cfg->optlevel>=4)
+         sprintf(opt+strlen(opt),"%s ","-DGROUP_LOAD_BALANCE");
      
      for(i=0;i<3;i++)
          if(cfg->debuglevel & (1<<i))
@@ -575,13 +577,13 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      if((uint)cfg->srctype<sizeof(sourceflag)/sizeof(sourceflag[0]))
          sprintf(opt+strlen(opt),"%s ",sourceflag[(uint)cfg->srctype]);
-     sprintf(opt+strlen(opt)," -DMED_TYPE=%d ",cfg->mediabyte);
+     sprintf(opt+strlen(opt),"-DMED_TYPE=%d ",cfg->mediabyte);
 
-     sprintf(opt+strlen(opt),"%s",cfg->compileropt);
+     sprintf(opt+strlen(opt),"%s ",cfg->compileropt);
      if(cfg->isatomic)
-         sprintf(opt+strlen(opt)," -DUSE_ATOMIC");
+         sprintf(opt+strlen(opt),"%s ","-DUSE_ATOMIC");
      if(cfg->issavedet)
-         sprintf(opt+strlen(opt)," -DMCX_SAVE_DETECTORS");
+         sprintf(opt+strlen(opt),"%s ","-DMCX_SAVE_DETECTORS");
 
      if(strstr(opt,"USE_MACRO_CONST")){
 	IPARAM_TO_MACRO(opt,param,detnum);
@@ -625,7 +627,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      if(workdev==1 && gpu[0].iscpu)
          sprintf(opt+strlen(opt)," -DMCX_USE_CPU");
 
-     MCX_FPRINTF(cfg->flog,"Building kernel with option: %s\n",opt);
+     MCX_FPRINTF(cfg->flog,"building kernel with option: %s\n",opt);
      status=clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);
 
      size_t len;
@@ -703,7 +705,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      cl_float Vvox;
      Vvox=cfg->steps.x*cfg->steps.y*cfg->steps.z;
-     memcpy(&(param.bc),cfg->bc,8);
+     memcpy(&(param.bc),cfg->bc,12);
 
      tic0=GetTimeMillis();
 
@@ -722,7 +724,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
            for(devid=0;devid<workdev;devid++){
 	       int nblock=gpu[devid].autothread/gpu[devid].autoblock;
-	       int np=cfg->nphoton-gpu[devid].autothread+nblock;
+	       int np=cfg->nphoton/nblock;
 
                param.threadphoton=(int)(cfg->nphoton*cfg->workload[devid]/(fullload*gpu[devid].autothread*cfg->respin));
                param.oddphoton   =(int)(cfg->nphoton*cfg->workload[devid]/(fullload*cfg->respin)-param.threadphoton*gpu[devid].autothread);

@@ -59,6 +59,7 @@
 #define MAX_PROP           2000                     /*maximum property number*/
 #define OUTSIDE_VOLUME_MIN 0xFFFFFFFF              /**< flag indicating the index is outside of the volume from x=xmax,y=ymax,z=zmax*/
 #define OUTSIDE_VOLUME_MAX 0x7FFFFFFF              /**< flag indicating the index is outside of the volume from x=0/y=0/z=0*/
+#define BOUNDARY_DET_MASK  0xFFFF0000              /**< flag indicating a boundary face is used as a detector*/
 #define SEED_FROM_FILE      -999                   /**< special flag indicating to read seeds from an mch file for replay */
 
 #define DET_MASK           0x80000000              /**< mask of the sign bit to get the detector */
@@ -146,7 +147,7 @@ typedef struct KernelParams {
   uint   is2d;                 /**< is the domain a 2D slice? */
   int    replaydet;                     /**< select which detector to replay, 0 for all, -1 save all separately */
   uint   srcnum;               /**< total number of source patterns */
-  unsigned char bc[8];               /**< boundary conditions */
+  unsigned char bc[12];               /**< boundary conditions */
 } MCXParam __attribute__ ((aligned (32)));
 
 enum TBoundary {bcUnknown, bcReflect, bcAbsorb, bcMirror, bcCylic};            /**< boundary conditions */
@@ -290,7 +291,7 @@ uint finddetector(float4 *p0,__constant float4 *gdetpos,__constant MCXParam *gcf
 void savedetphoton(__global float *n_det,__global uint *detectedphoton,
                    __local float *ppath,float4 *p0,float4 *v,
   		   __local RandType *t, __global RandType *seeddata, 
-                   __constant float4 *gdetpos,__constant MCXParam *gcfg);
+                   __constant float4 *gdetpos,__constant MCXParam *gcfg, uint isdet);
 void saveexitppath(__global float *n_det,__local float *ppath,float4 *p0,uint *idx1d, __constant MCXParam *gcfg);
 #endif
 int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
@@ -352,8 +353,9 @@ void saveexitppath(__global float *n_det,__local float *ppath,float4 *p0,uint *i
 void savedetphoton(__global float *n_det,__global uint *detectedphoton,
                    __local float *ppath,float4 *p0,float4 *v,
 		   __local RandType *t, __global RandType *seeddata, 
-		   __constant float4 *gdetpos,__constant MCXParam *gcfg){
-      uint detid=finddetector(p0,gdetpos,gcfg);
+		   __constant float4 *gdetpos,__constant MCXParam *gcfg, uint isdet){
+      int detid;
+      detid=(isdet==OUTSIDE_VOLUME_MIN)?-1:(int)finddetector(p0,gdetpos,gcfg);
       if(detid){
 	 uint baseaddr=atomic_inc(detectedphoton);
 	 if(baseaddr<GPU_PARAM(gcfg,maxdetphoton)){
@@ -767,13 +769,6 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
       if(p[0].w>=0.f){
           ppath[GPU_PARAM(gcfg,partialdata)]+=p[0].w;  ///< sum all the remaining energy
 
-#ifdef GROUP_LOAD_BALANCE
-          if(f[0].w<0.f || atomic_sub(blockphoton,1)<=1)
-              return 1;
-          if(blockphoton[0]<get_local_size(0) && get_local_id(0))
-              f[0].w=-2.f;
-#endif
-
           if(*mediaid==0 && *idx1d!=OUTSIDE_VOLUME_MIN && *idx1d!=OUTSIDE_VOLUME_MAX && GPU_PARAM(gcfg,issaveref)){
             if(GPU_PARAM(gcfg,issaveref)==1){
               int tshift=MIN((int)GPU_PARAM(gcfg,maxgate)-1,(int)(floor((f[0].y-gcfg->twin0)*GPU_PARAM(gcfg,Rtstep))));
@@ -803,18 +798,24 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 #ifdef MCX_SAVE_DETECTORS
       // let's handle detectors here
           if((isdet&DET_MASK)==DET_MASK && *mediaid==0 && GPU_PARAM(gcfg,issaveref)<2)
-	         savedetphoton(n_det,dpnum,ppath,p,v,photonseed, gseeddata, gdetpos,gcfg);
+	         savedetphoton(n_det,dpnum,ppath,p,v,photonseed, gseeddata, gdetpos,gcfg,isdet);
           clearpath(ppath,GPU_PARAM(gcfg,partialdata));
+#endif
+#ifdef GROUP_LOAD_BALANCE
+          GPUDEBUG(("block workload [%f] done over [%d]\n",f[0].w,blockphoton[0]));
+          if(atomic_sub(blockphoton,1)<=1)
+             return 1;
 #endif
       }
       /**
        * If the thread completes all assigned photons, terminate this thread.
        */
 #ifndef GROUP_LOAD_BALANCE
+      GPUDEBUG(("thread workload [%f] done over [%d]\n",f[0].w,(gcfg->threadphoton+(threadid<gcfg->oddphoton))));
       if(f[0].w>=(gcfg->threadphoton+(threadid<gcfg->oddphoton)))
          return 1; // all photons complete 
 #endif
-      
+
       ppath+= GPU_PARAM(gcfg,partialdata);
 
       /**
@@ -1142,6 +1143,7 @@ __kernel void mcx_main_loop(__global const uint *media,
      if(get_local_id(0) == 0)
 	blockphoton[0] = gcfg->blockphoton + ((int)get_group_id(0) < gcfg->blockextra);
      barrier(CLK_LOCAL_MEM_FENCE);
+     GPUDEBUG(("set block load to %d\n",blockphoton[0]));
 #endif
 
      ppath+=get_local_id(0)*(GPU_PARAM(gcfg,w0offset) + GPU_PARAM(gcfg,srcnum)); // block#2: maxmedia*thread number to store the partial
@@ -1163,6 +1165,7 @@ __kernel void mcx_main_loop(__global const uint *media,
 
 #ifdef GROUP_LOAD_BALANCE
      while(blockphoton[0]>0 || f.w<0.f) {
+     GPUDEBUG(("block workload [%d] left\n",blockphoton[0]));
 #else
      while(f.w<=gcfg->threadphoton + (idx<gcfg->oddphoton)) {
 #endif
@@ -1278,9 +1281,9 @@ __kernel void mcx_main_loop(__global const uint *media,
           if(any(isless(p.xyz,(float3)(0.f))) || any(isgreaterequal(p.xyz,(gcfg->maxidx.xyz)))){
               /** if photon moves outside of the volume, set mediaid to 0 */
 	      mediaid=0;
-	      isdet=gcfg->bc[(!(p.x<0.f||p.y<0.f||p.z<0.f))*3+flipdir];  /** isdet now stores the boundary condition flag, this will be overwriten before the end of the loop */
-              GPUDEBUG(("moving outside: [%f %f %f], idx1d [%d]->[out], bcflag %d\n",p.x,p.y,p.z,idx1d,isdet));
 	      idx1d=(p.x<0.f||p.y<0.f||p.z<0.f) ? OUTSIDE_VOLUME_MIN : OUTSIDE_VOLUME_MAX;
+	      isdet=gcfg->bc[(idx1d==OUTSIDE_VOLUME_MAX)*3+flipdir];  /** isdet now stores the boundary condition flag, this will be overwriten before the end of the loop */
+              GPUDEBUG(("moving outside: [%f %f %f], idx1d [%d]->[out], bcflag %d\n",p.x,p.y,p.z,idx1d,isdet));
 	  }else{
               mediaid=media[idx1d];
 	      isdet=mediaid & DET_MASK;  /** upper 16bit is the mask of the covered detector */
@@ -1361,9 +1364,10 @@ __kernel void mcx_main_loop(__global const uint *media,
 	        	 continue;
 		     }
 		  }
-                  GPUDEBUG(((__constant char*)"direct relaunch at idx=[%d] mediaid=[%d], ref=[%d]\n",idx1d,mediaid,GPU_PARAM(gcfg,doreflect)));
-		  if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),ppath,
-		      n_det,detectedphoton,t,(__global RandType*)n_seed,gproperty,media,srcpattern,gdetpos,gcfg,idx,blockphoton,gprogress,
+                  GPUDEBUG(((__constant char*)"direct relaunch at idx=[%d] mediaid=[%d] bc=[%d] ref=[%d]\n",idx1d,mediaid,isdet,GPU_PARAM(gcfg,doreflect)));
+		  if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,
+		      (((idx1d==OUTSIDE_VOLUME_MAX && gcfg->bc[9+flipdir]) || (idx1d==OUTSIDE_VOLUME_MIN && gcfg->bc[6+flipdir]))? OUTSIDE_VOLUME_MIN : (mediaidold & DET_MASK)),
+		      ppath,n_det,detectedphoton,t,(__global RandType*)n_seed,gproperty,media,srcpattern,gdetpos,gcfg,idx,blockphoton,gprogress,
 		      (__local RandType*)((__local char*)sharedmem+get_local_id(0)*GPU_PARAM(gcfg,issaveseed)*RAND_BUF_LEN*sizeof(RandType)),gseeddata,gjumpdebug,gdebugdata)){ 
                          break;
 		  }
@@ -1398,8 +1402,9 @@ __kernel void mcx_main_loop(__global const uint *media,
 	          if(Rtotal<1.f && (((isdet & 0xF)==0 && gproperty[mediaid].w>=1.f) || isdet==bcReflect) && rand_next_reflect(t)>Rtotal){ // do transmission
                         transmit(&v,n1,prop.w,flipdir);
                         if(mediaid==0){ // transmission to external boundary
-                            GPUDEBUG(((__constant char*)"transmit to air, relaunch\n"));
-		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,(mediaidold & DET_MASK),
+                            GPUDEBUG(((__constant char*)"transmit to air, relaunch, idx=[%d] mediaid=[%d] bc=[%d] ref=[%d]\n",idx1d,mediaid,isdet,GPU_PARAM(gcfg,doreflect)));
+		    	    if(launchnewphoton(&p,&v,&f,&prop,&idx1d,field,&mediaid,&w0,&Lmove,
+   			        (((idx1d==OUTSIDE_VOLUME_MAX && gcfg->bc[9+flipdir]) || (idx1d==OUTSIDE_VOLUME_MIN && gcfg->bc[6+flipdir]))? OUTSIDE_VOLUME_MIN : (mediaidold & DET_MASK)),
 			        ppath,n_det,detectedphoton,t,(__global RandType*)n_seed,gproperty,media,srcpattern,gdetpos,gcfg,idx,blockphoton,gprogress,
 				(__local RandType*)((__local char*)sharedmem+get_local_id(0)*GPU_PARAM(gcfg,issaveseed)*RAND_BUF_LEN*sizeof(RandType)),gseeddata,gjumpdebug,gdebugdata)){
                                     break;
