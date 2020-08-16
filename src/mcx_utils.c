@@ -646,7 +646,7 @@ void mcx_savejnii(float *vol, int ndim, uint *dims, float *voxelsize, char* name
 void mcx_savedata(float *dat, size_t len, Config *cfg){
      FILE *fp;
      char name[MAX_FULL_PATH];
-     char fname[MAX_FULL_PATH];
+     char fname[MAX_FULL_PATH+10];
      unsigned int glformat=GL_RGBA32F;
 
      if(cfg->rootpath[0])
@@ -1750,7 +1750,11 @@ int mcx_loadjson(cJSON *root, Config *cfg){
 	     }else{
 		 int status;
 		 Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
-		 if(cfg->issrcfrom0) memset(&(grid.orig.x),0,sizeof(float3));
+                 if(cfg->issrcfrom0){
+                    grid.orig.x=0.f;
+                    grid.orig.y=0.f;
+                    grid.orig.z=0.f;
+                 }
 		 status=mcx_parse_jsonshapes(root, &grid);
 		 if(status){
 		     MCX_ERROR(status,mcx_last_shapeerror());
@@ -1968,7 +1972,11 @@ void mcx_loadvolume(char *filename,Config *cfg,int isbuf){
 	 if(strstr(filename,".json")!=NULL){
 	     int status;
 	     Grid3D grid={&(cfg->vol),&(cfg->dim),{1.f,1.f,1.f},cfg->isrowmajor};
-	     if(cfg->issrcfrom0) memset(&(grid.orig.x),0,sizeof(float3));
+	     if(cfg->issrcfrom0){
+                grid.orig.x=0.f;
+                grid.orig.y=0.f;
+                grid.orig.z=0.f;
+	     }
 	     status=mcx_load_jsonshapes(&grid,filename);
 	     if(status){
 		 MCX_ERROR(status,mcx_last_shapeerror());
