@@ -2780,11 +2780,14 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     	        i=mcx_readarg(argc,argv,i,&(cfg->maxdetphoton),"int");
 		     	        break;
                      case 'P':
-		                len=strlen(argv[i]);
-                                if(cfg->shapedata)
-				    free(cfg->shapedata);
-				cfg->shapedata=(char *)malloc(len);
-				memcpy(cfg->shapedata,argv[++i],len);
+                                if(i+1<argc){
+					len=strlen(argv[i+1]);
+					if(cfg->shapedata)
+						free(cfg->shapedata);
+					cfg->shapedata=(char *)malloc(len);
+					memcpy(cfg->shapedata,argv[++i],len);
+				}else
+					MCX_ERROR(-1,"json shape constructs are expected after -P");
                                 break;
                      case 'E':
 				if(i<argc-1 && strstr(argv[i+1],".mch")!=NULL){ /*give an mch file to initialize the seed*/
