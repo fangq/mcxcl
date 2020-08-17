@@ -781,7 +781,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
   are more than what your have specified (%d), please use the --maxjumpdebug option to specify a greater number\n" S_RESET
                              ,debugrec,cfg->maxjumpdebug);
 		     }else{
-			  MCX_FPRINTF(cfg->flog,"saved %ud trajectory positions, total: %d\t",debugrec,cfg->maxjumpdebug+debugrec);
+			  MCX_FPRINTF(cfg->flog,"saved %u trajectory positions, total: %d\t",debugrec,cfg->maxjumpdebug+debugrec);
 		     }
                      debugrec=MIN(debugrec,cfg->maxjumpdebug);
 	             cfg->exportdebugdata=(float*)realloc(cfg->exportdebugdata,(cfg->debugdatalen+debugrec)*debuglen*sizeof(float));
@@ -841,21 +841,21 @@ is more than what your have specified (%d), please use the -H option to specify 
                     if(cfg->respin>1)  //copy the accumulated fields back
                 	memcpy(field,field+fieldlen,sizeof(cl_float)*fieldlen);
         	}
-        	if(cfg->isnormalized){
-                    energy=(cl_float*)calloc(sizeof(cl_float),gpu[devid].autothread<<1);
-                    OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*(gpu[devid].autothread<<1),
-	                                     energy, 0, NULL, NULL)));
-                    for(i=0;i<gpu[devid].autothread;i++){
-                	cfg->energyesc+=energy[(i<<1)];
-       	       		cfg->energytot+=energy[(i<<1)+1];
-                    }
-		    free(energy);
-        	}
 		if(cfg->exportfield){
 	            for(i=0;i<fieldlen;i++)
 			cfg->exportfield[i]+=field[i];
         	}
              }
+
+             energy=(cl_float*)calloc(sizeof(cl_float),gpu[devid].autothread<<1);
+	     OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid],genergy[devid],CL_TRUE,0,sizeof(cl_float)*(gpu[devid].autothread<<1),
+	                                     energy, 0, NULL, NULL)));
+	     for(i=0;i<gpu[devid].autothread;i++){
+               	cfg->energyesc+=energy[(i<<1)];
+       	   	cfg->energytot+=energy[(i<<1)+1];
+             }
+	     free(energy);
+
 	     //initialize the next simulation
 	     if(twindow1<cfg->tend && iter<cfg->respin){
                   memset(field,0,sizeof(cl_float)*dimxyz*cfg->maxgate);
