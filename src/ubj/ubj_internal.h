@@ -160,3 +160,4 @@ static inline ubjr_dynamic_t priv_ubjr_pointer_to_dynamic(UBJ_TYPE typ, const vo
 }
 
 #endif
+
