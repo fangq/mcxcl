@@ -66,13 +66,13 @@
  * Short command line options
  * If a short command line option is '-' that means it only has long/verbose option.
  * Array terminates with '\0'.
- * Currently un-used options: cCdjNQy0-9
+ * Currently un-used options: cCdNQy0-9
  */
 
 char shortopt[]={'h','i','f','n','m','t','T','s','a','g','b','B','D','-','G','W','z',
                  'd','r','S','p','e','U','R','l','L','M','I','-','o','k','v','J',
                  'A','P','E','F','H','K','u','-','x','X','-','w','-','q','V','m',
-		 'Y','O','-','-','-','-','Z','-','\0'};
+		 'Y','O','-','-','-','-','Z','j','\0'};
 
 /**
  * Long command line options
@@ -2789,6 +2789,16 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 				}else
 					MCX_ERROR(-1,"json shape constructs are expected after -P");
                                 break;
+                     case 'j':
+				if(i+1<argc){
+					len=strlen(argv[i+1]);
+					if(cfg->extrajson)
+						free(cfg->extrajson);
+					cfg->extrajson=(char *)calloc(1,len+1);
+					memcpy(cfg->extrajson,argv[++i],len);
+				}else
+				        MCX_ERROR(-1,"json fragment is expected after --json");
+				break;
                      case 'E':
 				if(i<argc-1 && strstr(argv[i+1],".mch")!=NULL){ /*give an mch file to initialize the seed*/
 #if defined(USE_LL5_RAND)
@@ -2858,15 +2868,6 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 					     MCX_FPRINTF(cfg->flog,"\t%s\n",benchname[i]);
 				         exit(0);
 				     }
-                                }else if(strcmp(argv[i]+2,"json")==0){
-                                    if(i+1<argc){
-                                       len=strlen(argv[i+1]);
-                                       if(cfg->extrajson)
-                                           free(cfg->extrajson);
-                                       cfg->extrajson=(char *)calloc(1,len+1);
-                                       memcpy(cfg->extrajson,argv[++i],len);
-                                    }else
-                                       MCX_ERROR(-1,"json fragment is expected after --json");
                                 }else
                                      MCX_FPRINTF(cfg->flog,"unknown verbose option: --%s\n",argv[i]+2);
 		     	        break;
@@ -3020,6 +3021,8 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 \n"S_BOLD S_CYAN"\
 == Required option ==\n"S_RESET"\
  -f config     (--input)       read an input file in .json or .inp format\n\
+                               if the string starts with '{', it is parsed as\n\
+			       an inline JSON input file\n\
  --bench ['cube60','skinvessel',..] run a buint-in benchmark specified by name\n\
                                run --bench without parameter to get a list\n\
 \n"S_BOLD S_CYAN"\
@@ -3077,7 +3080,13 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -k my_simu.cl (--kernel)      user specified OpenCL kernel source file\n\
 \n"S_BOLD S_CYAN"\
 == Input options ==\n"S_RESET"\
- -P '{...}'    (--shapes)      a JSON string for additional shapes in the grid\n\
+ -P '{...}'    (--shapes)      a JSON string for additional shapes in the grid.\n\
+                               only the root object named 'Shapes' is parsed \n\
+			       and added to the existing domain defined via -f \n\
+			       or --bench\n\
+ -j '{...}'    (--json)        a JSON string for modifying all input settings.\n\
+                               this input can be used to modify all existing \n\
+			       settings defined by -f or --bench\n\
  -K [1|int|str](--mediabyte)   volume data format, use either a number or a str\n\
                                1 or byte: 0-128 tissue labels\n\
 			       2 or short: 0-65535 (max to 4000) tissue labels\n\
@@ -3139,7 +3148,7 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 			       4 lzma: lzma format (high compression,very slow)\n\
 			       5 lz4: LZ4 format (low compression,extrem. fast)\n\
 			       6 lz4hc: LZ4HC format (moderate compression,fast)\n\
- --dumpjson [-,2,'file.json']  export all settings, including volume data using\n\
+ --dumpjson [-,2,3,'file.json']  export all settings,including volume data using\n\
                                JSON/JData (http://openjdata.org) format for \n\
 			       easy sharing; can be reused using -f\n\
 			       if followed by nothing or '-', mcx will print\n\
@@ -3179,13 +3188,17 @@ where possible parameters include (the first value in [*|*] is the default)\n\
                                stored (default: 1e7)\n\
 \n"S_BOLD S_CYAN"\
 == Example ==\n"S_RESET"\
-example: (autopilot mode)\n"S_GREEN"\
-       %s -A 1 -n 1e7 -f input.json -G 1\n"S_RESET"\
-or (manual mode)\n"S_GREEN"\
-       %s -t 16384 -T 64 -n 1e7 -f input.json -s test -r 2 -d 1 -b 1 -G 1\n"S_RESET"\
+example: (list built-in benchmarks)\n"S_GREEN"\
+       %s --bench\n" S_RESET"\
+or (list supported GPUs on the system)\n"S_GREEN"\
+       %s -L\n" S_RESET"\
 or (use multiple devices - 1st,2nd and 4th GPUs - together with equal load)\n"S_GREEN"\
-       %s -A -n 1e7 -f input.json -G 1101 -W 10,10,10\n"S_RESET"\
+       %s --bench cube60b -n 1e7 -G 1101 -W 10,10,10\n" S_RESET"\
 or (use inline domain definition)\n"S_GREEN"\
-       %s -f input.json -P '{\"Shapes\":[{\"ZLayers\":[[1,10,1],[11,30,2],[31,60,3]]}]}'"S_RESET"\n",
-              exename,exename,exename,exename,exename);
+       %s -f input.json -P '{\"Shapes\":[{\"ZLayers\":[[1,10,1],[11,30,2],[31,60,3]]}]}'\n" S_RESET"\
+or (use inline json setting modifier)\n"S_GREEN"\
+       %s -f input.json -j '{\"Optode\":{\"Source\":{\"Type\":\"isotropic\"}}}'\n" S_RESET"\
+or (dump simulation in a single json file)\n"S_GREEN"\
+       %s --bench cube60planar --dumpjson" S_RESET"\n",
+              exename,exename,exename,exename,exename,exename,exename);
 }
