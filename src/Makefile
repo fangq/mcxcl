@@ -162,7 +162,7 @@ intelcpu:
 static: LINKOPT:=-Wl,-Bstatic  -Wl,-Bdynamic -static-libgcc -static-libstdc++ $(LINKOPT) -Wl,-Bstatic -lm -Wl,-Bdynamic
 
 $(ZMATLIB):
-	-$(MAKE) -C zmat lib AR=ar CPPOPT="$(DLLFLAG)" CCOPT="$(DLLFLAG)" USERLINKOPT=
+	-$(MAKE) -C zmat lib AR=ar CPPOPT="-O3 $(DLLFLAG)" CCOPT="-O3 $(DLLFLAG)" USERLINKOPT=
 
 clean:
 	-$(MAKE) -C zmat clean
