@@ -38,7 +38,7 @@ matrix:
 
 before_install:
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt-get install ocl-icd-libopencl1 opencl-headers ocl-icd-opencl-dev liboctave-dev; fi
-  - if [ "$BADGE" = "Ubuntu_20.04" ]; then sudo apt-get install pocl; fi
+  - if [ "$BADGE" = "Ubuntu_20.04" ]; then sudo apt-get install libpocl2 pocl-opencl-icd; fi
   - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install opencl-intel-cpu-runtime; fi
 
 addons:
