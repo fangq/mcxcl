@@ -19,12 +19,14 @@ matrix:
       env:
       - BADGE=Ubuntu_18.04
       - MAKE=make
+      - TESTMCX=1
     - os: linux
       name: Ubuntu 20.04
       dist: focal
       env:
       - BADGE=Ubuntu_20.04
       - MAKE=make
+      - TESTMCX=1
     - os: windows
       name: Windows
       env:
@@ -38,7 +40,7 @@ matrix:
 
 before_install:
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt-get install ocl-icd-libopencl1 opencl-headers ocl-icd-opencl-dev liboctave-dev; fi
-  - if [ "$BADGE" = "Ubuntu_20.04" ]; then sudo apt-get install libpocl2 pocl-opencl-icd; fi
+  - if [ "$TESTMCX" = "1" ]; then sudo apt-get install libpocl2 pocl-opencl-icd; fi
   - if [ "$TRAVIS_OS_NAME" = "windows" ]; then choco install opencl-intel-cpu-runtime; fi
 
 addons:
@@ -54,4 +56,4 @@ script:
     - if [ "$TRAVIS_OS_NAME" = "linux" ]; then ${MAKE} -C src oct; fi
     - if [ "$TRAVIS_OS_NAME" = "linux" ]; then ${MAKE} -C src clean; fi
     - ${MAKE} -C src
-    - if [ "$TRAVIS_OS_NAME" = "osx" ] || [ "$BADGE" = "Ubuntu_20.04" ]; then cd test && ./testmcx.sh -n 1e5; fi
+    - if [ "$TRAVIS_OS_NAME" = "osx" ] || [ "$TESTMCX" = "1" ]; then cd test && ./testmcx.sh -n 1e5; fi
