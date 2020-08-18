@@ -133,7 +133,7 @@ const char *outputformat[]={"mc2","nii","hdr","ubj","tx3","jnii","bnii",""};
  * r: Fresnel boundary
  * a: total absorption BC
  * m: total reflection (mirror) BC
- * c: cylic BC
+ * c: cyclic BC
  */
 
 const char boundarycond[]={'_','r','a','m','c','\0'};

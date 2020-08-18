@@ -150,7 +150,7 @@ typedef struct KernelParams {
   unsigned char bc[12];               /**< boundary conditions */
 } MCXParam __attribute__ ((aligned (32)));
 
-enum TBoundary {bcUnknown, bcReflect, bcAbsorb, bcMirror, bcCylic};            /**< boundary conditions */
+enum TBoundary {bcUnknown, bcReflect, bcAbsorb, bcMirror, bcCyclic};            /**< boundary conditions */
 enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS};   /**< types of output */
 
 #ifndef USE_MACRO_CONST
@@ -1347,8 +1347,8 @@ __kernel void mcx_main_loop(__global const uint *media,
 	     pathlen=0.f;
 	  }
 	  /** launch new photon when exceed time window or moving from non-zero voxel to zero voxel without reflection */
-          if((mediaid==0 && (((isdet & 0xF)==0 && (!GPU_PARAM(gcfg,doreflect) || (GPU_PARAM(gcfg,doreflect) && n1==gproperty[0].w))) || (isdet==bcAbsorb || isdet==bcCylic) )) || f.y>gcfg->twin1){
-		  if(isdet==bcCylic){
+          if((mediaid==0 && (((isdet & 0xF)==0 && (!GPU_PARAM(gcfg,doreflect) || (GPU_PARAM(gcfg,doreflect) && n1==gproperty[0].w))) || (isdet==bcAbsorb || isdet==bcCyclic) )) || f.y>gcfg->twin1){
+		  if(isdet==bcCyclic){
                      if(flipdir==0) 
 		         p.x=mcx_nextafterf(convert_float_rte(p.x+((idx1d==OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.x: -gcfg->maxidx.x)),(v.x > 0.f)-(v.x < 0.f));
                      if(flipdir==1)
@@ -1360,7 +1360,7 @@ __kernel void mcx_main_loop(__global const uint *media,
 	        	 mediaid=media[idx1d];
 	        	 isdet=mediaid & DET_MASK;  /** upper 16bit is the mask of the covered detector */
 	        	 mediaid &= MED_MASK;       /** lower 16bit is the medium index */
-                	 GPUDEBUG(("Cylic boundary condition, moving photon in dir %d at %d flag, new pos=[%f %f %f]\n",flipdir,isdet,p.x,p.y,p.z));
+                	 GPUDEBUG(("Cyclic boundary condition, moving photon in dir %d at %d flag, new pos=[%f %f %f]\n",flipdir,isdet,p.x,p.y,p.z));
 	        	 continue;
 		     }
 		  }
