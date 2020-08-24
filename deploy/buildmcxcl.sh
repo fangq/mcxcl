@@ -20,7 +20,7 @@
 #     and replace R20xx in this script to match your system's MATLAB version
 #   - One can also install vendor-specific OpenCL libraries, such as nvidia-opencl-dev
 #   - For Windows, first install Cygwin64, and install x86_64-w64-mingw32-gcc/g++
-#
+#   
 ###############################################################################
 
 BUILD='nightly';
@@ -30,17 +30,17 @@ then
 fi
 DATE=`date +'%Y%m%d'`
 BUILDROOT=~/space/autobuild/$BUILD/mcxcl
-OS=`uname -s`
+OSID=`uname -s`
 MACHINE=`uname -m`
 
-if [ "$OS" == "Linux" ]
+if [ "$OSID" == "Linux" ]
 then
     OS=linux
     source ~/.bashrc
-elif [ "$OS" == "Darwin" ]; then
+elif [ "$OSID" == "Darwin" ]; then
     OS=osx
     source ~/.bash_profile
-elif [[ "$OS" == CYGWIN* ]] || [[ "$OS" == MINGW* ]] || [[ "$OS" == MSYS* ]]; then
+elif [[ "$OSID" == CYGWIN* ]] || [[ "$OSID" == MINGW* ]] || [[ "$OSID" == MSYS* ]]; then
     OS=win
 fi
 
@@ -92,20 +92,7 @@ make clean
 
 if [ "$OS" == "win" ]; then
 
-make mex CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ USERLINKOPT='-static-libgcc -static-libstdc++ '  &> ../mcxlabcl/AUTO_BUILD_${DATE}.log
-make mex CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++ INCLUDEDIRS=-I"C:/TDM-GCC-64/x86_64-w64-mingw32/include" USERLINKOPT='-static-libgcc -static-libstdc++ ' &> ../mcxlabcl/AUTO_BUILD_${DATE}.log
-
-x86_64-w64-mingw32-g++ -c -I"C:\TDM-GCC-64\x86_64-w64-mingw32\include" \
-    -I"C:\Program Files\MATLAB\R2016a\extern\include" -DMATLAB_MEX_FILE -ansi \
-     -D_GNU_SOURCE -fPIC -fno-omit-frame-pointer -pthread  -DMCX_CONTAINER  \
-       -DMX_COMPAT_32 -O -DNDEBUG  "mcxlabcl.cpp" -o ../mcxlabcl/mcxlabcl.obj
-
-x86_64-w64-mingw32-g++ -O -pthread -shared -Wl,"C:\Program Files\MATLAB\R2016a\extern\lib\win64\mingw64\mexFunction.def"  \
-       -Wl,--no-undefined -fopenmp  -o  "../mcxlabcl/mcxcl.mexw64"   "mcx_shapes.obj"  "mcx_utils.obj"  \
-            "mcx_host.obj"  "tictoc.obj"   "cjson/cJSON.obj" "../mcxlabcl/mcxlabcl.obj"    \
-                -Wl,-Bstatic -lm -static-libgcc -static-libstdc++ -Wl,-Bdynamic  \
-                      -L"C:\Program Files\MATLAB\R2016a\extern\lib\win64\mingw64" -llibmx  \
-                            -llibmex -llibmat -lOpenCL -lwinmm
+    PATH=/c/ProgramData/MATLAB/SupportPackages/R2017b/3P.instrset/mingw_w64.instrset/bin/:/cygdrive/c/ProgramData/MATLAB/SupportPackages/R2017b/3P.instrset/mingw_w64.instrset/bin/:$PATH make mex CC=gcc  &> ../mcxlabcl/AUTO_BUILD_${DATE}.log
 
     echo "Windows mcxcl build"
     cd ../mcxlabcl
@@ -116,7 +103,16 @@ else
 fi
 
 make clean
-make oct  >>  ../mcxlabcl/AUTO_BUILD_${DATE}.log 2>&1
+
+if [ "$OS" == "win" ]; then
+    if [[ "$OSID" == CYGWIN* ]]; then
+        PATH=/cygdrive/c/Octave/Octave-4.2.1/bin:$PATH make oct CC=gcc LIBOPENCL='C:\Windows\System32\OpenCL.dll' USERLINKOPT='-LC:\Octave\Octave-4.2.1\lib64 -LC:\Octave\Octave-4.2.1\lib\octave\4.2.1' &> ../mcxlabcl/AUTO_BUILD_${DATE}.log
+    else
+        PATH=/c/Octave/Octave-4.2.1/bin:$PATH make oct CC=gcc LIBOPENCL='C:\Windows\System32\OpenCL.dll' USERLINKOPT='-LC:\Octave\Octave-4.2.1\lib64 -LC:\Octave\Octave-4.2.1\lib\octave\4.2.1' &> ../mcxlabcl/AUTO_BUILD_${DATE}.log
+    fi
+else
+    make oct  >>  ../mcxlabcl/AUTO_BUILD_${DATE}.log 2>&1
+fi
 
 if [ -f "../mcxlabcl/mcxcl.mex" ]
 then
@@ -132,7 +128,7 @@ then
 	rm -rf ../mcxlabcl/AUTO_BUILD_${DATE}.log
 fi
 
-cp $BUILDROOT/dlls/* ../mcxlabcl
+#cp $BUILDROOT/dlls/* ../mcxlabcl
 cd ..
 zip -FSr $BUILDROOT/mcxlabcl-${TAG}.zip mcxlabcl
 cd src
@@ -140,7 +136,7 @@ cd src
 
 
 make clean
-if [ "$OS" == "osx" ]
+if [ "$OS" == "osx" ] || [ "$OS" == "win" ]
 then
 	make &> $BUILDROOT/mcxcl_buildlog_${DATE}.log
 else
@@ -182,7 +178,12 @@ then
 	rm -rf mcxcl/AUTO_BUILD_${DATE}.log
 fi
 
-zip -FSr mcxcl-${TAG}.zip mcxcl
+if [ "$OS" == "win" ]
+then
+   zip -FSr mcxcl-${TAG}.zip mcxcl
+else
+   zip -FSry mcxcl-${TAG}.zip mcxcl
+fi
 
 #mv mcxcl-${TAG}.zip $BUILDROOT
 

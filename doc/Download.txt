@@ -36,15 +36,16 @@ A GPU-accelerated MC for heterogeneous computing platforms
 
 2. Supported Devices and Simulation Speed
 
-   MCXCL is supported on NVIDIA GPUs, AMD CPUs and GPUs as well as Intel
-   CPUs and (integrated) GPUs. A comparison between different CPUs/GPUs in
-   [11]3 benchmark problems (and [12]3 optimizations) is shown in the
-   below figure. MCXCL is currently about 2x-3x slower than MCX (CUDA
-   based) on NVIDIA GPUs (see the inset). This is a result of lagged
-   OpenCL driver development of NVIDIA. On the other hand, MCXCL performs
-   quite well on AMD and Intel processors.
+   MCXCL is supported on a [11]long list of processors, including NVIDIA
+   GPUs, AMD CPUs and GPUs as well as Intel CPUs and (integrated) GPUs. A
+   comparison between different CPUs/GPUs in [12]3 benchmark problems (and
+   [13]3 optimizations) is shown in the below figure. MCXCL is currently
+   about 2x-3x slower than MCX (CUDA based) on NVIDIA GPUs (see the
+   inset). This is a result of lagged OpenCL driver development of NVIDIA.
+   On the other hand, MCXCL performs quite well on AMD and Intel
+   processors.
 
-   [13]upload:mcxcl_benchmark_0118.png
+   [14]upload:mcxcl_benchmark_0118.png
 
      * Update: 11/14/2017, added AMD Vega 64 results
 
@@ -52,17 +53,14 @@ A GPU-accelerated MC for heterogeneous computing platforms
 
 3.1. Binary package
 
-   Pre-compiled MCXCL binary packages (preview version) for
-   Linux/Windows/MacOS can be [14]downloaded here. The current preview
-   package is named "mcxcl-*-git_20171108.zip".
+   Pre-compiled MCXCL binary packages (v2018) for Linux/Windows/MacOS can
+   be [15]downloaded here.
 
-   However, you are highly recommended to download the MCXSuite.zip
-   package for each platform ([15]Linux/[16]Windows/[17]MacOS). MCXCL is
-   part of the suite and easy-to-use GUI interface (MCX Studio) is
-   provided to help one design new simulation and review results. After
-   downloading and extracting the MCXSuite package, please start the GUI
-   program by executing the "mcxsuite(.exe)" executable inside subfolder
-   MCXSuite/mcxsuite/mcxsuite/.
+   However, you are highly recommended to download the [16]MCXSuite.zip
+   package for each platform. MCXCL is part of the suite and easy-to-use
+   GUI interface (MCX Studio) is provided to help one design new
+   simulation and review results. Video tutorials regarding MCXStudio can
+   be found [17]here.
 
 3.2. Source code
 
@@ -78,6 +76,11 @@ A GPU-accelerated MC for heterogeneous computing platforms
    [19]here.
 
           [20][mcxstudio_tutorial_2.png]
+
+   For tutorials to use the command line mcxcl binary, please check out
+   the below tutorial:
+
+   [21]http://mcx.space/wiki/index.cgi?Demo/MCXCL
 
 5. Acknowledgement
 
@@ -96,13 +99,14 @@ References
    8. http://mcx.space/wiki/index.cgi?MCXCL#Tutorial
    9. http://mcx.space/wiki/index.cgi?MCXCL#Acknowledgement
   10. http://mcx.space/
-  11. https://github.com/fangq/mcxcl/tree/master/example/benchmark
-  12. https://github.com/fangq/mcxcl_bench/blob/master/run_benchmarking.sh#L3
-  13. http://mcx.space/wiki/upload/mcxcl_benchmark_0118.png
-  14. http://mcx.space/nightly/
-  15. http://mcx.space/nightly/linux64/MCXSuite.zip
-  16. http://mcx.space/nightly/win64/MCXSuite.zip
-  17. http://mcx.space/nightly/osx64/MCXSuite.zip
+  11. https://www.khronos.org/conformance/adopters/conformant-products/opencl
+  12. https://github.com/fangq/mcxcl/tree/master/example/benchmark
+  13. https://github.com/fangq/mcxcl_bench/blob/master/run_benchmarking.sh#L3
+  14. http://mcx.space/wiki/upload/mcxcl_benchmark_0118.png
+  15. http://mcx.space/wiki/index.cgi?Get
+  16. http://mcx.space/wiki/index.cgi?Learn#mcxstudio
+  17. http://mcx.space/wiki/index.cgi?Demo/MCXStudio
   18. http://github.com/fangq/mcxcl
-  19. http://mcx.sourceforge.net/cgi-bin/index.cgi?Demo/MCXStudio
+  19. http://mcx.space/wiki/index.cgi?Demo/MCXStudio
   20. http://mcx.space/tutorials/mcxstudio/4_How_to_design_a_simulation_and_visualize_the_results.htm
+  21. http://mcx.space/wiki/index.cgi?Demo/MCXCL

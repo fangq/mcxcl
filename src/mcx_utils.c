@@ -1438,7 +1438,7 @@ void mcx_prepdomain(char *filename, Config *cfg){
         }
 	cfg->savedetflag=0x5;
      }
-     if(cfg->isdumpjson==1){
+     if(cfg->isdumpjson==3){
 	  mcx_savejdata(cfg->jsonfile, cfg);
 	  exit(0);
      }
@@ -2929,7 +2929,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
             }
           }
      }
-     if(cfg->isdumpjson==3){
+     if(cfg->isdumpjson==1){
          mcx_savejdata(cfg->jsonfile, cfg);
          exit(0);
      }
@@ -2980,7 +2980,7 @@ int mcx_lookupindex(char *key, const char *index){
 }
 
 void mcx_version(Config *cfg){
-    const char ver[]="$Rev::4fdc45$2019.3";
+    const char ver[]="$Rev::4fdc45$v2020";
     int v=0;
     sscanf(ver,"$Rev::%d",&v);
     MCX_FPRINTF(cfg->flog, "MCXCL Revision %d\n",v);
@@ -3001,15 +3001,15 @@ void mcx_printheader(Config *cfg){
     MCX_FPRINTF(cfg->flog,S_BLUE"\
 ==============================================================================\n\
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =\n\
-=          Copyright (c) 2010-2019 Qianqian Fang <q.fang at neu.edu>         =\n\
+=          Copyright (c) 2010-2020 Qianqian Fang <q.fang at neu.edu>         =\n\
 =                             http://mcx.space/                              =\n\
 =                                                                            =\n\
 = Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =\n\
-=            Department of Bioengineering, Northeastern University           =\n\
+=   Department of Bioengineering, Northeastern University, Boston, MA, USA   =\n\
 ==============================================================================\n\
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =\n\
 ==============================================================================\n\
-$Rev::4fdc45$2019.3 $Date::2018-03-29 00:35:53 -04$ by $Author::Qianqian Fang$\n\
+$Rev::4fdc45$ v2020 $Date::2018-03-29 00:35:53 -04$ by $Author::Qianqian Fang$\n\
 ==============================================================================\n"S_RESET);
 }
 
@@ -3023,6 +3023,7 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -f config     (--input)       read an input file in .json or .inp format\n\
                                if the string starts with '{', it is parsed as\n\
 			       an inline JSON input file\n\
+      or\n\
  --bench ['cube60','skinvessel',..] run a buint-in benchmark specified by name\n\
                                run --bench without parameter to get a list\n\
 \n"S_BOLD S_CYAN"\
@@ -3060,8 +3061,8 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 			       if 0, replay all detectors and sum all Jacobians\n\
 			       if -1, replay all detectors and save separately\n\
  -V [0|1]      (--specular)    1 source located in the background,0 inside mesh\n\
- -e [0.|float] (--minenergy)   minimum energy level to terminate a photon\n\
- -g [1|int]    (--gategroup)   number of time gates per run\n\
+ -e [0.|float] (--minenergy)   minimum energy level to trigger Russian roulette\n\
+ -g [1|int]    (--gategroup)   number of maximum time gates per run\n\
 \n"S_BOLD S_CYAN"\
 == GPU options ==\n"S_RESET"\
  -L            (--listgpu)     print GPU information only\n\
@@ -3148,7 +3149,7 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 			       4 lzma: lzma format (high compression,very slow)\n\
 			       5 lz4: LZ4 format (low compression,extrem. fast)\n\
 			       6 lz4hc: LZ4HC format (moderate compression,fast)\n\
- --dumpjson [-,2,3,'file.json']  export all settings,including volume data using\n\
+ --dumpjson [-,0,1,'file.json']  export all settings,including volume data using\n\
                                JSON/JData (http://openjdata.org) format for \n\
 			       easy sharing; can be reused using -f\n\
 			       if followed by nothing or '-', mcx will print\n\

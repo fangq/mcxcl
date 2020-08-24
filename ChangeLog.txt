@@ -1,5 +1,120 @@
 Change Log
 
+== MCX 0.9.8 (Eternity) branch, FangQ <q.fang at neu.edu> ==
+
+ 2020-08-18 [e76d67f] add automated valgrind testing
+ 2020-08-18 [dcbf360] add pocl for ubuntu 18.04
+ 2020-08-18 [acc6783] update ubuntu 20.04 pocl package name
+ 2020-08-18 [6db02a4] add ubuntu 20.04 target with pocl and testing
+ 2020-08-17 [9c90d06] fix typo
+ 2020-08-17 [4e95e18] add -O3 for zmat units
+ 2020-08-17 [265ef1f] remove type casting warning on the mac
+ 2020-08-17 [670f783] add back the accidentally removed MATLAB_MEX_FILE flag
+ 2020-08-17 [0bf5063] finetune valgrind and cuda-memcheck test
+ 2020-08-17 [3973557] bind -j to --json, add help info, update examples
+ 2020-08-17 [2a5a54e] add valgrind and cuda-memcheck test
+ 2020-08-17 [656815d] fix regression introduced in @80861754 in handling --shapes
+ 2020-08-16*[acb8280] allow testing script to work on mac
+ 2020-08-16 [c752642] return total and absorbed energy when -S 0 and -U 0 is used
+ 2020-08-16 [e872b58] add sphshell benchmark - see GPU MMC paper
+ 2020-08-16*[64cf701] sync bc detector support via --bc 7-12 chars,disable group load balance
+ 2020-08-15 [9997a28] remove warnings from gcc 9.3
+ 2020-08-15*[3b3f224] add --json option, sync with mcx
+ 2020-08-15*[d893be3] sync with mcxcontest.pl in mcx
+ 2020-08-12 [8c96656] fix incorrect srcparam brackets
+ 2020-08-12 [dbc12eb] add group load balance into default option
+ 2020-08-12 [6ba4d97] use run-time compilation macro to replace const mem, gain 16% speedup
+ 2020-08-08 [761dcbc] handle record-breaking benchmark results
+ 2020-08-08 [12f7961] fix nvidia gpu core count, sync from mcx
+ 2020-08-08 [e6873a9] fix do_reflect macro testing
+ 2020-08-08 [4e3deda] speedup updateproperty via using macros
+ 2020-08-08*[c1e3ebb] merge with nvidiaomp branch, support multi NVIDIA GPUs
+ 2020-08-05 [a024fa4] add -L and save workload
+ 2020-08-05 [60622d6] update help info
+ 2020-08-04 [1c431bb] fix -n/G/W flags
+ 2020-08-04 [34ed2a5] sync with mcx script
+ 2020-08-04*[d0a73cf] fix double scaling for pattern/pattern3d source, like fangq/mcx@c04bff5
+ 2020-08-03 [fd0e0ec] debug on the mac
+ 2020-08-03 [7d85545] switch json to JSON::PP in the core
+ 2020-08-03*[3c110b2] standalone mcxcl benchmark and speed contest script
+ 2020-07-28 [34ab8cb] fix 0 global memory on AMD GPUs, regression of 67576f6, #40
+ 2020-07-25 [967e9e6] enable testing on mac
+ 2020-07-25 [3f41350] testmcx.sh accepts additional param
+ 2020-07-25 [23dc45a] linux target add pocl
+ 2020-07-24 [b8b6a24] build mcxlabcl octave mex on linux targets
+ 2020-07-24 [1c61c8d] add msys shell for travis
+ 2020-07-24 [ab6155f] try to use mingw32-make
+ 2020-07-22*[c838d58] add travis ci script
+ 2020-07-22 [36e0e9e] match test script symbols
+ 2020-07-22 [cb3f3ac] remove --verbose, set to --version to match mcx
+ 2020-07-05 [2e52966] fix nightly build issues
+ 2020-06-27 [21bebc6] fix all ubj warnings
+ 2020-05-03 [4b59557] add the missing header file, finish #37
+ 2020-05-03*[d2501dc] sync with mcx to support JData/JNIfTI output and --bench, close #37
+ 2020-04-06 [da59c72] remove mingw64 compilation warnings
+ 2020-04-05 [39a8341] update help info for buildmcxcl.m
+ 2020-04-05 [1903818] make creating octave mex file work again
+ 2020-04-04 [7ac3b56] use the correct macro on windows
+ 2020-04-04 [7911b02] fix cygwin binary library entry point error
+ 2020-04-04 [199f708] simplify makefile
+ 2020-04-03 [388e1a1] use default msys2 root folder
+ 2020-04-03 [c7f0eda] update help info, flush output
+ 2020-04-03 [ee807d9] flush output in octave, fix error in octave mex
+ 2020-04-03 [3d768fa] fix compilation on linux
+ 2020-04-03 [f989f37] compile both binary and mex on windows
+ 2020-04-03 [7d3bc69] update makefile to compile on msys2
+ 2020-04-03 [67576f6] fix warnings for gcc 8 and 9.3, compiles windows mex file
+ 2020-04-02 [e5f2881] migrate windows compilation to msys2
+ 2020-03-29 [f1fcd01] sync with mmc to stay compatible with MS VS
+ 2020-03-20 [e855627] define a background grid if dim.x/y/z is defined
+ 2020-02-05 [5868f95] fix one warning of the cl kernel
+ 2020-02-05 [1388f7d] remove all warnings from gcc 7
+ 2020-02-05 [2a2116a] update cjson to the latest git version
+ 2019-11-21 [ff9e097] Updated and renamed readme.txt to readme.md
+ 2019-10-18 [10cac7b] fixing optical property initialization for continuously varying mua; add missing input file for digimouse demo
+ 2019-08-03 [96eaba7] apple cpu special config
+ 2019-08-02 [a54cb6e] fix missing dosaveref field, swap incorrect short flag
+ 2019-08-02 [9186f25] test to see if progress bar is supported
+ 2019-08-01 [01efe5e] enable reflection when bc contains r/m/c/_
+ 2019-08-01 [22e84b4] deal with device names without vendor, like Titan V
+ 2019-08-01 [ee67942] use kernel event to terminate progress bar, set workgroup size to 1 on Mac
+ 2019-07-31 [61eb317] use finer progress bar on cpu hosts
+ 2019-07-30 [a432ee0] fix typo to enable a set of new flags
+ 2019-07-29*[93b3d0c] fix voxel [0 0 0] is always zero bug, same as https://github.com/fangq/mcx/commit/63e5e2360b8cce35dfba4f8f3f2591c0bc4513bc
+ 2019-07-26 [40f79d9] linking with cuda opencl.lib on windows
+ 2019-07-26 [eedf008] do not print progress bar by default, still causing hanging on certain gpu
+ 2019-07-26 [881ae8c] fix JIT errors on the mac
+ 2019-07-25 [4b3a58f] make kernel compatible with older opencl libraries
+ 2019-07-25 [7f61afd] sync mcxlab with mcxlabcl
+ 2019-07-25 [e523747] set printing progress as default
+ 2019-07-25 [fa246b4] fix two GPU progress bar error
+ 2019-07-25 [c8b8b24] fix cyclic boundary condition
+ 2019-07-24*[898c1f3] fix sharing demo
+ 2019-07-24 [7fc5669] update output deposit and print info. for sharing
+ 2019-07-24 [071e1a4] fix wrong pattern number index for single pattern illumination
+ 2019-07-24 [b64a562] match anistropy change to that of mcx
+ 2019-07-24 [2001c19] fix fluence/energy output deposit and add one register pathlen to accumulate photon partial pathlengths that fall in the same voxel
+ 2019-07-22 [e87220d] partial sync with mcx_utils.c from mcx-cuda
+ 2019-07-22 [0e6f8a9] fixing compatibility issues when running mcxlab srctype tests
+ 2019-07-22 [9fac24d] port mcx replay patch
+ 2019-07-22*[2894ea1] progress bar finally works on NVIDIA, thanks to Robert Crovella@NVIDIA http://bit.ly/2XY0IVb
+ 2019-07-22 [2863ae3] partially fix some compatability issues to run mcxlab samples
+ 2019-07-21*[f242201] add replay support
+ 2019-07-19 [53bcd77] use float byte alignment
+ 2019-07-19 [136f3bf] align local memory buffer to 8-byte-alignment to avoid CL_INVALID_COMMAND_QUEUE error
+ 2019-07-19 [c0d0c9a] use cl_ulong to define 64bit integers
+ 2019-07-19*[fbfe876] add -m -q and -V options, but shared mem is not working
+ 2019-07-17*[490c215] now mcxcl can save trajectories
+ 2019-07-17 [2257db0] ported --gscatter option
+ 2019-07-17*[53cb0e7] massive update - ported bc, multibyte and savedetflag, 2d to from mcx to mcxcl
+ 2019-07-17 [ff58c0c] fix type-punning warning
+ 2019-07-17 [412f801] partially sync with mcx
+ 2019-07-16*[969907e] add colin27 example from mcx
+ 2019-07-16 [fc6ff40] sync with mcx's helper functions
+ 2019-06-08 [d5cac7d] fix excess buffer release and add missing one
+ 2019-05-31 [0fe7813] remove un-needed -k parameter from samples
+ 2019-03-20 [a6d38d4] fix empty string test
+
 == MCX 0.9 (Eternity - beta) branch, FangQ <q.fang at neu.edu> ==
 
  2019-03-16 [1ce5240] update installation guide
@@ -19,7 +134,6 @@ Change Log
  2019-03-01 [8c3f16b] fix bug to read srcparam from json
  2019-03-01 [6e916cb] sync mcxcl with mcx 2019.2
  2019-02-28 [3c6f928] sync mcx updates, add colin27, digimouse and usc19-5 examples
- 2019-01-29 [c5947c6] Merge pull request #22 from koenigjaeger/master
  2019-01-29 [9652224] fix dimtype definition; copy from a fix made in mmclab
  2019-01-27 [75a258f] change lib path to link with cuda
  2019-01-18 [60aab29] fix mmclab crash due to racing in multi-thread, similar to mcx issue #60

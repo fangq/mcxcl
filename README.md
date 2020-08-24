@@ -2,7 +2,7 @@
 
 - **Author:** Qianqian Fang (q.fang at neu.edu)
 - **License:** GNU General Public License version 3 (GPLv3)
-- **Version:** 0.9 (Eternity - beta)
+- **Version:** 0.9.8 (Eternity - Final)
 - **Website:** [ http://mcx.space]( http://mcx.space)
 
 [![Build Status](https://travis-ci.com/fangq/mcxcl.svg?branch=master)](https://travis-ci.com/fangq/mcxcl)
@@ -24,6 +24,10 @@ Table of Contents:
   * [Running Simulations](#running-simulations)
   * [Using JSON-formatted input files](#using-json-formatted-input-files)
   * [Using JSON-formatted shape description files](#using-json-formatted-shape-description-files)
+  * [Output data formats](#output-data-formats)
+    + [Volumetric output](#volumetric-output)
+    + [Detected photon data](#detected-photon-data)
+    + [Photon trajectory data](#photon-trajectory-data)
   * [Using mcxlabcl in MATLAB and Octave](#using-mcxlabcl-in-matlab-and-octave)
   * [Using MCXStudio GUI](#using-mcxstudio-gui)
   * [Interpreting the Output](#interpreting-the-output)
@@ -38,29 +42,24 @@ Table of Contents:
 What's New
 -------------
 
-In MCX-CL v2020 (0.9), we added a list of major new additions, including
+In MCX-CL v2020 (0.9.8), we added a list of major new additions, including
 
+* Support running on multiple NVIDIA GPUs (merged from nvidiaomp branch)
+* Built-in benchmarks for easy testing and adoption by new users
+* Transition to JSON/JNIfTI input/output files for easy data sharing
+* Exporting simulation as JSON with binary volume data
+* All-in-one Windows installer for MCXStudio/MCX/MMC/MCXCL
+* Automated code building, testing and continuous integration via Travis-CI
+* CMake based compilation and Visual Studio support
+* 1.6x speedup on Pascal GPUs
 * Add 4 built-in complex domain examples - Colin27 brain atlas, USC_19-5 brain atlas,
  Digimouse, and mcxyz skin-vessel benchmark
 * Support isotropic launch for all focuable sources - `gaussian`, `pattern`, `pattern3d`, 
  `fourier`, `disk`, `fourierx`, `fourierx2d`, and `slit` - by setting `cfg.srcdir(4)` to `nan`
 * Add python-based `mch` file reader (by Shih-Cheng Tu), nightly build compilation 
  script, colored command line output, and more
-* Add `gpubenchmark` script to `mcxlabcl`, please browse submitted benchmark 
- results at http://mcx.space/computebench/
-* Half-precision ray-tracing support (paper in-preparation)
-* The GPU-ANLM denoiser newly added for mcx, mcxfilter.m, detailed in our 
- [Yao2018] paper, also applies to mcxlabcl/mcxcl output
 
-In addition, we also fixed a number of critical bugs, such as
-
-* fix bugs for incorrect results for isotropic source, cone source
-* fix mcxlabcl gpuinfo output crash using multiple GPUs
-* fix mcxlab crash when srcpattern/srcdir/srcpos/detpos are not in double precision
-* fix mcxlab crash due to racing in multi-threads
-* force g to 1 in region where mus is 0
-
-Compared to MCX v2019.3 (1.4.8), MCX-CL has not yet supported the below features as of this release
+Compared to MCXCL v2019.4 (0.9), MCX-CL has gained support of nearl all core features in MCX, i.e.
 
 * Output momentum transfer for DCS simulations
 * Output photon trajectory data
@@ -71,10 +70,14 @@ Compared to MCX v2019.3 (1.4.8), MCX-CL has not yet supported the below features
 * 2D simulations
 * Support photon numbers over 2^31-1 in one simulation
 
-> [Yuan2018] Yaoshen Yuan, Leiming Yu, Zafer Doğan, Qianqian Fang*, "Graphics processing 
-units-accelerated adaptive nonlocal means filter for denoising three-dimensional Monte Carlo 
-photon transport simulations," J. of Biomedical Optics, 23(12), 121618 (2018), 
-URL: https://doi.org/10.1117/1.JBO.23.12.121618
+In addition, we also fixed a number of critical bugs, such as
+
+* fix critical bug when output diffuse reflectance using a single pattern source
+* fix bugs for incorrect results for isotropic source, cone source
+* fix mcxlabcl gpuinfo output crash using multiple GPUs
+* fix mcxlab crash when srcpattern/srcdir/srcpos/detpos are not in double precision
+* fix mcxlab crash due to racing in multi-threads
+* force g to 1 in region where mus is 0
 
 Introduction
 -------------
@@ -153,6 +156,12 @@ see your above paper [1] and our websites
 Generally speaking, AMD and NVIDIA high-end dedicated GPU performs the best, about 20-60x 
 faster than a multi-core CPU; Intel's integrated GPU is about 3-4 times faster than
 a multi-core CPU.
+
+MCX-CL supports and has been fully tested with open-source OpenCL runtime 
+pocl (http://portablecl.org/) on the CPU. To install pocl, please run
+```
+sudo apt-get install pocl-opencl-icd
+```
 
 To install MCXCL, you simply download the binary executable corresponding to your 
 computer architecture and platform, extract the package 
@@ -289,7 +298,7 @@ procedure to test for hardware compatibility.
 
 Please click on the folder matching your operating system (for example, if you run 
 a 64bit Windows, you need to navigate into `win64` folder), and download 
-the file named  `"MCXStudio-MCX18-nightlybuild.zip"`.
+the file named  `"MCXStudio-nightlybuild-installer.exe"`.
 
 Open this file, and unzip it to a working folder (for Windows, for example, the 
 `Documents` or `Downloads` folder). The package needs about 100 MB disk space.
@@ -307,10 +316,8 @@ with a few executables and 3 subfolders underneath. See the folder structure bel
 │   ├── mcxcl/
 │   └── mmc/
 ├── mcxstudio
-├── mcx
-├── mmc
-├── mcxcl
-└── Output/
+├── mcxshow
+└── mcxviewer
 </pre>
 
 Please make sure that your downloaded `MCXStudio` must match your operating system.
@@ -410,7 +417,7 @@ will show again, and you can see the messages printed from the simulation,
 similar to the output below:
 
 <pre>"-- Command: --"
-mcxcl --session "preptest"  --input "/drives/taote1/users/fangq/Download/MCXStudio/Output/mcxclsessions/preptest/preptest.json" --root "/drives/taote1/users/fangq/Download/MCXStudio/Output/mcxclsessions/preptest" --outputformat mc2 --gpu 10 --autopilot 1 --photon 10000000 --normalize 1 --save2pt 1 --reflect 1 --savedet 1 --unitinmm 1.00 --saveseed 0 --seed "1648335518" --compileropt "-D USE_ATOMIC" --array 0 --dumpmask 0 --repeat 1  --maxdetphoton 10000000
+mcxcl --session "preptest"  --input "/Output/mcxclsessions/preptest/preptest.json" --root "/Output/mcxclsessions/preptest" --outputformat mc2 --gpu 10 --autopilot 1 --photon 10000000 --normalize 1 --save2pt 1 --reflect 1 --savedet 1 --unitinmm 1.00 --saveseed 0 --seed "1648335518" --compileropt "-D USE_ATOMIC" --array 0 --dumpmask 0 --repeat 1  --maxdetphoton 10000000
 "-- Executing Simulation --"
 ==============================================================================
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =
@@ -527,15 +534,15 @@ such as the following:
 
 <pre>==============================================================================
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =
-=          Copyright (c) 2010-2019 Qianqian Fang <q.fang at neu.edu>         =
+=          Copyright (c) 2010-2020 Qianqian Fang <q.fang at neu.edu>         =
 =                             http://mcx.space/                              =
 =                                                                            =
 = Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =
-=            Department of Bioengineering, Northeastern University           =
+=   Department of Bioengineering, Northeastern University, Boston, MA, USA   =
 ==============================================================================
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =
 ==============================================================================
-$Rev::4fdc45$2019.3 $Date::2018-03-29 00:35:53 -04$ by $Author::Qianqian Fang$
+$Rev::4fdc45$ v2020 $Date::2018-03-29 00:35:53 -04$ by $Author::Qianqian Fang$
 ==============================================================================
 
 usage: mcxcl <param1> <param2> ...
@@ -543,20 +550,48 @@ where possible parameters include (the first value in [*|*] is the default)
 
 == Required option ==
  -f config     (--input)       read an input file in .json or .inp format
+                               if the string starts with '{', it is parsed as
+			       an inline JSON input file
+      or
+ --bench ['cube60','skinvessel',..] run a buint-in benchmark specified by name
+                               run --bench without parameter to get a list
 
 == MC options ==
  -n [0|int]    (--photon)      total photon number (exponential form accepted)
- -r [1|int]    (--repeat)      divide photons into r groups (1 per GPU call)
+ -r [1|+/-int] (--repeat)      if positive, repeat by r times,total= #photon*r
+                               if negative, divide #photon into r subsets
  -b [1|0]      (--reflect)     1 to reflect photons at ext. boundary;0 to exit
+ -B '______'   (--bc)          per-face boundary condition (BC), 6 letters for
+    /case insensitive/         bounding box faces at -x,-y,-z,+x,+y,+z axes;
+			       overwrite -b if given. 
+			       each letter can be one of the following:
+			       '_': undefined, fallback to -b
+			       'r': like -b 1, Fresnel reflection BC
+			       'a': like -b 0, total absorption BC
+			       'm': mirror or total reflection BC
+			       'c': cyclic BC, enter from opposite face
+
+			       if input contains additional 6 letters,
+			       the 7th-12th letters can be:
+			       '0': do not use this face to detect photon, or
+			       '1': use this face for photon detection (-d 1)
+			       the order of the faces for letters 7-12 is 
+			       the same as the first 6 letters
+			       eg: --bc ______010 saves photons exiting at y=0
  -u [1.|float] (--unitinmm)    defines the length unit for the grid edge
  -U [1|0]      (--normalize)   1 to normalize flux to unitary; 0 save raw
- -E [0|int]    (--seed)        set random-number-generator seed, -1 to generate
+ -E [0|int|mch](--seed)        set random-number-generator seed, -1 to generate
+                               if an mch file is followed, MCX "replays" 
+                               the detected photon; the replay mode can be used
+                               to calculate the mua/mus Jacobian matrices
  -z [0|1]      (--srcfrom0)    1 volume origin is [0 0 0]; 0: origin at [1 1 1]
- -k [1|0]      (--voidtime)    when src is outside, 1 enables timer inside void
- -P '{...}'    (--shapes)      a JSON string for additional shapes in the grid
- -e [0.|float] (--minenergy)   minimum energy level to terminate a photon
- -g [1|int]    (--gategroup)   number of time gates per run
- -a [0|1]      (--array)       1 for C array (row-major); 0 for Matlab array
+ -Y [0|int]    (--replaydet)   replay only the detected photons from a given 
+                               detector (det ID starts from 1), used with -E 
+			       if 0, replay all detectors and sum all Jacobians
+			       if -1, replay all detectors and save separately
+ -V [0|1]      (--specular)    1 source located in the background,0 inside mesh
+ -e [0.|float] (--minenergy)   minimum energy level to trigger Russian roulette
+ -g [1|int]    (--gategroup)   number of maximum time gates per run
 
 == GPU options ==
  -L            (--listgpu)     print GPU information only
@@ -568,29 +603,89 @@ where possible parameters include (the first value in [*|*] is the default)
  -G '1101'     (--gpu)         using multiple devices (1 enable, 0 disable)
  -W '50,30,20' (--workload)    workload for active devices; normalized by sum
  -I            (--printgpu)    print GPU information and run program
- -o [3|int]    (--optlevel)    optimization level 0-no opt;1,2,3 more optimized
- -J '-D MCX'   (--compileropt) specify additional JIT compiler options
+ -o [1|int]    (--optlevel)    optimization level 0-no opt;1,2,3 more optimized
+ -J '-DMACRO'  (--compileropt) specify additional JIT compiler options
+                               A few built-in preprocessors include
+              -DMCX_GPU_DEBUG  - print step-by-step debug info
  -k my_simu.cl (--kernel)      user specified OpenCL kernel source file
+
+== Input options ==
+ -P '{...}'    (--shapes)      a JSON string for additional shapes in the grid.
+                               only the root object named 'Shapes' is parsed 
+			       and added to the existing domain defined via -f 
+			       or --bench
+ -j '{...}'    (--json)        a JSON string for modifying all input settings.
+                               this input can be used to modify all existing 
+			       settings defined by -f or --bench
+ -K [1|int|str](--mediabyte)   volume data format, use either a number or a str
+                               1 or byte: 0-128 tissue labels
+			       2 or short: 0-65535 (max to 4000) tissue labels
+			       4 or integer: integer tissue labels 
+                             100 or muamus_float: 2x 32bit floats for mua/mus
+                             101 or mua_float: 1 float per voxel for mua
+			     102 or muamus_half: 2x 16bit float for mua/mus
+			     103 or asgn_byte: 4x byte gray-levels for mua/s/g/n
+			     104 or muamus_short: 2x short gray-levels for mua/s
+ -a [0|1]      (--array)       1 for C array (row-major); 0 for Matlab array
 
 == Output options ==
  -s sessionid  (--session)     a string to label all output file names
+ -O [X|XFEJP]  (--outputtype)  X - output flux, F - fluence, E - energy density
+                               J - Jacobian (replay mode),   P - scattering
+                               event counts at each voxel (replay mode only)
  -d [1|0]      (--savedet)     1 to save photon info at detectors; 0 not save
+ -w [DP|DSPMXVW](--savedetflag)a string controlling detected photon data fields
+    /case insensitive/         1 D  output detector ID (1)
+                               2 S  output partial scat. even counts (#media)
+                               4 P  output partial path-lengths (#media)
+			       8 M  output momentum transfer (#media)
+			      16 X  output exit position (3)
+			      32 V  output exit direction (3)
+			      64 W  output initial weight (1)
+      combine multiple items by using a string, or add selected numbers together
+      by default, mcx only saves detector ID and partial-path data
  -x [0|1]      (--saveexit)    1 to save photon exit positions and directions
                                setting -x to 1 also implies setting '-d' to 1
+			       same as adding 'XV' to -w.
  -X [0|1]      (--saveref)     1 to save diffuse reflectance at the air-voxels
                                right outside of the domain; if non-zero voxels
 			       appear at the boundary, pad 0s before using -X
+ -m [0|1]      (--momentum)    1 to save photon momentum transfer,0 not to save.
+                               same as adding 'M' to the -w flag
+ -q [0|1]      (--saveseed)    1 to save photon RNG seed for replay; 0 not save
  -M [0|1]      (--dumpmask)    1 to dump detector volume masks; 0 do not save
  -H [1000000] (--maxdetphoton) max number of detected photons
  -S [1|0]      (--save2pt)     1 to save the flux field; 0 do not save
  -F [mc2|...] (--outputformat) fluence data output format:
                                mc2 - MCX mc2 format (binary 32bit float)
-                               nii - Nifti format
+                               jnii - JNIfTI format (http://openjdata.org)
+                               bnii - Binary JNIfTI (http://openjdata.org)
+                               nii - NIfTI format
                                hdr - Analyze 7.5 hdr/img format
                                tx3 - GL texture data for rendering (GL_RGBA32F)
- -O [X|XFEJP]  (--outputtype)  X - output flux, F - fluence, E - energy deposit
-                               J - Jacobian (replay mode),   P - scattering
-                               event counts at each voxel (replay mode only)
+	the bnii/jnii formats support compression (-Z) and generate small files
+	load jnii (JSON) and bnii (UBJSON) files using below lightweight libs:
+	  MATLAB/Octave: JNIfTI toolbox   https://github.com/fangq/jnifti, 
+	  MATLAB/Octave: JSONLab toolbox  https://github.com/fangq/jsonlab, 
+	  Python:        PyJData:         https://pypi.org/project/jdata
+	  JavaScript:    JSData:          https://github.com/fangq/jsdata
+ -Z [zlib|...] (--zip)         set compression method if -F jnii or --dumpjson
+                               is used (when saving data to JSON/JNIfTI format)
+			       0 zlib: zip format (moderate compression,fast) 
+			       1 gzip: gzip format (compatible with *.gz)
+			       2 base64: base64 encoding with no compression
+			       3 lzip: lzip format (high compression,very slow)
+			       4 lzma: lzma format (high compression,very slow)
+			       5 lz4: LZ4 format (low compression,extrem. fast)
+			       6 lz4hc: LZ4HC format (moderate compression,fast)
+ --dumpjson [-,0,1,'file.json']  export all settings,including volume data using
+                               JSON/JData (http://openjdata.org) format for 
+			       easy sharing; can be reused using -f
+			       if followed by nothing or '-', mcx will print
+			       the JSON to the console; write to a file if file
+			       name is specified; by default, prints settings
+			       after pre-processing; '--dumpjson 2' prints 
+			       raw inputs before pre-processing
 
 == User IO options ==
  -h            (--help)        print this message
@@ -601,48 +696,70 @@ where possible parameters include (the first value in [*|*] is the default)
 == Debug options ==
  -D [0|int]    (--debug)       print debug information (you can use an integer
   or                           or a string by combining the following flags)
- -D [''|RMP]                   4 P  print progress bar
+ -D [''|RMP]                   1 R  debug RNG
+    /case insensitive/         2 M  store photon trajectory info
+                               4 P  print progress bar
       combine multiple items by using a string, or add selected numbers together
 
 == Additional options ==
  --atomic       [1|0]          1: use atomic operations; 0: do not use atomics
+ --voidtime     [1|0]          when src is outside, 1 enables timer inside void
+ --showkernel   [1|0]          1:display the default or loaded (-k) MCXCL kernel
  --root         [''|string]    full path to the folder storing the input files
  --internalsrc  [0|1]          set to 1 to skip entry search to speedup launch
+ --gscatter     [1e9|int]      after a photon completes the specified number of
+                               scattering events, mcx then ignores anisotropy g
+                               and only performs isotropic scattering for speed
  --maxvoidstep  [1000|int]     maximum distance (in voxel unit) of a photon that
                                can travel before entering the domain, if 
                                launched outside (i.e. a widefield source)
+ --maxjumpdebug [10000000|int] when trajectory is requested (i.e. -D M),
+                               use this parameter to set the maximum positions
+                               stored (default: 1e7)
 
 == Example ==
-example: (autopilot mode)
-	mcxcl -A 1 -n 1e7 -f input.json -G 1
-or (manual mode)
-	mcxcl -t 16384 -T 64 -n 1e7 -f input.json -s test -r 2 -d 1 -b 1 -G 1
+example: (list built-in benchmarks)
+       mcxcl --bench
+or (list supported GPUs on the system)
+       mcxcl -L
 or (use multiple devices - 1st,2nd and 4th GPUs - together with equal load)
-	mcxcl -A -n 1e7 -f input.json -G 1101 -W 10,10,10
+       mcxcl --bench cube60b -n 1e7 -G 1101 -W 10,10,10
 or (use inline domain definition)
-	mcxcl -f input.json -P '{"Shapes":[{"ZLayers":[[1,10,1],[11,30,2],[31,60,3]]}]}'
+       mcxcl -f input.json -P '{"Shapes":[{"ZLayers":[[1,10,1],[11,30,2],[31,60,3]]}]}'
+or (use inline json setting modifier)
+       mcxcl -f input.json -j '{"Optode":{"Source":{"Type":"isotropic"}}}'
+or (dump simulation in a single json file)
+       mcxcl --bench cube60planar --dumpjson
 </pre>
 
- the above command will launch 1024 GPU threads (-t) with every 64 threads
- a block (-T); for each thread, it will simulate 1e7 photons (-n) and
- repeat only once (-r); the media/source configuration will be read from 
- input.inp (-f) and the output will be labeled with the session id "test" (-s); 
- the simulation will utilize the 1st and 3rd Compute Units among the 4 total 
- devices present in the system (-G 1010); the list of CU can be found by mcxcl -L; 
- the workload partition between the two selected devices is 50:50 (-W); the simulation
- requires the relative/full path to the kernel source file mcx_core.cl (-k).
+To further illustrate the command line options, below one can find a sample command
+```
+mcxcl -A 0 -t 16384 -T 64 -n 1e7 -G 1 -f input.json -r 2 -s test -g 10 -d 1 -w dpx -b 1
+```
+the command above asks mcxcl to manually (`-A 0`) set GPU threads, and launch 16384 
+GPU threads (`-t`) with every 64 threads a block (`-T`); a total of 1e7 photons (`-n`)
+are simulated by the first GPU (`-G 1`) and repeat twice (`-r`) - i.e. total 2e7 photons;
+the media/source configuration will be read from a JSON file named `input.json` 
+(`-f`) and the output will be labeled with the session id “test” (`-s`); the 
+simulation will run 10 concurrent time gates (`-g`) if the GPU memory can not 
+simulate all desired time gates at once. Photons passing through the defined 
+detector positions are saved for later rescaling (`-d`); refractive index 
+mismatch is considered at media boundaries (`-b`).
 
-Currently, MCX supports a modified version of the input file format used 
-for tMCimg. (The difference is that MCX allows comments)
-A typical MCX input file looks like this:
+Historically, MCXCL supports an extended version of the input file format (.inp)
+used by tMCimg. However, we are phasing out the .inp support and strongly 
+encourage users to adopt JSON formatted (.json) input files. Many of the 
+advanced MCX options are only supported in the JSON input format.
 
-<pre>
+A legacy .inp MCXCL input file looks like this:
+
+```
 1000000              # total photon, use -n to overwrite in the command line
-29012392             # RNG seed, negative to generate
-30.0 30.0 0.0 1      # source position (in grid unit), the last num (optional) sets srcfrom0 (-z)
+29012392             # RNG seed, negative to generate, use -E to overwrite
+30.0 30.0 0.0 1      # source position (in grid unit), the last num (optional) sets --srcfrom0 (-z)
 0 0 1 0              # initial directional vector, 4th number is the focal-length, 0 for collimated beam, nan for isotropic
 0.e+00 1.e-09 1.e-10 # time-gates(s): start, end, step
-semi60x60x60.bin     # volume ('unsigned char' binary format)
+semi60x60x60.bin     # volume ('unsigned char' binary format, or specified by -K/--mediabyte)
 1 60 1 60            # x voxel size in mm (isotropic only), dim, start/end indices
 1 60 1 60            # y voxel size, must be same as x, dim, start/end indices 
 1 60 1 60            # y voxel size, must be same as x, dim, start/end indices
@@ -656,53 +773,53 @@ semi60x60x60.bin     # volume ('unsigned char' binary format)
 pencil               # source type (optional)
 0 0 0 0              # parameters (4 floats) for the selected source
 0 0 0 0              # additional source parameters
-</pre>
+```
 
 Note that the scattering coefficient mus=musp/(1-g).
 
-The volume file (`semi60x60x60.bin` in the above example),
-can be read in two ways by MCXCL: row-major[3] or column-major
-depending on the value of the user parameter `-a`. If the volume file
-was saved using matlab or fortran, the byte order is column-major,
-and you should use `-a 0` or leave it out of the command line. 
-If it was saved using the `fwrite()` in C, the order is row-major, 
-and you can either use `-a 1`.
+The volume file (`semi60x60x60.bin` in the above example), can be read in two 
+ways by MCX: row-major[3] or column-major depending on the value of the user 
+parameter `-a`. If the volume file was saved using matlab or fortran, the 
+byte order is column-major, and you should use `-a 0` or leave it out of 
+the command line. If it was saved using the `fwrite()` in C, the order is 
+row-major, and you can either use `-a 1`.
 
-The time gate parameter is specified by three numbers:
-start time, end time and time step size (in seconds). In 
-the above example, the configuration specifies a total time 
-window of [0 1] ns, with a 0.1 ns resolution. That means the 
-total number of time gates is 10. 
+You may replace the binary volume file by a JSON-formatted shape file. Please 
+refer to Section V for details.
 
-MCXCL provides an advanced option, `-g`, to run simulations when 
-the GPU memory is limited. It specifies how many time gates to simulate 
-concurrently. Users may want to limit that number to less than 
-the total number specified in the input file - and by default 
-it runs one gate at a time in a single simulation. But if there's 
-enough memory based on the memory requirement in Section II, you can 
+The time gate parameter is specified by three numbers: start time, end time and 
+time step size (in seconds). In the above example, the configuration specifies 
+a total time window of [0 1] ns, with a 0.1 ns resolution. That means the 
+total number of time gates is 10.
+
+MCX provides an advanced option, -g, to run simulations when the GPU memory is 
+limited. It specifies how many time gates to simulate concurrently. Users may 
+want to limit that number to less than the total number specified in the input 
+file - and by default it runs one gate at a time in a single simulation. But if 
+there's enough memory based on the memory requirement in Section II, you can 
 simulate all 10 time gates (from the above example) concurrently by using 
-`-g 10` in which case you have to make sure the video card has at least
-60\*60\*60\*10\*5=10MB of free memory.   If you do not include the `-g`, 
-MCX will assume you want to simulate just 1 time gate at a time.. 
-If you specify a time-gate number greater than the total number in the 
-input file, (e.g, `-g 20`) MCX will stop when the 10 time-gates are 
-completed. If you use the autopilot mode (`-A`), then the time-gates
-are automatically estimated for you.
+`-g 10` in which case you have to make sure the video card has at least 
+60\*60\*60\*10\*5=10MB of free memory. If you do not include the `-g`, MCX will 
+assume you want to simulate just 1 time gate at a time.. If you specify a 
+time-gate number greater than the total number in the input file, (e.g, 
+`-g 20`) MCX will stop when the 10 time-gates are completed. If you use the 
+autopilot mode (`-A`), then the time-gates are automatically estimated for you.
+
 
 Using JSON-formatted input files
---------------------------------------------------------
-Starting from version 0.7.9, MCX accepts a JSON-formatted input file in
-addition to the conventional tMCimg-like input format. JSON 
-(JavaScript Object Notation) is a portable, human-readable and 
-"fat-free" text format to represent complex and hierarchical data.
-Using the JSON format makes a input file self-explanatory, extensible
-and easy-to-interface with other applications (like MATLAB).
+-----------------------------------
 
-A sample JSON input file can be found under the examples/quicktest
-folder. The same file, qtest.json, is also shown below:
+Starting from version 0.7.9, MCX accepts a JSON-formatted input file in 
+addition to the conventional tMCimg-like input format. JSON (JavaScript Object 
+Notation) is a portable, human-readable and “fat-free” text format to 
+represent complex and hierarchical data. Using the JSON format makes a input 
+file self-explanatory, extensible and easy-to-interface with other applications 
+(like MATLAB).
 
-<pre>
- {
+A sample JSON input file can be found under the examples/quicktest folder. The 
+same file, `qtest.json`, is also shown below:
+```
+{
     "Help": {
       "[en]": {
         "Domain::VolumeFile": "file full path to the volume description file, can be a binary or JSON file",
@@ -774,74 +891,68 @@ folder. The same file, qtest.json, is also shown below:
             }
 	]
     }
- }
-</pre>
+}
+```
 
-A JSON input file requiers several root objects, namely `Domain`, `Session`, 
-`Forward` and `Optode`. Other root sections, like `Help`, will be ignored. 
-Each object is a data structure providing information
-indicated by its name. Each object can contain various sub-fields. 
-The orders of the fields in the same level are flexible. For each field, 
-you can always find the equivalent fields in the *.inp input files. 
-For example, The `VolumeFile` field under the `Domain` object 
-is the same as Line#6 in qtest.inp; the `RNGSeed` under `Session` is
-the same as Line#2; the `Optode.Source.Pos` is the same as the 
-triplet in Line#3; the `Forward.T0` is the same as the first number 
-in Line#5, etc.
+A JSON input file requiers several root objects, namely `Domain`, 
+`Session`, `Forward` and `Optode`. Other root sections, like 
+`Help`, will be ignored. Each object is a data structure providing 
+information indicated by its name. Each object can contain various sub-fields. 
+The orders of the fields in the same level are flexible. For each field, you 
+can always find the equivalent fields in the `*.inp` input files. For example, 
+The `VolumeFile` field under the `Domain` object is the same as Line\#6 
+in `qtest.inp`; the `RNGSeed` under `Session` is the same as Line\#2; the 
+`Optode.Source.Pos` is the same as the triplet in Line\#3; the 
+`Forward.T0` is the same as the first number in Line\#5, etc.
 
-An MCX JSON input file must be a valid JSON text file. You can validate
-your input file by running a JSON validator, for example http://jsonlint.com/
-You should always use "" to quote a `"name"` and separate parallel
-items by ",".
+An MCX JSON input file must be a valid JSON text file. You can validate your 
+input file by running a JSON validator, for example <http://jsonlint.com/> You 
+should always use "" to quote a “name” and separate parallel items by 
+“,”.
 
-MCX accepts an alternative form of JSON input, but using it is not 
-recommended. In the alternative format, you can use 
-`"rootobj_name.field_name": value` 
+MCX accepts an alternative form of JSON input, but using it is not recommended. 
+In the alternative format, you can use “`rootobj_name.field_name`”`: value` 
 to represent any parameter directly in the root level. For example
 
-<pre>
- {
-    "Domain.VolumeFile": "semi60x60x60.json",
-    "Session.Photons": 10000000,
-    ...
- }
-</pre>
+    {
+        "Domain.VolumeFile": "semi60x60x60.json",
+        "Session.Photons": 10000000,
+        ...
+    }
 
-You can even mix the alternative format with the standard format. 
-If any input parameter has values in both formats in a single input 
-file, the standard-formatted value has higher priority.
+You can even mix the alternative format with the standard format. If any input 
+parameter has values in both formats in a single input file, the 
+standard-formatted value has higher priority.
 
-To invoke the JSON-formatted input file in your simulations, you 
-can use the `-f` command line option with MCX, just like using an 
-`.inp` file. For example:
+To invoke the JSON-formatted input file in your simulations, you can use the 
+`-f` command line option with MCX, just like using an `.inp` file. For 
+example:
 
- 	mcxcl -A -n 20 -f onecube.json -s onecubejson
+      mcx -A 1 -n 20 -f onecube.json -s onecubejson
 
-The input file must have a `.json` suffix in order for MCX to 
-recognize. If the input information is set in both command line,
-and input file, the command line value has higher priority
-(this is the same for .inp input files). For example, when 
-using `-n 20`, the value set in `Session`/`Photons` is overwritten 
-to 20; when using `-s onecubejson`, the `Session`/`ID` value is modified.
-If your JSON input file is invalid, MCX will quit and point out
-where the format is incorrect.
+The input file must have a `.json` suffix in order for MCX to recognize. If 
+the input information is set in both command line, and input file, the command 
+line value has higher priority (this is the same for `.inp` input files). For 
+example, when using `-n 20`, the value set in `Session`/`Photons`
+is overwritten to 20; when using `-s onecubejson`, the 
+`Session`/`ID` value is modified. If your JSON input file is invalid, 
+MCX will quit and point out where the format is incorrect.
+
 
 Using JSON-formatted shape description files
---------------------------------------------------------
+-----------------------------------------------
 
-Starting from v0.7.9, MCX can also use a shape 
-description file in the place of the volume file.
-Using a shape-description file can save you from making
-a binary `.bin` volume. A shape file uses more descriptive 
-syntax and can be easily understood and shared with others.
+Starting from v0.7.9, MCX can also use a shape description file in the place of 
+the volume file. Using a shape-description file can save you from making a 
+binary `.bin` volume. A shape file uses more descriptive syntax and can be easily 
+understood and shared with others.
 
-Samples on how to use the shape files are included under
-the example/shapetest folder. 
+Samples on how to use the shape files are included under the example/shapetest 
+folder.
 
 The sample shape file, `shapes.json`, is shown below:
-
-<pre>
- {
+```
+{
   "MCX_Shape_Command_Help":{
      "Shapes::Common Rules": "Shapes is an array object. The Tag field sets the voxel value for each
          region; if Tag is missing, use 0. Tag must be smaller than the maximum media number in the
@@ -875,46 +986,278 @@ The sample shape file, `shapes.json`, is shown below:
      {"ZLayers":  [[1,10,1],[11,30,2],[31,50,3]]}
   ]
  }
-</pre>
+```
+A shape file must contain a `Shapes` object in the root level. Other 
+root-level fields are ignored. The `Shapes` object is a JSON array, with 
+each element representing a 3D object or setting. The object-class commands 
+include `Grid`, `Sphere`, `Box` etc. Each of these object include a 
+number of sub-fields to specify the parameters of the object. For example, the 
+`Sphere` object has 3 subfields, `O`, `R` and `Tag`. Field 
+`O` has a value of 1x3 array, representing the center of the sphere; 
+`R` is a scalar for the radius; `Tag` is the voxel values. The most 
+useful command is `[XYZ]Layers`. It contains a series of integer 
+triplets, specifying the starting index, ending index and voxel value of a 
+layered structure. If multiple objects are included, the subsequent objects 
+always overwrite the overlapping regions covered by the previous objects.
 
-A shape file must contain a `Shapes` object in the root level.
-Other root-level fields are ignored. The `Shapes` object is a
-JSON array, with each element representing a 3D object or 
-setting. The object-class commands include `Grid`, `Sphere`,
-`Box` etc. Each of these object include a number of sub-fields
-to specify the parameters of the object. For example, the 
-`Sphere` object has 3 subfields, `O`, `R` and `Tag`. Field `O` 
-has a value of 1x3 array, representing the center of the sphere; 
-`R` is a scalar for the radius; `Tag` is the voxel values. 
-The most useful command is `[XYZ]Layers`. It contains a 
-series of integer triplets, specifying the starting index, 
-ending index and voxel value of a layered structure. If multiple
-objects are included, the subsequent objects always overwrite 
-the overlapping regions covered by the previous objects.
+There are a few ways for you to use shape description records in your MCX 
+simulations. You can save it to a JSON shape file, and put the file name in 
+Line\#6 of your `.inp` file, or set as the value for Domain.VolumeFile field in a 
+`.json` input file. In these cases, a shape file must have a suffix of `.json`.
 
-There are a few ways for you to use shape description records
-in your MCX simulations. You can save it to a JSON shape file, and
-put the file name in Line#6 of yoru `.inp` file, or set as the
-value for `Domain.VolumeFile` field in a `.json` input file. 
-In these cases, a shape file must have a suffix of .json.
+You can also merge the Shapes section with a `.json` input file by simply 
+appending the Shapes section to the root-level object. You can find an example, 
+`jsonshape_allinone.json`, under examples/shapetest. In this case, you no longer 
+need to define the `VolumeFile` field in the input.
 
-You can also merge the `Shapes` section with a `.json` input file
-by simply appending the `Shapes` section to the root-level object.
-You can find an example, `jsonshape_allinone.json`, under 
-`examples/shapetest`. In this case, you no longer need to define
-the `VolumeFile` field in the input.
+Another way to use Shapes is to specify it using the `-P` (or `--shapes`) command 
+line flag. For example:
+```
+     mcx -f input.json -P '{"Shapes":[{"ZLayers":[[1,10,1],[11,30,2],[31,60,3]]}]}'
+```
+This will first initialize a volume based on the settings in the input `.json` 
+file, and then rasterize new objects to the domain and overwrite regions that 
+are overlapping.
 
-Another way to use `Shapes` is to specify it using the `-P` (or `--shapes`)
-command line flag. For example:
+For both JSON-formatted input and shape files, you can use the JSONlab toolbox 
+[4] to load and process in MATLAB.
 
-	mcxcl -f input.json -P '{"Shapes":[{"ZLayers":[[1,10,1],[11,30,2],[31,60,3]]}]}'
 
-This will first initialize a volume based on the settings in the 
-input `.json` file, and then rasterize new objects to the domain and 
-overwrite regions that are overlapping.
+Output data formats
+------------------------------------
 
-For both JSON-formatted input and shape files, you can use
-the JSONlab toolbox [4] to load and process in MATLAB.
+MCX may produces several output files depending user's simulation settings.
+Overall, MCX produces two types of outputs, 1) data accummulated within the 
+3D volume of the domain (volumetric output), and 2) data stored for each detected
+photon (detected photon data).
+
+### Volumetric output
+
+By default, MCX stores a 4D array denoting the fluence-rate at each voxel in 
+the volume, with a dimension of Nx*Ny*Nz*Ng, where Nx/Ny/Nz are the voxel dimension
+of the domain, and Ng is the total number of time gates. The output data are
+stored in the format of single-precision floating point numbers. One may choose
+to output different physical quantities by setting the `-O` option. When the
+flag `-X/--saveref` is used, the output volume may contain the total diffuse
+reflectance only along the background-voxels adjacent to non-zero voxels. 
+A negative sign is added for the diffuse reflectance raw output to distinguish
+it from the fuence data in the interior voxels.
+
+When photon-sharing (simultaneous simulations of multiple patterns) or photon-replay
+(the Jacobian of all source/detector pairs) is used, the output array may be extended
+to a 5D array, with the left-most/fastest index being the number of patterns Ns (in the
+case of photon-sharing) or src/det pairs (in replay), denoted as Ns.
+
+Several data formats can be used to store the 3D/4D/5D volumetric output. 
+
+#### mc2 files
+
+The `.mc2` format is simply a binary dump of the entire volumetric data output,
+consisted of the voxel values (single-precision floating-point) of all voxels and
+time gates. The file contains a continuous buffer of a single-precision (4-byte) 
+5D array of dimension Ns\*Nx\*Ny\*Nz\*Ng, with the fastest index being the left-most 
+dimension (i.e. column-major, similar to MATLAB/FORTRAN).
+
+To load the mc2 file, one should call `loadmc2.m` and must provide explicitly
+the dimensions of the data. This is because mc2 file does not contain the data
+dimension information.
+
+Saving to .mc2 volumetric file is depreciated as we are transitioning towards
+JNIfTI/JData formatted outputs (.jnii). 
+
+#### nii files
+
+The NIfTI-1 (.nii) format is widely used in neuroimaging and MRI community to
+store and exchange ND numerical arrays. It contains a 352 byte header, followed
+by the raw binary stream of the output data. In the header, the data dimension
+information as well as other metadata is stored. 
+
+A .nii output file can be generated by using `-F nii` in the command line.
+
+The .nii file is widely supported among data processing platforms, including
+MATLAB and Python. For example
+- niftiread.m/niftiwrite in MATLAB Image Processing Toolbox
+- JNIfTI toolbox by Qianqian Fang (https://github.com/fangq/jnifti/tree/master/lib/matlab)
+- PyNIfTI for Python http://niftilib.sourceforge.net/pynifti/intro.html
+
+#### jnii files
+
+The JNIfTI format represents the next-generation scientific data storage 
+and exchange standard and is part of the OpenJData initiative (http://openjdata.org)
+led by the MCX author Dr. Qianqian Fang. The OpenJData project aims at developing
+easy-to-parse, human-readable and easy-to-reuse data storage formats based on
+the ubiquitously supported JSON/binary JSON formats and portable JData data annotation
+keywords. In short, .jnii file is simply a JSON file with capability of storing 
+binary strongly-typed data with internal compression and built in metadata.
+
+The format standard (Draft 1) of the JNIfTI file can be found at
+
+https://github.com/fangq/jnifti
+
+A .jnii output file can be generated by using `-F jnii` in the command line.
+
+The .jnii file can be potentially read in nearly all programming languages 
+because it is 100% comaptible to the JSON format. However, to properly decode
+the ND array with built-in compression, one should call JData compatible
+libraries, which can be found at http://openjdata.org/wiki
+
+Specifically, to parse/save .jnii files in MATLAB, you should use
+- JSONLab for MATLAB (https://github.com/fangq/jsonlab) or install `octave-jsonlab` on Fedora/Debian/Ubuntu
+- `jsonencode/jsondecode` in MATLAB + `jdataencode/jdatadecode` from JSONLab (https://github.com/fangq/jsonlab)
+
+To parse/save .jnii files in Python, you should use
+- PyJData module (https://pypi.org/project/jdata/) or install `python3-jdata` on Debian/Ubuntu
+
+In Python, the volumetric data is loaded as a `dict` object where `data['NIFTIData']` 
+is a NumPy `ndarray` object storing the volumetric data.
+
+
+#### bnii files
+
+The binary JNIfTI file is also part of the JNIfTI specification and the OpenJData
+project. In comparison to text-based JSON format, .bnii files can be much smaller
+and faster to parse. The .bnii format is also defined in the BJData specification
+
+https://github.com/fangq/bjdata
+
+and is the binary interface to .jnii. A .bnii output file can be generated by 
+using `-F bnii` in the command line.
+
+The .bnii file can be potentially read in nearly all programming languages 
+because it was based on UBJSON (Universal Binary JSON). However, to properly decode
+the ND array with built-in compression, one should call JData compatible
+libraries, which can be found at http://openjdata.org/wiki
+
+Specifically, to parse/save .jnii files in MATLAB, you should use one of
+- JSONLab for MATLAB (https://github.com/fangq/jsonlab) or install `octave-jsonlab` on Fedora/Debian/Ubuntu
+- `jsonencode/jsondecode` in MATLAB + `jdataencode/jdatadecode` from JSONLab (https://github.com/fangq/jsonlab)
+
+To parse/save .jnii files in Python, you should use
+- PyJData module (https://pypi.org/project/jdata/) or install `python3-jdata` on Debian/Ubuntu
+
+In Python, the volumetric data is loaded as a `dict` object where `data['NIFTIData']` 
+is a NumPy `ndarray` object storing the volumetric data.
+
+### Detected photon data
+
+If one defines detectors, MCX is able to store a variety of photon data when a photon
+is captured by these detectors. One can selectively store various supported data fields,
+including partial pathlengths, exit position and direction, by using the `-w/--savedetflag`
+flag. The storage of detected photon information is enabled by default, and can be
+disabled using the `-d` flag.
+
+The detected photon data are stored in a separate file from the volumetric output.
+The supported data file formats are explained below.
+
+#### mch files
+
+The .mch file, or MC history file, is stored by default, but we strongly encourage users
+to adpot the newly implemented JSON/.jdat format for easy data sharing. 
+
+The .mch file contains a 256 byte binary header, followed by a 2-D numerical array
+of dimensions `#savedphoton * #colcount` as recorded in the header.
+```
+ typedef struct MCXHistoryHeader{
+	char magic[4];                 // magic bits= 'M','C','X','H'
+	unsigned int  version;         // version of the mch file format 
+	unsigned int  maxmedia;        // number of media in the simulation 
+	unsigned int  detnum;          // number of detectors in the simulation 
+	unsigned int  colcount;        // how many output files per detected photon 
+	unsigned int  totalphoton;     // how many total photon simulated 
+	unsigned int  detected;        // how many photons are detected (not necessarily all saved) 
+	unsigned int  savedphoton;     // how many detected photons are saved in this file 
+	float unitinmm;                // what is the voxel size of the simulation 
+	unsigned int  seedbyte;        // how many bytes per RNG seed
+        float normalizer;              // what is the normalization factor
+	int respin;                    // if positive, repeat count so total photon=totalphoton*respin; if negative, total number is processed in respin subset 
+	unsigned int  srcnum;          // number of sources for simultaneous pattern sources 
+	unsigned int  savedetflag;     // number of sources for simultaneous pattern sources 
+	int reserved[2];               // reserved fields for future extension 
+ } History;
+```
+When the `-q` flag is set to 1, the detected photon initial seeds are also stored
+following the detected photon data, consisting of a 2-D byte array of `#savedphoton * #seedbyte`.
+
+To load the mch file, one should call `loadmch.m` in MATLAB/Octave.
+
+Saving to .mch history file is depreciated as we are transitioning towards
+JSON/JData formatted outputs (`.jdat`).
+
+#### jdat files
+
+When `-F jnii` is specified, instead of saving the detected photon into the legacy .mch format,
+a .jdat file is written, which is a pure JSON file. This file contains a hierachical data
+record of the following JSON structure
+````
+ {
+   "MCXData": {
+       "Info":{
+           "Version":
+	   "MediaNum":
+	   "DetNum":
+	   ...
+	   "Media":{
+	      ...
+	   }
+       },
+       "PhotonData":{
+           "detid":
+	   "nscat":
+	   "ppath":
+	   "mom":
+	   "p":
+	   "v":
+	   "w0":
+       },
+       "Trajectory":{
+           "photonid":
+	   "p":
+	   "w0":
+       },
+       "Seed":[
+           ...
+       ]
+   }
+ }
+````
+where "Info" is required, and other subfields are optional depends on users' input.
+Each subfield in this file may contain JData 1-D or 2-D array constructs to allow 
+storing binary and compressed data.
+
+Although .jdat and .jnii have different suffix, they are both JSON/JData files and
+can be opened/written by the same JData compatible libraries mentioned above, i.e.
+
+For MATLAB
+- JSONLab for MATLAB (https://github.com/fangq/jsonlab) or install `octave-jsonlab` on Fedora/Debian/Ubuntu
+- `jsonencode/jsondecode` in MATLAB + `jdataencode/jdatadecode` from JSONLab (https://github.com/fangq/jsonlab)
+
+For Python
+- PyJData module (https://pypi.org/project/jdata/) or install `python3-jdata` on Debian/Ubuntu
+
+In Python, the volumetric data is loaded as a `dict` object where `data['MCXData']['PhotonData']` 
+stores the photon data, `data['MCXData']['Trajectory']` stores the trajectory data etc.
+
+
+### Photon trajectory data
+
+For debugging and plotting purposes, MCX can output photon trajectories, as polylines,
+when `-D M` flag is attached, or mcxlab is asked for the 5th output. Such information
+can be stored in one of the following formats.
+
+#### mct files
+
+By default, MCX stores the photon trajectory data in to a .mct file MC trajectory, which
+uses the same binary format as .mch but renamed as .mct. This file can be loaded to
+MATLAB using the same `loadmch.m` function. 
+
+Using .mct file is depreciated and users are encouraged to migrate to .jdat file
+as described below.
+
+#### jdat files
+
+When `-F jnii` is used, MCX merges the trajectory data with the detected photon and
+seed data and saved as a JSON-compatible .jdat file. The overall structure of the
+.jdat file as well as the relevant parsers can be found in the above section.
 
 
 Using mcxlabcl in MATLAB and Octave
@@ -1025,7 +1368,7 @@ file and messages printed on the screen.
 
 ##### Output files
 
-An `dat` file contains the fluence-rate distribution from the simulation in 
+A `.mc2` file contains the fluence-rate distribution from the simulation in 
 the given medium. By default, this fluence-rate is a normalized solution 
 (as opposed to the raw probability) therefore, one can compare this directly 
 to the analytical solutions (i.e. Green's function). The order of storage in the 
@@ -1037,11 +1380,11 @@ By default, MCX produces the **Green's function** of the
 **fluence rate**  for the given domain and source. Sometime it is also 
 known as the time-domain "two-point" function. If you run MCX with the following command
 
-	mcxcl -f input.inp -s output ....
+	mcxcl -f input.json -s output ....
 
 the fluence-rate data will be saved in a file named `output.dat` under
 the current folder. If you run MCX without `-s output`, the
-output file will be named as `input.inp.dat`.
+output file will be named as `input.json.dat`.
 
 To understand this further, you need to know that a **fluence-rate `Phi(r,t)`** is
 measured by number of particles passing through an infinitesimal 
@@ -1146,6 +1489,10 @@ elapsed time is printed for all memory transaction from GPU to CPU.
 When a user specifies `-D P` in the command line, or set `cfg.debuglevel='P'`, 
 MCXCL or MCXLABCL prints a progress bar showing the percentage of completition.
 
+When a user adds `-J "-DMCX_GPU_DEBUG"` in the command line, MCXCL prints
+step-by-step photon movement information for easy debugging. Please restrict the photon
+to a small number, such as `-n 1` to avoid long output.
+
 
 Best practices guide
 ----------------------------
@@ -1175,62 +1522,48 @@ the "optimal" thread number when you are not sure what to use.
 
 
 Acknowledgement
-----------------------------
+------------------
 
-**cJSON library by Dave Gamble**
+MCX contains modified versions of the below source codes from other 
+open-source projects (with a compatible license).
 
-Files included: mcx/src/cJSON folder
+### cJSON library by Dave Gamble
 
-Copyright (c) 2009 Dave Gamble
+- Files: src/cJSON folder
+- Copyright (c) 2009 Dave Gamble
+- URL: https://github.com/DaveGamble/cJSON
+- License: MIT License, https://github.com/DaveGamble/cJSON/blob/master/LICENSE
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+### ZMat data compression unit
 
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
+- Files: src/zmat/*
+- Copyright: 2019-2020 Qianqian Fang
+- URL: https://github.com/fangq/zmat
+- License: GPL version 3 or later, https://github.com/fangq/zmat/blob/master/LICENSE.txt
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-  
-**myslicer toolbox by Anders Brun**
+### LZ4 data compression library
 
-Files included: mcx/utils/{islicer.m, slice3i.m, image3i.m}
+- Files: src/zmat/lz4/*
+- Copyright: 2011-2020, Yann Collet
+- URL: https://github.com/lz4/lz4
+- License: BSD-2-clause, https://github.com/lz4/lz4/blob/dev/lib/LICENSE
 
-Copyright (c) 2009 Anders Brun, anders@cb.uu.se
+### LZMA/Easylzma data compression library
 
-Redistribution and use in source and binary forms, with or without 
-modification, are permitted provided that the following conditions are 
-met:
+- Files: src/zmat/easylzma/*
+- Copyright: 2009, Lloyd Hilaiel, 2008, Igor Pavlov
+- License: public-domain
+- Comment:
+ All the cruft you find here is public domain.  You don't have to
+ credit anyone to use this code, but my personal request is that you mention
+ Igor Pavlov for his hard, high quality work.
 
-* Redistributions of source code must retain the above copyright 
-notice, this list of conditions and the following disclaimer. 
-* Redistributions in binary form must reproduce the above copyright 
-notice, this list of conditions and the following disclaimer in 
-the documentation and/or other materials provided with the distribution 
-* Neither the name of the Centre for Image Analysis nor the names 
-of its contributors may be used to endorse or promote products derived 
-from this software without specific prior written permission.
+### myslicer toolbox by Anders Brun
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
-ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE 
-LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
-CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
-SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
-INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
-CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
-ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
-POSSIBILITY OF SUCH DAMAGE.
+- Files: utils/{islicer.m, slice3i.m, image3i.m}
+- Copyright (c) 2009 Anders Brun, anders@cb.uu.se
+- URL: https://www.mathworks.com/matlabcentral/fileexchange/25923-myslicer-make-mouse-interactive-slices-of-a-3-d-volume
+- License: BSD-3-clause License, https://www.mathworks.com/matlabcentral/fileexchange/25923-myslicer-make-mouse-interactive-slices-of-a-3-d-volume#license_modal
 
 
 Reference

@@ -2,12 +2,6 @@
 
 == Short term projects ==
 
-*port momentum transfer for DCS from mcx to mcxcl [2019/3/2, FangQ]
-*port photon replay from mcx to mcxcl [2019/3/2, FangQ]
-*port photon sharing from mcx to mcxcl [2019/3/2, FangQ]
-*port trajectory data output from mcx to mcxcl [2019/3/2, FangQ]
-*port new detected photon output data format from mcx to mcxcl [2019/3/2, FangQ]
-
 == Long term projects ==
 
 == Completed ==
@@ -21,3 +15,8 @@
 [done] *. crate a GUI for MCX [2009/09/30, FangQ]
 [done] *. save photon history info at detector sites [2009/04/30, FangQ] (experimental)
 [done] *. multiple-GPU support [2009/09/30, FangQ]
+[done] * port momentum transfer for DCS from mcx to mcxcl [2019/3/2, FangQ]
+[done] *port photon replay from mcx to mcxcl [2019/3/2, FangQ]
+[done] *port photon sharing from mcx to mcxcl [2019/3/2, FangQ]
+[done] *port trajectory data output from mcx to mcxcl [2019/3/2, FangQ]
+[done] *port new detected photon output data format from mcx to mcxcl [2019/3/2, FangQ]

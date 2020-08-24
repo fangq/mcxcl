@@ -2,45 +2,45 @@
 
 Author: Qianqian Fang <q.fang at neu.edu>
 License: GNU General Public License version 3 (GPLv3)
-Version: this package is part of Monte Carlo eXtreme OpenCL (MCX-CL) v2018.3
+Version: this package is part of Monte Carlo eXtreme OpenCL (MCX-CL) v2020
 
 <toc>
 
 
 == # Introduction ==
 
-MCXLAB-CL is the native MEX version of MCX for Matlab and GNU Octave. It compiles
+MCXLAB-CL is the native MEX version of MCX for MATLAB and GNU Octave. It compiles
 the entire MCX code into a MEX function which can be called directly inside
-Matlab or Octave. The input and output files in MCX are replaced by convenient
+MATLAB or Octave. The input and output files in MCX are replaced by convenient
 in-memory struct variables in MCXLAB-CL, thus, making it much easier to use 
-and interact. Matlab/Octave also provides convenient plotting and data
+and interact. MATLAB/Octave also provides convenient plotting and data
 analysis functions. With MCXLAB-CL, your analysis can be streamlined and speed-
 up without involving disk files.
 
 Because MCXLAB-CL contains the exact computational codes for the GPU calculations
 as in the MCX binaries, MCXLAB-CL is expected to have identical performance when
-running simulations. By default, we compile MCXLAB-CL with the support of recording
-detected photon partial path-lengths (i.e. the "make det" option).
+running simulations.
 
 == # Installation ==
 
-To download MCXLAB-CL, please visit [http://mcx.sourceforge.net/cgi-bin/index.cgi?Download#Download_the_Latest_Release this link]. 
+To download MCXLAB-CL, please visit [http://mcx.space/wiki/index.cgi?Download#Download_the_Latest_Release this link]. 
 If you choose to [http://mcx.sourceforge.net/cgi-bin/index.cgi?register/mcx register], 
-you will have an option to be notified for any future updates.
+you will have an option to be notified for any future updates including 
+critical bug fixes and new milestone releases.
 
 The system requirements for MCXLAB-CL are the same as MCX: you have to make
 sure that you have a CUDA-capable graphics card with properly configured 
 CUDA driver (you can run the standard MCX binary first to test if your 
-system is capable to run MCXLAB-CL). Of course, you need to have either Matlab
+system is capable to run MCXLAB-CL). Of course, you need to have either MATLAB
 or Octave installed.
 
 Once you set up the CUDA toolkit and NVIDIA driver, you can then add the 
-"mcxlabcl" directory to your Matlab/Octave search path using the addpath command.
+"mcxlabcl" directory to your MATLAB/Octave search path using the addpath command.
 If you want to add this path permanently, please use the "pathtool" 
 command, or edit your startup.m (~/.octaverc for Octave).
 
-If everything works ok, typing "help mcxlabcl" in Matlab/Octave will print the
-help information. If you see any error, particularly any missing libraries,
+If everything works ok, typing `mcxlabcl('gpuinfo')` in MATLAB/Octave will print the
+supported GPUs. If you see any error, particularly any missing libraries,
 please make sure you have downloaded the matching version built for your
 platform.
 
@@ -51,7 +51,7 @@ To learn the basic usage of MCXLAB-CL, you can type
 
   help mcxlabcl
 
-in Matlab/Octave to see the help information regarding how to use this 
+in MATLAB/Octave to see the help information regarding how to use this 
 function. The help information is listed below. You can find the input/output 
 formats and examples. The input cfg structure has very similar field names as
 the verbose command line options in MCX.
@@ -59,15 +59,15 @@ the verbose command line options in MCX.
 <pre> ====================================================================
        MCXLAB-CL - Monte Carlo eXtreme (MCX) for MATLAB/GNU Octave
  --------------------------------------------------------------------
-        Copyright (c) 2018-2019 Qianqian Fang <q.fang at neu.edu>
+        Copyright (c) 2018-2020 Qianqian Fang <q.fang at neu.edu>
                        URL: http://mcx.space
  ====================================================================
  
   Format:
      fluence=mcxlabcl(cfg);
         or
-     [fluence,detphoton,vol]=mcxlabcl(cfg);
-     [fluence,detphoton,vol]=mcxlabcl(cfg, option);
+     [fluence,detphoton,vol,seed,trajectory]=mcxlabcl(cfg);
+     [fluence,detphoton,vol,seed,trajectory]=mcxlabcl(cfg, option);
  
   Input:
      cfg: a struct, or struct array. Each element of cfg defines 
@@ -89,9 +89,22 @@ the verbose command line options in MCX.
  
  == Required ==
       *cfg.nphoton:    the total number of photons to be simulated (integer)
-      *cfg.vol:        a 3D array specifying the media index in the domain
+                       maximum supported value is 2^63-1
+      *cfg.vol:        a 3D array specifying the media index in the domain.
                        can be uint8, uint16, uint32, single or double
                        arrays.
+                       2D simulations are supported if cfg.vol has a singleton
+                       dimension (in x or y); srcpos/srcdir must belong to
+                       the 2D plane in such case.
+                       for 2D simulations, Example: <demo_mcxlab_2d.m>
+ 
+                       MCXLAB also accepts 4D arrays to define continuously varying media. 
+                       The following formats are accepted
+                         1 x Nx x Ny x Nz float32 array: mua values for each voxel (must use permute to make 1st dimension singleton)
+                         2 x Nx x Ny x Nz float32 array: mua/mus values for each voxel (g/n use prop(2,:))
+                         4 x Nx x Ny x Nz uint8 array: mua/mus/g/n gray-scale (0-255) interpolating between prop(2,:) and prop(3,:)
+                         2 x Nx x Ny x Nz uint16 array: mua/mus gray-scale (0-65535) interpolating between prop(2,:) and prop(3,:)
+                         Example: <demo_continuous_mua_mus.m>. If voxel-based media are used, partial-path/momentum outputs are disabled
       *cfg.prop:       an N by 4 array, each row specifies [mua, mus, g, n] in order.
                        the first row corresponds to medium type 0
                        (background) which is typically [0 0 1 1]. The
@@ -107,20 +120,50 @@ the verbose command line options in MCX.
                        the source (only valid for focuable src, such as planar, disk,
                        fourier, gaussian, pattern, slit, etc); if the focal length
                        is nan, all photons will be launched isotropically regardless
+                       of the srcdir direction.
  
  == MC simulation settings ==
        cfg.seed:       seed for the random number generator (integer) [0]
                        if set to a uint8 array, the binary data in each column is used 
                        to seed a photon (i.e. the "replay" mode)
+                       Example: <demo_mcxlab_replay.m>
        cfg.respin:     repeat simulation for the given time (integer) [1]
+                       if negative, divide the total photon number into respin subsets
        cfg.isreflect:  [1]-consider refractive index mismatch, 0-matched index
-       cfg.isrefint:   1-ref. index mismatch at inner boundaries, [0]-matched index
+       cfg.bc          per-face boundary condition (BC), a strig of 6 letters (case insensitive) for
+                       bounding box faces at -x,-y,-z,+x,+y,+z axes;
+ 		               overwrite cfg.isreflect if given.
+                       each letter can be one of the following:
+                       '_': undefined, fallback to cfg.isreflect
+                       'r': like cfg.isreflect=1, Fresnel reflection BC
+                       'a': like cfg.isreflect=0, total absorption BC
+                       'm': mirror or total reflection BC
+                       'c': cyclic BC, enter from opposite face
+ 
+                       in addition, cfg.bc can contain up to 12 characters,
+                       with the 7-12 characters indicating bounding box
+                       facets -x,-y,-z,+x,+y,+z are used as a detector. The 
+                       acceptable characters for digits 7-12 include
+                       '0': this face is not used to detector photons
+                       '1': this face is used to capture photons (if output detphoton)
+                       see <demo_bc_det.m>
        cfg.isnormalized:[1]-normalize the output fluence to unitary source, 0-no reflection
+       cfg.isspecular: 1-calculate specular reflection if source is outside, [0] no specular reflection
        cfg.maxgate:    the num of time-gates per simulation
        cfg.minenergy:  terminate photon when weight less than this level (float) [0.0]
        cfg.unitinmm:   defines the length unit for a grid edge length [1.0]
+                       Example: <demo_sphere_cube_subpixel.m>
        cfg.shapes:     a JSON string for additional shapes in the grid
-       cfg.internalsrc:set to 1 to skip entry search to speedup launch, effective on AMD GPUs
+                       Example: <demo_mcxyz_skinvessel.m>
+       cfg.gscatter:   after a photon completes the specified number of
+                       scattering events, mcx then ignores anisotropy g
+                       and only performs isotropic scattering for speed [1e9]
+       cfg.detphotons: detected photon data for replay. In the replay mode (cfg.seed 
+                       is set as the 4th output of the baseline simulation), cfg.detphotons
+                       should be set to the 2nd output (detphoton) of the baseline simulation
+                       or detphoton.data subfield (as a 2D array). cfg.detphotons can use
+                       a subset of the detected photon selected by the user.
+                       Example: <demo_mcxlab_replay.m>
  
  == GPU settings ==
        cfg.autopilot:  1-automatically set threads and blocks, [0]-use nthread/nblocksize
@@ -131,22 +174,19 @@ the verbose command line options in MCX.
                        of the GPU for the simulation; if set to a binary string made
                        of 1s and 0s, it enables multiple GPUs. For example, '1101'
                        allows to use the 1st, 2nd and 4th GPUs together.
+                       Example: <mcx_gpu_benchmarks.m>
        cfg.workload    an array denoting the relative loads of each selected GPU. 
                        for example, [50,20,30] allocates 50%, 20% and 30% photons to the
                        3 selected GPUs, respectively; [10,10] evenly divides the load 
                        between 2 active GPUs. A simple load balancing strategy is to 
                        use the GPU core counts as the weight.
        cfg.isgpuinfo:  1-print GPU info, [0]-do not print
-       cfg.sradius:    radius within which we use atomic operations (in grid) [0.0]
-                       sradius=0 to disable atomic operations; if sradius=-1,
-                       use cfg.crop0 and crop1 to define a cubic atomic zone; if
-                       sradius=-2, perform atomic operations in the entire domain;
-                       by default, srandius=-2 (atomic operations is used).
  
  == Source-detector parameters ==
        cfg.detpos:     an N by 4 array, each row specifying a detector: [x,y,z,radius]
        cfg.maxdetphoton:   maximum number of photons saved by the detectors [1000000]
        cfg.srctype:    source type, the parameters of the src are specified by cfg.srcparam{1,2}
+                               Example: <demo_mcxlab_srctype.m>
                        'pencil' - default, pencil beam, no param needed
                        'isotropic' - isotropic source, no param needed
                        'cone' - uniform cone beam, srcparam1(1) is the half-angle in radian
@@ -156,6 +196,9 @@ the verbose command line options in MCX.
                        'pattern' [*] - a 3D quadrilateral pattern illumination, same as above, except
                                  srcparam1(4) and srcparam2(4) specify the pattern array x/y dimensions,
                                  and srcpattern is a floating-point pattern array, with values between [0-1]. 
+                                 if cfg.srcnum>1, srcpattern must be a floating-point array with 
+                                 a dimension of [srcnum srcparam1(4) srcparam2(4)]
+                                 Example: <demo_photon_sharing.m>
                        'pattern3d' [*] - a 3D illumination pattern. srcparam1{x,y,z} defines the dimensions,
                                  and srcpattern is a floating-point pattern array, with values between [0-1]. 
                        'fourier' [*] - spatial frequency domain source, similar to 'planar', except
@@ -172,7 +215,7 @@ the verbose command line options in MCX.
                                 srcparam1: [v1x,v1y,v1z,|v2|], srcparam2: [kx,ky,phi0,M]
                                 normalized vectors satisfy: srcdir cross v1=v2
                                 the phase shift is phi0*2*pi
-                       'fourierx2d' - a general 2D Fourier basis, parameters
+                       'fourierx2d' [*] - a general 2D Fourier basis, parameters
                                 srcparam1: [v1x,v1y,v1z,|v2|], srcparam2: [kx,ky,phix,phiy]
                                 the phase shift is phi{x,y}*2*pi
                        'zgaussian' - an angular gaussian beam, srcparam1(0) specifies the variance in the zenith angle
@@ -191,13 +234,33 @@ the verbose command line options in MCX.
                        focal length parameter (4th element of cfg.srcdir)
        cfg.{srcparam1,srcparam2}: 1x4 vectors, see cfg.srctype for details
        cfg.srcpattern: see cfg.srctype for details
+       cfg.srcnum:     the number of source patterns that are
+                       simultaneously simulated; only works for 'pattern'
+                       source, see cfg.srctype='pattern' for details
+                       Example <demo_photon_sharing.m>
        cfg.issrcfrom0: 1-first voxel is [0 0 0], [0]- first voxel is [1 1 1]
+       cfg.replaydet:  only works when cfg.outputtype is 'jacobian', 'wl', 'nscat', or 'wp' and cfg.seed is an array
+                       -1 replay all detectors and save in separate volumes (output has 5 dimensions)
+                        0 replay all detectors and sum all Jacobians into one volume
+                        a positive number: the index of the detector to replay and obtain Jacobians
        cfg.voidtime:   for wide-field sources, [1]-start timer at launch, or 0-when entering 
                        the first non-zero voxel
  
  == Output control ==
+       cfg.savedetflag: ['dp'] - a string (case insensitive) controlling the output detected photon data fields
+                           1 d  output detector ID (1)
+                           2 s  output partial scat. even counts (#media)
+                           4 p  output partial path-lengths (#media)
+                           8 m  output momentum transfer (#media)
+                          16 x  output exit position (3)
+                          32 v  output exit direction (3)
+                          64 w  output initial weight (1)
+                       combine multiple items by using a string, or add selected numbers together
+                       by default, mcx only saves detector ID (d) and partial-path data (p)
        cfg.issaveexit: [0]-save the position (x,y,z) and (vx,vy,vz) for a detected photon
-                       Example: <demo_lambertian_exit_angle.m>
+                       same as adding 'xv' to cfg.savedetflag. Example: <demo_lambertian_exit_angle.m>
+       cfg.ismomentum: 1 to save photon momentum transfer,[0] not to save.
+                       save as adding 'M' to cfg.savedetflag string
        cfg.issaveref:  [0]-save diffuse reflectance/transmittance in the non-zero voxels
                        next to a boundary voxel. The reflectance data are stored as 
                        negative values; must pad zeros next to boundaries
@@ -212,11 +275,11 @@ the verbose command line options in MCX.
        cfg.session:    a string for output file names (only used when no return variables)
  
  == Debug ==
-       cfg.debuglevel:  debug flag string, one or a combination of ['R','M','P'], no space
+       cfg.debuglevel:  debug flag string (case insensitive), one or a combination of ['R','M','P'], no space
                      'R':  debug RNG, output fluence.data is filled with 0-1 random numbers
                      'M':  return photon trajectory data as the 5th output
                      'P':  show progress bar
-       cfg.maxjumpdebug: [1000000|int] when trajectory is requested in the output, 
+       cfg.maxjumpdebug: [10000000|int] when trajectory is requested in the output, 
                       use this parameter to set the maximum position stored. By default,
                       only the first 1e6 positions are stored.
  
@@ -231,15 +294,30 @@ the verbose command line options in MCX.
        detphoton: (optional) a struct array, with a length equals to that of cfg.
              Starting from v2018, the detphoton contains the below subfields:
                detphoton.detid: the ID(>0) of the detector that captures the photon
-               detphoton.nscat: cummulative scattering event counts
+               detphoton.nscat: cummulative scattering event counts in each medium
                detphoton.ppath: cummulative path lengths in each medium (partial pathlength)
                     one need to multiply cfg.unitinmm with ppath to convert it to mm.
+               detphoton.mom: cummulative cos_theta for momentum transfer in each medium  
                detphoton.p or .v: exit position and direction, when cfg.issaveexit=1
+               detphoton.w0: photon initial weight at launch time
+               detphoton.prop: optical properties, a copy of cfg.prop
                detphoton.data: a concatenated and transposed array in the order of
-                     [detid nscat ppath p v]'
-               "data" is the is the only subfield in all MCXLAB-CL before 2018
+                     [detid nscat ppath mom p v w0]'
+               "data" is the is the only subfield in all MCXLAB before 2018
        vol: (optional) a struct array, each element is a preprocessed volume
              corresponding to each instance of cfg. Each volume is a 3D int32 array.
+       seeds: (optional), if give, mcxlab returns the seeds, in the form of
+             a byte array (uint8) for each detected photon. The column number
+             of seed equals that of detphoton.
+       trajectory: (optional), if given, mcxlab returns the trajectory data for
+             each simulated photon. The output has 6 rows, the meanings are 
+                id:  1:    index of the photon packet
+                pos: 2-4:  x/y/z/ of each trajectory position
+                     5:    current photon packet weight
+                     6:    reserved
+             By default, mcxlab only records the first 1e7 positions along all
+             simulated photons; change cfg.maxjumpdebug to define a different limit.
+ 
  
   Example:
        % first query if you have supported GPU(s)
@@ -262,27 +340,26 @@ the verbose command line options in MCX.
        cfg.tend=5e-9;
        cfg.tstep=5e-10;
        % calculate the fluence distribution with the given config
-       [fluence,detpt,vol]=mcxlabcl(cfg);
- 
-       %%alternatively, you can call
-       %[fluence,detpt,vol]=mcxlab(cfg,'mcxcl');
+       [fluence,detpt,vol,seeds,traj]=mcxlabcl(cfg);
  
        % integrate time-axis (4th dimension) to get CW solutions
-       cwfluence=sum(fluence.data,4);  % convert fluence rate to fluence
+       cwfluence=sum(fluence.data,4);  % fluence rate
        cwdref=sum(fluence.dref,4);     % diffuse reflectance
        % plot configuration and results
        subplot(231);
        mcxpreview(cfg);title('domain preview');
        subplot(232);
-       mcxplotvol(log10(cwfluence));title('fluence at y=30');
+       imagesc(squeeze(log(cwfluence(:,30,:))));title('fluence at y=30');
        subplot(233);
        hist(detpt.ppath(:,1),50); title('partial path tissue#1');
        subplot(234);
        plot(squeeze(fluence.data(30,30,30,:)),'-o');title('TPSF at [30,30,30]');
        subplot(235);
+       newtraj=mcxplotphotons(traj);title('photon trajectories')
+       subplot(236);
        imagesc(squeeze(log(cwdref(:,:,1))));title('diffuse refle. at z=1');
  
-  This function is part of Monte Carlo eXtreme (MCX) URL: http://mcx.space/mcxcl
+  This function is part of Monte Carlo eXtreme (MCX) URL: http://mcx.space
  
   License: GNU General Public License version 3, please read LICENSE.txt for details
 </pre>
@@ -356,11 +433,11 @@ to represent the problem domain. The domain is consisted of a
 
 == # How to compile MCXLAB-CL ==
 
-To compile MCXLAB-CL for Matlab, you need to cd mcx/src directory, and type 
+To compile MCXLAB-CL for MATLAB, you need to cd mcx/src directory, and type 
 
  make mex
 
-from a shell window. You need to make sure your Matlab is installed and 
+from a shell window. You need to make sure your MATLAB is installed and 
 the command <tt>mex</tt> is included in your PATH environment variable. Similarly, 
 to compile MCXLAB-CL for Octave, you type
 
@@ -376,7 +453,7 @@ level of atomic operations using the cfg.sradius settings.
 
 == # Screenshots ==
 
-Screenshot for using MCXLAB-CL in Matlab:
+Screenshot for using MCXLAB-CL in MATLAB:
   http://mcx.sourceforge.net/upload/matlab_mcxlab.png
 
 Screenshot for using MCXLAB-CL in GNU Octave:
@@ -393,5 +470,8 @@ Screenshot for using MCXLAB-CL in GNU Octave:
   of photon migration in 3D turbid media accelerated by graphics processing 
   units," Opt. Express 17, 20178-20190 (2009)
 
+ [TranYan2020] A.P.Tran, S.Yan and Q.Fang, "Improving model-based fNIRS
+ analysis using mesh-based anatomical and light-transport models", 
+ Neurophotonics, 7(1), 015008
 
 
