@@ -2,6 +2,9 @@ Change Log
 
 == MCX 0.9.8 (Eternity) branch, FangQ <q.fang at neu.edu> ==
 
+ 2020-08-28 [2ef3ee7] sync mcxlabcl with mcxlab
+ 2020-08-28 [89df0be] patch mcxcl for fangq/mcx#101
+ 2020-08-24 [9306ba3] massive documentation update for v0.9.8 release
  2020-08-18 [e76d67f] add automated valgrind testing
  2020-08-18 [dcbf360] add pocl for ubuntu 18.04
  2020-08-18 [acc6783] update ubuntu 20.04 pocl package name

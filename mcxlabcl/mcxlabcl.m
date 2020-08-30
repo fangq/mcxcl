@@ -230,11 +230,25 @@ function varargout=mcxlabcl(varargin)
 %      fields with * are required; options in [] are the default values
 %
 % Output:
-%      fluence: a struct array, with a length equals to that of cfg.
-%            For each element of fluence, fluence(i).data is a 4D array with
-%            dimensions specified by [size(vol) total-time-gates]. 
-%            The content of the array is the normalized fluence at 
-%            each voxel of each time-gate.
+%            For each element of fluence, 
+%            fluence(i).data is a 4D array with
+%                 dimensions specified by [size(vol) total-time-gates]. 
+%                 The content of the array is the normalized fluence at 
+%                 each voxel of each time-gate.
+%            fluence(i).dref is a 4D array with the same dimension as fluence(i).data
+%                 if cfg.issaveref is set to 1, containing only non-zero values in the 
+%                 layer of voxels immediately next to the non-zero voxels in cfg.vol,
+%                 storing the normalized total diffuse reflectance (summation of the weights 
+%                 of all escaped photon to the background regardless of their direction);
+%                 it is an empty array [] when if cfg.issaveref is 0.
+%            fluence(i).stat is a structure storing additional information, including
+%                 runtime: total simulation run-time in millisecond
+%                 nphoton: total simulated photon number
+%                 energytot: total initial weight/energy of all launched photons
+%                 energyabs: total absorbed weight/energy of all photons
+%                 normalizer: normalization factor
+%                 unitinmm: same as cfg.unitinmm, voxel edge-length in mm
+%
 %      detphoton: (optional) a struct array, with a length equals to that of cfg.
 %            Starting from v2018, the detphoton contains the below subfields:
 %              detphoton.detid: the ID(>0) of the detector that captures the photon
@@ -338,31 +352,43 @@ if(isstruct(varargin{1}))
                 varargin{1}(i).vol=varargin{1}(i).vol*varargin{1}(i).unitinmm;
             end
         end
-	if(isfield(varargin{1}(i),'detphotons') && isstruct(varargin{1}(i).detphotons))
-	    if(isfield(varargin{1}(i).detphotons,'data'))
-	        varargin{1}(i).detphotons=varargin{1}(i).detphotons.data;
-	    else
-	        fulldetdata={'detid','nscat','ppath','mom','p','v','w0'};
-	        detfields=ismember(fulldetdata,fieldnames(varargin{1}(i).detphotons));
-		detdata=[];
-		for j=1:length(detfields)
-		    if(detfields(j))
+        if (~isfield(varargin{1}(i),'tstart'))
+            varargin{1}(i).tstart=0;
+        end
+        if (~isfield(varargin{1}(i),'tend'))
+            error('you must define cfg.tend for the maximum time-of-flight of a photon in seconds');
+        end
+        if (~isfield(varargin{1}(i),'tstep'))
+            varargin{1}(i).tstep=varargin{1}(i).tend;
+        end
+        if (~isfield(varargin{1}(i),'srcpos'))
+            error('you must define cfg.srcpos to defin the x/y/z position of the source in voxel unit');
+        end
+        if(isfield(varargin{1}(i),'detphotons') && isstruct(varargin{1}(i).detphotons))
+            if(isfield(varargin{1}(i).detphotons,'data'))
+                varargin{1}(i).detphotons=varargin{1}(i).detphotons.data;
+            else
+                fulldetdata={'detid','nscat','ppath','mom','p','v','w0'};
+                detfields=ismember(fulldetdata,fieldnames(varargin{1}(i).detphotons));
+                detdata=[];
+                for j=1:length(detfields)
+                    if(detfields(j))
                         val=typecast(varargin{1}(i).detphotons.(fulldetdata{j})(:),'single');
-		        detdata=[detdata reshape(val,size(varargin{1}(i).detphotons.(fulldetdata{j})))];
-		    end
-		end
-		varargin{1}(i).detphotons=detdata';
-		varargin{1}(i).savedetflag='dspmxvw';
-		varargin{1}(i).savedetflag(detfields==0)=[];
-	    end
+                        detdata=[detdata reshape(val,size(varargin{1}(i).detphotons.(fulldetdata{j})))];
+                    end
+                end
+                varargin{1}(i).detphotons=detdata';
+                varargin{1}(i).savedetflag='dspmxvw';
+                varargin{1}(i).savedetflag(detfields==0)=[];
+            end
         end
     end
 end
 
 if(useopencl==0)
-    [varargout{1:nargout}]=mcx(varargin{1});
+    [varargout{1:max(1,nargout)}]=mcx(varargin{1});
 else
-    [varargout{1:nargout}]=mcxcl(varargin{1});
+    [varargout{1:max(1,nargout)}]=mcxcl(varargin{1});
 end
 
 if(nargin==0)
@@ -390,19 +416,19 @@ if(nargout>=2)
     for i=1:length(varargout{2})
         if((~isfield(cfg(i),'savedetflag')) || ((isfield(cfg(i),'savedetflag')) && isempty(cfg(i).savedetflag)))
             cfg(i).savedetflag='DP';
-            if(isfield(cfg(i),'issaveexit') && cfg(i).issaveexit)
-                cfg(i).savedetflag=[cfg(i).savedetflag,'XV'];
+        end
+        if(isfield(cfg(i),'issaveexit') && cfg(i).issaveexit)
+            cfg(i).savedetflag=[cfg(i).savedetflag,'XV'];
+        end
+        if(isfield(cfg(i),'ismomentum') && cfg(i).ismomentum)
+            cfg(i).savedetflag=[cfg(i).savedetflag,'M'];
+        end
+        if(ndims(cfg(i).vol)==4)
+            cfg(i).savedetflag='';
+            if((isa(cfg(i).vol,'single') || isa(cfg(i).vol,'double')) && isfield(cfg(i),'unitinmm'))
+                cfg(i).vol=cfg(i).vol*cfg(i).unitinmm;
             end
-            if(isfield(cfg(i),'ismomentum') && cfg(i).ismomentum)
-                cfg(i).savedetflag=[cfg(i).savedetflag,'M'];
-            end
-	end
-	if(ndims(cfg(i).vol)==4)
-	    cfg(i).savedetflag='';
-	    if((isa(cfg(i).vol,'single') || isa(cfg(i).vol,'double')) && isfield(cfg(i),'unitinmm'))
-	        cfg(i).vol=cfg(i).vol*cfg(i).unitinmm;
-	    end
-	end
+        end
         if((~isfield(cfg(i),'issaveexit') || cfg(i).issaveexit~=2))
             medianum=size(cfg(i).prop,1)-1;
             detp=varargout{2}(i).data;
@@ -418,6 +444,9 @@ if(nargout>=2)
             end
             newdetp=mcxdetphoton(detp,medianum,flags{:});
             newdetp.prop=cfg(i).prop;
+            if(isfield(cfg(i),'unitinmm'))
+                newdetp.unitinmm=cfg(i).unitinmm;
+            end
             newdetp.data=detp;      % enable this line for compatibility
             newdetpstruct(i)=newdetp;
         else
