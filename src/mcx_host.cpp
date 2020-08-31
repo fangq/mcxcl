@@ -559,6 +559,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      MCX_FPRINTF(cfg->flog,"initializing streams ...\t");
 
      MCX_FPRINTF(cfg->flog,"init complete : %d ms\n",GetTimeMillis()-tic);fflush(cfg->flog);
+     mcx_flush(cfg);
 
      OCL_ASSERT(((mcxprogram=clCreateProgramWithSource(mcxcontext, 1,(const char **)&(cfg->clsource), NULL, &status),status)));
 
@@ -629,6 +630,8 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
 
      MCX_FPRINTF(cfg->flog,"building kernel with option: %s\n",opt);
      status=clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);
+
+     mcx_flush(cfg);
 
      size_t len;
      // get the details on the error, and store it in buffer
@@ -719,6 +722,8 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
        //total number of repetition for the simulations, results will be accumulated to field
        for(iter=0;iter<cfg->respin;iter++){
            MCX_FPRINTF(cfg->flog,"simulation run#%2d ... \n",iter+1); fflush(cfg->flog);fflush(cfg->flog);
+           mcx_flush(cfg);
+
 	   param.twin0=twindow0;
 	   param.twin1=twindow1;
 
@@ -822,6 +827,8 @@ is more than what your have specified (%d), please use the -H option to specify 
 		if(cfg->issaveseed)
                         free(seeddata);
 	     }
+             mcx_flush(cfg);
+
 	     //handling the 2pt distributions
              if(cfg->issave2pt){
                 float *rawfield=(float*)malloc(sizeof(float)*fieldlen*2);
