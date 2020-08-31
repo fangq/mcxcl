@@ -504,7 +504,7 @@ void mcx_run_simulation(Config *cfg,float *fluence,float *totalenergy){
      }
 
      for(i=0;i<workdev;i++){
-       OCL_ASSERT(((gmedia[i]=clCreateBuffer(mcxcontext,RO_MEM, sizeof(cl_uint)*(dimxyz),media,&status),status)));
+       OCL_ASSERT(((gmedia[i]=clCreateBuffer(mcxcontext,RO_MEM, sizeof(cl_uint)*(cfg->dim.x*cfg->dim.y*cfg->dim.z),media,&status),status)));
        OCL_ASSERT(((gproperty[i]=clCreateBuffer(mcxcontext,RO_MEM, cfg->medianum*sizeof(Medium),cfg->prop,&status),status)));
        OCL_ASSERT(((gparam[i]=clCreateBuffer(mcxcontext,RO_MEM, sizeof(MCXParam),&param,&status),status)));
        energy=(cl_float*)calloc(sizeof(cl_float),gpu[i].autothread<<1);
