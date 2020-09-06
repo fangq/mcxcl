@@ -3,7 +3,7 @@
 
 * '''Author:''' Qianqian Fang (q.fang at neu.edu)
 * '''License:''' GNU General Public License version 3 (GPLv3)
-* '''Version:''' 0.9.8 (Eternity - Final)
+* '''Version:''' 0.9.9 (Eternity - Final)
 * '''Website:''' http://mcx.space
 
 ---------------------------------------------------------------------
@@ -12,7 +12,7 @@
 
 == #  What's New ==
 
-In MCX-CL v2020 (0.9.8), we added a list of major new additions, including
+In MCX-CL v2020 (0.9.9), we added a list of major new additions, including
 
 * Support running on multiple NVIDIA GPUs (merged from nvidiaomp branch)
 * Built-in benchmarks for easy testing and adoption by new users
@@ -29,7 +29,7 @@ In MCX-CL v2020 (0.9.8), we added a list of major new additions, including
 * Add python-based `mch` file reader (by Shih-Cheng Tu), nightly build compilation \
  script, colored command line output, and more
 
-Compared to MCXCL v2019.4 (0.9), MCX-CL has gained support of nearl all core features in MCX, i.e.
+Compared to MCXCL v2019.4 (0.9.8), MCX-CL has gained support of nearl all core features in MCX, i.e.
 
 * Output momentum transfer for DCS simulations
 * Output photon trajectory data
