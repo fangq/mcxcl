@@ -761,7 +761,6 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 
       *w0=1.f;     ///< reuse to count for launchattempt
       *Lmove=-1.f; ///< reuse as "canfocus" flag for each source: non-zero: focusable, zero: not focusable
-      *prop=TOFLOAT4((float4)(gcfg->ps.x,gcfg->ps.y,gcfg->ps.z,0)); ///< reuse as the origin of the src, needed for focusable sources
 
       /**
        * First, let's terminate the current photon and perform detection calculations
@@ -837,6 +836,7 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
 	  f[0]=(float4)(0.f,0.f,GPU_PARAM(gcfg,minaccumtime),f[0].w);
           *idx1d=GPU_PARAM(gcfg,idx1dorig);
           *mediaid=GPU_PARAM(gcfg,mediaidorig);
+          *prop=TOFLOAT4((float4)(gcfg->ps.x,gcfg->ps.y,gcfg->ps.z,0)); ///< reuse as the origin of the src, needed for focusable sources
 
 	  if(GPU_PARAM(gcfg,issaveseed))
               copystate(t,photonseed);
@@ -1017,6 +1017,10 @@ int launchnewphoton(float4 *p,float4 *v,float4 *f,FLOAT4VEC *prop,uint *idx1d,
           /**
            * If beam focus is set, determine the incident angle
            */
+
+	  if(p[0].w<=GPU_PARAM(gcfg,minenergy))
+	    continue;
+
           if(*Lmove<0.f){
 	    if(isnan(gcfg->c0.w)){ // isotropic if focal length is -0.f
                 float ang,stheta,ctheta,sphi,cphi;
@@ -1377,7 +1381,7 @@ __kernel void mcx_main_loop(__global const uint *media,
           }
 #ifdef MCX_DO_REFLECTION
           //if hit the boundary, exceed the max time window or exit the domain, rebound or launch a new one
-	  if(((GPU_PARAM(gcfg,doreflect) && (isdet & 0xF)==0) || (isdet & 0x1)) && n1!=gproperty[(mediaid>0 && GPU_PARAM(gcfg,mediaformat)>=100)?1:mediaid].w){
+	  if(((GPU_PARAM(gcfg,doreflect) && (isdet & 0xF)==0) || (isdet & 0x1)) && ((isdet & 0xF)==bcMirror || n1!=gproperty[(mediaid>0 && GPU_PARAM(gcfg,mediaformat)>=100)?1:mediaid].w)){
 	          float Rtotal=1.f;
                   float cphi,sphi,stheta,ctheta;
 
@@ -1399,7 +1403,7 @@ __kernel void mcx_main_loop(__global const uint *media,
        	       	     Rtotal=(Rtotal+(ctheta-stheta)/(ctheta+stheta))*0.5f;
 		     GPUDEBUG(((__constant char*)"Rtotal=%f\n",Rtotal));
                   }
-	          if(Rtotal<1.f && (((isdet & 0xF)==0 && gproperty[mediaid].w>=1.f) || isdet==bcReflect) && rand_next_reflect(t)>Rtotal){ // do transmission
+	          if(Rtotal<1.f && (((isdet & 0xF)==0 && gproperty[mediaid].w>=1.f) || isdet==bcReflect) &&  (isdet!=bcMirror) && rand_next_reflect(t)>Rtotal){ // do transmission
                         transmit(&v,n1,prop.w,flipdir);
                         if(mediaid==0){ // transmission to external boundary
                             GPUDEBUG(((__constant char*)"transmit to air, relaunch, idx=[%d] mediaid=[%d] bc=[%d] ref=[%d]\n",idx1d,mediaid,isdet,GPU_PARAM(gcfg,doreflect)));
