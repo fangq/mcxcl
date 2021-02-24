@@ -92,7 +92,7 @@ make clean
 
 if [ "$OS" == "win" ]; then
 
-    PATH=/c/ProgramData/MATLAB/SupportPackages/R2017b/3P.instrset/mingw_w64.instrset/bin/:/cygdrive/c/ProgramData/MATLAB/SupportPackages/R2017b/3P.instrset/mingw_w64.instrset/bin/:$PATH make mex CC=gcc  &> ../mcxlabcl/AUTO_BUILD_${DATE}.log
+    make mex &> ../mcxlabcl/AUTO_BUILD_${DATE}.log
 
     echo "Windows mcxcl build"
     cd ../mcxlabcl
@@ -105,11 +105,7 @@ fi
 make clean
 
 if [ "$OS" == "win" ]; then
-    if [[ "$OSID" == CYGWIN* ]]; then
-        PATH=/cygdrive/c/Octave/Octave-4.2.1/bin:$PATH make oct CC=gcc LIBOPENCL='C:\Windows\System32\OpenCL.dll' USERLINKOPT='-LC:\Octave\Octave-4.2.1\lib64 -LC:\Octave\Octave-4.2.1\lib\octave\4.2.1' &> ../mcxlabcl/AUTO_BUILD_${DATE}.log
-    else
-        PATH=/c/Octave/Octave-4.2.1/bin:$PATH make oct CC=gcc LIBOPENCL='C:\Windows\System32\OpenCL.dll' USERLINKOPT='-LC:\Octave\Octave-4.2.1\lib64 -LC:\Octave\Octave-4.2.1\lib\octave\4.2.1' &> ../mcxlabcl/AUTO_BUILD_${DATE}.log
-    fi
+    make oct CXXFLAGS="-m64" LIBOPENCL='/cygdrive/c/Windows/System32/OpenCL.dll' USERLINKOPT='-L"/cygdrive/c/cygwin64/lib/octave/4.4.1" libzmat.a -lz' >>  ../mcxlabcl/AUTO_BUILD_${DATE}.log 2>&1
 else
     make oct  >>  ../mcxlabcl/AUTO_BUILD_${DATE}.log 2>&1
 fi
