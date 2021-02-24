@@ -2662,7 +2662,7 @@ void mcx_parsecmd(int argc, char* argv[], Config *cfg){
 		     	        break;
                      case 'B':
                                 if(i<argc+1)
-				    strncpy(cfg->bc,argv[i+1],12);
+				    memcpy(cfg->bc,argv[i+1],MIN(12,strlen(argv[i+1])));
 				i++;
                                	break;
 		     case 'd':
