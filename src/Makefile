@@ -134,7 +134,7 @@ mex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
 
 oct:        BINARY=mcxcl.mex
 oct:        AR= CXXFLAGS='$(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LFLAGS='-g -L$(LIBOPENCLDIR) $(LIBOPENCL)' LDFLAGS='$(LFLAGS)' mkoctfile
-oct:        LINKOPT=--mex mcxlabcl.cpp $(INCLUDEDIRS)
+oct:        LINKOPT=--mex -DMATLAB_MEX_FILE mcxlabcl.cpp $(INCLUDEDIRS)
 
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 CLSOURCE  := $(addsuffix $(CLHEADER), $(CLPROGRAM))
