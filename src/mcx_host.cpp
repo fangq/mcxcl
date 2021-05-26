@@ -1008,6 +1008,7 @@ is more than what your have specified (%d), please use the -H option to specify 
 
      clReleaseMemObject(gprogress[0]);
      if(cfg->seed==SEED_FROM_FILE){
+         clReleaseMemObject(gseed[0]);
          if(greplayw)
              clReleaseMemObject(greplayw);
          if(greplaytof)
@@ -1020,7 +1021,8 @@ is more than what your have specified (%d), please use the -H option to specify 
          clReleaseMemObject(gproperty[i]);
          clReleaseMemObject(gparam[i]);
          clReleaseMemObject(gfield[i]);
-         clReleaseMemObject(gseed[i]);
+         if(cfg->seed!=SEED_FROM_FILE)
+             clReleaseMemObject(gseed[i]);
 	 if(cfg->issavedet)
              clReleaseMemObject(gdetphoton[i]);
          clReleaseMemObject(genergy[i]);
@@ -1053,6 +1055,7 @@ is more than what your have specified (%d), please use the -H option to specify 
      free(gseeddata);
      free(mcxkernel);
      free(waittoread);
+     free(Pdet);
 
      if(gpu)
         free(gpu);
