@@ -265,7 +265,7 @@ type `matlab` and enter, you should see MATLAB starts.
 
 ### Step 3. Installing MCXCL
 
-We can either compile it ourselves or download pre-compiled binaries. 
+One can either choose to compile mcxcl locally or download pre-compiled binaries from MCX's website. 
 
 #### Compile From Source
 
