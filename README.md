@@ -16,7 +16,7 @@ Table of Contents:
   * [Requirement and Installation](#requirement-and-installation)
     + [Step 1. Verify your CPU/GPU support](#step-1-verify-your-cpugpu-support)
     + [Step 2. Install MATLAB or GNU Octave](#step-2-install-matlab-or-gnu-octave)
-    + [Step 3. Download MCXCL](#step-3-download-mcxcl)
+    + [Step 3. Installing MCXCL](#step-3-installing-mcxcl)
     + [Step 4. Start MCXStudio and query GPU information](#step-4-start-mcxstudio-and-query-gpu-information)
     + [Step 5. Run a trial simulation](#step-5-run-a-trial-simulation)
     + [Step 6. Test MATLAB for visualization](#step-6-test-matlab-for-visualization)
@@ -171,8 +171,13 @@ the `/usr/lib` directory. If it is installed under a different directory, please
 define environment variable `LD_LIBRARY_PATH` to include the path.
 
 If `libOpenCL.so` or `OpenCL.dll` does not exist on your system or, please
-make sure you have installed CUDA SDK (if you are using an NVIDIA card)
-or AMD APP SDK (if you are using an AMD card). 
+make sure you have installed [CUDA SDK](https://developer.nvidia.com/cuda-toolkit) (if you are using an NVIDIA card)
+or AMD APP SDK (if you are using an AMD card), e.g. [Radeon™ Software for Linux](https://www.amd.com/en/support) or [ROCm](https://github.com/RadeonOpenCompute/ROCm) where the option for OpenCL was selected. 
+
+Additionally, if you are on a Linux-based system you may require the below dependences - this command assumes you are running Ubuntu:
+```
+sudo apt-get install ocl-icd-libopencl1 opencl-headers ocl-icd-opencl-dev zlib1g-dev 
+```
 
 The below installation steps can be browsed online at 
 
@@ -267,7 +272,69 @@ To verify your computer has MATLAB installed, please start a terminal on a
 Mac or Linux, or type `cmd` and enter in Windows start menu, in the terminal, 
 type `matlab` and enter, you should see MATLAB starts.
 
-### Step 3. Download MCXCL
+### Step 3. Installing MCXCL
+
+One can either choose to compile mcxcl locally or download pre-compiled binaries from MCX's website. 
+
+#### Compile From Source
+
+This section assumes you are on a Linux-based machine, e.g. Ubunutu, CentOS, etc.
+
+Clone this repository:
+```
+git clone https://github.com/fangq/mcxcl.git
+```
+
+From here we can either use the latest master branch (default) or latest release, which is v2020 currently. 
+To change which release you are using we have to enter the directory we just cloned:
+```
+cd mcxcl
+```
+From here we can change releases if desired:
+```
+git checkout v2020
+```
+After the version of mcxcl has been checkedout we can start compiling from source. Now enter the `src` folder:
+```
+cd src
+```
+We can do one of three things here - compile a standalone binary of mcxcl, a MATLAB/mex version, or an Octave/oct version. 
+
+##### Standalone Binary
+
+Simply run: `make` 
+
+Which will compile a binary and place it in `mcxcl/bin`
+
+##### MATLAB
+
+Make sure you have mex in your `$PATH`, which can be done via:
+```
+export PATH="/path/to/matlab/bin/mex:$PATH"
+```
+
+Run: `make mex`
+
+This will output the mex file to `mcxcl/mcxlabcl`
+
+##### Octave
+
+Make sure you have the following dependences - assuming you are running Ubuntu:
+
+```
+sudo apt install -y liboctave-dev
+```
+
+Run: `make oct`
+
+This will output the octave/mex file to `mcxcl/mcxlabcl`
+
+##### Misc
+
+After you have compilied and copied your binary to a seperate location you can run `make clean` to remove all the build files that were 
+created during compilation. 
+
+#### Download MCXCL
 
 One can download two separate MCXCL packages (standalone mcxcl binary, and mcxlabcl)
 or download the integrated MCXStudio package (which contains mcx, mcxcl, mmc, mcxlab, 
