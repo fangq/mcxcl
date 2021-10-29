@@ -289,7 +289,7 @@ After the version of mcxcl has been checkedout we can start compiling from sourc
 ```
 cd src
 ```
-We can do one of three things here - compile a standalone binary of mcxcl, a Matlab/mex version, or an Octave/oct version. 
+We can do one of three things here - compile a standalone binary of mcxcl, a MATLAB/mex version, or an Octave/oct version. 
 
 ##### Standalone Binary
 
@@ -297,7 +297,7 @@ Simply run: `make`
 
 Which will compile a binary and place it in `mcxcl/bin`
 
-##### Matlab
+##### MATLAB
 
 Make sure you have mex in your `$PATH`, which can be done via:
 ```
