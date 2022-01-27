@@ -52,7 +52,7 @@ if(isfield(json,'Optode'))
 	  [Optode.Source.Pattern.Nx,Optode.Source.Pattern.Ny,nz]);
     end
   end
-  if(isfield(json.Optode,'Detector') && ~isempty(json.Optode.Detector))
+  if(isfield(json.Optode,'Detector') && ~isempty(json.Optode.Detector) && iscell(json.Optode.Detector) )
     cfg.detpos=cell2mat(struct2cell(cell2mat(json.Optode.Detector)')');
   end
 end
