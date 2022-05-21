@@ -35,26 +35,23 @@ filestub=fullfile(fpath,fname);
 Optode.Source=struct();
 Optode.Source=copycfg(cfg,'srcpos',Optode.Source,'Pos');
 Optode.Source=copycfg(cfg,'srcdir',Optode.Source,'Dir');
+Optode.Source=copycfg(cfg,'srciquv',Optode.Source,'IQUV');
 Optode.Source=copycfg(cfg,'srcparam1',Optode.Source,'Param1');
 Optode.Source=copycfg(cfg,'srcparam2',Optode.Source,'Param2');
 Optode.Source=copycfg(cfg,'srctype',Optode.Source,'Type');
 Optode.Source=copycfg(cfg,'srcnum',Optode.Source,'SrcNum');
+Optode.Source=copycfg(cfg,'lambda',Optode.Source,'WaveLength');
 
 if(isfield(cfg,'detpos') && ~isempty(cfg.detpos))
     Optode.Detector=struct();
     Optode.Detector=cell2struct(mat2cell(cfg.detpos, ones(1,size(cfg.detpos,1)),[3 1]), {'Pos','R'} ,2);
+    Optode.Detector=Optode.Detector(:)';
     if(length(Optode.Detector)==1)
         Optode.Detector={Optode.Detector};
     end
 end
 if(isfield(cfg,'srcpattern') && ~isempty(cfg.srcpattern))
-    Optode.Source.Pattern.Nx=size(cfg.srcpattern,1);
-    Optode.Source.Pattern.Ny=size(cfg.srcpattern,2);
-    Optode.Source.Pattern.Nz=size(cfg.srcpattern,3);
-    Optode.Source.Pattern.Data=[filestub '_pattern.bin'];
-    fid=fopen(Optode.Source.Pattern.Data,'wb');
-    fwrite(fid,cfg.srcpattern,'float32');
-    fclose(fid);
+    Optode.Source.Pattern=single(cfg.srcpattern);
 end
 
 %% define the domain and optical properties
@@ -62,8 +59,13 @@ end
 Domain=struct();
 Domain=copycfg(cfg,'issrcfrom0',Domain,'OriginType',0);
 Domain=copycfg(cfg,'unitinmm',Domain,'LengthUnit');
+Domain=copycfg(cfg,'invcdf',Domain,'InverseCDF');
 
 Domain.Media=cell2struct(num2cell(cfg.prop), {'mua','mus','g','n'} ,2)';
+
+if(isfield(cfg,'polprop') && ~isempty(cfg.polprop))
+    Domain.MieScatter=cell2struct(num2cell(cfg.polprop), {'mua','radius','rho','nsph','nmed'}, 2)';
+end
 
 if(isfield(cfg,'shapes') && ischar(cfg.shapes))
     Shapes=loadjson(cfg.shapes);
@@ -76,6 +78,9 @@ if(isfield(cfg,'vol') && ~isempty(cfg.vol) && ~isfield(Domain,'VolumeFile'))
             Domain.MediaFormat='byte';
             if(ndims(cfg.vol)==4 && size(cfg.vol,1)==4)
                 Domain.MediaFormat='asgn_byte';
+            elseif(ndims(cfg.vol)==4 && size(cfg.vol,1)==8)
+                cfg.vol=reshape(typecast(uint8(cfg.vol(:)),'uint64'),size(cfg.vol,2,3,4));
+                Domain.MediaFormat='svmc';
             end
         case {'uint16','int16'}
             Domain.MediaFormat='short';
@@ -129,11 +134,19 @@ Session=copycfg(cfg,'outputformat',Session,'OutputFormat');
 Session=copycfg(cfg,'outputtype',Session,'OutputType');
 Session=copycfg(cfg,'debuglevel',Session,'Debug');
 Session=copycfg(cfg,'autopilot',Session,'DoAutoThread');
+Session=copycfg(cfg,'maxdetphoton',Session,'MaxDetPhoton');
+Session=copycfg(cfg,'bc',Session,'BCFlags');
+
+if(isfield(cfg,'savedetflag') && ~isempty(cfg.savedetflag) && ischar(cfg.savedetflag))
+    cfg.savedetflag=upper(cfg.savedetflag);
+end
+Session=copycfg(cfg,'savedetflag',Session,'SaveDataMask');
 
 if(isfield(cfg,'seed') && numel(cfg.seed)==1)
     Session.RNGSeed=cfg.seed;
 end
 Session=copycfg(cfg,'nphoton',Session,'Photons');
+Session=copycfg(cfg,'minenergy',Session,'MinEnergy');
 Session=copycfg(cfg,'rootpath',Session,'RootPath');
 
 %% define the forward simulation settings
