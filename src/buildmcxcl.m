@@ -63,7 +63,7 @@ pname='mcx';
 
 cflags=' -g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -std=c99 -DMCX_CONTAINER -c ';
 
-filelist={'mcx_utils.c','tictoc.c','cjson/cJSON.c','mcx_host.cpp',...
+filelist={'mcx_utils.c','mcx_tictoc.c','cjson/cJSON.c','mcx_host.cpp',...
     'mcxcl.c','mcx_shapes.c','mcxlabcl.cpp'};
 if(isfield(opt,'filelist'))
     filelist=opt.filelist;

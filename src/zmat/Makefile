@@ -6,11 +6,11 @@
 
 BACKEND ?=
 
-ROOTDIR ?= ..
-ZMATDIR  ?= $(ROOTDIR)
-MCXSRC :=$(ZMATDIR)/src
+ROOTDIR ?=..
+ZMATDIR ?=$(ROOTDIR)
+LIBDIR  ?=$(ROOTDIR)/lib
 
-MKDIR      := mkdir
+MKDIR      :=mkdir
 
 MEX=mex
 AR=$(CC)
@@ -23,7 +23,7 @@ DOXY       := doxygen
 DOCDIR     := $(ZMATDIR)/doc
 DOXYCFG=zmat.cfg
 
-INCLUDEDIRS=-Ieasylzma -Ieasylzma/pavlov -Ilz4
+INCLUDEDIRS=-I../include -Ieasylzma -Ieasylzma/pavlov -Ilz4
 
 CUOMPLINK=
 
@@ -33,12 +33,11 @@ PLATFORM = $(shell uname -s)
 DLLFLAG=-fPIC
 OMP=-fopenmp
 
-CPPOPT=-g -Wall -O3
-CCFLAGS=$(CPPOPT)
+CPPOPT=-g -Wall -O3 -fPIC #-g -Wall -std=c99 # -DUSE_OS_TIMER
 
 OUTPUTFLAG:=-o
 OBJSUFFIX=.o
-EXESUFFIX=
+EXESUFFIX=.mex*
 
 FILES=zmatlib lz4/lz4 lz4/lz4hc easylzma/compress easylzma/decompress \
 easylzma/lzma_header easylzma/lzip_header easylzma/common_internal \
@@ -47,23 +46,20 @@ easylzma/pavlov/LzFind easylzma/pavlov/Bra easylzma/pavlov/BraIA64 \
 easylzma/pavlov/Alloc easylzma/pavlov/7zCrc
 
 ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
-  #CUOMPLINK=-Xcompiler
   ifeq ($(findstring x86_64,$(ARCH)), x86_64)
       LINKOPT=-L"$(CUDA_PATH)/lib/x64" $(CUDART)
   else
       LINKOPT=-L"$(CUDA_PATH)/lib/Win32" $(CUDART)
   endif
   INCLUDEDIRS +=-I"$(CUDA_PATH)/lib/include"
-  CPPOPT =-c -DWIN32 -g -Wall -O3 -fPIC
+  CPPOPT =-c -D_CRT_SECURE_NO_DEPRECATE -DWIN32
   OBJSUFFIX=.obj
   EXESUFFIX=
   DLLFLAG=
   OMP=-fopenmp
   MEX=cmd /c mex
-  #CPPOPT+=-Xcompiler $(OMP)
 else ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
-  OUTPUTFLAG=
-  CPPOPT+=
+
 else
   CPPOPT+=
   CUCCOPT+=-Xcompiler $(OMP)
@@ -85,13 +81,33 @@ ifeq ($(MAKECMDGOALS),lib)
    ARFLAGS    :=cr
    BINARY     :=libzmat.a
    AROUTPUT   :=
-   LINKOPT    :=#easylzma/src/CMakeFiles/easylzma_s.dir/*.o easylzma/src/CMakeFiles/easylzma_s.dir/pavlov/*.o
+   LINKOPT    :=
+   OUTPUT_DIR :=$(LIBDIR)
+   ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
+      OUTPUTFLAG :=
+   endif
+endif
+
+ifeq ($(MAKECMDGOALS),dll)
+   OUTPUTFLAG :=-o
+   BINARY     :=libzmat.so
+   OUTPUT_DIR :=$(LIBDIR)
+
+   ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
+      ARFLAGS    :=-shared -Wl,-install_name,$(BINARY).1 -lz
+   else
+      ARFLAGS    :=-shared -Wl,-soname,$(BINARY).1 -lz
+   endif
+endif
+
+ifeq ($(MAKECMDGOALS),dll)
+   BINARY     :=libzmat.so
 endif
 
 dll:   CPPOPT     +=$(DLLFLAG)
 dll:   AR         :=gcc
-dll:   ARFLAGS    :=-shared -Wl,-soname,$(BINARY).1
-dll:   LINKOPT    :=easylzma/src/CMakeFiles/easylzma.dir/*.o easylzma/src/CMakeFiles/easylzma.dir/pavlov/*.o
+dll:   ARFLAGS    ?=-shared -Wl,-soname,$(BINARY).1
+dll:   LINKOPT    :=$(LDFLAGS)
 dll:   AROUTPUT   :=-o
 
 oct mex: CPPOPT+= $(DLLFLAG)
@@ -105,18 +121,13 @@ oct:   CXX=mkoctfile
 mex:   CXX=$(MEX)
 mex:   OUTPUTFLAG:=-output
 mex:   AR=$(MEX) zmat.cpp $(INCLUDEDIRS)
-mex:   LINKOPT+= -cxx CXXLIBS='$$CXXLIBS -lz' -outdir $(ZMATDIR)
+mex:   LINKOPT+= -cxx CXXLIBS='$$CXXLIBS -lz -static-libgcc -static-libstdc++' -outdir $(ZMATDIR)
 mex:   ARFLAGS    :=
 mex:   OUTPUT_DIR=..
 
 all: mex
 
 TARGETSUFFIX:=$(suffix $(BINARY))
-
-ifeq ($(TARGETSUFFIX),.so)
-        CCFLAGS+= $(DLLFLAG) 
-        ARFLAGS+= -shared -Wl,-soname,$(BINARY).1 
-endif
 
 doc: makedocdir
 	$(DOXY) $(DOXYCFG)
@@ -141,16 +152,38 @@ $(OUTPUT_DIR)/$(BINARY): $(OBJS)
 
 %$(OBJSUFFIX): %.c
 	@$(ECHO) Building $@
-	$(CC) $(INCLUDEDIRS) $(CPPOPT) -c -o $@ $<
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(INCLUDEDIRS) $(CPPOPT) -c -o $@ $<
 
 %$(OBJSUFFIX): %.cu
 	@$(ECHO) Building $@
 	$(CUDACC) -c $(CUCCOPT) -o $@  $<
 
 clean:
-	-rm -f $(OBJS) $(OUTPUT_DIR)/$(BINARY)$(EXESUFFIX)
+	-rm -f $(OBJS) $(OUTPUT_DIR)/$(BINARY)$(EXESUFFIX) zmat$(OBJSUFFIX) $(LIBDIR)/*
 
-.PHONY: all mex oct lib
+pretty:
+	astyle \
+	    --style=attach \
+	    --indent=spaces=4 \
+	    --indent-modifiers \
+	    --indent-switches \
+	    --indent-preproc-block \
+	    --indent-preproc-define \
+	    --indent-col1-comments \
+	    --pad-oper \
+	    --pad-header \
+	    --align-pointer=type \
+	    --align-reference=type \
+	    --add-brackets \
+	    --convert-tabs \
+	    --lineend=linux \
+	    --preserve-date \
+	    --suffix=none \
+	    --formatted \
+	    --break-blocks \
+	   "*.c" "../include/*.h" "*.cpp"
+
+.PHONY: all mex oct lib dll
 
 .DEFAULT_GOAL := all
 
