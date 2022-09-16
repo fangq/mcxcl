@@ -22,8 +22,8 @@
  the data structure is 16byte aligned to facilitate SSE operations
 */
 
-typedef struct PRE_ALIGN(16) MMC_float4{
-    float x,y,z,w;
+typedef struct PRE_ALIGN(16) MMC_float4 {
+    float x, y, z, w;
 } float4 POST_ALIGN(16);
 
 /**
@@ -34,11 +34,11 @@ typedef struct PRE_ALIGN(16) MMC_float4{
 */
 
 #if defined(MMC_USE_SSE) || defined(USE_OPENCL)
- typedef struct MMC_float4 float3;
+typedef struct MMC_float4 float3;
 #else
- typedef struct MMC_float3{
-    float x,y,z;
- } float3;
+typedef struct MMC_float3 {
+    float x, y, z;
+} float3;
 #endif
 
 /**
@@ -46,8 +46,8 @@ typedef struct PRE_ALIGN(16) MMC_float4{
  \brief  integer pair {ix,iy}
 */
 
-typedef struct MMC_int2{
-    int x,y;
+typedef struct MMC_int2 {
+    int x, y;
 } int2;
 
 /**
@@ -55,32 +55,32 @@ typedef struct MMC_int2{
  \brief  integer triplet {ix,iy,iz}
 */
 
-typedef struct MMC_int3{
-    int x,y,z;
+typedef struct MMC_int3 {
+    int x, y, z;
 } int3;
 
 /**
  \struct MMC_int4 vector_types.h
  \brief  unsigned integer quadraplet {ix,iy,iz,iw}
 */
-typedef struct PRE_ALIGN(16) MMC_int4{
-    int x,y,z,w;
+typedef struct PRE_ALIGN(16) MMC_int4 {
+    int x, y, z, w;
 } int4 POST_ALIGN(16);
 
 /**
  \struct MMC_uint3 vector_types.h
  \brief  unsigned integer triplet {ix,iy,iz}
 */
-typedef struct MMC_uint3{
-    unsigned int x,y,z;
+typedef struct MMC_uint3 {
+    unsigned int x, y, z;
 } uint3;
 
 /**
  \struct MMC_uint3 vector_types.h
  \brief  unsigned integer triplet {ix,iy,iz}
 */
-typedef struct PRE_ALIGN(16) MMC_uint4{
-    unsigned int x,y,z,w;
+typedef struct PRE_ALIGN(16) MMC_uint4 {
+    unsigned int x, y, z, w;
 } uint4 POST_ALIGN(16);
 
 /**
@@ -88,8 +88,8 @@ typedef struct PRE_ALIGN(16) MMC_uint4{
  \brief  unsigned integer pair {ix,iy}
 */
 
-typedef struct MMC_uint2{
-    unsigned int x,y;
+typedef struct MMC_uint2 {
+    unsigned int x, y;
 } uint2;
 
 

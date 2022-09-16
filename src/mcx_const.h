@@ -5,11 +5,11 @@
 **  \author Qianqian Fang <q.fang at neu.edu>
 **
 **  \section sref Reference:
-**  \li \c (\b Fang2009) Qianqian Fang and David A. Boas, 
+**  \li \c (\b Fang2009) Qianqian Fang and David A. Boas,
 **          <a href="http://www.opticsinfobase.org/abstract.cfm?uri=oe-17-22-20178">
-**          "Monte Carlo Simulation of Photon Migration in 3D Turbid Media Accelerated 
+**          "Monte Carlo Simulation of Photon Migration in 3D Turbid Media Accelerated
 **          by Graphics Processing Units,"</a> Optics Express, 17(22) 20178-20190 (2009).
-**  
+**
 **  \section slicense License
 **        GNU General Public License v3, see LICENSE.txt for details
 **
@@ -97,25 +97,25 @@
 #define UNSET_SAVE_W0(a)        ((a) & ~(0x1<<6))   /**<  save initial weight */
 
 #ifndef MCX_CONTAINER
-  #define S_RED     "\x1b[31m"
-  #define S_GREEN   "\x1b[32m"
-  #define S_YELLOW  "\x1b[33m"
-  #define S_BLUE    "\x1b[34m"
-  #define S_MAGENTA "\x1b[35m"
-  #define S_CYAN    "\x1b[36m"
-  #define S_BOLD     "\x1b[1m"
-  #define S_ITALIC   "\x1b[3m"
-  #define S_RESET   "\x1b[0m"
+    #define S_RED     "\x1b[31m"
+    #define S_GREEN   "\x1b[32m"
+    #define S_YELLOW  "\x1b[33m"
+    #define S_BLUE    "\x1b[34m"
+    #define S_MAGENTA "\x1b[35m"
+    #define S_CYAN    "\x1b[36m"
+    #define S_BOLD     "\x1b[1m"
+    #define S_ITALIC   "\x1b[3m"
+    #define S_RESET   "\x1b[0m"
 #else
-  #define S_RED
-  #define S_GREEN
-  #define S_YELLOW
-  #define S_BLUE
-  #define S_MAGENTA
-  #define S_CYAN
-  #define S_BOLD
-  #define S_ITALIC
-  #define S_RESET
+    #define S_RED
+    #define S_GREEN
+    #define S_YELLOW
+    #define S_BLUE
+    #define S_MAGENTA
+    #define S_CYAN
+    #define S_BOLD
+    #define S_ITALIC
+    #define S_RESET
 #endif
 
 #endif

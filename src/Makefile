@@ -23,7 +23,7 @@ OMP=-fopenmp
 OUTPUTFLAG:=-o
 XXD=xxd
 
-ZMATLIB    :=libzmat.a
+ZMATLIB    :=lib/libzmat.a
 USERLINKOPT?=$(ZMATLIB) -lz
 
 # setup for amd
@@ -71,7 +71,7 @@ MAKE       ?= make
 ECHO       := echo
 MKDIR      := mkdir
 
-FILES=mcx_host mcx_utils tictoc mcxcl mcx_shapes cjson/cJSON ubj/ubjw
+FILES=mcx_host mcx_utils mcx_tictoc mcxcl mcx_shapes cjson/cJSON ubj/ubjw
 CLPROGRAM=mcx_core
 
 ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
@@ -171,3 +171,28 @@ xxd:
 	@if [ -z `which ${XXD}` ]; then \
 	    echo "Please first install 'xxd' utility. For Ubuntu/Debian, use 'sudo apt-get install vim-common'; for Windows, please select xxd in cygwin64 installer."; exit 1;\
 	fi
+
+# derived the astyle settings from https://github.com/nlohmann/json
+pretty:
+	astyle \
+	    --style=attach \
+	    --indent=spaces=4 \
+	    --indent-modifiers \
+	    --indent-switches \
+	    --indent-preproc-block \
+	    --indent-preproc-define \
+	    --indent-col1-comments \
+	    --pad-oper \
+	    --pad-header \
+	    --align-pointer=type \
+	    --align-reference=type \
+	    --add-brackets \
+	    --convert-tabs \
+	    --close-templates \
+	    --lineend=linux \
+	    --preserve-date \
+	    --suffix=none \
+	    --formatted \
+	    --break-blocks \
+	    --exclude=mcx_bench.h \
+	   "*.c" "*.h" "*.cpp" "*.cl"
