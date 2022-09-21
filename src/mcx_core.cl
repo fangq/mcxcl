@@ -317,11 +317,11 @@ int launchnewphoton(float4* p, float4* v, float4* f, FLOAT4VEC* prop, uint* idx1
 // https://devtalk.nvidia.com/default/topic/458062/atomicadd-float-float-atomicmul-float-float-/
 
 inline float atomicadd(volatile __global float* address, const float value) {
-    float old = value;
+    float old = value, orig;
 
-    while ((old = atomic_xchg(address, atomic_xchg(address, 0.0f) + old)) != 0.0f);
+    while ((old = atomic_xchg(address, (orig = atomic_xchg(address, 0.0f)) + old)) != 0.0f);
 
-    return old;
+    return orig;
 }
 #endif
 
