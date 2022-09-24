@@ -281,11 +281,11 @@ float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]) {
 
 void clearpath(__local float* p, uint maxmediatype);
 float mcx_nextafterf(float a, int dir);
-float hitgrid(float4* p0, float4* v, FLOAT4VEC* htime, int* id);
+float hitgrid(float4* p0, float4* v, short4* id);
 void rotatevector(float4* v, float stheta, float ctheta, float sphi, float cphi);
-void transmit(float4* v, float n1, float n2, int flipdir);
-float reflectcoeff(float4* v, float n1, float n2, int flipdir);
-int skipvoid(float4* p, float4* v, float4* f, __global const uint* media, __constant float4* gproperty, __constant MCXParam* gcfg);
+void transmit(float4* v, float n1, float n2, short flipdir);
+float reflectcoeff(float4* v, float n1, float n2, short flipdir);
+int skipvoid(float4* p, float4* v, float4* f, short4* flipdir, __global const uint* media, __constant float4* gproperty, __constant MCXParam* gcfg);
 void rotatevector2d(float4* v, float stheta, float ctheta, int is2d);
 void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant float4* gproperty, __constant MCXParam* gcfg);
 
@@ -297,7 +297,7 @@ void savedetphoton(__global float* n_det, __global uint* detectedphoton,
                    __constant float4* gdetpos, __constant MCXParam* gcfg, uint isdet);
 void saveexitppath(__global float* n_det, __local float* ppath, float4* p0, uint* idx1d, __constant MCXParam* gcfg);
 #endif
-int launchnewphoton(float4* p, float4* v, float4* f, FLOAT4VEC* prop, uint* idx1d,
+int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC* prop, uint* idx1d,
                     __global float* field, uint* mediaid, float* w0, float* Lmove, uint isdet,
                     __local float* ppath, __global float* n_det, __global uint* dpnum,
                     __private RandType t[RAND_BUF_LEN], __global RandType* rngseed,
@@ -445,78 +445,21 @@ float mcx_nextafterf(float a, int dir) {
     return num.f - 1000.f;
 }
 
-#ifndef USE_HALF
-
-float hitgrid(float4* p0, float4* v, float4* htime, int* id) {
+float hitgrid(float4* p0, float4* v, short4* id) {
     float dist;
+    float4 htime;
 
     //time-of-flight to hit the wall in each direction
 
-    htime[0] = fabs(floor(p0[0]) - convert_float4(isgreater(v[0], ((float4)(0.f)))) - p0[0]);
-    htime[0] = fabs(native_divide(htime[0] + (float4)EPS, v[0]));
+    htime = fabs(convert_float4(id[0]) - convert_float4(isgreater(v[0], ((float4)(0.f)))) - p0[0]);
+    htime = fabs(native_divide(htime + (float4)EPS, v[0]));
 
     //get the direction with the smallest time-of-flight
-    dist = fmin(fmin(htime[0].x, htime[0].y), htime[0].z);
-    (*id) = (dist == htime[0].x ? 0 : (dist == htime[0].y ? 1 : 2));
+    dist = fmin(fmin(htime.x, htime.y), htime.z);
+    id->w = (dist == htime.x ? 0 : (dist == htime.y ? 1 : 2));
 
-    htime[0] = p0[0] + (float4)(dist) * v[0];
-
-#ifdef MCX_VECTOR_INDEX
-    ((float*)htime)[*id] = mcx_nextafterf(convert_float_rte(((float*)htime)[*id]),  (((float*)v)[*id] > 0.f) - (((float*)v)[*id] < 0.f));
-#else
-    (*id == 0) ?
-    (htime[0].x = mcx_nextafterf(convert_float_rte(htime[0].x), (v[0].x > 0.f) - (v[0].x < 0.f))) :
-    ((*id == 1) ?
-     (htime[0].y = mcx_nextafterf(convert_float_rte(htime[0].y), (v[0].y > 0.f) - (v[0].y < 0.f))) :
-     (htime[0].z = mcx_nextafterf(convert_float_rte(htime[0].z), (v[0].z > 0.f) - (v[0].z < 0.f))) );
-#endif
     return dist;
 }
-
-#else
-
-half mcx_nextafter_half(const half a, short dir) {
-    union {
-        half f;
-        short i;
-    } num;
-    num.f = a;
-    ((num.i & 0x7FFFU) == 0) ? num.i = (((dir & 0x8000U) ) | 1) : ((num.i & 0x8000U) ? (num.i -= dir) : (num.i += dir) );
-    return num.f;
-}
-
-float hitgrid(float4* p, float4* v0, half4* htime, int* id) {
-    half dist;
-    half4 p0, v;
-
-    p0 = convert_half4(p[0]);
-    v = convert_half4(v0[0]);
-
-    //time-of-flight to hit the wall in each direction
-
-    htime[0] = fabs(floor(p0) - convert_half4(isgreater(v, ((half4)(0.f)))) - p0);
-    htime[0] = fabs((htime[0] + (half4)EPS) / v);
-
-    //get the direction with the smallest time-of-flight
-    dist = fmin(fmin(htime[0].x, htime[0].y), htime[0].z);
-    (*id) = (dist == htime[0].x ? 0 : (dist == htime[0].y ? 1 : 2));
-
-    htime[0] = p0 + (half4)(dist) * v;
-
-#ifdef MCX_VECTOR_INDEX
-    ((half*)htime)[*id] = mcx_nextafter_half(round(((half*)htime)[*id]), (((half*)&v)[*id] > 0.f) - (((half*)&v)[*id] < 0.f));
-#else
-    (*id == 0) ?
-    (htime[0].x = mcx_nextafter_half(round(htime[0].x), (v.x > 0.f) - (v.x < 0.f))) :
-    ((*id == 1) ?
-     (htime[0].y = mcx_nextafter_half(round(htime[0].y), (v.y > 0.f) - (v.y < 0.f))) :
-     (htime[0].z = mcx_nextafter_half(round(htime[0].z), (v.z > 0.f) - (v.z < 0.f))) );
-#endif
-    return convert_float(dist);
-}
-
-#endif
-
 
 /**
  * @brief Compute 2D-scattering if the domain has a dimension of 1 in x/y or z
@@ -584,7 +527,7 @@ void rotatevector(float4* v, float stheta, float ctheta, float sphi, float cphi)
     GPUDEBUG(((__constant char*)"new dir: %10.5e %10.5e %10.5e\n", v[0].x, v[0].y, v[0].z));
 }
 
-void transmit(float4* v, float n1, float n2, int flipdir) {
+void transmit(float4* v, float n1, float n2, short flipdir) {
     float tmp0 = n1 / n2;
     v[0].xyz *= tmp0;
 
@@ -608,7 +551,7 @@ void transmit(float4* v, float n1, float n2, int flipdir) {
  * @return the reflection coefficient R=(Rs+Rp)/2, Rs: R of the perpendicularly polarized light, Rp: parallelly polarized light
  */
 
-float reflectcoeff(float4* v, float n1, float n2, int flipdir) {
+float reflectcoeff(float4* v, float n1, float n2, short flipdir) {
     float Icos = fabs((flipdir == 0) ? v[0].x : (flipdir == 1 ? v[0].y : v[0].z));
     float tmp0 = n1 * n1;
     float tmp1 = n2 * n2;
@@ -694,29 +637,33 @@ void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant float4* gp
  * @return the reflection coefficient R=(Rs+Rp)/2, Rs: R of the perpendicularly polarized light, Rp: parallelly polarized light
  */
 
-int skipvoid(float4* p, float4* v, float4* f, __global const uint* media, __constant float4* gproperty, __constant MCXParam* gcfg) {
+int skipvoid(float4* p, float4* v, float4* f, short4* flipdir, __global const uint* media, __constant float4* gproperty, __constant MCXParam* gcfg) {
     int count = 1, idx1d;
 
+    flipdir->xyz = convert_short3_rtn(p->xyz);
+    flipdir->w = -1;
+
     while (1) {
-        if (!(any(isless(p[0].xyz, (float3)(0.f))) || any(isgreaterequal(p[0].xyz, (gcfg->maxidx.xyz))))) {
-            idx1d = ((int)(floor(p[0].z)) * gcfg->dimlen.y + (int)(floor(p[0].y)) * gcfg->dimlen.x + (int)(floor(p[0].x)));
+        if ((ushort)flipdir->x < gcfg->maxidx.x && (ushort)flipdir->y < gcfg->maxidx.y && (ushort)flipdir->z < gcfg->maxidx.z) {
+            idx1d = (flipdir->z * gcfg->dimlen.y + flipdir->y * gcfg->dimlen.x + flipdir->x);
 
             if (media[idx1d] & MED_MASK) { ///< if enters a non-zero voxel
                 GPUDEBUG(("inside volume [%f %f %f] v=<%f %f %f>\n", p[0].x, p[0].y, p[0].z, v[0].x, v[0].y, v[0].z));
-                FLOAT4VEC htime;
-                int flipdir;
                 p[0].xyz -= v[0].xyz;
+                flipdir->xyz = convert_short3_rtn(p->xyz);
                 f[0].y -= GPU_PARAM(gcfg, minaccumtime);
-                idx1d = ((int)(floor(p[0].z)) * gcfg->dimlen.y + (int)(floor(p[0].y)) * gcfg->dimlen.x + (int)(floor(p[0].x)));
+                idx1d = (flipdir->z * gcfg->dimlen.y + flipdir->y * gcfg->dimlen.x + flipdir->x);
 
                 //GPUDEBUG(("look for entry p0=[%f %f %f] rv=[%f %f %f]\n",p[0].x,p[0].y,p[0].z,rv[0].x,rv[0].y,rv[0].z));
                 count = 0;
 
-                while ((any(isless(p[0].xyz, (float3)(0.f))) || any(isgreaterequal(p[0].xyz, (gcfg->maxidx.xyz)))) || !(media[idx1d] & MED_MASK)) { // at most 3 times
-                    f[0].y += GPU_PARAM(gcfg, minaccumtime) * hitgrid(p, v, &htime, &flipdir);
-                    p[0] = (float4)(htime.x, htime.y, htime.z, p[0].w);
-                    idx1d = ((int)(floor(p[0].z)) * gcfg->dimlen.y + (int)(floor(p[0].y)) * gcfg->dimlen.x + (int)(floor(p[0].x)));
-                    GPUDEBUG(("entry p=[%f %f %f] flipdir=%d\n", p[0].x, p[0].y, p[0].z, flipdir));
+                while (!((ushort)flipdir->x < gcfg->maxidx.x && (ushort)flipdir->y < gcfg->maxidx.y && (ushort)flipdir->z < gcfg->maxidx.z) || !(media[idx1d] & MED_MASK)) { // at most 3 times
+                    float dist = hitgrid(p, v, flipdir);
+                    f[0].y += GPU_PARAM(gcfg, minaccumtime) * dist;
+                    *((float3*)(p)) = (float3)(p->x + dist * v->x, p->y + dist * v->y, p->z + dist * v->z);
+                    flipdir->xyz = convert_short3_rtn(p->xyz);
+                    idx1d = (flipdir->z * gcfg->dimlen.y + flipdir->y * gcfg->dimlen.x + flipdir->x);
+                    GPUDEBUG(("entry p=[%f %f %f] flipdir=%d\n", p[0].x, p[0].y, p[0].z, flipdir->w));
 
                     if (count++ > 3) {
                         GPUDEBUG(("fail to find entry point after 3 iterations, something is wrong, abort!!"));
@@ -724,15 +671,16 @@ int skipvoid(float4* p, float4* v, float4* f, __global const uint* media, __cons
                     }
                 }
 
+                FLOAT4VEC htime;
                 f[0].y = (GPU_PARAM(gcfg, voidtime)) ? f[0].y : 0.f;
-                updateproperty((FLOAT4VEC*)&htime, media[idx1d], gproperty, gcfg);
+                updateproperty(&htime, media[idx1d], gproperty, gcfg);
 
                 if (GPU_PARAM(gcfg, isspecular) &&  htime.w != gproperty[0].w) {
-                    p[0].w *= 1.f - reflectcoeff(v, gproperty[0].w, gproperty[media[idx1d] & MED_MASK].w, flipdir);
+                    p[0].w *= 1.f - reflectcoeff(v, gproperty[0].w, gproperty[media[idx1d] & MED_MASK].w, flipdir->w);
                     GPUDEBUG(("transmitted intensity w=%e\n", p[0].w));
 
                     if (p[0].w > EPS) {
-                        transmit(v, gproperty[0].w, gproperty[media[idx1d] & MED_MASK].w, flipdir);
+                        transmit(v, gproperty[0].w, gproperty[media[idx1d] & MED_MASK].w, flipdir->w);
                         GPUDEBUG(("transmit into volume v=<%f %f %f>\n", v[0].x, v[0].y, v[0].z));
                     }
                 }
@@ -748,6 +696,7 @@ int skipvoid(float4* p, float4* v, float4* f, __global const uint* media, __cons
         }
 
         p[0] = (float4)(p[0].x + v[0].x, p[0].y + v[0].y, p[0].z + v[0].z, p[0].w);
+        flipdir->xyz = convert_short3_rtn(p->xyz);
         GPUDEBUG(("inside void [%f %f %f]\n", p[0].x, p[0].y, p[0].z));
         f[0].y += GPU_PARAM(gcfg, minaccumtime);
 
@@ -791,7 +740,7 @@ int skipvoid(float4* p, float4* v, float4* f, __global const uint* media, __cons
  * @param[in,out] gprogress: pointer to the host variable to update progress bar
  */
 
-int launchnewphoton(float4* p, float4* v, float4* f, FLOAT4VEC* prop, uint* idx1d,
+int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC* prop, uint* idx1d,
                     __global float* field, uint* mediaid, float* w0, float* Lmove, uint isdet,
                     __local float* ppath, __global float* n_det, __global uint* dpnum,
                     __private RandType t[RAND_BUF_LEN], __global RandType* rngseed,
@@ -1139,7 +1088,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, FLOAT4VEC* prop, uint* idx1
          * If a photon is launched outside of the box, or inside a zero-voxel, move it until it hits a non-zero voxel
          */
         if ((*mediaid & MED_MASK) == 0) {
-            int idx = skipvoid(p, v, f, media, gproperty, gcfg); /** specular reflection of the bbx is taken care of here*/
+            int idx = skipvoid(p, v, f, flipdir, media, gproperty, gcfg); /** specular reflection of the bbx is taken care of here*/
 
             if (idx >= 0) {
                 *idx1d = idx;
@@ -1148,6 +1097,8 @@ int launchnewphoton(float4* p, float4* v, float4* f, FLOAT4VEC* prop, uint* idx1
         }
 
 #endif
+        flipdir->xyz = convert_short3_rtn(p->xyz);
+
         *w0 += 1.f;
 
         /**
@@ -1226,7 +1177,7 @@ __kernel void mcx_main_loop(__global const uint* media,
     uint   mediaid = GPU_PARAM(gcfg, mediaidorig), mediaidold = 0, isdet = 0;
     float  w0, Lmove, pathlen = 0.f;
     float  n1;   //reflection var
-    int flipdir = 0;
+    short4 flipdir = {0, 0, 0, -1};
 
     RandType t[RAND_BUF_LEN];
     FLOAT4VEC prop;    //can become float2 if no reflection
@@ -1251,7 +1202,7 @@ __kernel void mcx_main_loop(__global const uint* media,
 
     gpu_rng_init(t, n_seed, idx);
 
-    if (launchnewphoton(&p, &v, &f, &prop, &idx1d, field, &mediaid, &w0, &Lmove, 0, ppath,
+    if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove, 0, ppath,
                         n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton,
                         gprogress, (__local RandType*)((__local char*)sharedmem + get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)),
                         gseeddata, gjumpdebug, gdebugdata)) {
@@ -1363,20 +1314,28 @@ __kernel void mcx_main_loop(__global const uint* media,
         n1 = prop.w;
         updateproperty(&prop, mediaid, gproperty, gcfg);
 
-        FLOAT4VEC htime;            //reflection var
-        f.z = hitgrid(&p, &v, &htime, &flipdir);
+        f.z = hitgrid(&p, &v, &flipdir);
         float slen = f.z * prop.y * (v.w + 1.f > GPU_PARAM(gcfg, gscatter) ? (1.f - prop.z) : 1.f); //unitless (minstep=grid, mus=1/grid)
         slen = fmin(slen, f.x);
         f.z = native_divide(slen, prop.y * (v.w + 1.f > GPU_PARAM(gcfg, gscatter) ? (1.f - prop.z) : 1.f ));
         pathlen += f.z;
 
-        GPUDEBUG(((__constant char*)"p=[%f %f %f] -> <%f %f %f>*%f -> hit=[%f %f %f] flip=%d\n", p.x, p.y, p.z, v.x, v.y, v.z, f.z, htime.x, htime.y, htime.z, flipdir));
+        GPUDEBUG(((__constant char*)"p=[%f %f %f] -> <%f %f %f>*%f -> flip=%d\n", p.x, p.y, p.z, v.x, v.y, v.z, f.z, flipdir.w));
 
-#ifdef USE_HALF
-        p.xyz = (slen == f.x) ? p.xyz + (float3)(f.z) * v.xyz : convert_float3(htime.xyz);
-#else
-        p.xyz = (slen == f.x) ? p.xyz + (float3)(f.z) * v.xyz : htime.xyz;
-#endif
+        p.xyz = p.xyz + (float3)(f.z) * v.xyz;
+
+        if (flipdir.w == 0) {
+            flipdir.x += (slen == f.x) ? 0 : (v.x > 0.f ? 1 : -1);
+        }
+
+        if (flipdir.w == 1) {
+            flipdir.y += (slen == f.x) ? 0 : (v.y > 0.f ? 1 : -1);
+        }
+
+        if (flipdir.w == 2) {
+            flipdir.z += (slen == f.x) ? 0 : (v.z > 0.f ? 1 : -1);
+        }
+
         p.w *= MCX_MATHFUN(exp)(-prop.x * f.z);
         f.x -= slen;
         f.y += f.z * prop.w * GPU_PARAM(gcfg, oneoverc0);
@@ -1393,14 +1352,14 @@ __kernel void mcx_main_loop(__global const uint* media,
 
         mediaidold = mediaid | isdet;
         idx1dold = idx1d;
-        idx1d = ((int)floor(p.z) * gcfg->dimlen.y + (int)floor(p.y) * gcfg->dimlen.x + (int)floor(p.x));
+        idx1d = (flipdir.z * gcfg->dimlen.y + flipdir.y * gcfg->dimlen.x + flipdir.x);
         GPUDEBUG(((__constant char*)"idx1d [%d]->[%d]\n", idx1dold, idx1d));
 
-        if (any(isless(p.xyz, (float3)(0.f))) || any(isgreaterequal(p.xyz, (gcfg->maxidx.xyz)))) {
+        if ((ushort)flipdir.x >= gcfg->maxidx.x || (ushort)flipdir.y >= gcfg->maxidx.y || (ushort)flipdir.z >= gcfg->maxidx.z) {
             /** if photon moves outside of the volume, set mediaid to 0 */
             mediaid = 0;
             idx1d = (p.x < 0.f || p.y < 0.f || p.z < 0.f) ? OUTSIDE_VOLUME_MIN : OUTSIDE_VOLUME_MAX;
-            isdet = gcfg->bc[(idx1d == OUTSIDE_VOLUME_MAX) * 3 + flipdir]; /** isdet now stores the boundary condition flag, this will be overwriten before the end of the loop */
+            isdet = gcfg->bc[(idx1d == OUTSIDE_VOLUME_MAX) * 3 + flipdir.w]; /** isdet now stores the boundary condition flag, this will be overwriten before the end of the loop */
             GPUDEBUG(("moving outside: [%f %f %f], idx1d [%d]->[out], bcflag %d\n", p.x, p.y, p.z, idx1d, isdet));
         } else {
             mediaid = media[idx1d];
@@ -1478,32 +1437,35 @@ __kernel void mcx_main_loop(__global const uint* media,
         /** launch new photon when exceed time window or moving from non-zero voxel to zero voxel without reflection */
         if ((mediaid == 0 && (((isdet & 0xF) == 0 && (!GPU_PARAM(gcfg, doreflect) || (GPU_PARAM(gcfg, doreflect) && n1 == gproperty[0].w))) || (isdet == bcAbsorb || isdet == bcCyclic) )) || f.y > gcfg->twin1) {
             if (isdet == bcCyclic) {
-                if (flipdir == 0) {
+                if (flipdir.w == 0) {
                     p.x = mcx_nextafterf(convert_float_rte(p.x + ((idx1d == OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.x : -gcfg->maxidx.x)), (v.x > 0.f) - (v.x < 0.f));
+                    flipdir.x = convert_short_rtn(p.x);
                 }
 
-                if (flipdir == 1) {
+                if (flipdir.w == 1) {
                     p.y = mcx_nextafterf(convert_float_rte(p.y + ((idx1d == OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.y : -gcfg->maxidx.y)), (v.y > 0.f) - (v.y < 0.f));
+                    flipdir.y = convert_short_rtn(p.y);
                 }
 
-                if (flipdir == 2) {
+                if (flipdir.w == 2) {
                     p.z = mcx_nextafterf(convert_float_rte(p.z + ((idx1d == OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.z : -gcfg->maxidx.z)), (v.z > 0.f) - (v.z < 0.f));
+                    flipdir.z = convert_short_rtn(p.z);
                 }
 
                 if (!(any(isless(p.xyz, (float3)(0.f))) || any(isgreaterequal(p.xyz, (gcfg->maxidx.xyz))))) {
-                    idx1d = ((int)(floor(p.z)) * gcfg->dimlen.y + (int)(floor(p.y)) * gcfg->dimlen.x + (int)(floor(p.x)));
+                    idx1d = (flipdir.z * gcfg->dimlen.y + flipdir.y * gcfg->dimlen.x + flipdir.x);
                     mediaid = media[idx1d];
                     isdet = mediaid & DET_MASK; /** upper 16bit is the mask of the covered detector */
                     mediaid &= MED_MASK;       /** lower 16bit is the medium index */
-                    GPUDEBUG(("Cyclic boundary condition, moving photon in dir %d at %d flag, new pos=[%f %f %f]\n", flipdir, isdet, p.x, p.y, p.z));
+                    GPUDEBUG(("Cyclic boundary condition, moving photon in dir %d at %d flag, new pos=[%f %f %f]\n", flipdir.w, isdet, p.x, p.y, p.z));
                     continue;
                 }
             }
 
             GPUDEBUG(((__constant char*)"direct relaunch at idx=[%d] mediaid=[%d] bc=[%d] ref=[%d]\n", idx1d, mediaid, isdet, GPU_PARAM(gcfg, doreflect)));
 
-            if (launchnewphoton(&p, &v, &f, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
-                                (((idx1d == OUTSIDE_VOLUME_MAX && gcfg->bc[9 + flipdir]) || (idx1d == OUTSIDE_VOLUME_MIN && gcfg->bc[6 + flipdir])) ? OUTSIDE_VOLUME_MIN : (mediaidold & DET_MASK)),
+            if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
+                                (((idx1d == OUTSIDE_VOLUME_MAX && gcfg->bc[9 + flipdir.w]) || (idx1d == OUTSIDE_VOLUME_MIN && gcfg->bc[6 + flipdir.w])) ? OUTSIDE_VOLUME_MIN : (mediaidold & DET_MASK)),
                                 ppath, n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
                                 (__local RandType*)((__local char*)sharedmem + get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)), gseeddata, gjumpdebug, gdebugdata)) {
                 break;
@@ -1525,7 +1487,7 @@ __kernel void mcx_main_loop(__global const uint* media,
 
             float tmp0 = n1 * n1;
             float tmp1 = prop.w * prop.w;
-            cphi = fabs( (flipdir == 0) ? v.x : (flipdir == 1 ? v.y : v.z)); // cos(si)
+            cphi = fabs( (flipdir.w == 0) ? v.x : (flipdir.w == 1 ? v.y : v.z)); // cos(si)
             sphi = 1.f - cphi * cphi;      // sin(si)^2
 
             f.z = 1.f - tmp0 / tmp1 * sphi; //1-[n1/n2*sin(si)]^2
@@ -1541,13 +1503,13 @@ __kernel void mcx_main_loop(__global const uint* media,
             }
 
             if (Rtotal < 1.f && (((isdet & 0xF) == 0 && gproperty[mediaid].w >= 1.f) || isdet == bcReflect) &&  (isdet != bcMirror) && rand_next_reflect(t) > Rtotal) { // do transmission
-                transmit(&v, n1, prop.w, flipdir);
+                transmit(&v, n1, prop.w, flipdir.w);
 
                 if (mediaid == 0) { // transmission to external boundary
                     GPUDEBUG(((__constant char*)"transmit to air, relaunch, idx=[%d] mediaid=[%d] bc=[%d] ref=[%d]\n", idx1d, mediaid, isdet, GPU_PARAM(gcfg, doreflect)));
 
-                    if (launchnewphoton(&p, &v, &f, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
-                                        (((idx1d == OUTSIDE_VOLUME_MAX && gcfg->bc[9 + flipdir]) || (idx1d == OUTSIDE_VOLUME_MIN && gcfg->bc[6 + flipdir])) ? OUTSIDE_VOLUME_MIN : (mediaidold & DET_MASK)),
+                    if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
+                                        (((idx1d == OUTSIDE_VOLUME_MAX && gcfg->bc[9 + flipdir.w]) || (idx1d == OUTSIDE_VOLUME_MIN && gcfg->bc[6 + flipdir.w])) ? OUTSIDE_VOLUME_MIN : (mediaidold & DET_MASK)),
                                         ppath, n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
                                         (__local RandType*)((__local char*)sharedmem + get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)), gseeddata, gjumpdebug, gdebugdata)) {
                         break;
@@ -1561,13 +1523,14 @@ __kernel void mcx_main_loop(__global const uint* media,
                 GPUDEBUG(((__constant char*)"do transmission\n"));
             } else { //do reflection
                 GPUDEBUG(((__constant char*)"do reflection\n"));
-                GPUDEBUG(((__constant char*)"ref faceid=%d p=[%f %f %f] v_old=[%f %f %f]\n", flipdir, p.x, p.y, p.z, v.x, v.y, v.z));
-                (flipdir == 0) ? (v.x = -v.x) : ((flipdir == 1) ? (v.y = -v.y) : (v.z = -v.z)) ;
-                (flipdir == 0) ?
+                GPUDEBUG(((__constant char*)"ref faceid=%d p=[%f %f %f] v_old=[%f %f %f]\n", flipdir.w, p.x, p.y, p.z, v.x, v.y, v.z));
+                (flipdir.w == 0) ? (v.x = -v.x) : ((flipdir.w == 1) ? (v.y = -v.y) : (v.z = -v.z)) ;
+                (flipdir.w == 0) ?
                 (p.x = mcx_nextafterf(convert_float_rte(p.x), (v.x > 0.f) - 0.5f)) :
-                ((flipdir == 1) ?
+                ((flipdir.w == 1) ?
                  (p.y = mcx_nextafterf(convert_float_rte(p.y), (v.y > 0.f) - 0.5f)) :
                  (p.z = mcx_nextafterf(convert_float_rte(p.z), (v.z > 0.f) - 0.5f)) );
+                flipdir.xyz = convert_short3_rtn(p.xyz);
                 GPUDEBUG(((__constant char*)"ref p_new=[%f %f %f] v_new=[%f %f %f]\n", p.x, p.y, p.z, v.x, v.y, v.z));
                 idx1d = idx1dold;
                 mediaid = (media[idx1d] & MED_MASK);
