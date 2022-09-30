@@ -1358,7 +1358,7 @@ __kernel void mcx_main_loop(__global const uint* media,
         if ((ushort)flipdir.x >= gcfg->maxidx.x || (ushort)flipdir.y >= gcfg->maxidx.y || (ushort)flipdir.z >= gcfg->maxidx.z) {
             /** if photon moves outside of the volume, set mediaid to 0 */
             mediaid = 0;
-            idx1d = (p.x < 0.f || p.y < 0.f || p.z < 0.f) ? OUTSIDE_VOLUME_MIN : OUTSIDE_VOLUME_MAX;
+            idx1d = (flipdir.x < 0 || flipdir.y < 0 || flipdir.z < 0) ? OUTSIDE_VOLUME_MIN : OUTSIDE_VOLUME_MAX;
             isdet = gcfg->bc[(idx1d == OUTSIDE_VOLUME_MAX) * 3 + flipdir.w]; /** isdet now stores the boundary condition flag, this will be overwriten before the end of the loop */
             GPUDEBUG(("moving outside: [%f %f %f], idx1d [%d]->[out], bcflag %d\n", p.x, p.y, p.z, idx1d, isdet));
         } else {
@@ -1452,7 +1452,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                     flipdir.z = convert_short_rtn(p.z);
                 }
 
-                if (!(any(isless(p.xyz, (float3)(0.f))) || any(isgreaterequal(p.xyz, (gcfg->maxidx.xyz))))) {
+                if ((ushort)flipdir.x < gcfg->maxidx.x && (ushort)flipdir.y < gcfg->maxidx.y && (ushort)flipdir.z < gcfg->maxidx.z) {
                     idx1d = (flipdir.z * gcfg->dimlen.y + flipdir.y * gcfg->dimlen.x + flipdir.x);
                     mediaid = media[idx1d];
                     isdet = mediaid & DET_MASK; /** upper 16bit is the mask of the covered detector */
@@ -1530,7 +1530,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                 ((flipdir.w == 1) ?
                  (p.y = mcx_nextafterf(convert_float_rte(p.y), (v.y > 0.f) - 0.5f)) :
                  (p.z = mcx_nextafterf(convert_float_rte(p.z), (v.z > 0.f) - 0.5f)) );
-                flipdir.xyz = convert_short3_rtn(p.xyz);
+                (flipdir.w == 0) ? (flipdir.x = convert_short_rte(p.x)) : ((flipdir.w == 1) ? (flipdir.y = convert_short_rte(p.y)) : (flipdir.z = convert_short_rte(p.z))) ;
                 GPUDEBUG(((__constant char*)"ref p_new=[%f %f %f] v_new=[%f %f %f]\n", p.x, p.y, p.z, v.x, v.y, v.z));
                 idx1d = idx1dold;
                 mediaid = (media[idx1d] & MED_MASK);
