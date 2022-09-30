@@ -661,7 +661,19 @@ int skipvoid(float4* p, float4* v, float4* f, short4* flipdir, __global const ui
                     float dist = hitgrid(p, v, flipdir);
                     f[0].y += GPU_PARAM(gcfg, minaccumtime) * dist;
                     *((float3*)(p)) = (float3)(p->x + dist * v->x, p->y + dist * v->y, p->z + dist * v->z);
-                    flipdir->xyz = convert_short3_rtn(p->xyz);
+
+                    if (flipdir->w == 0) {
+                        flipdir->x += (v->x > 0.f ? 1 : -1);
+                    }
+
+                    if (flipdir->w == 1) {
+                        flipdir->y += (v->y > 0.f ? 1 : -1);
+                    }
+
+                    if (flipdir->w == 2) {
+                        flipdir->z += (v->z > 0.f ? 1 : -1);
+                    }
+
                     idx1d = (flipdir->z * gcfg->dimlen.y + flipdir->y * gcfg->dimlen.x + flipdir->x);
                     GPUDEBUG(("entry p=[%f %f %f] flipdir=%d\n", p[0].x, p[0].y, p[0].z, flipdir->w));
 
