@@ -313,7 +313,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 
 #ifdef USE_ATOMIC
 
-#ifdef USE_NVIDIA_GPU
+#if defined(USE_NVIDIA_GPU) && !defined(USE_OPENCL_ATOMIC)
 // float atomicadd on NVIDIA GPU via PTX
 // https://stackoverflow.com/a/72049624/4271392
 
