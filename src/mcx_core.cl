@@ -312,6 +312,22 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 #endif
 
 #ifdef USE_ATOMIC
+
+#ifdef USE_NVIDIA_GPU
+// float atomicadd on NVIDIA GPU via PTX
+// https://stackoverflow.com/a/72049624/4271392
+
+inline float atomicadd(volatile __global float* address, const float value) {
+    float old;
+    asm volatile(
+        "atom.global.add.f32 %0, [%1], %2;"
+        : "=f"(old)
+        : "l"(address), "f"(value)
+        : "memory"
+    );
+    return old;
+}
+#else
 // OpenCL float atomicadd hack:
 // http://suhorukov.blogspot.co.uk/2011/12/opencl-11-atomic-operations-on-floating.html
 // https://devtalk.nvidia.com/default/topic/458062/atomicadd-float-float-atomicmul-float-float-/
@@ -323,6 +339,8 @@ inline float atomicadd(volatile __global float* address, const float value) {
 
     return orig;
 }
+#endif
+
 #endif
 
 void clearpath(__local float* p, uint maxmediatype) {

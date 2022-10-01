@@ -834,6 +834,10 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         sprintf(opt + strlen(opt), " -DMCX_USE_CPU");
     }
 
+    if (gpu[0].vendor == dvNVIDIA) {
+        sprintf(opt + strlen(opt), " -DUSE_NVIDIA_GPU");
+    }
+
     MCX_FPRINTF(cfg->flog, "building kernel with option: %s\n", opt);
     status = clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);
 
