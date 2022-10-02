@@ -121,6 +121,18 @@ ifeq ($(findstring x86_64,$(ARCH)), x86_64)
   CPPOPT +=-m64
 endif
 
+ifeq ($(MAKECMDGOALS),mex)
+  FILES=mcx_host mcx_utils mcx_tictoc mcx_shapes cjson/cJSON
+  ZMATLIB=
+  USERLINKOPT=
+endif
+
+ifeq ($(MAKECMDGOALS),oct)
+  FILES=mcx_host mcx_utils mcx_tictoc mcx_shapes cjson/cJSON
+  ZMATLIB=
+  USERLINKOPT=
+endif
+
 all static: CUCCOPT+=
 
 mex:        AR=$(MEX)

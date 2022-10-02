@@ -1269,6 +1269,8 @@ is more than what your have specified (%d), please use the -H option to specify 
         free(scale);
     }
 
+#ifndef MCX_CONTAINER
+
     if (cfg->issave2pt && cfg->parentid == mpStandalone) {
         MCX_FPRINTF(cfg->flog, "saving data to file ... %ld %d\t", fieldlen, cfg->maxgate);
         mcx_savedata(cfg->exportfield, fieldlen, cfg);
@@ -1296,6 +1298,8 @@ is more than what your have specified (%d), please use the -H option to specify 
         cfg->his.detected = 0;
         mcx_savedetphoton(cfg->exportdebugdata, NULL, cfg->debugdatalen, 0, cfg);
     }
+
+#endif
 
     // total energy here equals total simulated photons+unfinished photons for all threads
     MCX_FPRINTF(cfg->flog, "simulated %ld photons (%ld) with %d devices (repeat x%d)\nMCX simulation speed: " S_BOLD "" S_BLUE "%.2f photon/ms" S_RESET"\n",

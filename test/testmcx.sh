@@ -74,6 +74,7 @@ temp=`$MCX --bench cube60 -b 0 -B aarraa -S 0 $PARAM | grep -o -E 'absorbed:.*27
 if [ -z "$temp" ]; then echo "fail to use -B flag to set facet based boundary condition"; fail=$((fail+1)); else echo "ok"; fi
 
 echo "test cyclic boundary condition ... "
+$MCX --bench cube60 --bc 'cccccc' $PARAM -n 1e3
 temp=`$MCX --bench cube60 --bc 'cccccc' $PARAM -n 1e3 | grep -o -E 'absorbed:.*99\.[0-9]+%'`
 if [ -z "$temp" ]; then echo "fail to apply the cylic boundary condition"; fail=$((fail+1)); else echo "ok"; fi
 

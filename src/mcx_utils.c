@@ -36,12 +36,17 @@
 #include "mcx_shapes.h"
 #include "mcx_const.h"
 #include "mcx_bench.h"
-#include "zmat/zmatlib.h"
-#include "ubj/ubj.h"
+
+#ifndef MCX_CONTAINER
+    #include "zmat/zmatlib.h"
+    #include "ubj/ubj.h"
+#endif
 
 #ifdef MCX_EMBED_CL
     #include "mcx_core.clh"
 #endif
+
+#ifndef MCX_CONTAINER
 
 #define FIND_JSON_KEY(id,idfull,parent,fallback,val) \
     ((tmp=cJSON_GetObjectItem(parent,id))==0 ? \
@@ -61,6 +66,8 @@
 #define ubjw_write_uint16 ubjw_write_int16
 #define ubjw_write_uint32 ubjw_write_int32
 #define ubjw_write_uint64 ubjw_write_int64
+
+#endif
 
 /**
  * Short command line options
@@ -213,7 +220,9 @@ void mcx_initcfg(Config* cfg) {
     cfg->gscatter = 1e9;   /** by default, honor anisotropy for all scattering, use --gscatter to reduce it */
     cfg->isspecular = 0;
     cfg->isdumpjson = 0;
+#ifndef MCX_CONTAINER
     cfg->zipid = zmZlib;
+#endif
 
     cfg->srctype = 0;;       /** use pencil beam as default source type */
     cfg->maxvoidstep = 1000;
@@ -374,6 +383,8 @@ void mcx_cleargpuinfo(GPUInfo** gpuinfo) {
         *gpuinfo = NULL;
     }
 }
+
+#ifndef MCX_CONTAINER
 
 void mcx_savenii(float* dat, size_t len, char* name, int type32bit, int outputformatid, Config* cfg) {
     FILE* fp;
@@ -1004,6 +1015,8 @@ void mcx_savejdet(float* ppath, void* seeds, uint count, int doappend, Config* c
     }
 }
 
+#endif
+
 /**
  * @brief Print a message to the console or a log file
  *
@@ -1172,6 +1185,8 @@ void mcx_clearfluence(float** fluence) {
         free(*fluence);
     }
 }
+
+#ifndef MCX_CONTAINER
 
 void mcx_readconfig(char* fname, Config* cfg) {
     if (fname[0] == 0) {
@@ -1599,6 +1614,7 @@ void mcx_loadconfig(FILE* in, Config* cfg) {
         return;
     }
 }
+
 
 /**
  * @brief Preprocess user input and prepare the volumetric domain for simulation
@@ -2775,6 +2791,8 @@ void mcx_loadseedfile(Config* cfg) {
     fclose(fp);
 }
 
+#endif
+
 /**
  * @brief Convert a row-major (C/C++) array to a column-major (MATLAB/FORTRAN) array
  *
@@ -2960,6 +2978,8 @@ void  mcx_maskdet(Config* cfg) {
     free(padvol);
 }
 
+#ifndef MCX_CONTAINER
+
 /**
  * @brief Save the pre-masked volume (with detector ID) to an nii file
  *
@@ -3005,7 +3025,6 @@ void mcx_dumpmask(Config* cfg) {
         exit(0);
     }
 }
-
 
 /**
  * @brief Decode an ND array from JSON/JData construct and output to a volumetric array
@@ -3170,6 +3189,7 @@ int  mcx_jdataencode(void* vol, int ndim, uint* dims, char* type, int byte, int 
     return ret;
 }
 
+#endif
 
 /**
  * @brief Print a progress bar
@@ -3282,6 +3302,8 @@ int mcx_readarg(int argc, char* argv[], int id, void* output, const char* type) 
 
     return id + 1;
 }
+
+
 int mcx_remap(char* opt) {
     int i = 0;
 
@@ -3301,6 +3323,9 @@ int mcx_remap(char* opt) {
 
     return 1;
 }
+
+#ifndef MCX_CONTAINER
+
 void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
     int i = 1, isinteractive = 1, issavelog = 0, showkernel = 0, len;
     char filename[MAX_PATH_LENGTH] = {0}, *jsoninput = NULL;
@@ -3773,6 +3798,8 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
         exit(0);
     }
 }
+
+#endif
 
 int mcx_parsedebugopt(char* debugopt, const char* debugflag) {
     char* c = debugopt, *p;
