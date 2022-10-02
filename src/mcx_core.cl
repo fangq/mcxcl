@@ -678,7 +678,7 @@ int skipvoid(float4* p, float4* v, float4* f, short4* flipdir, __global const ui
                 while (!((ushort)flipdir->x < gcfg->maxidx.x && (ushort)flipdir->y < gcfg->maxidx.y && (ushort)flipdir->z < gcfg->maxidx.z) || !(media[idx1d] & MED_MASK)) { // at most 3 times
                     float dist = hitgrid(p, v, flipdir);
                     f[0].y += GPU_PARAM(gcfg, minaccumtime) * dist;
-                    *((float3*)(p)) = (float3)(p->x + dist * v->x, p->y + dist * v->y, p->z + dist * v->z);
+                    p[0] = (float4)(p->x + dist * v->x, p->y + dist * v->y, p->z + dist * v->z, p[0].w);
 
                     if (flipdir->w == 0) {
                         flipdir->x += (v->x > 0.f ? 1 : -1);
