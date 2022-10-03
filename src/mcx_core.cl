@@ -1482,6 +1482,8 @@ __kernel void mcx_main_loop(__global const uint* media,
                     flipdir.z = convert_short_rtn(p.z);
                 }
 
+		GPUDEBUG(((__constant char*)"cyclic: p=[%f %f %f] -> voxel =[%d %d %d] %d %d\n", p.x, p.y, p.z, flipdir.x, flipdir.y, flipdir.z, isdet, bcCyclic));
+
                 if ((ushort)flipdir.x < gcfg->maxidx.x && (ushort)flipdir.y < gcfg->maxidx.y && (ushort)flipdir.z < gcfg->maxidx.z) {
                     idx1d = (flipdir.z * gcfg->dimlen.y + flipdir.y * gcfg->dimlen.x + flipdir.x);
                     mediaid = media[idx1d];
