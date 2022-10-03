@@ -63,4 +63,4 @@ script:
     - if [ "$TRAVIS_OS_NAME" = "linux" ]; then ${MAKE} -C src oct; fi
     - if [ "$TRAVIS_OS_NAME" = "linux" ]; then ${MAKE} -C src clean; fi
     - ${MAKE} -C src
-    - cd test && ./testmcx.sh -n 1e5
+    - if [ "$TRAVIS_OS_NAME" = "osx" ] || [ "$TESTMCX" = "1" ]; then cd test && ./testmcx.sh -n 1e5; fi
