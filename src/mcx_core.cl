@@ -1468,24 +1468,24 @@ __kernel void mcx_main_loop(__global const uint* media,
         if ((mediaid == 0 && (((isdet & 0xF) == 0 && (!GPU_PARAM(gcfg, doreflect) || (GPU_PARAM(gcfg, doreflect) && n1 == gproperty[0].w))) || (isdet == bcAbsorb || isdet == bcCyclic) )) || f.y > gcfg->twin1) {
             if (isdet == bcCyclic) {
                 if (flipdir.w == 0) {
-                    p.x = mcx_nextafterf(convert_float_rte(p.x + ((idx1d == OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.x : -gcfg->maxidx.x)), (v.x > 0.f) - (v.x < 0.f));
+                    p.x = mcx_nextafterf(convert_float_rte(((idx1d == OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.x : 0)), (v.x > 0.f) - (v.x < 0.f));
                     flipdir.x = convert_short_rtn(p.x);
                 }
 
                 if (flipdir.w == 1) {
-                    p.y = mcx_nextafterf(convert_float_rte(p.y + ((idx1d == OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.y : -gcfg->maxidx.y)), (v.y > 0.f) - (v.y < 0.f));
+                    p.y = mcx_nextafterf(convert_float_rte(((idx1d == OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.y : 0)), (v.y > 0.f) - (v.y < 0.f));
                     flipdir.y = convert_short_rtn(p.y);
                 }
 
                 if (flipdir.w == 2) {
 
                     GPUDEBUG(((__constant char*)"pre-cyclic: p=[%f %f %f] -> voxel =[%d %d %d] %d\n", p.x, p.y, p.z, flipdir.x, flipdir.y, flipdir.z, flipdir.w));
-                    p.z = mcx_nextafterf(convert_float_rte(p.z + ((idx1d == OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.z : -gcfg->maxidx.z)), (v.z > 0.f) - (v.z < 0.f));
+                    p.z = mcx_nextafterf(convert_float_rte(((idx1d == OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.z : 0)), (v.z > 0.f) - (v.z < 0.f));
                     flipdir.z = convert_short_rtn(p.z);
                     GPUDEBUG(((__constant char*)"post-cyclic: p=[%f %f %f] -> voxel =[%d %d %d] %d\n", p.x, p.y, p.z, flipdir.x, flipdir.y, flipdir.z, flipdir.w));
                 }
 
-		GPUDEBUG(((__constant char*)"cyclic: p=[%f %f %f] -> voxel =[%d %d %d] %d %d\n", p.x, p.y, p.z, flipdir.x, flipdir.y, flipdir.z, isdet, bcCyclic));
+                GPUDEBUG(((__constant char*)"cyclic: p=[%f %f %f] -> voxel =[%d %d %d] %d %d\n", p.x, p.y, p.z, flipdir.x, flipdir.y, flipdir.z, isdet, bcCyclic));
 
                 if ((ushort)flipdir.x < gcfg->maxidx.x && (ushort)flipdir.y < gcfg->maxidx.y && (ushort)flipdir.z < gcfg->maxidx.z) {
                     idx1d = (flipdir.z * gcfg->dimlen.y + flipdir.y * gcfg->dimlen.x + flipdir.x);
