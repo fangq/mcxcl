@@ -1478,11 +1478,8 @@ __kernel void mcx_main_loop(__global const uint* media,
                 }
 
                 if (flipdir.w == 2) {
-
-                    GPUDEBUG(((__constant char*)"pre-cyclic: p=[%f %f %f] -> voxel =[%d %d %d] %d\n", p.x, p.y, p.z, flipdir.x, flipdir.y, flipdir.z, flipdir.w));
                     p.z = mcx_nextafterf(convert_float_rte(((idx1d == OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.z : 0)), (v.z > 0.f) - (v.z < 0.f));
                     flipdir.z = convert_short_rtn(p.z);
-                    GPUDEBUG(((__constant char*)"post-cyclic: p=[%f %f %f] -> voxel =[%d %d %d] %d\n", p.x, p.y, p.z, flipdir.x, flipdir.y, flipdir.z, flipdir.w));
                 }
 
                 GPUDEBUG(((__constant char*)"cyclic: p=[%f %f %f] -> voxel =[%d %d %d] %d %d\n", p.x, p.y, p.z, flipdir.x, flipdir.y, flipdir.z, isdet, bcCyclic));
