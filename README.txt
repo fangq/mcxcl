@@ -3,51 +3,12 @@
 
 * '''Author:''' Qianqian Fang (q.fang at neu.edu)
 * '''License:''' GNU General Public License version 3 (GPLv3)
-* '''Version:''' 0.9.9 (Eternity - Final)
+* '''Version:''' 1.0 (Fractal)
 * '''Website:''' http://mcx.space
 
 ---------------------------------------------------------------------
 
 <toc>
-
-== #  What's New ==
-
-In MCX-CL v2020 (0.9.9), we added a list of major new additions, including
-
-* Support running on multiple NVIDIA GPUs (merged from nvidiaomp branch)
-* Built-in benchmarks for easy testing and adoption by new users
-* Transition to JSON/JNIfTI input/output files for easy data sharing
-* Exporting simulation as JSON with binary volume data
-* All-in-one Windows installer for MCXStudio/MCX/MMC/MCXCL
-* Automated code building, testing and continuous integration via Travis-CI
-* CMake based compilation and Visual Studio support
-* 1.6x speedup on Pascal GPUs
-* Add 4 built-in complex domain examples - Colin27 brain atlas, USC_19-5 brain atlas,\
- Digimouse, and mcxyz skin-vessel benchmark
-* Support isotropic launch for all focuable sources - `gaussian`, `pattern`, `pattern3d`, \
- `fourier`, `disk`, `fourierx`, `fourierx2d`, and `slit` - by setting `cfg.srcdir(4)` to `nan`
-* Add python-based `mch` file reader (by Shih-Cheng Tu), nightly build compilation \
- script, colored command line output, and more
-
-Compared to MCXCL v2019.4 (0.9.8), MCX-CL has gained support of nearl all core features in MCX, i.e.
-
-* Output momentum transfer for DCS simulations
-* Output photon trajectory data
-* Specifying one of the four boundary conditions for each of the 6 facets of the domain
-* Output partial scattering event counts like MMC
-* Photon replay
-* Photon sharing - simultaneous simulations of multiple patterns
-* 2D simulations
-* Support photon numbers over 2^31-1 in one simulation
-
-In addition, we also fixed a number of critical bugs, such as
-
-* fix critical bug when output diffuse reflectance using a single pattern source
-* fix bugs for incorrect results for isotropic source, cone source
-* fix mcxlabcl gpuinfo output crash using multiple GPUs
-* fix mcxlab crash when srcpattern/srcdir/srcpos/detpos are not in double precision
-* fix mcxlab crash due to racing in multi-threads
-* force g to 1 in region where mus is 0
 
 ---------------------------------------------------------------------
 

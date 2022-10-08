@@ -1,5 +1,43 @@
 Change Log
 
+== MCX 1.0.0 (Fractal), FangQ <q.fang at neu.edu> ==
+
+ 2022-10-03 [5b97221] revert to old test condition
+ 2022-10-03 [695d2f3] run test on all platforms
+ 2022-10-03 [85beae7] revert debugging information, fix cyclic bc for mac
+ 2022-10-02 [8bdc33e] disable zmat and file IO functions in mex/oct targets
+ 2022-10-02 [c6e280a] fix CI error after using voxel index dda
+ 2022-10-01 [24bf948] allow disabling PTX based f32 atomicadd
+ 2022-10-01 [2277f7f] using nvidia native atomicadd for float add 30% speedup
+ 2022-09-29 [f0d0bad] update skipvoid
+ 2022-09-29 [b3d94d2] update to match mcx flipdir use
+ 2022-09-23 [1931489] adopt voxel-index based dda, like fangq/mcx b873f90c6
+ 2022-09-21 [d9e5eaa] add jammy to ci
+ 2022-09-21 [3e71eac] making double-buffer finally work to solve fangq/mcx#41, thanks to @ShijieYan
+ 2022-09-21 [2216686] sync mcxcl's json2mcx with the latest version from mcx
+ 2022-05-21 [39913fc] complete reformat of source code using astyle with 'make pretty'
+ 2022-05-21 [f7d69d5] sync mcx2json from mcx repo
+ 2022-01-27 [2559135] sync mcxdetphoton.m with mcx, move location
+ 2021-10-29 [867314a] Update README.md
+ 2021-06-23 [818f3a1] set maximum characters to read for fscanf, fix #41
+ 2021-06-23 [38d56a6] handle empty detector array in json2mcx
+ 2021-05-26 [4c18305] fix a few minor memory leaks based on valgrind output, still leaks on nvidia GPUs
+ 2021-05-15 [bbee39e] save volume in jdata format by default
+ 2021-02-26 [8eba2cd] add MATLAB_MEX_FILE in the makefile
+ 2021-02-24 [8f793a0] use memcpy to avoid strncpy warning from gcc 10
+ 2021-02-24 [89b46a9] update windows compilation commands
+ 2021-02-24 [49c6217] allow compiling GNU Octave mex on windows
+ 2021-02-07 [e9d2ce7] following Debian script suffix rule
+ 2020-09-06 [a39f271] update numeral version number
+ 2020-09-06 [6ea10b2] add back wiki versions of the README file for easy website update
+ 2020-09-04 [de59205] patch mcxcl for fangq/mcx#103 and fangq/mcx#104
+ 2020-09-01 [9b5431e] sync with mcx, add cubesph60b to match example/benchmark2
+ 2020-08-31 [7e7eb06] flush output for mcxlabcl
+ 2020-08-31 [6079b17] fix pattern3d demo script bug
+ 2020-08-31 [7b36ee8] fix photon sharing mcxlab crash
+ 2020-08-30 [f498e29] fix typo
+ 2020-08-29 [b001786] update mcxlabcl, update ChangeLog
+
 == MCX 0.9.9 (Eternity) branch, FangQ <q.fang at neu.edu> ==
 
  2020-08-28 [2ef3ee7] sync mcxlabcl with mcxlab
