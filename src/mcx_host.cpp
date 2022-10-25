@@ -284,7 +284,7 @@ cl_platform_id mcx_list_gpu(Config* cfg, unsigned int* activedev, cl_device_id* 
                     totaldevice += devnum;
 
                     for (k = 0; k < devnum; k++) {
-                        GPUInfo cuinfo = {0};
+                        GPUInfo cuinfo = {{0}};
                         cuinfo.platformid = i;
                         cuinfo.id = cuid + 1;
                         cuinfo.iscpu = j;
@@ -419,8 +419,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     size_t fieldlen;
     cl_uint4 cp0 = {{cfg->crop0.x, cfg->crop0.y, cfg->crop0.z, cfg->crop0.w}};
     cl_uint4 cp1 = {{cfg->crop1.x, cfg->crop1.y, cfg->crop1.z, cfg->crop1.w}};
-    cl_uint2 cachebox = {0, 0};
-    cl_uint4 dimlen = {0, 0, 0, 0};
+    cl_uint2 cachebox = {{0, 0}};
+    cl_uint4 dimlen = {{0, 0, 0, 0}};
 
     cl_context mcxcontext;                 // compute mcxcontext
     cl_command_queue* mcxqueue;          // compute command queue
@@ -488,7 +488,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         mcx_error(-(int)99, (char*)("Specified GPU does not exist"), __FILE__, __LINE__);
     }
 
-    if (devices == NULL) {
+    if (devices[0] == NULL) {
         OCL_ASSERT(-1);
     }
 
