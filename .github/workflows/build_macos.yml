@@ -1,0 +1,70 @@
+name: build_macos
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - '*'
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build_macos:
+    name: Build MacOS
+    strategy:
+      matrix:
+        os: [macos-10.15, macos-11]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+      - name: Link libgomp.a
+        run: |
+          sudo ln -s /usr/local/lib/gcc/10/libgomp.a /usr/local/lib/libgomp.a
+      - name: Install dependencies
+        run: |
+          brew install octave
+      - name: Update RCS keywords
+        shell: bash
+        run: |
+          printf '\n[filter "rcs-keywords"]\n\tclean  = .git_filters/rcs-keywords.clean\n\tsmudge = .git_filters/rcs-keywords.smudge %f\n' >> .git/config
+          rm -rf src/*.c
+          git checkout src/*.c
+      - name: Get current date
+        id: date
+        run: echo "RELEASE_VERSION=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+      - name: Build mcxlabcl for Octave
+        shell: bash
+        run: |
+          cd src
+          make oct CC=gcc-10 CXX=g++-10 USEROCTOPT="CXXFLAGS='-pipe -Os -arch x86_64' DL_LD=g++ DL_LDFLAGS='-fopenmp -static-libgcc -static-libstdc++'"
+          otool -L ../mcxlabcl/mcxcl.mex
+      - name: Build binary
+        shell: bash
+        run: |
+          cd src
+          make clean
+          make CC=gcc-10 CXX=g++-10
+          otool -L bin/mcxcl
+      - name: Upload mcxlabcl package
+        uses: actions/upload-artifact@v3
+        with:
+          name: mcxlabcl-macos-x64_64-${{ env.RELEASE_VERSION }}
+          path: mcxlabcl
+      - name: Prepare mcxcl package
+        shell: bash
+        run: |
+          mv src/bin .
+          rm -rf .git mcxlabcl src .git_filters .gitattributes .github .travis.yml deploy
+          mkdir -p src/bin
+          cd src/bin
+          ln -s ../../bin/mcxcl .
+          cd ../../
+      - name: Upload mcxcl package
+        uses: actions/upload-artifact@v3
+        with:
+          name: mcxcl-macos-x64_64-${{ env.RELEASE_VERSION }}
+          path: .
