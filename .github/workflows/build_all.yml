@@ -1,4 +1,4 @@
-name: build_mmc
+name: build_mcxcl
 on:
   push:
     branches:
@@ -63,7 +63,7 @@ jobs:
           printf '\n[filter "rcs-keywords"]\n\tclean  = .git_filters/rcs-keywords.clean\n\tsmudge = .git_filters/rcs-keywords.smudge %f\n' >> .git/config
           rm -rf src/*.c
           git checkout src/*.c
-      - name: Build mmclab for Octave
+      - name: Build mcxlabcl for Octave
         run: |
           cd src
           which gcc
@@ -71,91 +71,91 @@ jobs:
           mkoctfile --version
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             make oct
-            ldd ../mmclab/mmc.mex
+            ldd ../mcxlabcl/mcxcl.mex
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
             make oct CC=gcc-10 CXX=g++-10 USEROCTOPT="CXXFLAGS='-pipe -Os -arch x86_64' DL_LD=g++ DL_LDFLAGS='-fopenmp -static-libgcc -static-libstdc++'"
-            otool -L ../mmclab/mmc.mex
+            otool -L ../mcxlabcl/mcxcl.mex
           else
             make oct CC=gcc CXX=g++ LIBOPENCL='/c/Windows/System32/OpenCL.dll --verbose'
-            objdump -p ../mmclab/mmc.mex | grep "DLL Name:"
+            objdump -p ../mcxlabcl/mcxcl.mex | grep "DLL Name:"
           fi
           octave-cli --eval "fprintf(1,['OCTAVE_ARCH=' regexprep(computer('arch'), 'darwin[0-9.]+-', 'darwin-')])"
           octave-cli --eval "fprintf(1,['OCTAVE_ARCH=' regexprep(computer('arch'), 'darwin[0-9.]+-', 'darwin-')])" >> $GITHUB_ENV
-      - name: Build mmclab for MATLAB
+      - name: Build mcxlabcl for MATLAB
         if: ${{ runner.os != 'Windows' }}
         run: |
           which mex
           cd src
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             make mex
-            objdump -p ../mmclab/mmc.mexw* | grep "DLL Name:"
+            objdump -p ../mcxlabcl/mcxcl.mexw* | grep "DLL Name:"
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
             make mex CC=gcc-10 CXX=g++-10 MEXLINKOPT="-static-libstdc++ -static-libgcc -fopenmp" EXTRALIB="-v -f mexopts_maci64_gcc.xml"
-            otool -L ../mmclab/mmc.mex*
+            otool -L ../mcxlabcl/mcxcl.mex*
           else
             make mex MEXLINKOPT="-static-libstdc++ -static-libgcc -fopenmp" EXTRALIB="-v"
-            ldd ../mmclab/mmc.mex*
+            ldd ../mcxlabcl/mcxcl.mex*
           fi
       - name: Build binary
         run: |
           cd src
           make clean
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            make AR=c++ EXTRALIB="-static-libstdc++ -static-libgcc -Wl,-Bdynamic -lOpenCL -Wl,-Bstatic -lm -lz"
-            ldd bin/mmc
+            make static
+            ldd bin/mcxcl
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
             make CC=gcc-10 CXX=g++-10
-            otool -L bin/mmc
+            otool -L bin/mcxcl
           else
             make CC=gcc CXX=g++ USERARFLAGS="-Lc:/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/x86_64-w64-mingw32/lib -Lc:/ghcup/ghc/9.0.2/mingw/lib -Lc:/ghcup/ghc/9.0.2/mingw/x86_64-w64-mingw32/lib libzmat.a -lz"
-            ldd bin/mmc
+            ldd bin/mcxcl
           fi
       - name: Create package folder
         run: |
           mkdir packages
-          mkdir -p mmclab/octave/${{ env.OCTAVE_ARCH }}
+          mkdir -p mcxlabcl/octave/${{ env.OCTAVE_ARCH }}
       - name: Create release tag
         run: perl -e "print 'RELEASE_TAG='. lc('${{ runner.os }}-${{ runner.arch }}-github-latest')" >> $GITHUB_ENV
-      - name: Zip mmclab
+      - name: Zip mcxlabcl
         run: |
-          mv mmclab/mmc.mex mmclab/octave/${{ env.OCTAVE_ARCH }}
+          mv mcxlabcl/mcxcl.mex mcxlabcl/octave/${{ env.OCTAVE_ARCH }}
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            7z a -tzip packages/mmclab-${{ env.RELEASE_TAG }}.zip mmclab
+            7z a -tzip packages/mcxlabcl-${{ env.RELEASE_TAG }}.zip mcxlabcl
           else
-            zip -FSr --symlink packages/mmclab-${{ env.RELEASE_TAG }}.zip mmclab
+            zip -FSr --symlink packages/mcxlabcl-${{ env.RELEASE_TAG }}.zip mcxlabcl
           fi
-      - name: Upload mmclab package
+      - name: Upload mcxlabcl package
         if: ${{ matrix.os == 'ubuntu-20.04' || matrix.os == 'macos-10.15' || matrix.os == 'windows-2019' }}
         uses: actions/upload-artifact@v3
         with:
-          name: all-mmc-packages
-          path: packages/mmclab-${{ env.RELEASE_TAG }}.zip
-      - name: Prepare mmc package
+          name: all-mcxcl-packages
+          path: packages/mcxlabcl-${{ env.RELEASE_TAG }}.zip
+      - name: Prepare mcxcl package
         run: |
           mv src/bin .
-          rm -rf .git mmclab webmmc commons src .git_filters .gitattributes .github .travis.yml win32 deploy
+          rm -rf .git mcxlabcl src .git_filters .gitattributes .github .travis.yml deploy
           mkdir -p src/bin
           cd src/bin
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            cmd /c "mklink /h mmc.exe ..\..\bin\mmc.exe"
+            cmd /c "mklink /h mcxcl.exe ..\..\bin\mcxcl.exe"
           else
-            ln -s ../../bin/mmc .
+            ln -s ../../bin/mcxcl .
           fi
           cd ../../
-      - name: Zip mmc
+      - name: Zip mcxcl
         run: |
           cd .. && pwd
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            7z a -tzip mmc/packages/mmc-${{ env.RELEASE_TAG }}.zip mmc -xr!mmc/packages
+            7z a -tzip mcxcl/packages/mcxcl-${{ env.RELEASE_TAG }}.zip mcxcl -xr!mcxcl/packages
           else
-            zip -FSr --symlink mmc/packages/mmc-${{ env.RELEASE_TAG }}.zip mmc -x 'mmc/packages*'
+            zip -FSr --symlink mcxcl/packages/mcxcl-${{ env.RELEASE_TAG }}.zip mcxcl -x 'mcxcl/packages*'
           fi
-      - name: Upload mmc package
+      - name: Upload mcxcl package
         if: ${{ matrix.os == 'ubuntu-20.04' || matrix.os == 'macos-10.15' || matrix.os == 'windows-2019' }}
         uses: actions/upload-artifact@v3
         with:
-          name: all-mmc-packages
-          path: packages/mmc-${{ env.RELEASE_TAG }}.zip
+          name: all-mcxcl-packages
+          path: packages/mcxcl-${{ env.RELEASE_TAG }}.zip
 
   upload_package:
     name: Upload Packages
@@ -163,18 +163,18 @@ jobs:
     runs-on: ubuntu-20.04
     if: ${{ github.repository_owner == 'fangq' && github.event_name != 'pull_request'}}
     steps:
-      - name: Download mmclab
+      - name: Download mcxcl
         uses: actions/download-artifact@v3
         with:
-          name: all-mmc-packages
+          name: all-mcxcl-packages
           path: packages
-      - name: Create all-in-one octave mmclab
+      - name: Create all-in-one octave mcxlabcl
         run: |
           cd packages
-          unzip -n 'mmclab*.zip'
+          unzip -n 'mcxlabcl*.zip'
           tree .
-          zip -FSr --symlink mmclab-allinone-github-latest.zip mmclab
-          rm -rf mmclab
+          zip -FSr --symlink mcxlabcl-allinone-github-latest.zip mcxlabcl
+          rm -rf mcxlabcl
       - name: Display structure of downloaded files
         run: ls -R packages
       - name: Copy package to server
