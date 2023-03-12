@@ -102,13 +102,13 @@ jobs:
           make clean
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             make static
-            ldd bin/mcxcl
+            ldd ../bin/mcxcl
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
             make CC=gcc-10 CXX=g++-10
-            otool -L bin/mcxcl
+            otool -L ../bin/mcxcl
           else
             make CC=gcc CXX=g++ USERARFLAGS="-Lc:/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/x86_64-w64-mingw32/lib -Lc:/ghcup/ghc/9.0.2/mingw/lib -Lc:/ghcup/ghc/9.0.2/mingw/x86_64-w64-mingw32/lib libzmat.a -lz"
-            ldd bin/mcxcl
+            ldd ../bin/mcxcl
           fi
       - name: Create package folder
         run: |
@@ -132,16 +132,7 @@ jobs:
           path: packages/mcxlabcl-${{ env.RELEASE_TAG }}.zip
       - name: Prepare mcxcl package
         run: |
-          mv src/bin .
           rm -rf .git mcxlabcl src .git_filters .gitattributes .github .travis.yml deploy
-          mkdir -p src/bin
-          cd src/bin
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            cmd /c "mklink /h mcxcl.exe ..\..\bin\mcxcl.exe"
-          else
-            ln -s ../../bin/mcxcl .
-          fi
-          cd ../../
       - name: Zip mcxcl
         run: |
           cd .. && pwd
