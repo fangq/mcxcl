@@ -67,13 +67,13 @@ jobs:
           gcc -v
           mkoctfile --version
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            make oct LFLAGS='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lz -Wl,-Bdynamic'
+            make oct EXTRALIB='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lz -Wl,-Bdynamic -v'
             ldd ../mcxlabcl/mcxcl.mex
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            make oct CC=gcc-10 CXX=g++-10 USEROCTOPT="CXXFLAGS='-pipe -Os -arch x86_64' DL_LD=g++ DL_LDFLAGS='-fopenmp -static-libgcc -static-libstdc++'"
+            make oct CC=gcc-10 CXX=g++-10 USEROCTOPT="CXXFLAGS='-pipe -Os -arch x86_64' DL_LD=g++ EXTRALIB='-static-libgcc -static-libstdc++' -v"
             otool -L ../mcxlabcl/mcxcl.mex
           else
-            make oct CC=gcc CXX=g++ LIBOPENCL='/c/Windows/System32/OpenCL.dll --verbose' LFLAGS='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lz -Wl,-Bdynamic'
+            make oct CC=gcc CXX=g++ LIBOPENCL='/c/Windows/System32/OpenCL.dll --verbose' EXTRALIB='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lz -Wl,-Bdynamic -v'
             objdump -p ../mcxlabcl/mcxcl.mex | grep "DLL Name:"
           fi
           octave-cli --eval "fprintf(1,['OCTAVE_ARCH=' regexprep(computer('arch'), 'darwin[0-9.]+-', 'darwin-')])"
@@ -89,7 +89,7 @@ jobs:
             make mex CC=gcc-10 CXX=g++-10 MEXLINKOPT="-static-libstdc++ -static-libgcc -fopenmp" EXTRALIB="-v -f mexopts_maci64_gcc.xml"
             otool -L ../mcxlabcl/mcxcl.mex*
           else
-            make mex MEXLINKOPT="-static-libstdc++ -static-libgcc -fopenmp" EXTRALIB="-v"
+            make mex LDFLAGS="-static-libstdc++ -static-libgcc -fopenmp" EXTRALIB="-v"
             ldd ../mcxlabcl/mcxcl.mex*
           fi
       - name: Build binary
@@ -97,10 +97,10 @@ jobs:
           cd src
           make clean
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            make static
+            make static USERARFLAGS="-Wl,-Bstatic -lz -lm -Wl,-Bdynamic"
             ldd ../bin/mcxcl
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            make CC=gcc-10 CXX=g++-10
+            make CC=gcc-10 CXX=g++-10 AR=g++-10 USERARFLAGS="-static-libgcc -static-libstdc++ -Wl,-Bstatic -lz -Wl,-Bdynamic"
             otool -L ../bin/mcxcl
           else
             make CC=gcc CXX=g++ USERARFLAGS="-Lc:/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/x86_64-w64-mingw32/lib -Lc:/ghcup/ghc/9.0.2/mingw/lib -Lc:/ghcup/ghc/9.0.2/mingw/x86_64-w64-mingw32/lib libzmat.a -lz"
@@ -155,7 +155,7 @@ jobs:
         with:
           name: all-mcxcl-packages
           path: packages
-      - name: Create all-in-one octave mcxlabcl
+      - name: Create all-in-one mcxlabcl package
         run: |
           cd packages
           unzip -n 'mcxlabcl*.zip'
