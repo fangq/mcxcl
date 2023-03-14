@@ -42,6 +42,7 @@ jobs:
           choco install octave.portable --version=5.2.0
           echo 'C:\ProgramData\chocolatey\lib\octave.portable\tools\octave\mingw64\bin' | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           echo 'C:\ProgramData\Chocolatey\lib\mingw\tools\install\mingw64\bin\' | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          echo 'MW_MINGW64_LOC=/c/ProgramData/Chocolatey/lib/mingw/tools/install/mingw64/' | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Install OpenCL.dll and static libraries (Windows only)
         if: ${{ runner.os == 'Windows' }}
         run: |
@@ -66,25 +67,25 @@ jobs:
           gcc -v
           mkoctfile --version
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            make oct
+            make oct LFLAGS='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lz -Wl,-Bdynamic'
             ldd ../mcxlabcl/mcxcl.mex
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
             make oct CC=gcc-10 CXX=g++-10 USEROCTOPT="CXXFLAGS='-pipe -Os -arch x86_64' DL_LD=g++ DL_LDFLAGS='-fopenmp -static-libgcc -static-libstdc++'"
             otool -L ../mcxlabcl/mcxcl.mex
           else
-            make oct CC=gcc CXX=g++ LIBOPENCL='/c/Windows/System32/OpenCL.dll --verbose'
+            make oct CC=gcc CXX=g++ LIBOPENCL='/c/Windows/System32/OpenCL.dll --verbose' LFLAGS='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lz -Wl,-Bdynamic'
             objdump -p ../mcxlabcl/mcxcl.mex | grep "DLL Name:"
           fi
           octave-cli --eval "fprintf(1,['OCTAVE_ARCH=' regexprep(computer('arch'), 'darwin[0-9.]+-', 'darwin-')])"
           octave-cli --eval "fprintf(1,['OCTAVE_ARCH=' regexprep(computer('arch'), 'darwin[0-9.]+-', 'darwin-')])" >> $GITHUB_ENV
       - name: Build mcxlabcl for MATLAB
         run: |
-          which mex
           cd src
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            make mex
+            make mex LDFLAGS="-static libzmat.a" EXTRALIB="-Lc:/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/x86_64-w64-mingw32/lib -lz -v"
             objdump -p ../mcxlabcl/mcxcl.mexw* | grep "DLL Name:"
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            which mex
             make mex CC=gcc-10 CXX=g++-10 MEXLINKOPT="-static-libstdc++ -static-libgcc -fopenmp" EXTRALIB="-v -f mexopts_maci64_gcc.xml"
             otool -L ../mcxlabcl/mcxcl.mex*
           else
