@@ -70,7 +70,7 @@ jobs:
             make oct EXTRALIB='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lz -Wl,-Bdynamic -v'
             ldd ../mcxlabcl/mcxcl.mex
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            make oct CC=gcc-10 CXX=g++-10 USEROCTOPT="CXXFLAGS='-pipe -Os -arch x86_64' DL_LD=g++ EXTRALIB='-static-libgcc -static-libstdc++' -v"
+            make oct CC=gcc-10 CXX=g++-10 USERCCOPT="CXXFLAGS='-pipe -Os -arch x86_64' DL_LD=g++ LDFLAGS='-static-libgcc -static-libstdc++' -v"
             otool -L ../mcxlabcl/mcxcl.mex
           else
             make oct CC=gcc CXX=g++ LIBOPENCL='/c/Windows/System32/OpenCL.dll --verbose' EXTRALIB='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lz -Wl,-Bdynamic -v'
@@ -86,7 +86,7 @@ jobs:
             objdump -p ../mcxlabcl/mcxcl.mexw* | grep "DLL Name:"
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
             which mex
-            make mex CC=gcc-10 CXX=g++-10 MEXLINKOPT="-static-libstdc++ -static-libgcc -fopenmp" EXTRALIB="-v -f mexopts_maci64_gcc.xml"
+            make mex CC=gcc-10 CXX=g++-10 MEXLINKOPT="-static-libstdc++ -static-libgcc -fopenmp" EXTRALIB="-f mexopts_maci64_gcc.xml"
             otool -L ../mcxlabcl/mcxcl.mex*
           else
             make mex LDFLAGS="-static-libstdc++ -static-libgcc -fopenmp" EXTRALIB="-v"
