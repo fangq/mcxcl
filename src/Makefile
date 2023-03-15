@@ -133,6 +133,10 @@ ifeq ($(MAKECMDGOALS),oct)
   USERLINKOPT=
 endif
 
+ifeq ($(MAKECMDGOALS),static)
+  LINKOPT:=-static -static-libgcc -static-libstdc++ $(LINKOPT) -Wl,-Bstatic -lm -lz -Wl,-Bdynamic
+endif
+
 all static: CUCCOPT+=
 
 mex:        AR=$(MEX)
@@ -170,8 +174,6 @@ $(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(ZMATLIB) $(OBJS)
 
 intelcpu:
 	$(IOCC) -cmd=build -input=mcx_core.cl -device=cpu -spir64=mcx_core_intelcpu.bc -bo="-cl-std=CL1.2"
-
-static: LINKOPT:=-Wl,-Bstatic  -Wl,-Bdynamic -static-libgcc -static-libstdc++ $(LINKOPT) -Wl,-Bstatic -lm -Wl,-Bdynamic
 
 $(ZMATLIB):
 	-$(MAKE) -C zmat lib AR=ar CPPOPT="-O3 $(DLLFLAG)" CCOPT="-O3 $(DLLFLAG)" USERLINKOPT=

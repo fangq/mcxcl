@@ -100,7 +100,7 @@ jobs:
             make static USERARFLAGS="-Wl,-Bstatic -lz -lm -Wl,-Bdynamic"
             ldd ../bin/mcxcl
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            make CC=gcc-10 CXX=g++-10 AR=g++-10 USERARFLAGS="-static-libgcc -static-libstdc++ -Wl,-Bstatic -lz -Wl,-Bdynamic"
+            make static CC=gcc-10 CXX=g++-10 AR=g++-10
             otool -L ../bin/mcxcl
           else
             make CC=gcc CXX=g++ USERARFLAGS="-Lc:/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/x86_64-w64-mingw32/lib -Lc:/ghcup/ghc/9.0.2/mingw/lib -Lc:/ghcup/ghc/9.0.2/mingw/x86_64-w64-mingw32/lib libzmat.a -lz"
