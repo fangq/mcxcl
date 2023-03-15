@@ -86,10 +86,10 @@ jobs:
             objdump -p ../mcxlabcl/mcxcl.mexw* | grep "DLL Name:"
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
             which mex
-            make mex CC=gcc-10 CXX=g++-10 MEXLINKOPT="-static-libstdc++ -static-libgcc -fopenmp" EXTRALIB="-f mexopts_maci64_gcc.xml"
+            make mex CC=gcc-10 CXX=g++-10 MEXLINKOPT="-static-libstdc++ -static-libgcc"
             otool -L ../mcxlabcl/mcxcl.mex*
           else
-            make mex LDFLAGS="-static-libstdc++ -static-libgcc -fopenmp" EXTRALIB="-v"
+            make mex LDFLAGS="-static-libstdc++ -static-libgcc" EXTRALIB="-v"
             ldd ../mcxlabcl/mcxcl.mex*
           fi
       - name: Build binary
