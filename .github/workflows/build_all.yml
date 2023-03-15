@@ -70,7 +70,7 @@ jobs:
             make oct EXTRALIB='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lz -Wl,-Bdynamic -v'
             ldd ../mcxlabcl/mcxcl.mex
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            make oct CC=gcc-10 CXX=g++-10 USERCCOPT="CXXFLAGS='-pipe -Os -arch x86_64' DL_LD=g++ LDFLAGS='-static-libgcc -static-libstdc++' -v"
+            make oct CC=gcc-10 CXX=g++-10 USERCCOPT="LDFLAGS='-static-libgcc -static-libstdc++' -v"
             otool -L ../mcxlabcl/mcxcl.mex
           else
             make oct CC=gcc CXX=g++ LIBOPENCL='/c/Windows/System32/OpenCL.dll --verbose' EXTRALIB='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lz -Wl,-Bdynamic -v'
