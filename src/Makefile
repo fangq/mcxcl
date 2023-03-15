@@ -134,7 +134,7 @@ ifeq ($(MAKECMDGOALS),oct)
 endif
 
 ifeq ($(MAKECMDGOALS),static)
-  LINKOPT:=-static -static-libgcc -static-libstdc++ $(LINKOPT) -Wl,-Bstatic -lm -lz -Wl,-Bdynamic
+  LINKOPT:=-static-libgcc -static-libstdc++ $(LINKOPT) -Wl,-Bstatic -lm -lz
 endif
 
 all static: CUCCOPT+=
