@@ -789,6 +789,10 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
     if (p[0].w >= 0.f) {
         ppath[GPU_PARAM(gcfg, partialdata)] += p[0].w; ///< sum all the remaining energy
 
+#ifdef MCX_DEBUG_MOVE
+        savedebugdata(p, (uint)f[0].w + threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton), gjumpdebug, gdebugdata, gcfg);
+#endif
+
         if (*mediaid == 0 && *idx1d != OUTSIDE_VOLUME_MIN && *idx1d != OUTSIDE_VOLUME_MAX && GPU_PARAM(gcfg, issaveref)) {
             if (GPU_PARAM(gcfg, issaveref) == 1) {
                 int tshift = MIN((int)GPU_PARAM(gcfg, maxgate) - 1, (int)(floor((f[0].y - gcfg->twin0) * GPU_PARAM(gcfg, Rtstep))));
