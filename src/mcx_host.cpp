@@ -311,8 +311,7 @@ cl_platform_id mcx_list_gpu(Config* cfg, unsigned int* activedev, cl_device_id* 
                         } else if ((strstr(cuinfo.name, "AMD") || strstr(pbuf, "AMD")) && !cuinfo.iscpu) {
                             int corepersm = 0;
 
-                            if (!strstr(pbuf, "Apple")) {
-                                OCL_ASSERT((clGetDeviceInfo(devices[k], CL_DEVICE_GFXIP_MAJOR_AMD, sizeof(cl_uint), (void*)&cuinfo.major, NULL)));
+                            if (!strstr(pbuf, "Apple") && (clGetDeviceInfo(devices[k], CL_DEVICE_GFXIP_MAJOR_AMD, sizeof(cl_uint), (void*)&cuinfo.major, NULL)) == CL_SUCCESS) {
                                 OCL_ASSERT((clGetDeviceInfo(devices[k], CL_DEVICE_GFXIP_MINOR_AMD, sizeof(cl_uint), (void*)&cuinfo.minor, NULL)));
                                 OCL_ASSERT((clGetDeviceInfo(devices[k], CL_DEVICE_BOARD_NAME_AMD, MAX_SESSION_LENGTH - 1, (void*)cuinfo.name, NULL)));
                                 OCL_ASSERT((clGetDeviceInfo(devices[k], CL_DEVICE_SIMD_PER_COMPUTE_UNIT_AMD, sizeof(cl_uint), (void*)&corepersm, NULL)));
