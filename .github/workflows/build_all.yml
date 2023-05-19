@@ -70,7 +70,7 @@ jobs:
             make oct EXTRALIB='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lz -Wl,-Bdynamic -v'
             ldd ../mcxlabcl/mcxcl.mex
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            make oct CC=gcc-10 CXX=g++-10 LDFLAGS='-static-libgcc -static-libstdc++' EXTRALIB='-v'
+            make oct CC=gcc-11 CXX=g++-11 LDFLAGS='-static-libgcc -static-libstdc++' EXTRALIB='-v'
             otool -L ../mcxlabcl/mcxcl.mex
           else
             make oct CC=gcc CXX=g++ LIBOPENCL='/c/Windows/System32/OpenCL.dll --verbose' EXTRALIB='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lz -Wl,-Bdynamic -v'
@@ -86,7 +86,7 @@ jobs:
             objdump -p ../mcxlabcl/mcxcl.mexw* | grep "DLL Name:"
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
             which mex
-            make mex CC=gcc-10 CXX=g++-10 MEXLINKOPT="-static-libstdc++ -static-libgcc"
+            make mex CC=gcc-11 CXX=g++-11 MEXLINKOPT="-static-libstdc++ -static-libgcc"
             otool -L ../mcxlabcl/mcxcl.mex*
           else
             make mex LDFLAGS="-static-libstdc++ -static-libgcc" EXTRALIB="-v"
@@ -100,7 +100,7 @@ jobs:
             make static USERARFLAGS="-Wl,-Bstatic -lz -lm -Wl,-Bdynamic"
             ldd ../bin/mcxcl
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            make CC=gcc-10 CXX=g++-10
+            make CC=gcc-11 CXX=g++-11
             otool -L ../bin/mcxcl
           else
             make CC=gcc CXX=g++ USERARFLAGS="-Lc:/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/x86_64-w64-mingw32/lib -Lc:/ghcup/ghc/9.0.2/mingw/lib -Lc:/ghcup/ghc/9.0.2/mingw/x86_64-w64-mingw32/lib libzmat.a -lz"
