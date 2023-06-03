@@ -8,9 +8,11 @@
 AR=g++
 IOCC=ioc64
 MEX=mex
+DOXY=doxygen
 
 BINARY=mcxcl
 OUTPUT_DIR=../bin
+DOCDIR=../doc
 INCLUDEDIRS=-Izmat -Izmat/easylzma -I/usr/local/cuda/include -Iubj
 
 CUCCOPT:=
@@ -25,6 +27,7 @@ XXD=xxd
 
 ZMATLIB    :=lib/libzmat.a
 USERLINKOPT?=$(ZMATLIB) -lz
+DOXYCFG=mcx_doxygen.cfg
 
 # setup for amd
 AMDAPPSDKROOT ?=/opt/AMDAPPSDK-3.0
@@ -159,6 +162,8 @@ all mex oct intelcpu static : $(OUTPUT_DIR)/$(BINARY)
 
 makedirs:
 	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) $(OUTPUT_DIR); fi
+makedocdir:
+	@if test ! -d $(DOCDIR); then $(MKDIR) $(DOCDIR); fi
 
 $(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(ZMATLIB) $(OBJS)
 	$(AR) $(OBJS) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY) $(USERLINKOPT) $(EXTRALIB)
@@ -177,6 +182,10 @@ intelcpu:
 
 $(ZMATLIB):
 	-$(MAKE) -C zmat lib AR=ar CPPOPT="-O3 $(DLLFLAG)" CCOPT="-O3 $(DLLFLAG)" USERLINKOPT=
+
+##  Documentation  ##
+doc: makedocdir
+	$(DOXY) $(DOXYCFG)
 
 clean:
 	-$(MAKE) -C zmat clean
