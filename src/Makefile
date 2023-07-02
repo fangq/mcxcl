@@ -74,6 +74,8 @@ MAKE       ?= make
 ECHO       := echo
 MKDIR      := mkdir
 
+MEXLINKLIBS=-L"\$$MATLABROOT/extern/lib/\$$ARCH" -L"\$$MATLABROOT/bin/\$$ARCH" -lmx -lmex
+
 FILES=mcx_host mcx_utils mcx_tictoc mcxcl mcx_shapes cjson/cJSON ubj/ubjw
 CLPROGRAM=mcx_core
 
@@ -91,6 +93,7 @@ ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   DLLFLAG=
   ZMATLIB    :=zmat/zmatlib.obj zmat/lz4/lz4.obj zmat/lz4/lz4hc.obj zmat/easylzma/*.obj zmat/easylzma/pavlov/*.obj
   USERLINKOPT:=$(ZMATLIB) -lz
+  MEXLINKLIBS="\$$LINKLIBS"
 else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
   MW_MINGW64_LOC?=/c/msys64/usr
   MEX        :=cmd //c mex.bat -f mexopts_msys2_gcc.xml
@@ -101,6 +104,7 @@ else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
   MEXCCOPT+=-DMX_COMPAT_32
   EXTRALIB   +=-static
   DLLFLAG    =
+  MEXLINKLIBS="\$$LINKLIBS"
 else ifeq ($(findstring MSYS,$(PLATFORM)), MSYS)
   MEX        :=cmd //c mex.bat -f mexopts_msys2_gcc.xml
   CCOPT +=-D__USE_MINGW_ANSI_STDIO=1
@@ -110,6 +114,7 @@ else ifeq ($(findstring MSYS,$(PLATFORM)), MSYS)
   MEXCCOPT+=-DMX_COMPAT_32
   EXTRALIB   +=-static
   DLLFLAG    =
+  MEXLINKLIBS="\$$LINKLIBS"
 else ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
   INCLUDEDIRS+=-I/System/Library/Frameworks/OpenCL.framework/Headers
   LIBOPENCL=-framework OpenCL
@@ -143,7 +148,7 @@ endif
 all static: CUCCOPT+=
 
 mex:        AR=$(MEX)
-mex:        LINKOPT= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER -DMATLAB_MEX_FILE $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LDFLAGS='$$LDFLAGS -g ' COMPFLAGS='' DEFINES='' CXXLIBS='$$CXXLIBS -L$(LIBOPENCLDIR) $(LIBOPENCL)'
+mex:        LINKOPT= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER -DMATLAB_MEX_FILE $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LINKLIBS="$(MEXLINKLIBS) $(MEXLINKOPT) -L$(LIBOPENCLDIR) $(LIBOPENCL)" DEFINES='' CXXLIBS="\$$CXXLIBS $(MEXLINKOPT) -L$(LIBOPENCLDIR) $(LIBOPENCL)"
 mex oct:    OUTPUT_DIR=../mcxlabcl
 mex:        OUTPUTFLAG:=-output
 mex:        BINARY=mcxcl
@@ -152,7 +157,7 @@ mex oct:    CCOPT+=$(DLLFLAG) -DMCX_CONTAINER
 mex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
 
 oct:        BINARY=mcxcl.mex
-oct:        AR= CXXFLAGS='$(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LFLAGS='-g -L$(LIBOPENCLDIR) $(LIBOPENCL)' LDFLAGS='$(LFLAGS)' mkoctfile
+oct:        AR= CXXFLAGS='$(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LFLAGS='-g -L$(LIBOPENCLDIR) $(LIBOPENCL)' LDFLAGS='$(MEXLINKOPT)' mkoctfile
 oct:        LINKOPT=--mex -DMATLAB_MEX_FILE mcxlabcl.cpp $(INCLUDEDIRS)
 
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
