@@ -74,7 +74,7 @@ MAKE       ?= make
 ECHO       := echo
 MKDIR      := mkdir
 
-MEXLINKLIBS=-L"\$$MATLABROOT/extern/lib/\$$ARCH" -L"\$$MATLABROOT/bin/\$$ARCH" -lmx -lmex
+MEXLINKLIBS=-L'$$MATLABROOT/extern/lib/$$ARCH' -L'$$MATLABROOT/bin/$$ARCH' -lmx -lmex
 
 FILES=mcx_host mcx_utils mcx_tictoc mcxcl mcx_shapes cjson/cJSON ubj/ubjw
 CLPROGRAM=mcx_core
