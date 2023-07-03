@@ -74,7 +74,7 @@ MAKE       ?= make
 ECHO       := echo
 MKDIR      := mkdir
 
-MEXLINKLIBS=-L'$$MATLABROOT/extern/lib/$$ARCH' -L'$$MATLABROOT/bin/$$ARCH' -lmx -lmex
+MEXLINKLIBS=-L"\$$MATLABROOT/extern/lib/\$$ARCH" -L"\$$MATLABROOT/bin/\$$ARCH" -lmx -lmex
 
 FILES=mcx_host mcx_utils mcx_tictoc mcxcl mcx_shapes cjson/cJSON ubj/ubjw
 CLPROGRAM=mcx_core
@@ -148,7 +148,7 @@ endif
 all static: CUCCOPT+=
 
 mex:        AR=$(MEX)
-mex:        LINKOPT= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER -DMATLAB_MEX_FILE $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LINKLIBS='$(MEXLINKLIBS) $(MEXLINKOPT) -L$(LIBOPENCLDIR) $(LIBOPENCL)' COMPFLAGS='' DEFINES='' CXXLIBS='$$CXXLIBS $(MEXLINKOPT) -L$(LIBOPENCLDIR) $(LIBOPENCL)'
+mex:        LINKOPT= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER -DMATLAB_MEX_FILE $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LINKLIBS="$(MEXLINKLIBS) $(MEXLINKOPT)" COMPFLAGS='' DEFINES='' CXXLIBS='$$CXXLIBS $(MEXLINKOPT) -L$(LIBOPENCLDIR) $(LIBOPENCL)'
 mex oct:    OUTPUT_DIR=../mcxlabcl
 mex:        OUTPUTFLAG:=-output
 mex:        BINARY=mcxcl
