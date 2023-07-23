@@ -1208,7 +1208,7 @@ is more than what your have specified (%d), please use the -H option to specify 
             if (cfg->outputtype == otFluence) {
                 scale[0] *= cfg->tstep;
             }
-        } else if (cfg->outputtype == otEnergy) {
+        } else if (cfg->outputtype == otEnergy || cfg->outputtype == otL) {
             scale[0] = 1.f / cfg->energytot;
         } else if (cfg->outputtype == otJacobian || cfg->outputtype == otWP || cfg->outputtype == otDCS) {
             if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {

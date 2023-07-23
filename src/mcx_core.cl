@@ -1202,9 +1202,9 @@ __kernel void mcx_main_loop(__global const uint* media,
         return;
     }
 
-    float4 p = {0.f, 0.f, 0.f, -1.f}; //{x,y,z}: x,y,z coordinates,{w}:packet weight
-    float4 v = gcfg->c0; //{x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event
-    float4 f = {0.f, 0.f, 0.f, 0.f}; //f.w can be dropped to save register
+    float4 p = {0.f, 0.f, 0.f, -1.f}; //< {x,y,z}: x,y,z coordinates,{w}:packet weight
+    float4 v = gcfg->c0; //< {x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event
+    float4 f = {0.f, 0.f, 0.f, 0.f}; //< Photon parameter state: x/pscat: remaining scattering probability, y/t: photon elapse time, z/pathlen: total pathlen in one voxel, w/ndone: completed photons
 
     uint idx1d, idx1dold;   //idx1dold is related to reflection
 
@@ -1423,6 +1423,8 @@ __kernel void mcx_main_loop(__global const uint* media,
                         tshift = (int)(floor((photontof[tshift] - gcfg->twin0) * GPU_PARAM(gcfg, Rtstep))) +
                                  ( (GPU_PARAM(gcfg, replaydet) == -1) ? ((photondetid[tshift] - 1) * GPU_PARAM(gcfg, maxgate)) : 0);
                     }
+                } else if (GPU_PARAM(gcfg, outputtype) == otL) {
+                    weight = w0 * pathlen;
                 }
 
                 GPUDEBUG(((__constant char*)"deposit to [%d] %e, w=%f\n", idx1dold, weight, p.w));

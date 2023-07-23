@@ -133,7 +133,7 @@ const char saveflag[] = {'D', 'S', 'P', 'M', 'X', 'V', 'W', '\0'};
  * p: scattering counts for computing Jacobians for mus
  */
 
-const char outputtype[] = {'x', 'f', 'e', 'j', 'p', 'm', '\0'};
+const char outputtype[] = {'x', 'f', 'e', 'j', 'p', 'm', 'l', '\0'};
 const char* outputformat[] = {"mc2", "nii", "hdr", "ubj", "tx3", "jnii", "bnii", ""};
 
 /**
@@ -4001,9 +4001,10 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 \n"S_BOLD S_CYAN"\
 == Output options ==\n"S_RESET"\
  -s sessionid  (--session)     a string to label all output file names\n\
- -O [X|XFEJP]  (--outputtype)  X - output flux, F - fluence, E - energy density\n\
+ -O [X|XFEJPML](--outputtype)  X - output flux, F - fluence, E - energy density\n\
                                J - Jacobian (replay mode),   P - scattering\n\
                                event counts at each voxel (replay mode only)\n\
+                               M - momentum transfer; L - total pathlength\n\
  -d [1|0]      (--savedet)     1 to save photon info at detectors; 0 not save\n\
  -w [DP|DSPMXVW](--savedetflag)a string controlling detected photon data fields\n\
     /case insensitive/         1 D  output detector ID (1)\n\
