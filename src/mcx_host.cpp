@@ -37,7 +37,7 @@ const char* sourceflag[] = {"-DMCX_SRC_PENCIL", "-DMCX_SRC_ISOTROPIC", "-DMCX_SR
                             "-DMCX_SRC_PATTERN3D"
                            };
 
-const char* debugopt[] = {"-DMCX_DEBUG_RNG", "-DMCX_DEBUG_MOVE", "-DMCX_DEBUG_PROGRESS"};
+const char* debugopt[] = {"-DMCX_DEBUG_RNG", "-DMCX_DEBUG_MOVE", "-DMCX_DEBUG_PROGRESS", "-DMCX_DEBUG_MOVE_ONLY"};
 
 char* print_cl_errstring(cl_int err) {
     switch (err) {
@@ -632,7 +632,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         srand(time(0));
     }
 
-    if (cfg->debuglevel & MCX_DEBUG_MOVE && cfg->exportdebugdata == NULL) {
+    if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY) && cfg->exportdebugdata == NULL) {
         cfg->exportdebugdata = (float*)calloc(sizeof(float), (debuglen * cfg->maxjumpdebug));
     }
 
@@ -695,7 +695,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         OCL_ASSERT(((genergy[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(float) * (gpu[i].autothread << 1), energy, &status), status)));
         OCL_ASSERT(((gdetected[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(cl_uint), &detected, &status), status)));
 
-        if (cfg->debuglevel & MCX_DEBUG_MOVE) {
+        if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
             uint jumpcount = 0;
             OCL_ASSERT(((gjumpdebug[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(cl_uint), &jumpcount, &status), status)));
             OCL_ASSERT(((gdebugdata[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(float) * (debuglen * cfg->maxjumpdebug), cfg->exportdebugdata, &status), status)));
@@ -894,8 +894,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         OCL_ASSERT((clSetKernelArg(mcxkernel[i], 11, sizeof(cl_mem), ((cfg->seed == SEED_FROM_FILE) ? (void*)(&greplaytof) : NULL) )));
         OCL_ASSERT((clSetKernelArg(mcxkernel[i], 12, sizeof(cl_mem), ((cfg->seed == SEED_FROM_FILE) ? (void*)(&greplaydetid) : NULL) )));
         OCL_ASSERT((clSetKernelArg(mcxkernel[i], 13, sizeof(cl_mem), ((cfg->issaveseed) ? (void*)(gseeddata + i) : NULL) )));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 14, sizeof(cl_mem), ((cfg->debuglevel & MCX_DEBUG_MOVE) ? (void*)(gjumpdebug + i) : NULL) )));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 15, sizeof(cl_mem), ((cfg->debuglevel & MCX_DEBUG_MOVE) ? (void*)(gdebugdata + i) : NULL) )));
+        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 14, sizeof(cl_mem), ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) ? (void*)(gjumpdebug + i) : NULL) )));
+        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 15, sizeof(cl_mem), ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) ? (void*)(gdebugdata + i) : NULL) )));
         OCL_ASSERT((clSetKernelArg(mcxkernel[i], 16, sharedbuf, NULL)));
     }
 
@@ -1012,7 +1012,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             fflush(cfg->flog);
 
             for (devid = 0; devid < workdev; devid++) {
-                if (cfg->debuglevel & MCX_DEBUG_MOVE) {
+                if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
                     uint debugrec = 0;
                     OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gjumpdebug[devid], CL_TRUE, 0, sizeof(uint),
                                                     &debugrec, 0, NULL, waittoread + devid)));
@@ -1164,7 +1164,7 @@ is more than what your have specified (%d), please use the -H option to specify 
         cfg->runtime = toc;
     }
 
-    if (cfg->srctype == MCX_SRC_PATTERN && cfg->srcnum > 1) { // post-processing only for multi-srcpattern
+    if (cfg->issave2pt && cfg->srctype == MCX_SRC_PATTERN && cfg->srcnum > 1) { // post-processing only for multi-srcpattern
         srcpw = (float*)calloc(cfg->srcnum, sizeof(float));
         energytot = (float*)calloc(cfg->srcnum, sizeof(float));
         energyabs = (float*)calloc(cfg->srcnum, sizeof(float));
@@ -1195,7 +1195,7 @@ is more than what your have specified (%d), please use the -H option to specify 
         }
     }
 
-    if (cfg->isnormalized) {
+    if (cfg->issave2pt && cfg->isnormalized) {
         float* scale = (float*)calloc(cfg->srcnum, sizeof(float));
         scale[0] = 1.f;
         int isnormalized = 0;
@@ -1290,7 +1290,7 @@ is more than what your have specified (%d), please use the -H option to specify 
         mcx_savedetphoton(cfg->exportdetected, cfg->seeddata, cfg->detectedcount, 0, cfg);
     }
 
-    if ((cfg->debuglevel & MCX_DEBUG_MOVE) && cfg->parentid == mpStandalone && cfg->exportdebugdata) {
+    if ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) && cfg->parentid == mpStandalone && cfg->exportdebugdata) {
         cfg->his.colcount = MCX_DEBUG_REC_LEN;
         cfg->his.savedphoton = cfg->debugdatalen;
         cfg->his.totalphoton = cfg->nphoton;
@@ -1355,7 +1355,7 @@ is more than what your have specified (%d), please use the -H option to specify 
             clReleaseMemObject(gsrcpattern[i]);
         }
 
-        if (cfg->debuglevel & MCX_DEBUG_MOVE) {
+        if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
             clReleaseMemObject(gjumpdebug[i]);
             clReleaseMemObject(gdebugdata[i]);
         }

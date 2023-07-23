@@ -307,7 +307,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
                     __local RandType* photonseed, __global RandType* gseeddata,
                     __global uint* gjumpdebug, __global float* gdebugdata);
 
-#ifdef MCX_DEBUG_MOVE
+#if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
     void savedebugdata(float4* p, uint id, __global uint* gjumpdebug, __global float* gdebugdata, __constant MCXParam* gcfg);
 #endif
 
@@ -430,7 +430,7 @@ void savedetphoton(__global float* n_det, __global uint* detectedphoton,
 }
 #endif
 
-#ifdef MCX_DEBUG_MOVE
+#if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
 /**
  * @brief Saving photon trajectory data for debugging purposes
  * @param[in] p: the position/weight of the current photon packet
@@ -789,7 +789,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
     if (p[0].w >= 0.f) {
         ppath[GPU_PARAM(gcfg, partialdata)] += p[0].w; ///< sum all the remaining energy
 
-#ifdef MCX_DEBUG_MOVE
+#if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
         savedebugdata(p, (uint)f[0].w + threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton), gjumpdebug, gdebugdata, gcfg);
 #endif
 
@@ -1150,7 +1150,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
     *prop = TOFLOAT4(gproperty[1]);
     updateproperty(prop, *mediaid, gproperty, gcfg);
 
-#ifdef MCX_DEBUG_MOVE
+#if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
     savedebugdata(p, (uint)f[0].w + threadid * gcfg->threadphoton + min(threadid, (threadid < gcfg->oddphoton)*threadid), gjumpdebug, gdebugdata, gcfg);
 #endif
 
@@ -1337,7 +1337,7 @@ __kernel void mcx_main_loop(__global const uint* media,
 #endif
                 }
 
-#ifdef MCX_DEBUG_MOVE
+#if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
                 savedebugdata(&p, (uint)f.w + idx * gcfg->threadphoton + min(idx, (idx < gcfg->oddphoton)*idx), gjumpdebug, gdebugdata, gcfg);
 #endif
             }

@@ -55,6 +55,11 @@
 
 #define MCX_DEBUG_REC_LEN  6  /**<  number of floating points per position saved when -D M is used for trajectory */
 
+#define MCX_DEBUG_RNG          1   /**< debug flags: 1 - run RNG testing kernel and return RNG numbers */
+#define MCX_DEBUG_MOVE         2   /**< debug flags: 2 - save and output photon trajectory data */
+#define MCX_DEBUG_PROGRESS     4   /**< debug flags: 4 - print progress bar */
+#define MCX_DEBUG_MOVE_ONLY    8   /**< debug flags: 8 - only save photon trajectory data, disable volume and detphoton output */
+
 #define MCX_SRC_PENCIL     0  /**<  default-Pencil beam src, no param */
 #define MCX_SRC_ISOTROPIC  1  /**<  isotropic source, no param */
 #define MCX_SRC_CONE       2  /**<  uniform cone, srcparam1.x=max zenith angle in rad */

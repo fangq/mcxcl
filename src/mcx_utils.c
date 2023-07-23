@@ -107,7 +107,7 @@ const char* fullopt[] = {"--help", "--interactive", "--input", "--photon", "--mo
  * P: show progress bar
  */
 
-const char debugflag[] = {'R', 'M', 'P', '\0'};
+const char debugflag[] = {'R', 'M', 'P', 'T', '\0'};
 
 /**
  * Flag to decide if parameter has been initialized over command line
@@ -1629,6 +1629,22 @@ void mcx_loadconfig(FILE* in, Config* cfg) {
 
 void mcx_prepdomain(char* filename, Config* cfg) {
     int isbcdet = 0;
+
+    double tmp = sqrt(cfg->srcdir.x * cfg->srcdir.x + cfg->srcdir.y * cfg->srcdir.y + cfg->srcdir.z * cfg->srcdir.z);
+
+    if (tmp < EPS) {
+        MCX_ERROR(-4, "source initial direction vector can not have a length of 0");
+    }
+
+    tmp = 1.f / tmp;
+    cfg->srcdir.x *= tmp;
+    cfg->srcdir.y *= tmp;
+    cfg->srcdir.z *= tmp;
+
+    if (cfg->debuglevel & MCX_DEBUG_MOVE_ONLY) {
+        cfg->issave2pt = 0;
+        cfg->issavedet = 0;
+    }
 
     for (int i = 0; i < 6; i++)
         if (cfg->bc[i] >= 'A' && mcx_lookupindex(cfg->bc + i, boundarycond)) {
@@ -4013,17 +4029,17 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -S [1|0]      (--save2pt)     1 to save the flux field; 0 do not save\n\
  -F [mc2|...] (--outputformat) fluence data output format:\n\
                                mc2 - MCX mc2 format (binary 32bit float)\n\
-                               jnii - JNIfTI format (http://openjdata.org)\n\
-                               bnii - Binary JNIfTI (http://openjdata.org)\n\
+                               jnii - JNIfTI format (https://neurojson.org)\n\
+                               bnii - Binary JNIfTI (https://neurojson.org)\n\
                                nii - NIfTI format\n\
                                hdr - Analyze 7.5 hdr/img format\n\
                                tx3 - GL texture data for rendering (GL_RGBA32F)\n\
 	the bnii/jnii formats support compression (-Z) and generate small files\n\
 	load jnii (JSON) and bnii (UBJSON) files using below lightweight libs:\n\
-	  MATLAB/Octave: JNIfTI toolbox   https://github.com/fangq/jnifti, \n\
-	  MATLAB/Octave: JSONLab toolbox  https://github.com/fangq/jsonlab, \n\
+	  MATLAB/Octave: JNIfTI toolbox   https://github.com/NeuroJSON/jnifti, \n\
+	  MATLAB/Octave: JSONLab toolbox  https://github.com/NeuroJSON/jsonlab,\n\
 	  Python:        PyJData:         https://pypi.org/project/jdata\n\
-	  JavaScript:    JSData:          https://github.com/fangq/jsdata\n\
+	  JavaScript:    JSData:          https://github.com/NeuroJSON/jsdata\n\
  -Z [zlib|...] (--zip)         set compression method if -F jnii or --dumpjson\n\
                                is used (when saving data to JSON/JNIfTI format)\n\
 			       0 zlib: zip format (moderate compression,fast) \n\
@@ -4034,7 +4050,7 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 			       5 lz4: LZ4 format (low compression,extrem. fast)\n\
 			       6 lz4hc: LZ4HC format (moderate compression,fast)\n\
  --dumpjson [-,0,1,'file.json']  export all settings,including volume data using\n\
-                               JSON/JData (http://openjdata.org) format for \n\
+                               JSON/JData (https://neurojson.org) format for\n\
 			       easy sharing; can be reused using -f\n\
 			       if followed by nothing or '-', mcx will print\n\
 			       the JSON to the console; write to a file if file\n\
@@ -4051,9 +4067,10 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 == Debug options ==\n"S_RESET"\
  -D [0|int]    (--debug)       print debug information (you can use an integer\n\
   or                           or a string by combining the following flags)\n\
- -D [''|RMP]                   1 R  debug RNG\n\
+ -D [''|RMPT]                  1 R  debug RNG\n\
     /case insensitive/         2 M  store photon trajectory info\n\
                                4 P  print progress bar\n\
+                               8 T  save trajectory data only, disable flux/detp\n\
       combine multiple items by using a string, or add selected numbers together\n\
 \n"S_BOLD S_CYAN"\
 == Additional options ==\n"S_RESET"\
