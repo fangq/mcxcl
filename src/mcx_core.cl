@@ -56,6 +56,7 @@
 #define JUST_ABOVE_ONE     1.0001f                 //test for boundary
 #define SAME_VOXEL         -9999.f                 //scatter within a voxel
 #define NO_LAUNCH          9999                    //when fail to launch, for debug
+#define FILL_MAXDETPHOTON  3                       /**< when the detector photon buffer is filled, terminate simulation*/
 #define MAX_PROP           2000                     /*maximum property number*/
 #define OUTSIDE_VOLUME_MIN 0xFFFFFFFF              /**< flag indicating the index is outside of the volume from x=xmax,y=ymax,z=zmax*/
 #define OUTSIDE_VOLUME_MAX 0x7FFFFFFF              /**< flag indicating the index is outside of the volume from x=0/y=0/z=0*/
@@ -151,7 +152,7 @@ typedef struct KernelParams {
 } MCXParam __attribute__ ((aligned (32)));
 
 enum TBoundary {bcUnknown, bcReflect, bcAbsorb, bcMirror, bcCyclic};            /**< boundary conditions */
-enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS};   /**< types of output */
+enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS, otL};   /**< types of output */
 
 #ifndef USE_MACRO_CONST
     #define GPU_PARAM(a,b) (a->b)
@@ -425,6 +426,8 @@ void savedetphoton(__global float* n_det, __global uint* detectedphoton,
             if (SAVE_W0(GPU_PARAM(gcfg, savedetflag))) {
                 n_det[baseaddr++] = ppath[GPU_PARAM(gcfg, w0offset) - 1];
             }
+        } else if (GPU_PARAM(gcfg, savedet) == FILL_MAXDETPHOTON) {
+            atomic_dec(detectedphoton);
         }
     }
 }
@@ -782,6 +785,17 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 
     *w0 = 1.f;   ///< reuse to count for launchattempt
     *Lmove = -1.f; ///< reuse as "canfocus" flag for each source: non-zero: focusable, zero: not focusable
+
+
+    /**
+     * Early termination of simulation when the detphoton buffer is filled if issavedet is set to 3
+     */
+    if (GPU_PARAM(gcfg, savedet) == FILL_MAXDETPHOTON) {
+        if (*dpnum >= GPU_PARAM(gcfg, maxdetphoton)) {
+            gprogress[0] = (GPU_PARAM(gcfg, threadphoton) >> 1) * 4.5f;
+            return 1;
+        }
+    }
 
     /**
      * First, let's terminate the current photon and perform detection calculations

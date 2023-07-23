@@ -36,6 +36,7 @@
 #define JUST_ABOVE_ONE     1.0001f                 /*test for boundary*/
 #define SAME_VOXEL         -9999.f                 /*scatter within a voxel*/
 #define NO_LAUNCH          9999                    /*when fail to launch, for debug*/
+#define FILL_MAXDETPHOTON  3                       /**< when the detector photon buffer is filled, terminate simulation*/
 #define OUTSIDE_VOLUME_MIN 0xFFFFFFFF              /**< flag indicating the index is outside of the volume from x=xmax,y=ymax,z=zmax*/
 #define OUTSIDE_VOLUME_MAX 0x7FFFFFFF              /**< flag indicating the index is outside of the volume from x=0/y=0/z=0*/
 #define MAX_PROP           2000                     /*maximum property number*/

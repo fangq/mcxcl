@@ -4005,7 +4005,9 @@ where possible parameters include (the first value in [*|*] is the default)\n\
                                J - Jacobian (replay mode),   P - scattering\n\
                                event counts at each voxel (replay mode only)\n\
                                M - momentum transfer; L - total pathlength\n\
- -d [1|0]      (--savedet)     1 to save photon info at detectors; 0 not save\n\
+ -d [1|0-3]    (--savedet)     1 to save photon info at detectors; 0 not save\n\
+                               2 reserved, 3 terminate simulation when detected\n\
+                               photon buffer is filled\n\
  -w [DP|DSPMXVW](--savedetflag)a string controlling detected photon data fields\n\
     /case insensitive/         1 D  output detector ID (1)\n\
                                2 S  output partial scat. even counts (#media)\n\

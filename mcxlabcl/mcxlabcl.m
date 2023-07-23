@@ -162,7 +162,7 @@ function varargout=mcxlabcl(varargin)
 %                      'fourierx2d' [*] - a general 2D Fourier basis, parameters
 %                               srcparam1: [v1x,v1y,v1z,|v2|], srcparam2: [kx,ky,phix,phiy]
 %                               the phase shift is phi{x,y}*2*pi
-%                      'zgaussian' - an angular gaussian beam, srcparam1(0) specifies the variance in the zenith angle
+%                      'zgaussian' - an angular gaussian beam, srcparam1(1) specifies the variance in the zenith angle
 %                      'line' - a line source, emitting from the line segment between 
 %                               cfg.srcpos and cfg.srcpos+cfg.srcparam(1:3), radiating 
 %                               uniformly in the perpendicular direction
@@ -209,6 +209,10 @@ function varargout=mcxlabcl(varargin)
 %                      next to a boundary voxel. The reflectance data are stored as 
 %                      negative values; must pad zeros next to boundaries
 %                      Example: see the demo script at the bottom
+%      cfg.issavedet:  if the 2nd output is requested, this will be set to 1; in such case, user can force
+%                      setting it to 3 to enable early termination of simulation if the detected photon
+%                      buffer (length controlled by cfg.maxdetphoton) is filled; if the 2nd output is not
+%                      present, this will be set to 0 regardless user input.
 %      cfg.outputtype: 'flux' - fluence-rate, (default value)
 %                      'fluence' - fluence integrated over each time gate, 
 %                      'energy' - energy deposit per voxel

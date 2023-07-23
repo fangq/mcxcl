@@ -993,7 +993,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                     if (kernelstatus == CL_COMPLETE) {
                         break;
                     }
-                } while (p0 < maxval);
+                } while (p0 < (int)maxval);
 
                 mcx_progressbar(1.0f, cfg);
                 MCX_FPRINTF(cfg->flog, "\n");
@@ -1302,7 +1302,7 @@ is more than what your have specified (%d), please use the -H option to specify 
 
     // total energy here equals total simulated photons+unfinished photons for all threads
     MCX_FPRINTF(cfg->flog, "simulated %ld photons (%ld) with %d devices (repeat x%d)\nMCX simulation speed: " S_BOLD "" S_BLUE "%.2f photon/ms" S_RESET"\n",
-                cfg->nphoton, cfg->nphoton, workdev, cfg->respin, (double)cfg->nphoton / toc);
+                cfg->nphoton, cfg->nphoton, workdev, cfg->respin, ((cfg->issavedet == FILL_MAXDETPHOTON) ? cfg->energytot : ((double)cfg->nphoton * ((cfg->respin > 1) ? (cfg->respin) : 1))) / MAX(1, cfg->runtime));
 
     if (cfg->srctype == MCX_SRC_PATTERN && cfg->srcnum > 1) {
         for (i = 0; i < cfg->srcnum; i++) {
