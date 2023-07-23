@@ -1415,7 +1415,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                 if (GPU_PARAM(gcfg, outputtype) == otEnergy) {
                     weight = w0 - p.w;
                 } else if (GPU_PARAM(gcfg, outputtype) == otFluence || GPU_PARAM(gcfg, outputtype) == otFlux) {
-                    weight = (prop.x == 0.f) ? 0.f : ((w0 - p.w) / (prop.x));
+                    weight = (prop.x * f.z < 0.001f) ? (w0 * f.z) : ((w0 - p.w) / (prop.x));
                 } else if (GPU_PARAM(gcfg, seed) == SEED_FROM_FILE) {
                     if (GPU_PARAM(gcfg, outputtype) == otJacobian) {
                         weight = replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w) - 1] * pathlen;
