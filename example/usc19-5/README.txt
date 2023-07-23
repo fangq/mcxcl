@@ -6,7 +6,7 @@ atlas template(USC 19.5 year group [Sanchez2012]).
 This demo is identical to the MCX simulation used for Fig.9(a) in
 TranYan2019.
 
-The JSON files (.json, .jnii) utlizes the JData specifiation (https://github.com/fangq/jdata) 
+The JSON files (.json, .jnii) utlizes the JData specifiation (https://github.com/NeuroJSON/jdata) 
 to include binary data with compression support. Please download JSONLab from
 
 https://github.com/fangq/jsonlab

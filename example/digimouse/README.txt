@@ -15,7 +15,7 @@ or
 to specify a different photon number
 
 
-The JSON files (.json, .jnii) utlizes the JData specifiation (https://github.com/fangq/jdata) 
+The JSON files (.json, .jnii) utlizes the JData specifiation (https://github.com/NeuroJSON/jdata) 
 to include binary data with compression support. Please download JSONLab from
 
 https://github.com/fangq/jsonlab

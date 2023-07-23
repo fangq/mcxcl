@@ -18,7 +18,7 @@ the original MCX paper [Fang2009].
 This example is a built-in dataset in MCX. Run "mcx --bench" to show
 the full list of built-in examples.
 
-The JSON files (.json, .jnii) utlizes the JData specifiation (https://github.com/fangq/jdata) 
+The JSON files (.json, .jnii) utlizes the JData specifiation (https://github.com/NeuroJSON/jdata) 
 to include binary data with compression support. Please download JSONLab from
 
 https://github.com/fangq/jsonlab
