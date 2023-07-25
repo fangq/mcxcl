@@ -100,7 +100,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
     cl_device_id devices[MAX_DEVICE];
 
     const char*       outputtag[] = {"data"};
-    const char*       datastruct[] = {"data", "stat", "dref", "prop"};
+    const char*       datastruct[] = {"data", "stat", "dref"};
     const char*       statstruct[] = {"runtime", "nphoton", "energytot", "energyabs", "normalizer", "unitinmm", "workload"};
     const char*       gpuinfotag[] = {"name", "id", "devcount", "major", "minor", "globalmem",
                                       "constmem", "sharedmem", "regcount", "clock", "sm", "core",
@@ -188,7 +188,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
      * The function can return 1-5 outputs (i.e. the LHS)
      */
     if (nlhs >= 1 || (cfg.debuglevel & MCX_DEBUG_MOVE_ONLY)) {
-        plhs[0] = mxCreateStructMatrix(ncfg, 1, 4, datastruct);
+        plhs[0] = mxCreateStructMatrix(ncfg, 1, 3, datastruct);
     }
 
     if (nlhs >= 2) {
@@ -392,7 +392,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                     fielddim[4] = cfg.detnum;
                 }
 
-                fieldlen = fielddim[0] * fielddim[1] * fielddim[2] * fielddim[3] * fielddim[4];
+                fieldlen = fielddim[0] * fielddim[1] * fielddim[2] * fielddim[3] * fielddim[4] * fielddim[5];
 
                 if (cfg.issaveref) {      /** If error is detected, gracefully terminate the mex and return back to MATLAB */
                     float* dref = (float*)malloc(fieldlen * sizeof(float));
@@ -407,19 +407,22 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                         }
                     }
 
-                    mxSetFieldByNumber(plhs[0], jstruct, 2, mxCreateNumericArray(4 + (fielddim[4] > 1), fielddim, mxSINGLE_CLASS, mxREAL));
+                    mxSetFieldByNumber(plhs[0], jstruct, 2, mxCreateNumericArray(((fielddim[5] > 1) ? 6 : (4 + (fielddim[4] > 1))), fielddim, mxSINGLE_CLASS, mxREAL));
                     memcpy((float*)mxGetPr(mxGetFieldByNumber(plhs[0], jstruct, 2)), dref, fieldlen * sizeof(float));
                     free(dref);
                 }
 
-                mxSetFieldByNumber(plhs[0], jstruct, 0, mxCreateNumericArray(4 + (fielddim[4] > 1), fielddim, mxSINGLE_CLASS, mxREAL));
-                memcpy((float*)mxGetPr(mxGetFieldByNumber(plhs[0], jstruct, 0)), cfg.exportfield,
-                       fieldlen * sizeof(float));
+                if (cfg.issave2pt) {
+                    mxSetFieldByNumber(plhs[0], jstruct, 0, mxCreateNumericArray(((fielddim[5] > 1) ? 6 : (4 + (fielddim[4] > 1))), fielddim, mxSINGLE_CLASS, mxREAL));
+                    memcpy((float*)mxGetPr(mxGetFieldByNumber(plhs[0], jstruct, 0)), cfg.exportfield,
+                           fieldlen * sizeof(float));
+                }
+
                 free(cfg.exportfield);
                 cfg.exportfield = NULL;
 
                 /** also return the run-time info in outut.runtime */
-                mxArray* stat = mxCreateStructMatrix(1, 1, 6, statstruct);
+                mxArray* stat = mxCreateStructMatrix(1, 1, 7, statstruct);
                 mxArray* val = mxCreateDoubleMatrix(1, 1, mxREAL);
                 *mxGetPr(val) = cfg.runtime;
                 mxSetFieldByNumber(stat, 0, 0, val);
@@ -444,6 +447,11 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                 *mxGetPr(val) = cfg.normalizer;
                 mxSetFieldByNumber(stat, 0, 4, val);
 
+                /** return the voxel size unitinmm */
+                val = mxCreateDoubleMatrix(1, 1, mxREAL);
+                *mxGetPr(val) = cfg.unitinmm;
+                mxSetFieldByNumber(stat, 0, 5, val);
+
                 /** return the relative workload between multiple GPUs */
                 val = mxCreateDoubleMatrix(1, workdev, mxREAL);
 
@@ -451,7 +459,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                     *(mxGetPr(val) + i) = cfg.workload[i];
                 }
 
-                mxSetFieldByNumber(stat, 0, 5, val);
+                mxSetFieldByNumber(stat, 0, 6, val);
 
                 mxSetFieldByNumber(plhs[0], jstruct, 1, stat);
             }
