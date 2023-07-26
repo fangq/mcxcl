@@ -47,12 +47,17 @@ jobs:
           cp bin/OpenCL.dll 'c:\Windows\System32'
           cd ..
           rm -rf opencl
-      - name: Install Zlib Dev
+      - name: Install Zlib Dev (Windows Only)
+        if: ${{ runner.os == 'Windows' }}
         run: |
-          curl.exe --retry 3 -kL https://cytranet.dl.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-lib.zip --output zlib.zip
-          Expand-Archive .\zlib.zip -DestinationPath zlib\
-          echo "CMAKE_INCLUDE_PATH=$PWD\zlib\include" >> $env:GITHUB_ENV
-          echo "CMAKE_LIBRARY_PATH=$PWD\zlib\lib" >> $env:GITHUB_ENV
+          curl.exe --retry 3 -kL https://www.bruot.org/hp/media/files/libraries/zlib_1_2_11_msvc2017_64.zip --output zlib.zip
+          unzip zlib.zip -d zlib
+          mv zlib/msvc2017_64/* zlib/
+          mv zlib/include/zlib/* zlib/include
+          mv zlib/lib/zlib/* zlib/lib
+          perl -pi -e 's/#if 1\s+.*HAVE_UNISTD_H.*/#if 0/g' zlib/include/zconf.h
+          echo "CMAKE_INCLUDE_PATH=$PWD\zlib\include" >> $GITHUB_ENV
+          echo "CMAKE_LIBRARY_PATH=$PWD\zlib\lib" >> $GITHUB_ENV
           rm zlib.zip
       - name: Build Wheels
         run: |
