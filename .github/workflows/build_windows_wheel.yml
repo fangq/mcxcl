@@ -47,6 +47,13 @@ jobs:
           cp bin/OpenCL.dll 'c:\Windows\System32'
           cd ..
           rm -rf opencl
+      - name: Install Zlib Dev
+        run: |
+          curl.exe --retry 3 -kL https://cytranet.dl.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-lib.zip --output zlib.zip
+          Expand-Archive .\zlib.zip -DestinationPath zlib\
+          echo "CMAKE_INCLUDE_PATH=$PWD\zlib\include" >> $env:GITHUB_ENV
+          echo "CMAKE_LIBRARY_PATH=$PWD\zlib\lib" >> $env:GITHUB_ENV
+          rm zlib.zip
       - name: Build Wheels
         run: |
           cd pmcxcl/
