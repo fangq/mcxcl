@@ -1,0 +1,81 @@
+name: Build and Upload Windows Python Wheels
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - '*'
+  pull_request:
+    branches:
+      - master
+
+
+jobs:
+  build_windows_wheels:
+    name: Build Windows wheels
+    runs-on: windows-2019
+    strategy:
+      matrix:
+        python_version: [ '3.6', '3.7', '3.8', '3.9', '3.10', '3.11', 'pypy3.7', 'pypy3.8', 'pypy3.9']
+    outputs:
+      perform_pypi_upload: ${{ steps.perform_pypi_upload_check.outputs.perform_pypi_upload }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+      - name: Update RCS keywords
+        shell: bash
+        run: |
+          printf '\n[filter "rcs-keywords"]\n\tclean  = .git_filters/rcs-keywords.clean\n\tsmudge = .git_filters/rcs-keywords.smudge %f\n' >> .git/config
+          rm -rf src/*.c
+          git checkout src/*.c
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python_version }}
+      - name: Install OpenCL.dll and static libraries (Windows only)
+        if: ${{ runner.os == 'Windows' }}
+        run: |
+          mkdir opencl
+          cd opencl
+          curl http://mcx.space/wiki/upload/opencl.zip --output opencl.zip
+          unzip opencl.zip
+          cp bin/OpenCL.dll 'c:\Windows\System32'
+          cd ..
+          rm -rf opencl
+      - name: Build Wheels
+        run: |
+          cd pmcxcl/
+          pip install wheel
+          python setup.py bdist_wheel
+          ls dist/
+          mv dist/ ../
+          cd ../
+      - name: Check If the Build Version Exists on PyPI
+        id: perform_pypi_upload_check
+        run: |
+          bash $env:GITHUB_WORKSPACE/.github/check-pypi-upload.sh
+      - name: Prepare Wheels for Upload
+        uses: actions/upload-artifact@v3
+        with:
+          name: windows-wheels
+          path: dist/
+
+  upload_windows_wheels:
+    needs: build_windows_wheels
+    runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'fangq' && needs.build_windows_wheels.outputs.perform_pypi_upload == 1 && github.event_name != 'pull_request'}}
+    steps:
+      - name: Download Wheels from Build Job
+        uses: actions/download-artifact@v3
+        with:
+          name: windows-wheels
+          path: dist/
+      - name: Upload packages to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          verify_metadata: false
+          verbose: true
+          skip_existing: true
