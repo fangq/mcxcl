@@ -85,6 +85,7 @@
 #define SAVE_PEXIT(a)         ((a)>>4 & 0x1)   /**<  save exit positions */
 #define SAVE_VEXIT(a)         ((a)>>5 & 0x1)   /**<  save exit vector/directions */
 #define SAVE_W0(a)            ((a)>>6 & 0x1)   /**<  save initial weight */
+#define SAVE_IQUV(a)          ((a)>>7 & 0x1)   /**<  save stokes parameters */
 
 #define SET_SAVE_DETID(a)     ((a) | 0x1   )   /**<  mask to save detector ID*/
 #define SET_SAVE_NSCAT(a)     ((a) | 0x1<<1)   /**<  output partial scattering counts */

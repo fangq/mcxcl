@@ -74,7 +74,6 @@
 typedef mwSize dimtype;
 
 void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cfg);
-void mcx_validate_config(Config* cfg);
 void mcxlab_usage();
 
 float* detps = NULL;       //! buffer to receive data from cfg.detphotons field
@@ -93,7 +92,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
     mxArray*    tmp;
     int        ifield, jstruct;
     int        ncfg, nfields;
-    dimtype    fielddim[6];
+    dimtype    fielddim[6] = {0};
     int        errorflag = 0;
     int        threadid = 0;
     cl_uint    workdev;
@@ -248,6 +247,13 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
             /** One must also choose one of the GPUs */
             mcx_list_gpu(&cfg, &workdev, devices, &gpuinfo);
 
+            /** Validate all input fields, and warn incompatible inputs */
+            mcx_validateconfig(&cfg);
+            mcx_replayprep(&cfg, detps, dimdetps, seedbyte);
+
+            partialdata = (cfg.medianum - 1) * (SAVE_NSCAT(cfg.savedetflag) + SAVE_PPATH(cfg.savedetflag) + SAVE_MOM(cfg.savedetflag));
+            hostdetreclen = partialdata + SAVE_DETID(cfg.savedetflag) + 3 * (SAVE_PEXIT(cfg.savedetflag) + SAVE_VEXIT(cfg.savedetflag)) + SAVE_W0(cfg.savedetflag);
+
             if (!workdev) {
                 mexErrMsgTxt("No active GPU device found");
             }
@@ -275,12 +281,6 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                 cfg.exportdebugdata = (float*)malloc(cfg.maxjumpdebug * sizeof(float) * MCX_DEBUG_REC_LEN);
                 cfg.debuglevel |= MCX_DEBUG_MOVE;
             }
-
-            /** Validate all input fields, and warn incompatible inputs */
-            mcx_validate_config(&cfg);
-
-            partialdata = (cfg.medianum - 1) * (SAVE_NSCAT(cfg.savedetflag) + SAVE_PPATH(cfg.savedetflag) + SAVE_MOM(cfg.savedetflag));
-            hostdetreclen = partialdata + SAVE_DETID(cfg.savedetflag) + 3 * (SAVE_PEXIT(cfg.savedetflag) + SAVE_VEXIT(cfg.savedetflag)) + SAVE_W0(cfg.savedetflag);
 
             /** Start multiple threads, one thread to run portion of the simulation on one CUDA GPU, all in parallel */
 #ifdef _OPENMP
@@ -315,6 +315,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                 mexErrMsgTxt("MCXLAB Terminated due to an exception!");
             }
 
+            fielddim[4] = 1;
             fielddim[5] = 1;
 
             /** if 5th output presents, output the photon trajectory data */
@@ -829,7 +830,7 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
             mexWarnMsgTxt("the specified debuglevel is not supported");
         }
 
-        printf("mcx.debuglevel='%d';\n", cfg->debuglevel);
+        printf("mcx.debuglevel=%d;\n", cfg->debuglevel);
     } else if (strcmp(name, "srcpattern") == 0) {
         arraydim = mxGetDimensions(item);
         dimtype dimz = 1;
@@ -850,7 +851,7 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
             cfg->srcpattern[i] = val[i];
         }
 
-        printf("mcx.srcpattern=[%d %d %d];\n", arraydim[0], arraydim[1], dimz);
+        printf("mcx.srcpattern=[%ld %ld %ld];\n", arraydim[0], arraydim[1], dimz);
     } else if (strcmp(name, "shapes") == 0) {
         int len = mxGetNumberOfElements(item);
 
@@ -877,7 +878,7 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
         dimdetps[1] = arraydim[1];
         detps = (float*)malloc(arraydim[0] * arraydim[1] * sizeof(float));
         memcpy(detps, mxGetData(item), arraydim[0]*arraydim[1]*sizeof(float));
-        printf("mcx.detphotons=[%d %d];\n", arraydim[0], arraydim[1]);
+        printf("mcx.detphotons=[%ld %ld];\n", arraydim[0], arraydim[1]);
     } else if (strcmp(name, "seed") == 0) {
         arraydim = mxGetDimensions(item);
 
@@ -952,7 +953,7 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
             cfg->workload[i] = val[i];
         }
 
-        printf("mcx.workload=<<%d>>;\n", arraydim[0]*arraydim[1]);
+        printf("mcx.workload=<<%ld>>;\n", arraydim[0]*arraydim[1]);
     } else {
         printf("WARNING: redundant field '%s'\n", name);
     }
@@ -973,303 +974,6 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
     }
 }
 
-/**
- * @brief Pre-computing the detected photon weight and time-of-fly from partial path input for replay
- *
- * When detected photons are replayed, this function recalculates the detected photon
- * weight and their time-of-fly for the replay calculations.
- *
- * @param[in,out] cfg: the simulation configuration structure
- */
-
-
-void mcx_replay_prep(Config* cfg) {
-    int hasdetid = 0, offset;
-    float plen;
-
-    if (cfg->seed == SEED_FROM_FILE && detps == NULL) {
-        mexErrMsgTxt("you give cfg.seed for replay, but did not specify cfg.detphotons.\nPlease define it as the detphoton output from the baseline simulation");
-    }
-
-    if (detps == NULL || cfg->seed != SEED_FROM_FILE) {
-        return;
-    }
-
-    if (cfg->nphoton != dimdetps[1]) {
-        mexErrMsgTxt("the column numbers of detphotons and seed do not match");
-    }
-
-    if (seedbyte == 0) {
-        mexErrMsgTxt("the seed input is empty");
-    }
-
-    hasdetid = SAVE_DETID(cfg->savedetflag);
-    offset = SAVE_NSCAT(cfg->savedetflag) * (cfg->medianum - 1);
-
-    if (((!hasdetid) && cfg->detnum > 1) || !SAVE_PPATH(cfg->savedetflag)) {
-        mexErrMsgTxt("please rerun the baseline simulation and save detector ID (D) and partial-path (P) using cfg.savedetflag='dp' ");
-    }
-
-    cfg->replay.weight = (float*)malloc(cfg->nphoton * sizeof(float));
-    cfg->replay.tof = (float*)calloc(cfg->nphoton, sizeof(float));
-    cfg->replay.detid = (int*)calloc(cfg->nphoton, sizeof(int));
-
-    cfg->nphoton = 0;
-
-    for (uint i = 0; i < dimdetps[1]; i++) {
-        if (cfg->replaydet <= 0 || cfg->replaydet == (int)(detps[i * dimdetps[0]])) {
-            if (i != cfg->nphoton) {
-                memcpy((char*)(cfg->replay.seed) + cfg->nphoton * seedbyte, (char*)(cfg->replay.seed) + i * seedbyte, seedbyte);
-            }
-
-            cfg->replay.weight[cfg->nphoton] = 1.f;
-            cfg->replay.tof[cfg->nphoton] = 0.f;
-            cfg->replay.detid[cfg->nphoton] = (hasdetid) ? (int)(detps[i * dimdetps[0]]) : 1;
-
-            for (uint j = hasdetid; j < cfg->medianum - 1 + hasdetid; j++) {
-                plen = detps[i * dimdetps[0] + offset + j] * cfg->unitinmm;
-                cfg->replay.weight[cfg->nphoton] *= expf(-cfg->prop[j - hasdetid + 1].mua * plen);
-                cfg->replay.tof[cfg->nphoton] += plen * R_C0 * cfg->prop[j - hasdetid + 1].n;
-            }
-
-            if (cfg->replay.tof[cfg->nphoton] < cfg->tstart || cfg->replay.tof[cfg->nphoton] > cfg->tend) { /*need to consider -g*/
-                continue;
-            }
-
-            cfg->nphoton++;
-        }
-    }
-
-    cfg->replay.weight = (float*)realloc(cfg->replay.weight, cfg->nphoton * sizeof(float));
-    cfg->replay.tof = (float*)realloc(cfg->replay.tof, cfg->nphoton * sizeof(float));
-    cfg->replay.detid = (int*)realloc(cfg->replay.detid, cfg->nphoton * sizeof(int));
-}
-
-
-/**
- * @brief Validate all input fields, and warn incompatible inputs
- *
- * Perform self-checking and raise exceptions or warnings when input error is detected
- *
- * @param[in,out] cfg: the simulation configuration structure
- */
-
-void mcx_validate_config(Config* cfg) {
-    int i, isbcdet = 0;
-    uint gates;
-    const char boundarycond[] = {'_', 'r', 'a', 'm', 'c', '\0'};
-    const char boundarydetflag[] = {'0', '1', '\0'};
-    unsigned int partialdata = (cfg->medianum - 1) * (SAVE_NSCAT(cfg->savedetflag) + SAVE_PPATH(cfg->savedetflag) + SAVE_MOM(cfg->savedetflag));
-    unsigned int hostdetreclen = partialdata + SAVE_DETID(cfg->savedetflag) + 3 * (SAVE_PEXIT(cfg->savedetflag) + SAVE_VEXIT(cfg->savedetflag)) + SAVE_W0(cfg->savedetflag);
-
-    if (!cfg->issrcfrom0) {
-        cfg->srcpos.x--;
-        cfg->srcpos.y--;
-        cfg->srcpos.z--; /*convert to C index, grid center*/
-    }
-
-    if (cfg->tstart > cfg->tend || cfg->tstep == 0.f) {
-        mexErrMsgTxt("incorrect time gate settings");
-    }
-
-    if (ABS(cfg->srcdir.x * cfg->srcdir.x + cfg->srcdir.y * cfg->srcdir.y + cfg->srcdir.z * cfg->srcdir.z - 1.f) > 1e-5) {
-        mexErrMsgTxt("field 'srcdir' must be a unitary vector");
-    }
-
-    if (cfg->steps.x == 0.f || cfg->steps.y == 0.f || cfg->steps.z == 0.f) {
-        mexErrMsgTxt("field 'steps' can not have zero elements");
-    }
-
-    if (cfg->tend <= cfg->tstart) {
-        mexErrMsgTxt("field 'tend' must be greater than field 'tstart'");
-    }
-
-    gates = (int)((cfg->tend - cfg->tstart) / cfg->tstep + 0.5);
-
-    if (cfg->maxgate > gates) {
-        cfg->maxgate = gates;
-    }
-
-    if (cfg->sradius > 0.f) {
-        cfg->crop0.x = MAX((int)(cfg->srcpos.x - cfg->sradius), 0);
-        cfg->crop0.y = MAX((int)(cfg->srcpos.y - cfg->sradius), 0);
-        cfg->crop0.z = MAX((int)(cfg->srcpos.z - cfg->sradius), 0);
-        cfg->crop1.x = MIN((int)(cfg->srcpos.x + cfg->sradius), (int)cfg->dim.x - 1);
-        cfg->crop1.y = MIN((int)(cfg->srcpos.y + cfg->sradius), (int)cfg->dim.y - 1);
-        cfg->crop1.z = MIN((int)(cfg->srcpos.z + cfg->sradius), (int)cfg->dim.z - 1);
-    } else if (cfg->sradius == 0.f) {
-        memset(&(cfg->crop0), 0, sizeof(uint3));
-        memset(&(cfg->crop1), 0, sizeof(uint3));
-    } else {
-        /*
-            if -R is followed by a negative radius, mcx uses crop0/crop1 to set the cachebox
-        */
-        if (!cfg->issrcfrom0) {
-            cfg->crop0.x--;
-            cfg->crop0.y--;
-            cfg->crop0.z--;  /*convert to C index*/
-            cfg->crop1.x--;
-            cfg->crop1.y--;
-            cfg->crop1.z--;
-        }
-    }
-
-    if (cfg->medianum == 0) {
-        mexErrMsgTxt("you must define the 'prop' field in the input structure");
-    }
-
-    if (cfg->dim.x == 0 || cfg->dim.y == 0 || cfg->dim.z == 0) {
-        mexErrMsgTxt("the 'vol' field in the input structure can not be empty");
-    }
-
-    if ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) && cfg->srcpattern == NULL) {
-        mexErrMsgTxt("the 'srcpattern' field can not be empty when your 'srctype' is 'pattern'");
-    }
-
-    if (cfg->steps.x != 1.f && cfg->unitinmm == 1.f) {
-        cfg->unitinmm = cfg->steps.x;
-    }
-
-    if (cfg->replaydet > (int)cfg->detnum) {
-        mexErrMsgTxt("replay detector ID exceeds the maximum detector number");
-    }
-
-    if (cfg->replaydet == -1 && cfg->detnum == 1) {
-        cfg->replaydet = 1;
-    }
-
-    for (i = 0; i < 6; i++)
-        if (cfg->bc[i] >= 'A' && mcx_lookupindex(cfg->bc + i, boundarycond)) {
-            mexErrMsgTxt("unknown boundary condition specifier");
-        }
-
-    for (i = 6; i < 12; i++) {
-        if (cfg->bc[i] >= '0' && mcx_lookupindex(cfg->bc + i, boundarydetflag)) {
-            mexErrMsgTxt("unknown boundary detection flags");
-        }
-
-        if (cfg->bc[i]) {
-            isbcdet = 1;
-        }
-    }
-
-    if (cfg->medianum) {
-        for (uint i = 0; i < cfg->medianum; i++)
-            if (cfg->prop[i].mus == 0.f) {
-                cfg->prop[i].mus = EPS;
-                cfg->prop[i].g = 1.f;
-            }
-    }
-
-    if (cfg->unitinmm != 1.f) {
-        cfg->steps.x = cfg->unitinmm;
-        cfg->steps.y = cfg->unitinmm;
-        cfg->steps.z = cfg->unitinmm;
-
-        for (uint i = 1; i < cfg->medianum; i++) {
-            cfg->prop[i].mus *= cfg->unitinmm;
-            cfg->prop[i].mua *= cfg->unitinmm;
-        }
-    }
-
-    if (cfg->issavedet && cfg->detnum == 0 && isbcdet == 0) {
-        cfg->issavedet = 0;
-    }
-
-    if (cfg->issavedet == 0) {
-        cfg->issaveexit = 0;
-        cfg->ismomentum = 0;
-        cfg->savedetflag = 0;
-    }
-
-    if (cfg->respin == 0) {
-        mexErrMsgTxt("respin number can not be 0, check your -r/--repeat input or cfg.respin value");
-    }
-
-    if (cfg->seed < 0 && cfg->seed != SEED_FROM_FILE) {
-        cfg->seed = time(NULL);
-    }
-
-    if ((cfg->outputtype == otJacobian || cfg->outputtype == otWP) && cfg->seed != SEED_FROM_FILE) {
-        mexErrMsgTxt("Jacobian output is only valid in the reply mode. Please define cfg.seed");
-    }
-
-    for (uint i = 0; i < cfg->detnum; i++) {
-        if (!cfg->issrcfrom0) {
-            cfg->detpos[i].x--;
-            cfg->detpos[i].y--;
-            cfg->detpos[i].z--;  /*convert to C index*/
-        }
-    }
-
-    if (1) {
-        cfg->isrowmajor = 0; /*matlab is always col-major*/
-
-        if (cfg->isrowmajor) {
-            /*from here on, the array is always col-major*/
-            mcx_convertrow2col(&(cfg->vol), &(cfg->dim));
-            cfg->isrowmajor = 0;
-        }
-
-        if (cfg->issavedet) {
-            mcx_maskdet(cfg);
-        }
-
-        if (cfg->seed == SEED_FROM_FILE) {
-            if (cfg->respin > 1) {
-                cfg->respin = 1;
-                fprintf(stderr, "Warning: respin is disabled in the replay mode\n");
-            }
-        }
-    }
-
-    if ((cfg->mediabyte == MEDIA_AS_F2H || cfg->mediabyte == MEDIA_MUA_FLOAT || cfg->mediabyte == MEDIA_AS_HALF) && cfg->medianum < 2) {
-        mexErrMsgTxt("the 'prop' field must contain at least 2 rows for the requested media format");
-    }
-
-    if ((cfg->mediabyte == MEDIA_ASGN_BYTE || cfg->mediabyte == MEDIA_AS_SHORT) && cfg->medianum < 3) {
-        mexErrMsgTxt("the 'prop' field must contain at least 3 rows for the requested media format");
-    }
-
-    if (cfg->ismomentum) {
-        cfg->savedetflag = SET_SAVE_MOM(cfg->savedetflag);
-    }
-
-    if (cfg->issaveexit) {
-        cfg->savedetflag = SET_SAVE_PEXIT(cfg->savedetflag);
-        cfg->savedetflag = SET_SAVE_VEXIT(cfg->savedetflag);
-    }
-
-    if (cfg->issavedet && cfg->savedetflag == 0) {
-        cfg->savedetflag = 0x5;
-    }
-
-    if (cfg->mediabyte >= 100) {
-        cfg->savedetflag = UNSET_SAVE_NSCAT(cfg->savedetflag);
-        cfg->savedetflag = UNSET_SAVE_PPATH(cfg->savedetflag);
-        cfg->savedetflag = UNSET_SAVE_MOM(cfg->savedetflag);
-    }
-
-    if (cfg->issaveref > 1) {
-        if (cfg->issavedet == 0) {
-            mexErrMsgTxt("you must have at least two outputs if issaveref is greater than 1");
-        }
-
-        if (cfg->dim.x * cfg->dim.y * cfg->dim.z > cfg->maxdetphoton) {
-            mexWarnMsgTxt("you must set cfg.maxdetphoton larger than prod(size(cfg.vol)) when cfg.issaveref is greater than 1, autocorrecting ...");
-            cfg->maxdetphoton = cfg->dim.x * cfg->dim.y * cfg->dim.z;
-        }
-
-        cfg->savedetflag = 0x5;
-    }
-
-    cfg->his.maxmedia = cfg->medianum - 1; /*skip medium 0*/
-    cfg->his.detnum = cfg->detnum;
-    cfg->his.srcnum = cfg->srcnum;
-    cfg->his.colcount = hostdetreclen; /*column count=maxmedia+2*/
-    cfg->his.savedetflag = cfg->savedetflag;
-    mcx_replay_prep(cfg);
-}
 
 /**
  * @brief Error reporting function in the mex function, equivallent to mcx_error in binary mode
@@ -1281,7 +985,7 @@ void mcx_validate_config(Config* cfg) {
  */
 
 extern "C" int mcx_throw_exception(const int id, const char* msg, const char* filename, const int linenum) {
-    printf("MCXLAB ERROR %d in unit %s:%d: %s\n", id, filename, linenum, msg);
+    printf("MCXLABCL ERROR %d in unit %s:%d: %s\n", id, filename, linenum, msg);
     throw msg;
     return id;
 }

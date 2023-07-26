@@ -56,7 +56,7 @@
 #define GL_RGBA32F 0x8814
 
 enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS, otL};   /**< types of output */
-enum TMCXParent  {mpStandalone, mpMATLAB};                   /**< whether MCX is run in binary or mex mode */
+enum TMCXParent  {mpStandalone, mpMATLAB, mpPython};                   /**< whether MCX is run in binary or mex mode */
 enum TOutputFormat {ofMC2, ofNifti, ofAnalyze, ofUBJSON, ofTX3, ofJNifti, ofBJNifti};           /**< output data format */
 enum TDeviceVendor {dvUnknown, dvNVIDIA, dvAMD, dvIntel, dvIntelGPU, dvAppleCPU};
 enum TBoundary {bcUnknown, bcReflect, bcAbsorb, bcMirror, bcCyclic};            /**< boundary conditions */
@@ -283,17 +283,16 @@ int  mcx_jdatadecode(void** vol, int* ndim, uint* dims, int maxdim, char** type,
 void mcx_savejnii(float* vol, int ndim, uint* dims, float* voxelsize, char* name, int isfloat, Config* cfg);
 void mcx_savebnii(float* vol, int ndim, uint* dims, float* voxelsize, char* name, int isfloat, Config* cfg);
 void mcx_savejdet(float* ppath, void* seeds, uint count, int doappend, Config* cfg);
+void mcx_replayprep(Config* cfg, float* detps, unsigned int dimdetps[2], int seedbyte);
+void mcx_validateconfig(Config* cfg);
 
 
 #ifdef MCX_CONTAINER
-#ifdef __cplusplus
-extern "C"
-#endif
 int  mcx_throw_exception(const int id, const char* msg, const char* filename, const int linenum);
 void mcx_matlab_flush(void);
 #endif
 
-#ifdef MCX_CONTAINER
+#if defined(MCX_CONTAINER) && (defined(MATLAB_MEX_FILE) || defined(OCTAVE_API_VERSION_NUMBER))
 #ifdef _OPENMP
 #define MCX_FPRINTF(fp,...) {if(omp_get_thread_num()==0) mexPrintf(__VA_ARGS__);}  /**< macro to print messages, calls mexPrint if inside MATLAB */
 #else

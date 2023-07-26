@@ -291,7 +291,11 @@ void mcx_initcfg(Config* cfg) {
     cfg->detectedcount = 0;
     cfg->runtime = 0;
 #ifdef MCX_CONTAINER
+#ifndef PYBIND11_VERSION_MAJOR
     cfg->parentid = mpMATLAB;
+#else
+    cfg->parentid = mpPython;
+#endif
 #else
     cfg->parentid = mpStandalone;
 #endif
@@ -1114,8 +1118,10 @@ float mcx_updatemua(unsigned int mediaid, Config* cfg) {
  */
 
 void mcx_flush(Config* cfg) {
-#ifdef MCX_CONTAINER
+#if defined(MCX_CONTAINER) && (defined(MATLAB_MEX_FILE) || defined(OCTAVE_API_VERSION_NUMBER))
     mcx_matlab_flush();
+#elif defined(PYBIND11_VERSION_MAJOR)
+    mcx_python_flush();
 #else
     fflush(cfg->flog);
 #endif
@@ -1173,6 +1179,299 @@ int mkpath(char* dir_path, int mode) {
     }
 
     return 0;
+}
+
+/**
+ * @brief Pre-computing the detected photon weight and time-of-fly from partial path input for replay
+ *
+ * When detected photons are replayed, this function recalculates the detected photon
+ * weight and their time-of-fly for the replay calculations.
+ *
+ * @param[in,out] cfg: the simulation configuration structure
+ */
+
+
+void mcx_replayprep(Config* cfg, float* detps, unsigned int dimdetps[2], int seedbyte) {
+    int hasdetid = 0, offset;
+    float plen;
+
+    if (cfg->seed == SEED_FROM_FILE && detps == NULL) {
+        MCX_ERROR(-12, "you give cfg.seed for replay, but did not specify cfg.detphotons.\nPlease define it as the detphoton output from the baseline simulation");
+    }
+
+    if (detps == NULL || cfg->seed != SEED_FROM_FILE) {
+        return;
+    }
+
+    if (cfg->nphoton != dimdetps[1]) {
+        MCX_ERROR(-12, "the column numbers of detphotons and seed do not match");
+    }
+
+    if (seedbyte == 0) {
+        MCX_ERROR(-12, "the seed input is empty");
+    }
+
+    hasdetid = SAVE_DETID(cfg->savedetflag);
+    offset = SAVE_NSCAT(cfg->savedetflag) * (cfg->medianum - 1);
+
+    if (((!hasdetid) && cfg->detnum > 1) || !SAVE_PPATH(cfg->savedetflag)) {
+        MCX_ERROR(-12, "please rerun the baseline simulation and save detector ID (D) and partial-path (P) using cfg.savedetflag='dp' ");
+    }
+
+    cfg->replay.weight = (float*)malloc(cfg->nphoton * sizeof(float));
+    cfg->replay.tof = (float*)calloc(cfg->nphoton, sizeof(float));
+    cfg->replay.detid = (int*)calloc(cfg->nphoton, sizeof(int));
+
+    cfg->nphoton = 0;
+
+    for (uint i = 0; i < dimdetps[1]; i++) {
+        if (cfg->replaydet <= 0 || cfg->replaydet == (int)(detps[i * dimdetps[0]])) {
+            if (i != cfg->nphoton) {
+                memcpy((char*)(cfg->replay.seed) + cfg->nphoton * seedbyte, (char*)(cfg->replay.seed) + i * seedbyte, seedbyte);
+            }
+
+            cfg->replay.weight[cfg->nphoton] = 1.f;
+            cfg->replay.tof[cfg->nphoton] = 0.f;
+            cfg->replay.detid[cfg->nphoton] = (hasdetid) ? (int)(detps[i * dimdetps[0]]) : 1;
+
+            for (uint j = hasdetid; j < cfg->medianum - 1 + hasdetid; j++) {
+                plen = detps[i * dimdetps[0] + offset + j] * cfg->unitinmm;
+                cfg->replay.weight[cfg->nphoton] *= expf(-cfg->prop[j - hasdetid + 1].mua * plen);
+                cfg->replay.tof[cfg->nphoton] += plen * R_C0 * cfg->prop[j - hasdetid + 1].n;
+            }
+
+            if (cfg->replay.tof[cfg->nphoton] < cfg->tstart || cfg->replay.tof[cfg->nphoton] > cfg->tend) { /*need to consider -g*/
+                continue;
+            }
+
+            cfg->nphoton++;
+        }
+    }
+
+    cfg->replay.weight = (float*)realloc(cfg->replay.weight, cfg->nphoton * sizeof(float));
+    cfg->replay.tof = (float*)realloc(cfg->replay.tof, cfg->nphoton * sizeof(float));
+    cfg->replay.detid = (int*)realloc(cfg->replay.detid, cfg->nphoton * sizeof(int));
+}
+
+/**
+ * @brief Validate all input fields, and warn incompatible inputs
+ *
+ * Perform self-checking and raise exceptions or warnings when input error is detected
+ *
+ * @param[in,out] cfg: the simulation configuration structure
+ */
+
+void mcx_validateconfig(Config* cfg) {
+    int i, isbcdet = 0;
+    uint gates;
+    const char boundarycond[] = {'_', 'r', 'a', 'm', 'c', '\0'};
+    const char boundarydetflag[] = {'0', '1', '\0'};
+    unsigned int partialdata = (cfg->medianum - 1) * (SAVE_NSCAT(cfg->savedetflag) + SAVE_PPATH(cfg->savedetflag) + SAVE_MOM(cfg->savedetflag));
+    unsigned int hostdetreclen = partialdata + SAVE_DETID(cfg->savedetflag) + 3 * (SAVE_PEXIT(cfg->savedetflag) + SAVE_VEXIT(cfg->savedetflag)) + SAVE_W0(cfg->savedetflag);
+
+    if (!cfg->issrcfrom0) {
+        cfg->srcpos.x--;
+        cfg->srcpos.y--;
+        cfg->srcpos.z--; /*convert to C index, grid center*/
+    }
+
+    if (cfg->tstart > cfg->tend || cfg->tstep == 0.f) {
+        MCX_ERROR(-11, "incorrect time gate settings");
+    }
+
+    if (fabs(cfg->srcdir.x * cfg->srcdir.x + cfg->srcdir.y * cfg->srcdir.y + cfg->srcdir.z * cfg->srcdir.z - 1.f) > 1e-5) {
+        MCX_ERROR(-11, "field 'srcdir' must be a unitary vector");
+    }
+
+    if (cfg->steps.x == 0.f || cfg->steps.y == 0.f || cfg->steps.z == 0.f) {
+        MCX_ERROR(-11, "field 'steps' can not have zero elements");
+    }
+
+    if (cfg->tend <= cfg->tstart) {
+        MCX_ERROR(-11, "field 'tend' must be greater than field 'tstart'");
+    }
+
+    gates = (int)((cfg->tend - cfg->tstart) / cfg->tstep + 0.5);
+
+    if (cfg->maxgate > gates) {
+        cfg->maxgate = gates;
+    }
+
+    if (cfg->sradius > 0.f) {
+        cfg->crop0.x = MAX((int)(cfg->srcpos.x - cfg->sradius), 0);
+        cfg->crop0.y = MAX((int)(cfg->srcpos.y - cfg->sradius), 0);
+        cfg->crop0.z = MAX((int)(cfg->srcpos.z - cfg->sradius), 0);
+        cfg->crop1.x = MIN((int)(cfg->srcpos.x + cfg->sradius), (int)cfg->dim.x - 1);
+        cfg->crop1.y = MIN((int)(cfg->srcpos.y + cfg->sradius), (int)cfg->dim.y - 1);
+        cfg->crop1.z = MIN((int)(cfg->srcpos.z + cfg->sradius), (int)cfg->dim.z - 1);
+    } else if (cfg->sradius == 0.f) {
+        memset(&(cfg->crop0), 0, sizeof(uint3));
+        memset(&(cfg->crop1), 0, sizeof(uint3));
+    } else {
+        /*
+            if -R is followed by a negative radius, mcx uses crop0/crop1 to set the cachebox
+        */
+        if (!cfg->issrcfrom0) {
+            cfg->crop0.x--;
+            cfg->crop0.y--;
+            cfg->crop0.z--;  /*convert to C index*/
+            cfg->crop1.x--;
+            cfg->crop1.y--;
+            cfg->crop1.z--;
+        }
+    }
+
+    if (cfg->medianum == 0) {
+        MCX_ERROR(-11, "you must define the 'prop' field in the input structure");
+    }
+
+    if (cfg->dim.x == 0 || cfg->dim.y == 0 || cfg->dim.z == 0) {
+        MCX_ERROR(-11, "the 'vol' field in the input structure can not be empty");
+    }
+
+    if ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) && cfg->srcpattern == NULL) {
+        MCX_ERROR(-11, "the 'srcpattern' field can not be empty when your 'srctype' is 'pattern'");
+    }
+
+    if (cfg->steps.x != 1.f && cfg->unitinmm == 1.f) {
+        cfg->unitinmm = cfg->steps.x;
+    }
+
+    if (cfg->replaydet > (int)cfg->detnum) {
+        MCX_ERROR(-11, "replay detector ID exceeds the maximum detector number");
+    }
+
+    if (cfg->replaydet == -1 && cfg->detnum == 1) {
+        cfg->replaydet = 1;
+    }
+
+    for (i = 0; i < 6; i++)
+        if (cfg->bc[i] >= 'A' && mcx_lookupindex(cfg->bc + i, boundarycond)) {
+            MCX_ERROR(-11, "unknown boundary condition specifier");
+        }
+
+    for (i = 6; i < 12; i++) {
+        if (cfg->bc[i] >= '0' && mcx_lookupindex(cfg->bc + i, boundarydetflag)) {
+            MCX_ERROR(-11, "unknown boundary detection flags");
+        }
+
+        if (cfg->bc[i]) {
+            isbcdet = 1;
+        }
+    }
+
+    if (cfg->medianum) {
+        for (uint i = 0; i < cfg->medianum; i++)
+            if (cfg->prop[i].mus == 0.f) {
+                cfg->prop[i].mus = EPS;
+                cfg->prop[i].g = 1.f;
+            }
+    }
+
+    if (cfg->unitinmm != 1.f) {
+        cfg->steps.x = cfg->unitinmm;
+        cfg->steps.y = cfg->unitinmm;
+        cfg->steps.z = cfg->unitinmm;
+
+        for (uint i = 1; i < cfg->medianum; i++) {
+            cfg->prop[i].mus *= cfg->unitinmm;
+            cfg->prop[i].mua *= cfg->unitinmm;
+        }
+    }
+
+    if (cfg->issavedet && cfg->detnum == 0 && isbcdet == 0) {
+        cfg->issavedet = 0;
+    }
+
+    if (cfg->issavedet == 0) {
+        cfg->issaveexit = 0;
+        cfg->ismomentum = 0;
+        cfg->savedetflag = 0;
+    }
+
+    if (cfg->respin == 0) {
+        MCX_ERROR(-11, "respin number can not be 0, check your -r/--repeat input or cfg.respin value");
+    }
+
+    if ((cfg->outputtype == otJacobian || cfg->outputtype == otWP) && cfg->seed != SEED_FROM_FILE) {
+        MCX_ERROR(-11, "Jacobian output is only valid in the reply mode. Please define cfg.seed");
+    }
+
+    for (uint i = 0; i < cfg->detnum; i++) {
+        if (!cfg->issrcfrom0) {
+            cfg->detpos[i].x--;
+            cfg->detpos[i].y--;
+            cfg->detpos[i].z--;  /*convert to C index*/
+        }
+    }
+
+    if (1) {
+        cfg->isrowmajor = 0; /*matlab is always col-major*/
+
+        if (cfg->isrowmajor) {
+            /*from here on, the array is always col-major*/
+            mcx_convertrow2col(&(cfg->vol), &(cfg->dim));
+            cfg->isrowmajor = 0;
+        }
+
+        if (cfg->issavedet) {
+            mcx_maskdet(cfg);
+        }
+
+        if (cfg->seed == SEED_FROM_FILE) {
+            if (cfg->respin > 1) {
+                cfg->respin = 1;
+                MCX_FPRINTF(cfg->flog, "Warning: respin is disabled in the replay mode\n");
+            }
+        }
+    }
+
+    if ((cfg->mediabyte == MEDIA_AS_F2H || cfg->mediabyte == MEDIA_MUA_FLOAT || cfg->mediabyte == MEDIA_AS_HALF) && cfg->medianum < 2) {
+        MCX_ERROR(-11, "the 'prop' field must contain at least 2 rows for the requested media format");
+    }
+
+    if ((cfg->mediabyte == MEDIA_ASGN_BYTE || cfg->mediabyte == MEDIA_AS_SHORT) && cfg->medianum < 3) {
+        MCX_ERROR(-11, "the 'prop' field must contain at least 3 rows for the requested media format");
+    }
+
+    if (cfg->ismomentum) {
+        cfg->savedetflag = SET_SAVE_MOM(cfg->savedetflag);
+    }
+
+    if (cfg->issaveexit) {
+        cfg->savedetflag = SET_SAVE_PEXIT(cfg->savedetflag);
+        cfg->savedetflag = SET_SAVE_VEXIT(cfg->savedetflag);
+    }
+
+    if (cfg->issavedet && cfg->savedetflag == 0) {
+        cfg->savedetflag = 0x5;
+    }
+
+    if (cfg->mediabyte >= 100) {
+        cfg->savedetflag = UNSET_SAVE_NSCAT(cfg->savedetflag);
+        cfg->savedetflag = UNSET_SAVE_PPATH(cfg->savedetflag);
+        cfg->savedetflag = UNSET_SAVE_MOM(cfg->savedetflag);
+    }
+
+    if (cfg->issaveref > 1) {
+        if (cfg->issavedet == 0) {
+            MCX_ERROR(-11, "you must have at least two outputs if issaveref is greater than 1");
+        }
+
+        if (cfg->dim.x * cfg->dim.y * cfg->dim.z > cfg->maxdetphoton) {
+            MCX_FPRINTF(cfg->flog, "you must set cfg.maxdetphoton larger than prod(size(cfg.vol)) when cfg.issaveref is greater than 1, autocorrecting ...");
+            cfg->maxdetphoton = cfg->dim.x * cfg->dim.y * cfg->dim.z;
+        }
+
+        cfg->savedetflag = 0x5;
+    }
+
+    cfg->his.maxmedia = cfg->medianum - 1; /*skip medium 0*/
+    cfg->his.detnum = cfg->detnum;
+    cfg->his.srcnum = cfg->srcnum;
+    cfg->his.colcount = hostdetreclen; /*column count=maxmedia+2*/
+    cfg->his.savedetflag = cfg->savedetflag;
+    //mcx_replay_prep(cfg);
 }
 
 void mcx_createfluence(float** fluence, Config* cfg) {
@@ -3256,11 +3555,8 @@ void mcx_progressbar(float percent, Config* cfg) {
         }
 
         MCX_FPRINTF(stdout, "] %3d%%"S_RESET, (int)(percent * 100));
-#ifdef MCX_CONTAINER
-        mcx_matlab_flush();
-#else
-        fflush(stdout);
-#endif
+
+        mcx_flush(cfg);
     }
 }
 
