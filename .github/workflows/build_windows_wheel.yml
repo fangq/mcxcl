@@ -37,17 +37,12 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python_version }}
-      - name: Install OpenCL.dll and static libraries (Windows only)
+      - name: Install OpenCL and xxd (Windows only)
         if: ${{ runner.os == 'Windows' }}
         run: |
-          mkdir opencl
-          cd opencl
-          curl http://mcx.space/wiki/upload/opencl.zip --output opencl.zip
-          unzip opencl.zip
-          cp bin/OpenCL.dll 'c:\Windows\System32'
-          cd ..
-          rm -rf opencl
-          vcpkg.exe --triplet=x64-windows install opencl
+          vcpkg --triplet=x64-windows install opencl
+          cp 'c:\vcpkg\packages\opencl_x64-windows\bin\OpenCL.dll' 'c:\Windows\System32'
+          choco install -y xxd
       - name: Install Zlib Dev (Windows Only)
         if: ${{ runner.os == 'Windows' }}
         run: |
