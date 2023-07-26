@@ -15,6 +15,8 @@ cmake_minimum_required(VERSION 3.3)
 
 project(mcxcl)
 
+cmake_policy(SET CMP0074 NEW)  # to make -DOPENCL_ROOT= work with newer CMake versions as well
+
 find_package(ZLIB REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(OpenCL REQUIRED)
