@@ -290,6 +290,7 @@ void mcx_validateconfig(Config* cfg);
 #ifdef MCX_CONTAINER
 int  mcx_throw_exception(const int id, const char* msg, const char* filename, const int linenum);
 void mcx_matlab_flush(void);
+void mcx_python_flush(void);
 #endif
 
 #if defined(MCX_CONTAINER) && (defined(MATLAB_MEX_FILE) || defined(OCTAVE_API_VERSION_NUMBER))

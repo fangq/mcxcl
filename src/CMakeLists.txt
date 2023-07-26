@@ -71,7 +71,6 @@ add_library(mcxcl STATIC
     cjson/cJSON.h
     ubj/ubj.h
     ubj/ubjw.c
-    ${RESOURCE_OUTPUT}
     )
 
 # Add all project units
@@ -108,7 +107,6 @@ if (BUILD_PYTHON)
             mcx_tictoc.h
             cjson/cJSON.c
             cjson/cJSON.h
-            ${RESOURCE_OUTPUT}
             pmcxcl.cpp
             )
     target_compile_definitions(_pmcxcl PUBLIC MCX_CONTAINER PYBIND11_VERSION_MAJOR)
@@ -137,7 +135,6 @@ if(BUILD_MEX AND Matlab_FOUND)
             mcx_tictoc.h
             cjson/cJSON.c
             cjson/cJSON.h
-            ${RESOURCE_OUTPUT}
             )
 
     target_compile_definitions(mcxcl-matlab PUBLIC MCX_CONTAINER MATLAB_MEX_FILE)
