@@ -47,6 +47,7 @@ jobs:
           cp bin/OpenCL.dll 'c:\Windows\System32'
           cd ..
           rm -rf opencl
+          vcpkg.exe --triplet=x64-windows install opencl
       - name: Install Zlib Dev (Windows Only)
         if: ${{ runner.os == 'Windows' }}
         run: |
