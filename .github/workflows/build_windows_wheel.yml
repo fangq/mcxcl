@@ -45,6 +45,9 @@ jobs:
           choco install -y xxd
           echo 'C:\ProgramData\chocolatey\lib\xxd\tools\bin' >> $GITHUB_PATH
           cd src
+          xxd --version
+          bash --version
+          sed --version
           xxd -i mcx_core.cl | sed 's/\([0-9a-f]\)$$/\0, 0x00/' > mcx_core.clh
       - name: Install Zlib Dev (Windows Only)
         if: ${{ runner.os == 'Windows' }}
