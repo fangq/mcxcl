@@ -36,8 +36,6 @@ jobs:
           python-version: ${{ matrix.python_version }}
       - name: Select Supported XCode Version + Link OpenMP
         run: |
-          sudo xcode-select -s /Applications/Xcode_10.3.app/Contents/Developer/
-          echo "SDKROOT=/Applications/Xcode_10.3.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" >> $GITHUB_ENV
           brew link --force libomp
       - name: Build Wheels
         run: |
