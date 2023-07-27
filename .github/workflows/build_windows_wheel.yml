@@ -45,9 +45,6 @@ jobs:
           choco install -y xxd
           echo 'C:\ProgramData\chocolatey\lib\xxd\tools\bin' >> $GITHUB_PATH
           cd src
-          xxd --version
-          bash --version
-          sed --version
           xxd -i mcx_core.cl | sed 's/\([0-9a-f]\)$$/\0, 0x00/' > mcx_core.clh
       - name: Install Zlib Dev (Windows Only)
         if: ${{ runner.os == 'Windows' }}
@@ -61,6 +58,7 @@ jobs:
           echo "OPENCL_ROOT=C:\vcpkg\packages\opencl_x64-windows" >> $GITHUB_ENV
           echo "CMAKE_INCLUDE_PATH=$PWD\zlib\include" >> $GITHUB_ENV
           echo "CMAKE_LIBRARY_PATH=$PWD\zlib\lib" >> $GITHUB_ENV
+          echo "CMAKE_GENERATOR='MinGW Makefiles'" >> $GITHUB_ENV
           rm zlib.zip
       - name: Build Wheels
         run: |
