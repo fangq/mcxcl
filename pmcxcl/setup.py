@@ -119,7 +119,7 @@ class CMakeBuild(build_ext):
 setup(
     name="pmcxcl",
     packages=['pmcxcl'],
-    version="0.0.13",
+    version="0.0.1",
     requires=['numpy'],
     license='GPLv3+',
     author="Matin Raayai Ardakani, Qianqian Fang",
@@ -128,7 +128,7 @@ setup(
     long_description=readme,
     long_description_content_type="text/markdown",
     maintainer= 'Qianqian Fang',
-    url='https://github.com/fangq/mcx',
+    url='https://github.com/fangq/mcxcl',
     download_url='http://mcx.space',
     keywords=['Monte Carlo simulation', 'Biophotonics', 'Ray-tracing', 'Rendering', 'GPU', 'Modeling',
                 'Biomedical Optics', 'Tissue Optics', 'Simulator', 'Optics'],
@@ -139,7 +139,7 @@ setup(
     classifiers=[
       'Development Status :: 4 - Beta',
       'Intended Audience :: Science/Research',
-      'Environment :: GPU :: NVIDIA CUDA',
+      'Environment :: GPU :: OpenCL',
       'Topic :: Scientific/Engineering :: Physics',
       'License :: OSI Approved :: Apache Software License',
       'Programming Language :: Python :: 3.6',
