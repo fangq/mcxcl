@@ -139,7 +139,7 @@ setup(
     classifiers=[
       'Development Status :: 4 - Beta',
       'Intended Audience :: Science/Research',
-      'Environment :: GPU :: OpenCL',
+      'Environment :: GPU',
       'Topic :: Scientific/Engineering :: Physics',
       'License :: OSI Approved :: Apache Software License',
       'Programming Language :: Python :: 3.6',
