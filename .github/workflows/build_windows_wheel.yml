@@ -59,7 +59,7 @@ jobs:
           echo "OPENCL_ROOT=C:\vcpkg\packages\opencl_x64-windows" >> $GITHUB_ENV
           echo "CMAKE_INCLUDE_PATH=$PWD\zlib\include" >> $GITHUB_ENV
           echo "CMAKE_LIBRARY_PATH=$PWD\zlib\lib" >> $GITHUB_ENV
-          echo "CMAKE_ARGS=-GNinja" >> $GITHUB_ENV
+          echo "CMAKE_ARGS='-G\"MinGW Makefiles\"'" >> $GITHUB_ENV
           rm zlib.zip
       - name: Build Wheels
         run: |
