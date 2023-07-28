@@ -65,7 +65,7 @@ jobs:
         run: |
           cd pmcxcl/
           pip install wheel
-          python setup.py bdist_wheel --compiler=mingw32
+          python setup.py bdist_wheel
           ls dist/
           mv dist/ ../
           cd ../

@@ -81,8 +81,8 @@ class CMakeBuild(build_ext):
             # Specify the arch if using MSVC generator, but only if it doesn't
             # contain a backward-compatibility arch spec already in the
             # generator name.
-            if not single_config and not contains_arch:
-                cmake_args += ["-A", PLAT_TO_CMAKE[self.plat_name]]
+            #if not single_config and not contains_arch:
+            #    cmake_args += ["-A", PLAT_TO_CMAKE[self.plat_name]]
 
             # Multi-config generators have a different way to specify configs
             if not single_config:
