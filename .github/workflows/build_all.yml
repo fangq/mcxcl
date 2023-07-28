@@ -45,13 +45,8 @@ jobs:
       - name: Install OpenCL.dll and static libraries (Windows only)
         if: ${{ runner.os == 'Windows' }}
         run: |
-          mkdir opencl
-          cd opencl
-          curl http://mcx.space/wiki/upload/opencl.zip --output opencl.zip
-          unzip opencl.zip
-          cp bin/OpenCL.dll 'c:\Windows\System32'
-          cd ..
-          rm -rf opencl
+          vcpkg --triplet=x64-windows install opencl
+          cp 'c:\vcpkg\packages\opencl_x64-windows\bin\OpenCL.dll' 'c:\Windows\System32'
       - name: Set up MATLAB
         uses: matlab-actions/setup-matlab@v1
       - name: Update RCS keywords
