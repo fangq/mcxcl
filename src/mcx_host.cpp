@@ -18,7 +18,6 @@
 #include <time.h>
 #include <ctype.h>
 #include <math.h>
-#include <unistd.h>
 #include "mcx_host.h"
 #include "mcx_tictoc.h"
 #include "mcx_const.h"
