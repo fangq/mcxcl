@@ -93,8 +93,8 @@ target_link_libraries(
     OpenCL::OpenCL
     )
 
-add_dependencies(mcxcl clheader)
-add_dependencies(mcxcl-exe clheader)
+
+
 
 if (BUILD_PYTHON)
     add_library(_pmcxcl MODULE
@@ -118,7 +118,7 @@ if (BUILD_PYTHON)
     pybind11_extension(_pmcxcl)
     pybind11_strip(_pmcxcl)
 
-    add_dependencies(_pmcxcl clheader)
+    
     set_target_properties(_pmcxcl PROPERTIES CXX_VISIBILITY_PRESET "hidden")
 endif()
 
@@ -151,6 +151,6 @@ if(BUILD_MEX AND Matlab_FOUND)
 
     set_target_properties(mcxlabcl
             PROPERTIES OUTPUT_NAME ${CMAKE_SOURCE_DIR}/../mcxlabcl/mcxcl)
-    add_dependencies(mcxlabcl clheader)
+    
 
 endif()
