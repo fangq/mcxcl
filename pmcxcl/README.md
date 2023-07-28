@@ -1,6 +1,6 @@
 ![](http://mcx.space/img/mcx18_banner.png)
 
-# PMCX-CL - Python bindings for Monte Carlo eXtreme photon transport simulator
+# PMCX-CL - Python bindings for Monte Carlo eXtreme (OpenCL) photon transport simulator
 
 - Copyright: (C) Matin Raayai Ardakani (2022-2023) <raayaiardakani.m at northeastern.edu> 
 and Qianqian Fang (2019-2023) <q.fang at neu.edu>
@@ -9,29 +9,35 @@ and Qianqian Fang (2019-2023) <q.fang at neu.edu>
 - URL: https://pypi.org/project/pmcxcl/
 - Github: https://github.com/fangq/mcxcl
 
-[![Build Status](https://travis-ci.com/fangq/mcx.svg?branch=master)](https://travis-ci.com/fangq/mcxcl)
+![Linux Python Module](https://github.com/fangq/mcxcl/actions/workflows/build_linux_manywheel.yml/badge.svg)\
+![MacOS Python Module](https://github.com/fangq/mcxcl/actions/workflows/build_macos_wheel.yml/badge.svg)\
+![Windows Python Module](https://github.com/fangq/mcxcl/actions/workflows/build_windows_wheel.yml/badge.svg)\
+![Mex and Binaries](https://github.com/fangq/mcxcl/actions/workflows/build_all.yml/badge.svg)
 
-This module provides a Python binding for Monte Carlo eXtreme (MCX).
-For other binaries, including the standalone executable and the MATLAB bindings, see [our website](http://mcx.space).
+This module provides a Python binding for Monte Carlo eXtreme for OpenCL (MCXCL).
+For other binaries, including the standalone executable and the MATLAB bindings,
+see [our website](https://mcx.space).
 
 Monte Carlo eXtreme (MCX) is a fast photon transport simulation software for 3D 
 heterogeneous turbid media. By taking advantage of the massively parallel 
 threads and extremely low memory latency in a modern graphics processing unit 
 (GPU), MCX is capable of performing Monte Carlo (MC) photon simulations at a 
-blazing speed, typically hundreds to a thousand times faster than a fully 
-optimized CPU-based MC implementation.
+blazing speed, typically hundreds to a thousand times faster than a single-threaded
+CPU-based MC implementation.
 
 ## How to Install
 
-* PIP: ```pip install pmcxcl``` see https://pypi.org/project/pmcxcl/
+* PIP: ```pip install pmcxcl```
 
 ## Runtime Dependencies
-* **OpenCL runtime for CPU or GPU**: A OpenCL-capable GPU and driver is required to run MCX. An up-to-date driver is recommended.
-The binary wheel distributed over pip runs on drivers. For more details on driver versions and their CUDA support, see the 
-[CUDA Release Notes](https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html). 
-To download the latest driver for your system, see the 
-[NVIDIA Driver Download Page](https://www.nvidia.com/download/index.aspx).
-**You shouldn't need to have CUDA toolkit installed**. MCX is built with the static CUDA runtime library. 
+* **CPU or GPU**: An OpenCL-capable CPU or GPU; most modern CPUs or GPUs support OpenCL -
+an industrial-standard heterogeneous computing library and specification (https://www.khronos.org/opencl/)
+* **OpenCL CPU or GPU runtime/driver**: Both NVIDIA and AMD GPU graphics drivers should contain
+out-of-box OpenCL runtimes or drivers; for Intel GPUs, one should install additional OpenCL runtime
+support from https://github.com/intel/compute-runtime or install the `intel-opencl-icd` package
+if the OS provides (such as Ubuntu 22.04); one can also install an open-source OpenCL runtime
+[POCL](http://portablecl.org/), using package manager such as `sudo apt-get install pocl`. However,
+POCL's support is largely limited to CPUs. You **do not need** to install CUDA SDK to use pmcxcl.
 * **Python**: Python 3.6 and newer is required. **Python 2 is not supported**.
 * **numpy**: Used to pass/receive volumetric information to/from pmcxcl. To install, use either conda or pip 
 package managers: `pip install numpy` or `conda install numpy`
@@ -47,32 +53,19 @@ using apt-get: `sudo apt-get install python3-bjdata`. See https://pypi.org/proje
 ## Build Instructions
 
 ### Build Dependencies
-* **Operating System**: Windows and Linux are fully supported; For building MCX on macOS, OSX 10.13 (High Sierra) and 
-older are highly recommended since 10.13 was the last version of macOS with NVIDIA CUDA support, and matching the CUDA 
-compiler version with the C/C++ compiler shipped with Xcode is easier. Newer macOS versions can be used for building MCX, 
-but need to have System Integrity Protection disabled prior to installing the CUDA toolkit due to the NVIDIA installer copying
-its payload under the ```/Developer``` directory under root.
-* **NVIDIA CUDA Toolkit**: CUDA 7.5 or newer is required. On macOS, 10.2 is the last available CUDA version.
-For details on how to install CUDA, see the [CUDA Download Page](https://developer.nvidia.com/cuda-downloads). 
-The NVIDIA GPU driver of the target system must support the selected CUDA toolkit.
+* **Operating System**: pmcxcl and mcxcl can be compiled on most OSes, including Windows, Linux and MacOS.
+* **OpenCL library**: compiling mcxcl or pmcxcl requires to link with `libOpenCL.so` on Linux, or `libOpenCL.dylib`
+on MacOS or `OpenCL.dll` on Windows. These libraries should have been installed by either graphics driver or
+OpenCL runtimes.
 * **Python Interpreter**: Python 3.6 or above. The ```pip``` Python package manager and the ```wheel``` package (available
   via ```pip```) are not required but recommended.
-* **C/C++ Compiler**: CUDA Toolkit supports only the following compilers:
-  * GNU GCC for Linux-based distributions.
+* **C/C++ Compiler**: pmcxcl can be compiled using a wide variety of C compilers, including
+  * GNU GCC for Linux, MacOS (intalled via MacPorts or brew), and Windows (installed via msys2, mingw64 or cygwin64)
   * Microsoft Visual Studio C/C++ Compiler for Windows.
-  * Apple Clang for macOS, available via Xcode. The last Xcode version supported by CUDA 10.2 is 10.3. If using an OSX 
-  version higher than 10.15 it can be downloaded and installed from [Apple's Developer Website](https://developer.apple.com/download/) 
-  with an Apple ID. After installation, select the proper Xcode version from the commandline, and set the ```SDKROOT```
-  environment variable:
-    ```zsh
-    sudo xcode-select -s /Applications/Xcode_10.3.app/Contents/Developer/
-    export SDKROOT=/Applications/Xcode_10.3.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk
-    ```
-  
+  * Apple Clang for macOS, available via Xcode.
+
   Refer to each OS's online documentations for more in-depth information on how to install these compilers.
-  Note that the version of the C/C++ compiler used must be supported by the CUDA toolkit version. If not, compilation
-  will fail with an error notifying you of this problem. See the [CUDA Installation Guides](https://developer.nvidia.com/cuda-toolkit-archive)
-  for more details.
+  MacOS provides built-in OpenCL library support.
 * **OpenMP**: The installed C/C++ Compiler should have support for [OpenMP](https://www.openmp.org/). 
   GCC and Microsoft Visual Studio compiler support OpenMP out of the box. Apple Clang, however, requires manual 
   installation of OpenMP libraries for Apple Clang. The easiest way to do this is via the [Brew](https://brew.sh/) package
@@ -81,11 +74,8 @@ The NVIDIA GPU driver of the target system must support the selected CUDA toolki
     brew install libomp
     brew link --force libomp
   ```
-
 * **CMake**: CMake version 3.15 and later is required. Refer to the [CMake website](https://cmake.org/download/) for more information on how to download.
   CMake is also widely available on package managers across all operating systems.
-  Additionally, on Windows, make sure **Visual Studio's C++ CMake tools for Windows** is also installed by selecting its option
-  during installation.
 * **Zlib Compression Development Headers**: On Linux, this is generally available via the built-in package manager. For 
   example, on Debian-based distributions like Ubuntu it is available via ```apt``` under the name ```zlib1g-dev```. On
   macOS, brew provides it under the name ```zlib```. No packaged versions of Zlib are available for windows, therefore it must be
@@ -98,7 +88,7 @@ The NVIDIA GPU driver of the target system must support the selected CUDA toolki
   ```
 
 ### Build Steps
-1. Ensure that ```cmake```, ```nvcc``` (NVIDIA CUDA Compiler) and the C/C++ compiler are all located over your ```PATH```.
+1. Ensure that ```cmake```, ```python``` and the C/C++ compiler are all located over your ```PATH```.
 This can be queried via ```echo $env:PATH``` on Windows or ```echo $PATH``` on Linux. If not, locate them and add their folder to the ```PATH```.
 
 2. Clone the repository and switch to the ```pmcxcl/``` folder:
@@ -106,9 +96,8 @@ This can be queried via ```echo $env:PATH``` on Windows or ```echo $PATH``` on L
         git clone --recursive https://github.com/fangq/mcx.git
         cd mcx/pmcxcl
     ```
-
-3. Either run ```python setup.py install``` or ```pip install .``` to directly install, or run ```pip wheel .``` to only
-build the Python wheel without installing it.
+3. Run ```pip wheel .``` inside the `pmcxcl` folder to locally build the Python wheel without installing it
+4. One can also run ```python setup.py install``` or ```pip install .``` to build and directly install the compiled package
 
 
 ## How to use
@@ -121,7 +110,7 @@ A simulation can be defined conveniently in two approaches - a one-liner and a t
 
 * For the one-liner, one simply pass on each MCX simulation setting as positional
 argument. The supported setting names are compatible to nearly all the input fields
-for the MATLAB version of MCX - [MCXLAB](https://github.com/fangq/mcx/blob/master/mcxlab/mcxlab.m))
+for the MATLAB version of MCX/MCXCL - [MCXLAB](https://github.com/fangq/mcx/blob/master/mcxlab/mcxlab.m))
 
 ```python3
 import pmcxcl

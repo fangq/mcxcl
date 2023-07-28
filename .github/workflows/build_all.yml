@@ -1,4 +1,4 @@
-name: build_mcxcl
+name: Build Octave/MATLAB mex and mcxcl
 on:
   push:
     branches:
