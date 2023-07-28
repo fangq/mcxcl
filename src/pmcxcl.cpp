@@ -444,6 +444,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
     GET_SCALAR_FIELD(user_cfg, mcx_config, isrefint, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, isnormalized, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, isref3, py::int_);
+    GET_SCALAR_FIELD(user_cfg, mcx_config, isgpuinfo, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, issrcfrom0, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, autopilot, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, minenergy, py::float_);
@@ -458,8 +459,11 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
     GET_SCALAR_FIELD(user_cfg, mcx_config, faststep, py::bool_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, maxvoidstep, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, maxjumpdebug, py::int_);
+    GET_SCALAR_FIELD(user_cfg, mcx_config, internalsrc, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, gscatter, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, srcnum, py::int_);
+    GET_SCALAR_FIELD(user_cfg, mcx_config, optlevel, py::int_);
+    GET_SCALAR_FIELD(user_cfg, mcx_config, isatomic, py::int_);
     //GET_SCALAR_FIELD(user_cfg, mcx_config, omega, py::float_);
     //GET_SCALAR_FIELD(user_cfg, mcx_config, lambda, py::float_);
     GET_VEC3_FIELD(user_cfg, mcx_config, srcpos, float);
