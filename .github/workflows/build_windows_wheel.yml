@@ -71,7 +71,7 @@ jobs:
       - name: Check If the Build Version Exists on PyPI
         id: perform_pypi_upload_check
         run: |
-          bash $env:GITHUB_WORKSPACE/.github/check-pypi-upload.sh
+          ./.github/check-pypi-upload.sh
       - name: Prepare Wheels for Upload
         uses: actions/upload-artifact@v3
         with:
