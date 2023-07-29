@@ -37,6 +37,16 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python_version }}
+      - uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-zlib
+            mingw-w64-x86_64-opencl-icd
+            mingw-w64-x86_64-opencl-headers
+      - name: Put MSYS2_MinGW64 on PATH
+        run: echo "D:/a/_temp/msys64/mingw64/bin" >> $GITHUB_PATH
       - name: Install OpenCL and xxd (Windows only)
         if: ${{ runner.os == 'Windows' }}
         run: |
@@ -59,8 +69,7 @@ jobs:
           echo "OPENCL_ROOT=C:\vcpkg\packages\opencl_x64-windows" >> $GITHUB_ENV
           echo "CMAKE_INCLUDE_PATH=$PWD\zlib\include" >> $GITHUB_ENV
           echo "CMAKE_LIBRARY_PATH=$PWD\zlib\lib" >> $GITHUB_ENV
-          echo "CMAKE_C_COMPILER=gcc" >> $GITHUB_ENV
-          echo "CMAKE_CXX_COMPILER=g++" >> $GITHUB_ENV
+          echo "CMAKE_ARGS=-GNinja" >> $GITHUB_ENV
           rm zlib.zip
       - name: Build Wheels
         run: |
