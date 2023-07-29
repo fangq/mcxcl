@@ -5,7 +5,10 @@
 - **Version:** 1.0 (Fractal)
 - **Website:** [ http://mcx.space]( http://mcx.space)
 
-[![Build Status](https://travis-ci.com/fangq/mcxcl.svg?branch=master)](https://travis-ci.com/fangq/mcxcl)
+![Linux Python Module](https://github.com/fangq/mcxcl/actions/workflows/build_linux_manywheel.yml/badge.svg)\
+![MacOS Python Module](https://github.com/fangq/mcxcl/actions/workflows/build_macos_wheel.yml/badge.svg)\
+![Windows Python Module](https://github.com/fangq/mcxcl/actions/workflows/build_windows_wheel.yml/badge.svg)\
+![Mex and Binaries](https://github.com/fangq/mcxcl/actions/workflows/build_all.yml/badge.svg)
 
 
 Table of Contents:
@@ -39,45 +42,146 @@ Table of Contents:
   * [Reference](#reference)
 
 
+What's New
+-------------
+
+The last official MCX-CL release was v2020 nearly 3 years ago. Many new
+features have been implemented in MCX/MCX-CL since then. Some of the key
+updates made to the v2023.7 version of MCX-CL are listed below
+
+* pmcxcl (https://pypi.org/project/pmcxcl/) - a Python interface to mcxcl
+* New continuous integration (CI) and testing system based on Github Action
+* CMake based building environment
+* Use NVIDIA PTX-based float atomicadd to gain >30% speedup
+* Efficient DDA (Digital Differential Analyzer) ray-marching algorithm, gain 40% speedup
+* Fixed loss of accuracy near the source (fangq/mcx#41)
+* Trajectory-only output with debuglevel=T
+
+The detailed updates can be found in the below change log
+
+* 2023-07-29 [4916939] automatically build and upload Python module via github action
+* 2023-07-28 [09c61b7] bump pmcxcl version, fix windows pypi version check
+* 2023-07-25 [4b5606e] port python module action scripts from mcx
+* 2023-07-25 [f92425e] add initial draft of pmcxcl for Python, add cmake
+* 2023-07-25 [3c2c735] update missing output structs
+* 2023-07-23 [87f3c0e] allow early termination if -d 3 or cfg.issavedet=3 is set
+* 2023-07-23 [c8ccc04] support outputtype=length/l for saving total path lengths per voxel
+* 2023-07-23 [57c3b9b] fix incorrect comment regarding gaussian src, fangq/mcx#165
+* 2023-07-23 [7d5bd16] update mcxplotphoton to mcx
+* 2023-07-23 [1cafd3e] allow to get fluence in non-absorbing medium, fangq/mcx#174
+* 2023-07-23 [8dbc397] update neurojson repo paths
+* 2023-07-23 [0d780bd] support trajectory only output with debuglevel=T
+* 2023-07-23 [e4ade36] fix replay test result matching
+* 2023-07-03 [b57b157] fix macos error
+* 2023-07-02 [99a4486] port zmat ci changes to mcxcl
+* 2023-06-03 [980cc9f] enable doxygen documentation via make doc
+* 2023-05-17 [a25f302] allow device query to handle open-source AMD ocl runtime, fix #44
+* 2023-03-12 [c9697a9] update action from mmc to mcxcl
+* 2023-03-12 [11938a3] copy mmc's merged action script
+* 2023-03-07 [ee7e940] add github action
+* 2022-10-08 [ae7f6e3] update version to 1.0
+* 2022-10-03 [695d2f3] run test on all platforms
+* 2022-10-03 [85beae7] revert debugging information, fix cyclic bc for mac
+* 2022-10-02 [53ec9e7] attempt to fix cyclic bc
+* 2022-10-02 [263abb2] test cyclic bc
+* 2022-10-02 [6c588fa] debug cyclic bc
+* 2022-10-02 [fc481ba] debug cyclic test on the mac
+* 2022-10-02 [8bdc33e] disable zmat and file IO functions in mex/oct targets
+* 2022-10-02 [c6e280a] fix CI error after using voxel index dda
+* 2022-10-01 [24bf948] allow disabling PTX based f32 atomicadd
+* 2022-10-01 [2277f7f] using nvidia native atomicadd for float add 30% speedup
+* 2022-09-29 [f0d0bad] update skipvoid
+* 2022-09-29 [b3d94d2] update to match mcx flipdir use
+* 2022-09-23 [1931489] adopt voxel-index based dda, like fangq/mcx b873f90c6
+* 2022-09-21 [d9e5eaa] add jammy to ci
+* 2022-09-21 [3e71eac] making double-buffer finally work to solve fangq/mcx#41, thanks to @ShijieYan
+* 2022-09-21 [2216686] sync mcxcl's json2mcx with the latest version from mcx
+* 2022-05-21 [39913fc] complete reformat of source code using astyle with 'make pretty'
+* 2022-05-21 [f7d69d5] sync mcx2json from mcx repo
+* 2022-01-27 [2559135] sync mcxdetphoton.m with mcx, move location
+* 2021-10-29 [867314a] Update README.md
+* 2021-06-23 [818f3a1] set maximum characters to read for fscanf, fix #41
+* 2021-06-23 [38d56a6] handle empty detector array in json2mcx
+* 2021-05-26 [4c18305] fix a few minor memory leaks based on valgrind output, still leaks on nvidia GPUs
+* 2021-05-15 [bbee39e] save volume in jdata format by default
+* 2021-02-26 [8eba2cd] add MATLAB_MEX_FILE in the makefile
+* 2021-02-24 [8f793a0] use memcpy to avoid strncpy warning from gcc 10
+* 2021-02-24 [89b46a9] update windows compilation commands
+* 2021-02-24 [49c6217] allow compiling GNU Octave mex on windows
+* 2021-02-07 [e9d2ce7] following Debian script suffix rule
+* 2020-09-06 [a39f271] update numeral version number
+* 2020-09-06 [6ea10b2] add back wiki versions of the README file for easy website update
+* 2020-09-04 [de59205] patch mcxcl for fangq/mcx#103 and fangq/mcx#104
+* 2020-09-01 [9b5431e] sync with mcx, add cubesph60b to match example/benchmark2
+* 2020-08-31 [7e7eb06] flush output for mcxlabcl
+* 2020-08-31 [6079b17] fix pattern3d demo script bug
+* 2020-08-31 [7b36ee8] fix photon sharing mcxlab crash
+* 2020-08-30 [f498e29] fix typo
+* 2020-08-29 [b001786] update mcxlabcl, update ChangeLog
+
 
 Introduction
 -------------
 
-Monte Carlo eXtreme (MCX) is a fast photon transport simulation 
-software for 3D heterogeneous turbid media. By taking advantage of 
+Monte Carlo eXtreme (MCX) is a fast physically-accurate photon simulation 
+software for 3D heterogeneous complex media. By taking advantage of 
 the massively parallel threads and extremely low memory latency in a 
 modern graphics processing unit (GPU), this program is able to perform Monte 
 Carlo (MC) simulations at a blazing speed, typically hundreds to
-a thousand times faster than a fully optimized CPU-based MC 
-implementation.
+a thousand times faster than a single-threaded CPU-based MC implementation.
 
 MCX-CL is the OpenCL implementation of the MCX algorithm. Unlike MCX
-which only be executed on NVIDIA GPUs, MCX-CL is written in OpenCL,
+which can only be executed on NVIDIA GPUs, MCX-CL is written in OpenCL,
 the Open Computing Language, and can be executed on most modern CPUs
 and GPUs available today, including Intel and AMD CPUs and GPUs. MCX-CL
-is highly portable, highly scalable and is feature rich like MCX.
+is highly portable, highly scalable and is feature-rich just like MCX.
+
+Due to the nature of the underlying MC algorithms, MCX and MCX-CL are
+ray-tracing/ray-casting software under-the-hood. Compared to commonly
+seen ray-tracing libraries used in computer graphics or gaming
+engines, MCX-CL and MCX have many unique characteristics. The most
+important difference is that MCX/MCX-CL are rigorously based on physical
+laws. They are numerical solvers to the underlying radiative transfer equation
+(RTE) and their solutions have been validated across many publications
+using optical instruments and experimental measurements. In comparison,
+most graphics-oriented ray-tracers have to make many approximations in
+order to achieve fast rendering, enable to provide quantitatively accurate
+light simulation results. Because of this, MCX/MCX-CL have been extensively
+used by biophotonics research communities to obtain reference solutions and
+guide the development of novel medical imaging systems or clinical
+applications. Additionally, MCX/MCX-CL are volumetric ray-tracers; they
+traverse photon-rays throughout complex 3-D domains and computes physically
+meaningful quantities such as spatially resolved fluence, flux, diffuse
+reflectance/transmittance, energy deposition, partial pathlengths,
+among many others. In contrast, most graphics ray-tracing engines
+only trace the RGB color of a ray and render it on a flat 2-D screen.
+In other words, MCX/MCX-CL gives physically accurate 3-D light distributions
+while graphics ray-tracers focus on 2-D rendering of a scene at the camera.
+Nonetheless, they share many similarities, such as ray-marching computation,
+GPU acceleration, scattering/absorption handling etc.
 
 The details of MCX-CL can be found in the below paper
 
 > [Yu2018] Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang, 
 "Scalable and massively parallel Monte Carlo photon transport simulations 
-for heterogeneous computing platforms," J. Biomed. Optics, 23(1), 010504 (2018) .
+for heterogeneous computing platforms," J. Biomed. Optics, 23(1), 010504 (2018).
 
 A short summary of the main features includes:
 
 * 3D heterogeneous media represented by voxelated array
 * support over a dozen source forms, including wide-field and pattern illuminations
-* boundary reflection support
+* support a number of boundary conditions
 * time-resolved photon transport simulations
-* saving photon partial path lengths and trajectories
+* saving photon partial path lengths, trajectories and other per-photon data
 * optimized random number generators
 * build-in flux/fluence normalization to output Green's functions
-* user adjustable voxel resolution
+* user-adjustable voxel resolution
 * improved accuracy with atomic operations
 * cross-platform graphical user interface
-* native Matlab/Octave support for high usability
+* native Matlab/Octave/Python interfaces for high usability
 * flexible JSON interface for future extensions
 * multi-GPU support
+* advanced features: photon-replay, photon-sharing, and more
 
 MCX-CL can be used on Windows, Linux and Mac OS. Multiple user 
 interfaces are provided, including
@@ -89,9 +193,11 @@ interfaces are provided, including
  settings, MC settings and domain design, in the cross-platform interface
 - **Calling inside MATLAB/Octave:** mcxlabcl is a mex function, one can call it 
  inside MATLAB or GNU Octave to get all functionalities as the command line version.
-  
-If a user is familiar with MATLAB/Octave, it is highly recommended to 
-use MCXCL in MATLAB/Octave to ease data visualization. If one prefers a 
+- **Calling inside Python:** `pmcxcl` is a Python module wrapping the entire mcxcl
+ simulation in an easy-to-use interface. One can install pmcxcl via `pip install pmcxcl`
+
+If a user is familiar with MATLAB/Octave/Python, it is highly recommended to 
+use MCXCL in MATLAB/Octave/Python to ease data visualization. If one prefers a 
 GUI, please use MCXStudio to start.  For users who are familiar with MCX/MCXCL 
 and need it for regular data processing, using the command line mode is 
 recommended.
@@ -103,10 +209,8 @@ Requirement and Installation
 With the up-to-date driver installed for your computers, MCXCL can run on
 almost all computers. The requirements for using this software include
 
-* a CPU, or
-* a CUDA capable NVIDIA graphics card, or
-* an AMD graphics card, and
-* pre-installed graphics driver - typically includes the OpenCL library (`libOpenCL.*` or `OpenCL.dll`)
+* a modern CPU or GPU (Intel, NVIDIA, AMD, among others)
+* pre-installed graphics driver - typically includes the OpenCL runtime (`libOpenCL.*` or `OpenCL.dll`)
 
 For speed differences between different CPUs/GPUs made by different vendors, please
 see your above paper [1] and our websites
@@ -114,7 +218,7 @@ see your above paper [1] and our websites
 - http://mcx.space/computebench/
 - http://mcx.space/mcxcl
 
-Generally speaking, AMD and NVIDIA high-end dedicated GPU performs the best, about 20-60x 
+Generally speaking, AMD and NVIDIA high-end dedicated GPUs perform the best, about 20-60x 
 faster than a multi-core CPU; Intel's integrated GPU is about 3-4 times faster than
 a multi-core CPU.
 
@@ -167,7 +271,7 @@ To verify if you have installed the OpenCL or CUDA support, you may
 * if you have a Linux laptop, open a terminal, and type `locate libOpenCL.so`, 
 ** **Expected result**: you should see one or multiple libOpenCL files
 
-If the `OpenCL.dll` file is not found on your system, please 
+If the `OpenCL.dll` file is not found on your Windows machine, please 
 read the below sections. Otherwise, please go to Step 2: Install MATLAB.
 
 #### Computers without discrete GPUs
@@ -179,7 +283,7 @@ graphics works smoothly, please skip this step.
 
 If you want to double check, for Windows machine, you can download the 
 "Intel Driver&Support Assistant" to check if you have installed the 
-graphics drivers from https://downloadcenter.intel.com/download/24345/Intel-Driver-Support-Assistant
+graphics drivers from https://www.intel.com/content/www/us/en/developer/articles/tool/opencl-drivers.html
 
 For a Mac, you need to use your App store to update the driver, see the 
 below link for details https://www.intel.com/content/www/us/en/support/articles/000022440/graphics-drivers.html
@@ -211,12 +315,12 @@ Runtime for CPU only if you haven't installed it already from
 https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
 
 **Note:** If you have an NVIDIA GPU, there is no need to install CUDA in 
-order for you to run MCX/MCXLAB.
+order for you to run MCX-CL/MCXLABCL.
 
 
 ### Step 2. Install MATLAB or GNU Octave
 
-One must install either a MATLAB or GNU Octave if one needs to use mcxlabcl.
+One must install either a MATLAB or GNU Octave if one needs to use `mcxlabcl`.
 If you use a Mac or Linux laptop, you need to create a link (if this link does
 not exist) so that your system can find MATLAB. To do this you start a terminal, 
 and type
@@ -251,11 +355,8 @@ To change which release you are using we have to enter the directory we just clo
 ```
 cd mcxcl
 ```
-From here we can change releases if desired:
-```
-git checkout v2020
-```
-After the version of mcxcl has been checkedout we can start compiling from source. Now enter the `src` folder:
+
+We can start compiling from source. Now enter the `src` folder:
 ```
 cd src
 ```
@@ -289,6 +390,23 @@ sudo apt install -y liboctave-dev
 Run: `make oct`
 
 This will output the octave/mex file to `mcxcl/mcxlabcl`
+
+##### Python
+
+Make sure you have the following dependences - assuming you are running Ubuntu:
+
+```
+sudo apt install -y python3-dev python3-pip python3-wheel cmake
+```
+
+Run: `cd pmcxcl && python3 -m pip wheel .`
+
+This will output a binary wheel file `pmcxcl-X.Y.Z-cpXX-*.whl` in the `pmcxcl` folder.
+One can install it using
+
+```
+python3 -m pip install pmcxcl*.whl
+```
 
 ##### Misc
 
@@ -485,7 +603,7 @@ total simulated energy: 10000000.00	absorbed: 27.22654%
 If this simulation is completed successfully, you should be able to see the 
 "Simulation speed" and total simulated energy reported at the end. Please 
 verify your "absorbed" percentage value printed at the end (in bold above), 
-and make sure it is **~27%**. We found that some Intel OpenCL library 
+and make sure it is **~27%**. We found that some Intel OpenCL runtime
 versions produced incorrect results. 
 
 If your laptop shows an error for the Intel GPU, please choose another 

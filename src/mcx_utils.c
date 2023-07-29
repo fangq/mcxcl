@@ -4171,7 +4171,7 @@ int mcx_lookupindex(char* key, const char* index) {
 }
 
 void mcx_version(Config* cfg) {
-    const char ver[] = "$Rev::4fdc45$v2022.10";
+    const char ver[] = "$Rev::4fdc45$v2023.7";
     int v = 0;
     sscanf(ver, "$Rev::%d", &v);
     MCX_FPRINTF(cfg->flog, "MCXCL Revision %d\n", v);
@@ -4197,7 +4197,7 @@ void mcx_printheader(Config* cfg) {
     MCX_FPRINTF(cfg->flog, S_BLUE"\
 ==============================================================================\n\
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =\n\
-=          Copyright (c) 2010-2022 Qianqian Fang <q.fang at neu.edu>         =\n\
+=          Copyright (c) 2010-2023 Qianqian Fang <q.fang at neu.edu>         =\n\
 =                             http://mcx.space/                              =\n\
 =                                                                            =\n\
 = Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =\n\
@@ -4205,7 +4205,7 @@ void mcx_printheader(Config* cfg) {
 ==============================================================================\n\
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =\n\
 ==============================================================================\n\
-$Rev::4fdc45$v2022.10$Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
+$Rev::4fdc45$v2023.7 $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
 ==============================================================================\n"S_RESET);
 }
 

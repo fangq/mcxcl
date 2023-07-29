@@ -2,20 +2,44 @@ Change Log
 
 == MCX 1.0.0 (Fractal), FangQ <q.fang at neu.edu> ==
 
- 2022-10-03 [5b97221] revert to old test condition
+ 2023-07-29 [4916939] automatically build and upload Python module via github action
+ 2023-07-28 [09c61b7] bump pmcxcl version, fix windows pypi version check
+ 2023-07-25 [4b5606e] port python module action scripts from mcx
+ 2023-07-25*[f92425e] add initial draft of pmcxcl for Python, add cmake
+ 2023-07-25 [3c2c735] update missing output structs
+ 2023-07-23 [87f3c0e] allow early termination if -d 3 or cfg.issavedet=3 is set
+ 2023-07-23 [c8ccc04] support outputtype=length/l for saving total path lengths per voxel
+ 2023-07-23 [57c3b9b] fix incorrect comment regarding gaussian src, fangq/mcx#165
+ 2023-07-23 [7d5bd16] update mcxplotphoton to mcx
+ 2023-07-23 [1cafd3e] allow to get fluence in non-absorbing medium, fangq/mcx#174
+ 2023-07-23 [8dbc397] update neurojson repo paths
+ 2023-07-23 [0d780bd] support trajectory only output with debuglevel=T
+ 2023-07-23 [e4ade36] fix replay test result matching
+ 2023-07-03 [b57b157] fix macos error
+ 2023-07-02 [99a4486] port zmat ci changes to mcxcl
+ 2023-06-03*[980cc9f] enable doxygen documentation via make doc
+ 2023-05-17 [a25f302] allow device query to handle open-source AMD ocl runtime, fix #44
+ 2023-03-12*[c9697a9] update action from mmc to mcxcl
+ 2023-03-12 [11938a3] copy mmc's merged action script
+ 2023-03-07 [ee7e940] add github action
+ 2022-10-08 [ae7f6e3] update version to 1.0
  2022-10-03 [695d2f3] run test on all platforms
  2022-10-03 [85beae7] revert debugging information, fix cyclic bc for mac
+ 2022-10-02 [53ec9e7] attempt to fix cyclic bc
+ 2022-10-02 [263abb2] test cyclic bc
+ 2022-10-02 [6c588fa] debug cyclic bc
+ 2022-10-02 [fc481ba] debug cyclic test on the mac
  2022-10-02 [8bdc33e] disable zmat and file IO functions in mex/oct targets
  2022-10-02 [c6e280a] fix CI error after using voxel index dda
  2022-10-01 [24bf948] allow disabling PTX based f32 atomicadd
- 2022-10-01 [2277f7f] using nvidia native atomicadd for float add 30% speedup
+ 2022-10-01*[2277f7f] using nvidia native atomicadd for float add 30% speedup
  2022-09-29 [f0d0bad] update skipvoid
  2022-09-29 [b3d94d2] update to match mcx flipdir use
- 2022-09-23 [1931489] adopt voxel-index based dda, like fangq/mcx b873f90c6
+ 2022-09-23*[1931489] adopt voxel-index based dda, like fangq/mcx b873f90c6
  2022-09-21 [d9e5eaa] add jammy to ci
- 2022-09-21 [3e71eac] making double-buffer finally work to solve fangq/mcx#41, thanks to @ShijieYan
+ 2022-09-21*[3e71eac] making double-buffer finally work to solve fangq/mcx#41, thanks to @ShijieYan
  2022-09-21 [2216686] sync mcxcl's json2mcx with the latest version from mcx
- 2022-05-21 [39913fc] complete reformat of source code using astyle with 'make pretty'
+ 2022-05-21*[39913fc] complete reformat of source code using astyle with 'make pretty'
  2022-05-21 [f7d69d5] sync mcx2json from mcx repo
  2022-01-27 [2559135] sync mcxdetphoton.m with mcx, move location
  2021-10-29 [867314a] Update README.md

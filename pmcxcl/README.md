@@ -36,7 +36,7 @@ an industrial-standard heterogeneous computing library and specification (https:
 out-of-box OpenCL runtimes or drivers; for Intel GPUs, one should install additional OpenCL runtime
 support from https://github.com/intel/compute-runtime or install the `intel-opencl-icd` package
 if the OS provides (such as Ubuntu 22.04); one can also install an open-source OpenCL runtime
-[POCL](http://portablecl.org/), using package manager such as `sudo apt-get install pocl`. However,
+[POCL](http://portablecl.org/), using package manager such as `sudo apt-get install pocl-opencl-icd`. However,
 POCL's support is largely limited to CPUs. You **do not need** to install CUDA SDK to use pmcxcl.
 * **Python**: Python 3.6 and newer is required. **Python 2 is not supported**.
 * **numpy**: Used to pass/receive volumetric information to/from pmcxcl. To install, use either conda or pip 

@@ -2,7 +2,7 @@
 **  \mainpage Monte Carlo eXtreme - GPU accelerated Monte Carlo Photon Migration
 **
 **  \author Matin Raayai Ardakani <raayaiardakani.m at northeastern.edu>
-**  \copyright Matin Raayai Ardakani, 2022
+**  \copyright Matin Raayai Ardakani, 2022-2023
 **
 **  \section sref Reference:
 **  \li \c (\b Fang2009) Qianqian Fang and David A. Boas,
@@ -1151,7 +1151,7 @@ int mcx_throw_exception(const int id, const char* msg, const char* filename, con
 
 void print_mcx_usage() {
     std::cout
-            << "PMCX v2022.10\nUsage:\n    output = pmcxcl.run(cfg);\n\nRun 'help(pmcxcl.run)' for more details.\n";
+            << "PMCX v2023.7\nUsage:\n    output = pmcxcl.run(cfg);\n\nRun 'help(pmcxcl.run)' for more details.\n";
 }
 
 /**
