@@ -37,6 +37,6 @@ except ImportError:  # pragma: no cover
 # from .files import loadmc2, loadmch, load, save
 from .bench import bench
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 
 __all__ = ("gpuinfo", "run", "bench")
