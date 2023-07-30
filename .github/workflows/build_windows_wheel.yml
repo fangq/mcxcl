@@ -42,32 +42,20 @@ jobs:
           update: true
           install: >-
             mingw-w64-x86_64-ninja
-            mingw-w64-x86_64-zlib
             mingw-w64-x86_64-opencl-icd
             mingw-w64-x86_64-opencl-headers
       - name: Put MSYS2_MinGW64 on PATH
         run: echo "D:/a/_temp/msys64/mingw64/bin" >> $GITHUB_PATH
-      - name: Install OpenCL and xxd (Windows only)
-        if: ${{ runner.os == 'Windows' }}
+      - name: Install OpenCL and xxd
         run: |
           vcpkg --triplet=x64-windows install opencl
           cp 'c:\vcpkg\packages\opencl_x64-windows\bin\OpenCL.dll' 'c:\Windows\System32'
           choco install -y xxd
           echo 'C:\ProgramData\chocolatey\lib\xxd\tools\bin' >> $GITHUB_PATH
-      - name: Install Zlib Dev (Windows Only)
-        if: ${{ runner.os == 'Windows' }}
+      - name: Set up cmake variables
         run: |
-          curl.exe --retry 3 -kL https://www.bruot.org/hp/media/files/libraries/zlib_1_2_11_msvc2017_64.zip --output zlib.zip
-          unzip zlib.zip -d zlib
-          mv zlib/msvc2017_64/* zlib/
-          mv zlib/include/zlib/* zlib/include
-          mv zlib/lib/zlib/* zlib/lib
-          perl -pi -e 's/#if 1\s+.*HAVE_UNISTD_H.*/#if 0/g' zlib/include/zconf.h
           echo "OPENCL_ROOT=C:\vcpkg\packages\opencl_x64-windows" >> $GITHUB_ENV
-          echo "CMAKE_INCLUDE_PATH=$PWD\zlib\include" >> $GITHUB_ENV
-          echo "CMAKE_LIBRARY_PATH=$PWD\zlib\lib" >> $GITHUB_ENV
           echo "CMAKE_ARGS=-GNinja" >> $GITHUB_ENV
-          rm zlib.zip
       - name: Build Wheels
         run: |
           cd pmcxcl/

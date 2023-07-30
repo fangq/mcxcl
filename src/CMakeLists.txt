@@ -17,7 +17,6 @@ project(mcxcl)
 
 cmake_policy(SET CMP0074 NEW)  # to make -DOPENCL_ROOT= work with newer CMake versions as well
 
-find_package(ZLIB REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(OpenCL REQUIRED)
 
@@ -100,7 +99,6 @@ target_link_libraries(
     mcxcl-exe
     mcxcl OpenMP::OpenMP_CXX
     zmat
-    ZLIB::ZLIB
     OpenCL::OpenCL
     )
 

@@ -76,16 +76,6 @@ OpenCL runtimes.
   ```
 * **CMake**: CMake version 3.15 and later is required. Refer to the [CMake website](https://cmake.org/download/) for more information on how to download.
   CMake is also widely available on package managers across all operating systems.
-* **Zlib Compression Development Headers**: On Linux, this is generally available via the built-in package manager. For 
-  example, on Debian-based distributions like Ubuntu it is available via ```apt``` under the name ```zlib1g-dev```. On
-  macOS, brew provides it under the name ```zlib```. No packaged versions of Zlib are available for windows, therefore it must be
-  downloaded manually and added to the CMake environment variables in your working Powershell session:
-  ```powershell
-    curl.exe --retry 3 -kL https://cytranet.dl.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-lib.zip --output zlib.zip
-    Expand-Archive .\zlib.zip -DestinationPath zlib\
-    $env:CMAKE_INCLUDE_PATH=$PWD\zlib\include
-    $env:CMAKE_LIBRARY_PATH=$PWD\zlib\lib
-  ```
 
 ### Build Steps
 1. Ensure that ```cmake```, ```python``` and the C/C++ compiler are all located over your ```PATH```.

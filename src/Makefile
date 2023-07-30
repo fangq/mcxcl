@@ -26,7 +26,7 @@ OUTPUTFLAG:=-o
 XXD=xxd
 
 ZMATLIB    :=lib/libzmat.a
-USERLINKOPT?=$(ZMATLIB) -lz
+USERLINKOPT?=$(ZMATLIB)
 DOXYCFG=mcx_doxygen.cfg
 
 # setup for amd
@@ -142,7 +142,7 @@ ifeq ($(MAKECMDGOALS),oct)
 endif
 
 ifeq ($(MAKECMDGOALS),static)
-  LINKOPT:=-static-libgcc -static-libstdc++ $(LINKOPT) -Wl,-Bstatic -lm -lz
+  LINKOPT:=-static-libgcc -static-libstdc++ $(LINKOPT) -Wl,-Bstatic -lm
 endif
 
 all static: CUCCOPT+=

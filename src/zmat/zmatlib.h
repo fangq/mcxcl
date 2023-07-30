@@ -2,7 +2,7 @@
 **  \mainpage ZMat - A portable C-library and MATLAB/Octave toolbox for inline data compression
 **
 **  \author Qianqian Fang <q.fang at neu.edu>
-**  \copyright Qianqian Fang, 2019-2020
+**  \copyright Qianqian Fang, 2019,2020,2022
 **
 **  ZMat provides an easy-to-use interface for stream compression and decompression.
 **
@@ -16,6 +16,9 @@
 **     - lzma and lzip : high compression ratio LZMA based algorithms for .lzma and .lzip files
 **     - lz4 and lz4hc : real-time compression based on LZ4 and LZ4HC algorithms
 **     - base64        : base64 encoding and decoding
+**
+**  ZMat is part of the NeuroJSON project (https://neurojson.org)
+**  More information can be found at https://github.com/NeuroJSON/zmat
 **
 **  Depencency: ZLib library: https://www.zlib.net/
 **  author: (C) 1995-2017 Jean-loup Gailly and Mark Adler
@@ -60,9 +63,16 @@ extern "C"
  * 4: lzma
  * 5: lz4
  * 6: lz4hc
+ * 7: zstd
+ * 8: blosc2blosclz
+ * 9: blosc2lz4
+ * 10: blosc2lz4hc
+ * 11: blosc2zlib
+ * 12: blosc2zstd
+ * -1: unknown
  */
 
-enum TZipMethod {zmZlib, zmGzip, zmBase64, zmLzip, zmLzma, zmLz4, zmLz4hc};
+enum TZipMethod {zmZlib, zmGzip, zmBase64, zmLzip, zmLzma, zmLz4, zmLz4hc, zmZstd, zmBlosc2Blosclz, zmBlosc2Lz4, zmBlosc2Lz4hc, zmBlosc2Zlib, zmBlosc2Zstd, zmUnknown = -1};
 
 /**
  * @brief Main interface to perform compression/decompression
@@ -136,6 +146,7 @@ char* zmat_error(int id);
  * @src: Data to be encoded
  * @len: Length of the data to be encoded
  * @out_len: Pointer to output length variable, or %NULL if not used
+ * @mode: 0 or 1, newline every 72 char and at end; 2: no new line at end, 3: no newline
  * Returns: Allocated buffer of out_len bytes of encoded data,
  * or %NULL on failure
  *
@@ -145,7 +156,7 @@ char* zmat_error(int id);
  */
 
 unsigned char* base64_encode(const unsigned char* src, size_t len,
-                             size_t* out_len);
+                             size_t* out_len, int mode);
 
 /**
  * base64_decode - Base64 decode
