@@ -730,13 +730,13 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
     tic = StartTimer();
 
-    if (cfg->issavedet) {
-        MCX_FPRINTF(cfg->flog, "- variant name: [%s] compiled with OpenCL version [%d]\n",
-                    "Detective MCXCL", CL_VERSION_1_0);
-    } else {
-        MCX_FPRINTF(cfg->flog, "- code name: [Vanilla MCXCL] compiled with OpenCL version [%d]\n",
-                    CL_VERSION_1_0);
-    }
+#if __OPENCL_C_VERSION__
+    MCX_FPRINTF(cfg->flog, "- code name: [Fractal] compiled with OpenCL [%d] on [%s]\n",
+                __OPENCL_C_VERSION__, __DATE__);
+#else
+    MCX_FPRINTF(cfg->flog, "- code name: [Fractal] compiled with OpenCL [%d] on [%s]\n",
+                CL_VERSION_1_0, __DATE__);
+#endif
 
     MCX_FPRINTF(cfg->flog, "- compiled with: [RNG] %s [Seed Length] %d\n", MCX_RNG_NAME, RAND_SEED_LEN);
     MCX_FPRINTF(cfg->flog, "initializing streams ...\t");

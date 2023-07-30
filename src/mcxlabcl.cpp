@@ -707,6 +707,42 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
             }
 
         printf("mcx.medianum=%d;\n", cfg->medianum);
+    } else if (strcmp(name, "compileropt") == 0) {
+        int len = mxGetNumberOfElements(item);
+
+        if (!mxIsChar(item) || len == 0) {
+            mexErrMsgTxt("the 'compileropt' field must be a non-empty string");
+        }
+
+        if (len > MAX_PATH_LENGTH) {
+            mexErrMsgTxt("the 'compileropt' field is too long");
+        }
+
+        int status = mxGetString(item, cfg->compileropt, MAX_PATH_LENGTH);
+
+        if (status != 0) {
+            mexWarnMsgTxt("not enough space. string is truncated.");
+        }
+
+        printf("mcx.compileropt='%s';\n", cfg->compileropt);
+    } else if (strcmp(name, "kernelfile") == 0) {
+        int len = mxGetNumberOfElements(item);
+
+        if (!mxIsChar(item) || len == 0) {
+            mexErrMsgTxt("the 'kernelfile' field must be a non-empty string");
+        }
+
+        if (len > MAX_SESSION_LENGTH) {
+            mexErrMsgTxt("the 'kernelfile' field is too long");
+        }
+
+        int status = mxGetString(item, cfg->kernelfile, MAX_SESSION_LENGTH);
+
+        if (status != 0) {
+            mexWarnMsgTxt("not enough space. string is truncated.");
+        }
+
+        printf("mcx.kernelfile=string of %d;\n", len);
     } else if (strcmp(name, "session") == 0) {
         int len = mxGetNumberOfElements(item);
 

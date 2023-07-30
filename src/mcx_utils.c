@@ -1487,6 +1487,37 @@ void mcx_clearfluence(float** fluence) {
 
 #ifndef MCX_CONTAINER
 
+int mcx_parsejson(char* json, Config* cfg) {
+    cJSON* jroot = cJSON_Parse(json);
+
+    if (jroot) {
+        mcx_loadjson(jroot, cfg);
+        cJSON_Delete(jroot);
+        return 0;
+    } else {
+        char* ptrold = NULL, *ptr = (char*)cJSON_GetErrorPtr();
+
+        if (ptr) {
+            ptrold = strstr(json, ptr);
+        }
+
+        if (ptr && ptrold) {
+            char* offs = (ptrold - json >= 50) ? ptrold - 50 : json;
+
+            while (offs < ptrold) {
+                MCX_FPRINTF(stderr, "%c", *offs);
+                offs++;
+            }
+
+            MCX_FPRINTF(stderr, "<error>%.50s\n", ptrold);
+        }
+
+        MCX_ERROR(-9, "invalid JSON input file");
+    }
+
+    return 1;
+}
+
 void mcx_readconfig(char* fname, Config* cfg) {
     if (fname[0] == 0) {
         mcx_loadconfig(stdin, cfg);
@@ -1500,7 +1531,6 @@ void mcx_readconfig(char* fname, Config* cfg) {
         if (strstr(fname, ".json") != NULL || fname[0] == '{') {
             char* jbuf;
             int len;
-            cJSON* jroot;
 
             if (fp != NULL) {
                 fclose(fp);
@@ -1519,43 +1549,16 @@ void mcx_readconfig(char* fname, Config* cfg) {
                 jbuf = fname;
             }
 
-            jroot = cJSON_Parse(jbuf);
+            mcx_parsejson(jbuf, cfg);
 
-            if (jroot) {
-                mcx_loadjson(jroot, cfg);
-                cJSON_Delete(jroot);
-            } else {
-                char* ptrold = NULL, *ptr = (char*)cJSON_GetErrorPtr();
-
-                if (ptr) {
-                    ptrold = strstr(jbuf, ptr);
-                }
-
-                if (fp != NULL) {
-                    fclose(fp);
-                }
-
-                if (ptr && ptrold) {
-                    char* offs = (ptrold - jbuf >= 50) ? ptrold - 50 : jbuf;
-
-                    while (offs < ptrold) {
-                        MCX_FPRINTF(stderr, "%c", *offs);
-                        offs++;
-                    }
-
-                    MCX_FPRINTF(stderr, "<error>%.50s\n", ptrold);
-                }
-
+            if (fp != NULL) {
                 if (fp != NULL) {
                     free(jbuf);
                 }
 
-                MCX_ERROR(-9, "invalid JSON input file");
+                fclose(fp);
             }
 
-            if (fp != NULL) {
-                free(jbuf);
-            }
         } else {
             mcx_loadconfig(fp, cfg);
         }
@@ -4109,6 +4112,16 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
         mcx_savejdata(cfg->jsonfile, cfg);
         exit(0);
     }
+}
+
+void mcx_loadbenchmark(char* key, Config* cfg) {
+    int idx = mcx_keylookup(key, benchname);
+
+    if (idx == -1) {
+        MCX_ERROR(-1, "Unsupported bechmark.");
+    }
+
+    mcx_parsejson((char*)benchjson[idx], cfg);
 }
 
 #endif

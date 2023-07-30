@@ -565,6 +565,35 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
                 }
         }
     */
+
+    if (user_cfg.contains("compileropt")) {
+        std::string compileropt = py::str(user_cfg["compileropt"]);
+
+        if (compileropt.empty()) {
+            throw py::value_error("the 'compileropt' field must be a non-empty string");
+        }
+
+        if (compileropt.size() > MAX_PATH_LENGTH) {
+            throw py::value_error("the 'compileropt' field is too long");
+        }
+
+        strncpy(mcx_config.compileropt, compileropt.c_str(), MAX_PATH_LENGTH);
+    }
+
+    if (user_cfg.contains("kernelfile")) {
+        std::string kernelfile = py::str(user_cfg["kernelfile"]);
+
+        if (kernelfile.empty()) {
+            throw py::value_error("the 'kernelfile' field must be a non-empty string");
+        }
+
+        if (kernelfile.size() > MAX_SESSION_LENGTH) {
+            throw py::value_error("the 'kernelfile' field is too long");
+        }
+
+        strncpy(mcx_config.kernelfile, kernelfile.c_str(), MAX_SESSION_LENGTH);
+    }
+
     if (user_cfg.contains("session")) {
         std::string session = py::str(user_cfg["session"]);
 
@@ -858,11 +887,14 @@ inline void cleanup_configs(MCXConfig& mcx_config, float* fluence) {
 py::dict pmcxcl_interface(const py::dict& user_cfg) {
     unsigned int partial_data, hostdetreclen;
     Config mcx_config;  /* mcx_config: structure to store all simulation parameters */
+    GPUInfo* gpu_info = nullptr;        /** gpuInfo: structure to store GPU information */
     unsigned int active_dev = 0;     /** activeDev: count of total active GPUs to be used */
     std::vector<std::string> exception_msgs;
     int thread_id = 0;
     size_t field_dim[6];
-    float* fluence = NULL, totalenergy = 0.f;
+    cl_device_id devices[MAX_DEVICE];
+    float* fluence = NULL;
+    float totalenergy = 0.f;
 
     py::dict output;
 
@@ -874,8 +906,23 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
 
         parse_config(user_cfg, mcx_config);
 
-        mcx_flush(&mcx_config);
+        try {
+            mcx_list_gpu(&mcx_config, &active_dev,  devices, &gpu_info);
+        } catch (...) {
+            throw py::runtime_error(std::string("OpenCL is not supported or not fully installed on your system"));
+        }
 
+        if (active_dev == 0 || devices[0] == NULL) {
+            std::cerr << "No OpenCL-capable device was found." << std::endl;
+            return output;
+        }
+
+        if (active_dev > MAX_DEVICE) {
+            active_dev = MAX_DEVICE;
+        }
+
+        mcx_cleargpuinfo(&gpu_info);
+        mcx_flush(&mcx_config);
 
         /** Validate all input fields, and warn incompatible inputs */
         mcx_validateconfig(&mcx_config);

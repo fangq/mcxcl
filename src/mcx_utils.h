@@ -285,6 +285,7 @@ void mcx_savebnii(float* vol, int ndim, uint* dims, float* voxelsize, char* name
 void mcx_savejdet(float* ppath, void* seeds, uint count, int doappend, Config* cfg);
 void mcx_replayprep(Config* cfg, float* detps, unsigned int dimdetps[2], int seedbyte);
 void mcx_validateconfig(Config* cfg);
+void mcx_loadbenchmark(char* key, Config* cfg);
 
 
 #ifdef MCX_CONTAINER
