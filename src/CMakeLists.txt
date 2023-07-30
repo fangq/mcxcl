@@ -39,7 +39,11 @@ set(CMAKE_CXX_FLAGS "-DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -D_hypot=hypot $
 set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS}")
 
 if( ${CMAKE_COMPILER_IS_GNUCXX} )
-    set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} -static-libgcc -static-libstdc++ -Wl,-Bstatic,--whole-archive -lwinpthread -lgomp -Wl,--no-whole-archive -Wl,-Bdynamic")
+    if(WIN32)
+        set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} -static-libgcc -static-libstdc++ -Wl,-Bstatic,--whole-archive -lwinpthread -lgomp -Wl,--no-whole-archive -Wl,-Bdynamic")
+    else()
+        set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} -static-libgcc -static-libstdc++")
+    endif()
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -pedantic -Wall -fPIC -O3 -std=c99")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -pedantic -Wall -fPIC -O3")
 endif()
@@ -120,7 +124,7 @@ if (BUILD_PYTHON)
             )
     target_compile_definitions(_pmcxcl PUBLIC MCX_CONTAINER PYBIND11_VERSION_MAJOR)
 
-    target_link_libraries(_pmcxcl pybind11::module pybind11::lto pybind11::windows_extras OpenCL::OpenCL)
+    target_link_libraries(_pmcxcl pybind11::module pybind11::lto pybind11::windows_extras OpenCL::OpenCL OpenMP::OpenMP_CXX)
 
     pybind11_extension(_pmcxcl)
     pybind11_strip(_pmcxcl)
