@@ -1190,7 +1190,7 @@ py::list get_GPU_info() {
 
     for (int i = 0; i < gpu_info[0].devcount; i++) {
         py::dict current_device_info;
-        current_device_info["name"] = gpu_info[i].name;
+        current_device_info["name"] = py::str(gpu_info[i].name);
         current_device_info["id"] = gpu_info[i].id;
         current_device_info["devcount"] = gpu_info[i].devcount;
         current_device_info["major"] = gpu_info[i].major;
