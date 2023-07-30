@@ -81,7 +81,7 @@ int seed_byte = 0;
 #define GET_VEC34_FIELD(src, dst, prop, type) if (src.contains(#prop)) {try {auto list = py::list(src[#prop]);\
             dst.prop = {list[0].cast<type>(), list[1].cast<type>(), list[2].cast<type>(), list.size() == 4 ? list[3].cast<type>() : 1}; \
             std::cout << #prop << ": [" << dst.prop.x << ", " << dst.prop.y << ", " << dst.prop.z;\
-            if (list.size() == 4) std::cout << ", " << dst.prop.w; std::cout << "]\n";}                                                 \
+            if (list.size() == 4) {std::cout << ", " << dst.prop.w;} std::cout << "]\n";}                                                 \
         catch (const std::runtime_error &err ) {throw py::type_error(std::string("Failed to assign MCX property " + std::string(#prop) + ". Reason: " + err.what()));}                                                                 \
     }
 
@@ -253,7 +253,7 @@ void parseVolume(const py::dict& user_cfg, Config& mcx_config) {
     } else if (py::array_t<float>::check_(volume_handle)) {
         auto f_style_volume = py::array_t<float, py::array::f_style>::ensure(volume_handle);
         auto buffer = f_style_volume.request();
-        int i = buffer.shape.size() == 4;
+        unsigned int i = buffer.shape.size() == 4;
         mcx_config.dim = {static_cast<unsigned int>(buffer.shape.at(i)),
                           static_cast<unsigned int>(buffer.shape.at(i + 1)),
                           static_cast<unsigned int>(buffer.shape.at(i + 2))
@@ -499,7 +499,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
         auto val = static_cast<float*>(buffer_info.ptr);
 
         for (int j = 0; j < 4; j++)
-            for (int i = 0; i < mcx_config.detnum; i++) {
+            for (unsigned int i = 0; i < mcx_config.detnum; i++) {
                 ((float*) (&mcx_config.detpos[i]))[j] = val[j * mcx_config.detnum + i];
             }
     }
@@ -527,7 +527,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
         auto val = static_cast<float*>(buffer_info.ptr);
 
         for (int j = 0; j < 4; j++)
-            for (int i = 0; i < mcx_config.medianum; i++) {
+            for (unsigned int i = 0; i < mcx_config.medianum; i++) {
                 ((float*) (&mcx_config.prop[i]))[j] = val[j * mcx_config.medianum + i];
             }
     }
@@ -858,14 +858,10 @@ inline void cleanup_configs(MCXConfig& mcx_config, float* fluence) {
 py::dict pmcxcl_interface(const py::dict& user_cfg) {
     unsigned int partial_data, hostdetreclen;
     Config mcx_config;  /* mcx_config: structure to store all simulation parameters */
-    GPUInfo* gpu_info = nullptr;        /** gpuInfo: structure to store GPU information */
     unsigned int active_dev = 0;     /** activeDev: count of total active GPUs to be used */
-    int error_flag = 0;
     std::vector<std::string> exception_msgs;
     int thread_id = 0;
     size_t field_dim[6];
-    cl_device_id devices[MAX_DEVICE];
-    cl_platform_id platform = NULL;
     float* fluence = NULL, totalenergy = 0.f;
 
     py::dict output;
@@ -1080,7 +1076,7 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
             stat_dict["unitinmm"] = mcx_config.unitinmm;
             py::list workload;
 
-            for (int i = 0; i < active_dev; i++) {
+            for (unsigned int i = 0; i < active_dev; i++) {
                 workload.append(mcx_config.workload[i]);
             }
 
@@ -1177,18 +1173,24 @@ py::list get_GPU_info() {
     mcx_initcfg(&mcx_config);
     mcx_config.isgpuinfo = 3;
     py::list output;
-    cl_device_id devices[MAX_DEVICE];
-    cl_platform_id platform = NULL;
     unsigned int active_dev = 0;     /** activeDev: count of total active GPUs to be used */
 
-    platform = mcx_list_gpu(&mcx_config, &active_dev,  NULL, &gpu_info);
+    try {
+        mcx_list_gpu(&mcx_config, &active_dev,  NULL, &gpu_info);
+    } catch (...) {
+        throw py::runtime_error(std::string("OpenCL is not supported or not fully installed on your system"));
+    }
 
-    if (active_dev == 0 || devices[0] == NULL) {
+    if (active_dev == 0) {
         std::cerr << "No OpenCL-capable device was found." << std::endl;
         return output;
     }
 
-    for (int i = 0; i < gpu_info[0].devcount; i++) {
+    if (active_dev > MAX_DEVICE) {
+        active_dev = MAX_DEVICE;
+    }
+
+    for (unsigned int i = 0; i < active_dev; i++) {
         py::dict current_device_info;
         current_device_info["name"] = py::str(gpu_info[i].name);
         current_device_info["id"] = gpu_info[i].id;
@@ -1208,10 +1210,7 @@ py::list get_GPU_info() {
         output.append(current_device_info);
     }
 
-    if (gpu_info) {
-        free(gpu_info);
-    }
-
+    mcx_cleargpuinfo(&gpu_info);
     mcx_clearcfg(&mcx_config);
     return output;
 }
