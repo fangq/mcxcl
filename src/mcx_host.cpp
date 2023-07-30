@@ -339,9 +339,9 @@ cl_platform_id mcx_list_gpu(Config* cfg, unsigned int* activedev, cl_device_id* 
                             MCX_FPRINTF(stdout, S_BLUE "============ %s device ID %d [%d of %d]: %s  ============\n" S_RESET, devname[j], cuid, k + 1, devnum, cuinfo.name);
                             MCX_FPRINTF(stdout, " Device %d of %d:\t\t%s\n", cuid + 1, devnum, cuinfo.name);
                             MCX_FPRINTF(stdout, " Compute units   :\t%d core(s)\n", (uint)cuinfo.sm);
-                            MCX_FPRINTF(stdout, " Global memory   :\t%ld B\n", (unsigned long)cuinfo.globalmem);
-                            MCX_FPRINTF(stdout, " Local memory    :\t%ld B\n", (unsigned long)cuinfo.sharedmem);
-                            MCX_FPRINTF(stdout, " Constant memory :\t%ld B\n", (unsigned long)cuinfo.constmem);
+                            MCX_FPRINTF(stdout, " Global memory   :\t%.0f B\n", (double)cuinfo.globalmem);
+                            MCX_FPRINTF(stdout, " Local memory    :\t%.0f B\n", (double)cuinfo.sharedmem);
+                            MCX_FPRINTF(stdout, " Constant memory :\t%.0f B\n", (double)cuinfo.constmem);
                             MCX_FPRINTF(stdout, " Clock speed     :\t%d MHz\n", cuinfo.clock);
 
                             if (strstr(cuinfo.name, "NVIDIA") && !strstr(pbuf, "Apple")) {

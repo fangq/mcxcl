@@ -1181,7 +1181,7 @@ py::list get_GPU_info() {
     cl_platform_id platform = NULL;
     unsigned int active_dev = 0;     /** activeDev: count of total active GPUs to be used */
 
-    platform = mcx_list_gpu(&mcx_config, &active_dev,  devices, &gpu_info);
+    platform = mcx_list_gpu(&mcx_config, &active_dev,  NULL, &gpu_info);
 
     if (active_dev == 0 || devices[0] == NULL) {
         std::cerr << "No OpenCL-capable device was found." << std::endl;
