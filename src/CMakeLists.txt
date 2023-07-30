@@ -35,10 +35,16 @@ if(BUILD_MEX)
     find_package(Matlab)
 endif()
 
+set(CMAKE_CXX_FLAGS "-DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -D_hypot=hypot ${OpenMP_CXX_FLAGS}")
+set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS}")
+
+if( ${CMAKE_COMPILER_IS_GNUCXX} )
+    set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} -static-libgcc -static-libstdc++ -Wl,-Bstatic,--whole-archive -lwinpthread -lgomp -Wl,--no-whole-archive -Wl,-Bdynamic")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -pedantic -Wall -fPIC -O3 -std=c99")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -pedantic -Wall -fPIC -O3")
+endif()
 
 # C Options
-set(CMAKE_C_FLAGS "-g -pedantic -Wall -std=c99 -fPIC -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -D_hypot=hypot")
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/../bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/../lib)
 
@@ -48,13 +54,13 @@ set(RESOURCE_OUTPUT "${CMAKE_SOURCE_DIR}/mcx_core.clh")
 
 add_custom_target(
     clheader
-    command bash -c "cd ${CMAKE_SOURCE_DIR}; ${RESOURCE_COMPILER} -i ${RESOURCE_INPUT} | sed 's/\\([0-9a-f]\\)$/\\0, 0x00/' > ${RESOURCE_OUTPUT}"
+    COMMAND bash -c "cd ${CMAKE_SOURCE_DIR}; ${RESOURCE_COMPILER} -i ${RESOURCE_INPUT} | sed 's/\\([0-9a-f]\\)$/\\0, 0x00/' > ${RESOURCE_OUTPUT}"
     comment "Compiling ${RESOURCE_INPUT} to ${RESOURCE_OUTPUT}"
     VERBATIM
 )
 
 # Add include directories
-include_directories(cjson ubj zmat zmat/easylzma)
+include_directories(cjson ubj zmat zmat/easylzma ${OPENCL_INCLUDE_DIR})
 
 # Add link directories
 link_directories(zmat)
@@ -114,7 +120,7 @@ if (BUILD_PYTHON)
             )
     target_compile_definitions(_pmcxcl PUBLIC MCX_CONTAINER PYBIND11_VERSION_MAJOR)
 
-    target_link_libraries(_pmcxcl OpenMP::OpenMP_CXX pybind11::module pybind11::lto pybind11::windows_extras OpenCL::OpenCL)
+    target_link_libraries(_pmcxcl pybind11::module pybind11::lto pybind11::windows_extras OpenCL::OpenCL)
 
     pybind11_extension(_pmcxcl)
     pybind11_strip(_pmcxcl)
