@@ -1,4 +1,4 @@
-name: Build and Upload Windows Python Wheels
+name: Build+Upload Windows Python Wheels
 on:
   push:
     branches:
@@ -52,11 +52,10 @@ jobs:
           cp 'c:\vcpkg\packages\opencl_x64-windows\bin\OpenCL.dll' 'c:\Windows\System32'
           choco install -y xxd
           echo 'C:\ProgramData\chocolatey\lib\xxd\tools\bin' >> $GITHUB_PATH
-      - name: Set up cmake variables
-        run: |
-          echo "OPENCL_ROOT=C:\vcpkg\packages\opencl_x64-windows" >> $GITHUB_ENV
-          echo "CMAKE_ARGS=-GNinja" >> $GITHUB_ENV
       - name: Build Wheels
+        env:
+          OPENCL_ROOT: C:\vcpkg\packages\opencl_x64-windows
+          CMAKE_ARGS: -GNinja
         run: |
           cd pmcxcl/
           pip install wheel

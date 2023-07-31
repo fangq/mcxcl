@@ -1,5 +1,5 @@
 """
-The original code was taken from Pybind11's CMake Example: https://github.com/pybind/cmake_example.git
+The original code was adapted from Pybind11's CMake Example: https://github.com/pybind/cmake_example.git
 """
 import os
 import re
@@ -119,19 +119,19 @@ class CMakeBuild(build_ext):
 setup(
     name="pmcxcl",
     packages=['pmcxcl'],
-    version="0.0.8",
+    version="0.0.9",
     requires=['numpy'],
     license='GPLv3+',
     author="Matin Raayai Ardakani, Qianqian Fang",
     author_email="raayaiardakani.m@northeastern.edu, q.fang@neu.edu",
-    description="Python bindings for Monte Carlo eXtreme photon transport simulator",
+    description="Python bindings for Monte Carlo eXtreme (OpenCL) photon transport simulator",
     long_description=readme,
     long_description_content_type="text/markdown",
     maintainer= 'Qianqian Fang',
     url='https://github.com/fangq/mcxcl',
     download_url='http://mcx.space',
     keywords=['Monte Carlo simulation', 'Biophotonics', 'Ray-tracing', 'Rendering', 'GPU', 'Modeling',
-                'Biomedical Optics', 'Tissue Optics', 'Simulator', 'Optics'],
+                'Biomedical Optics', 'Tissue Optics', 'Simulator', 'Optics', 'OpenCL'],
     ext_modules=[CMakeExtension("_pmcxcl", target="_pmcxcl", source_dir="../src/")],
     cmdclass={"build_ext": CMakeBuild},
     zip_safe=False,
