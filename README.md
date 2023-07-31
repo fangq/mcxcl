@@ -5,10 +5,10 @@
 - **Version:** 1.0 (Fractal)
 - **Website:** [ http://mcx.space]( http://mcx.space)
 
-![Mex and Binaries](https://github.com/fangq/mcxcl/actions/workflows/build_all.yml/badge.svg)
+![Mex and Binaries](https://github.com/fangq/mcxcl/actions/workflows/build_all.yml/badge.svg)\
 ![Linux Python Module](https://github.com/fangq/mcxcl/actions/workflows/build_linux_manywheel.yml/badge.svg)\
 ![MacOS Python Module](https://github.com/fangq/mcxcl/actions/workflows/build_macos_wheel.yml/badge.svg)\
-![Windows Python Module](https://github.com/fangq/mcxcl/actions/workflows/build_windows_wheel.yml/badge.svg)\
+![Windows Python Module](https://github.com/fangq/mcxcl/actions/workflows/build_windows_wheel.yml/badge.svg)
 
 
 Table of Contents:
@@ -680,7 +680,7 @@ such as the following:
 
 <pre>==============================================================================
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =
-=          Copyright (c) 2010-2020 Qianqian Fang <q.fang at neu.edu>         =
+=          Copyright (c) 2010-2023 Qianqian Fang <q.fang at neu.edu>         =
 =                             http://mcx.space/                              =
 =                                                                            =
 = Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =
@@ -688,7 +688,7 @@ such as the following:
 ==============================================================================
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =
 ==============================================================================
-$Rev::4fdc45$ v2020 $Date::2018-03-29 00:35:53 -04$ by $Author::Qianqian Fang$
+$Rev::4fdc45$v2023.7 $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$
 ==============================================================================
 
 usage: mcxcl <param1> <param2> ...
@@ -776,10 +776,13 @@ where possible parameters include (the first value in [*|*] is the default)
 
 == Output options ==
  -s sessionid  (--session)     a string to label all output file names
- -O [X|XFEJP]  (--outputtype)  X - output flux, F - fluence, E - energy density
+ -O [X|XFEJPML](--outputtype)  X - output flux, F - fluence, E - energy density
                                J - Jacobian (replay mode),   P - scattering
                                event counts at each voxel (replay mode only)
- -d [1|0]      (--savedet)     1 to save photon info at detectors; 0 not save
+                               M - momentum transfer; L - total pathlength
+ -d [1|0-3]    (--savedet)     1 to save photon info at detectors; 0 not save
+                               2 reserved, 3 terminate simulation when detected
+                               photon buffer is filled
  -w [DP|DSPMXVW](--savedetflag)a string controlling detected photon data fields
     /case insensitive/         1 D  output detector ID (1)
                                2 S  output partial scat. even counts (#media)
@@ -812,7 +815,7 @@ where possible parameters include (the first value in [*|*] is the default)
 	the bnii/jnii formats support compression (-Z) and generate small files
 	load jnii (JSON) and bnii (UBJSON) files using below lightweight libs:
 	  MATLAB/Octave: JNIfTI toolbox   https://github.com/NeuroJSON/jnifti, 
-	  MATLAB/Octave: JSONLab toolbox  https://github.com/fangq/jsonlab, 
+	  MATLAB/Octave: JSONLab toolbox  https://github.com/NeuroJSON/jsonlab,
 	  Python:        PyJData:         https://pypi.org/project/jdata
 	  JavaScript:    JSData:          https://github.com/NeuroJSON/jsdata
  -Z [zlib|...] (--zip)         set compression method if -F jnii or --dumpjson
@@ -825,7 +828,7 @@ where possible parameters include (the first value in [*|*] is the default)
 			       5 lz4: LZ4 format (low compression,extrem. fast)
 			       6 lz4hc: LZ4HC format (moderate compression,fast)
  --dumpjson [-,0,1,'file.json']  export all settings,including volume data using
-                               JSON/JData (https://neurojson.org) format for 
+                               JSON/JData (https://neurojson.org) format for
 			       easy sharing; can be reused using -f
 			       if followed by nothing or '-', mcx will print
 			       the JSON to the console; write to a file if file
@@ -842,9 +845,10 @@ where possible parameters include (the first value in [*|*] is the default)
 == Debug options ==
  -D [0|int]    (--debug)       print debug information (you can use an integer
   or                           or a string by combining the following flags)
- -D [''|RMP]                   1 R  debug RNG
+ -D [''|RMPT]                  1 R  debug RNG
     /case insensitive/         2 M  store photon trajectory info
                                4 P  print progress bar
+                               8 T  save trajectory data only, disable flux/detp
       combine multiple items by using a string, or add selected numbers together
 
 == Additional options ==
