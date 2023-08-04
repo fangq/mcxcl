@@ -67,7 +67,7 @@ else
 endif
 
 ifeq ($(HAVE_ZLIB),no)
-  CFLAGS+=-DNO_ZLIB
+  CFLAGS+=-DNO_ZLIB -D_LARGEFILE64_SOURCE=1
   INCLUDEDIRS+=-Iminiz
   FILES+=miniz/miniz
   LIBZLIB=

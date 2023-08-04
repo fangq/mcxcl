@@ -14,7 +14,7 @@ find_package(ZLIB REQUIRED)
 option(STATIC_LIB "Build static library" ON)
 
 # C Options
-set(CMAKE_C_FLAGS "-g -Wall -O3 -fPIC -DNO_BLOSC2 -DNO_ZLIB -DNO_ZSTD")
+set(CMAKE_C_FLAGS "-g -Wall -O3 -fPIC -DNO_BLOSC2 -DNO_ZLIB -DNO_ZSTD -D_LARGEFILE64_SOURCE=1")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/../)
 
 # Add include directories

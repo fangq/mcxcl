@@ -170,7 +170,6 @@ char* zmat_error(int id) {
 int zmat_run(const size_t inputsize, unsigned char* inputstr, size_t* outputsize, unsigned char** outputbuf, const int zipid, int* ret, const int iscompress) {
     z_stream zs;
     size_t buflen[2] = {0};
-    unsigned int nthread = 1, shuffle = 1, typesize = 4;
     int clevel;
     union cflag {
         int iscompress;
@@ -193,9 +192,6 @@ int zmat_run(const size_t inputsize, unsigned char* inputstr, size_t* outputsize
         return -1;
     }
 
-    nthread = (flags.param.nthread == 0 || flags.param.nthread == -1) ? 1 : flags.param.nthread;
-    shuffle = (flags.param.shuffle == 0 || flags.param.shuffle == -1) ? 1 : flags.param.shuffle;
-    typesize = (flags.param.typesize == 0 || flags.param.typesize == -1) ? 4 : flags.param.typesize;
     clevel = (flags.param.clevel == 0) ? 0 : flags.param.clevel;
 
     if (clevel) {
@@ -389,7 +385,12 @@ int zmat_run(const size_t inputsize, unsigned char* inputstr, size_t* outputsize
             /**
               * blosc2 meta-compressor (support various filters and compression codecs)
               */
+            unsigned int nthread = 1, shuffle = 1, typesize = 4;
             const char* codecs[] = {"blosclz", "lz4", "lz4hc", "zlib", "zstd"};
+
+            nthread = (flags.param.nthread == 0 || flags.param.nthread == -1) ? 1 : flags.param.nthread;
+            shuffle = (flags.param.shuffle == 0 || flags.param.shuffle == -1) ? 1 : flags.param.shuffle;
+            typesize = (flags.param.typesize == 0 || flags.param.typesize == -1) ? 4 : flags.param.typesize;
 
             if (blosc1_set_compressor(codecs[zipid - zmBlosc2Blosclz]) == -1) {
                 return -7;
