@@ -822,6 +822,12 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
     if (cfg->isreflect || (strcmp(cfg->bc, allabsorb) && strcmp(cfg->bc, allunknown))) {
         sprintf(opt + strlen(opt), " -DMCX_DO_REFLECTION");
+    } else {
+        /** Enable reflection flag when c or m flags are used in the cfg.bc boundary condition flags */
+        for (i = 0; i < 6; i++)
+            if (cfg->bc[i] == bcReflect || cfg->bc[i] == bcMirror) {
+                sprintf(opt + strlen(opt), " -DMCX_DO_REFLECTION");
+            }
     }
 
     if (cfg->internalsrc || (param.mediaidorig && (cfg->srctype == MCX_SRC_PENCIL || cfg->srctype == MCX_SRC_CONE || cfg->srctype == MCX_SRC_ISOTROPIC))) {

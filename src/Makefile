@@ -152,8 +152,8 @@ mex:        LINKOPT= CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER -DMATLAB_MEX_FILE $
 mex oct:    OUTPUT_DIR=../mcxlabcl
 mex:        OUTPUTFLAG:=-output
 mex:        BINARY=mcxcl
-mex oct:    CUCCOPT+=$(DLLFLAG) -DMCX_CONTAINER
-mex oct:    CCOPT+=$(DLLFLAG) -DMCX_CONTAINER
+mex oct:    CUCCOPT+=$(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
+mex oct:    CCOPT+=$(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
 mex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
 
 oct:        BINARY=mcxcl.mex

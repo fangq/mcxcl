@@ -56,7 +56,7 @@ cfg.seed=29012392;
 cfg.nphoton=10000000;
 cfg.issaveexit=1;
 
-[flue,detps]=mcxlab(cfg);
+[flue,detps]=mcxlabcl(cfg);
 mcxplotvol(log10(flue.data));
 figure;
 plotmesh(detps.p,'r.')

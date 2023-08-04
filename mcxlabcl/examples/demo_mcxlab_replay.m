@@ -22,12 +22,12 @@ cfg.tstep=5e-10;
 % calculate the flux distribution with the given config
 cfg.detpos=[15 30 0 2];
 %cfg.savedetflag='dsp';
-[flux, detp, vol, seeds]=mcxlab(cfg);
+[flux, detp, vol, seeds]=mcxlabcl(cfg);
 
 newcfg=cfg;
 newcfg.seed=seeds.data;
 newcfg.outputtype='jacobian';
 newcfg.detphotons=detp.data;
-[flux2, detp2, vol2, seeds2]=mcxlab(newcfg);
+[flux2, detp2, vol2, seeds2]=mcxlabcl(newcfg);
 jac=sum(flux2.data,4);
 imagesc(log10(abs(squeeze(jac(:,30,:)))))

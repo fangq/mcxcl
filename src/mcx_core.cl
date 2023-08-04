@@ -792,7 +792,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
      */
     if (GPU_PARAM(gcfg, savedet) == FILL_MAXDETPHOTON) {
         if (*dpnum >= GPU_PARAM(gcfg, maxdetphoton)) {
-            gprogress[0] = (GPU_PARAM(gcfg, threadphoton) >> 1) * 4.5f;
+            gprogress[0] = (gcfg->threadphoton >> 1) * 4.5f;
             return 1;
         }
     }
@@ -1485,7 +1485,8 @@ __kernel void mcx_main_loop(__global const uint* media,
         }
 
         /** launch new photon when exceed time window or moving from non-zero voxel to zero voxel without reflection */
-        if ((mediaid == 0 && (((isdet & 0xF) == 0 && (!GPU_PARAM(gcfg, doreflect) || (GPU_PARAM(gcfg, doreflect) && n1 == gproperty[0].w))) || (isdet == bcAbsorb || isdet == bcCyclic) )) || f.y > gcfg->twin1) {
+        if ((mediaid == 0 && ((!GPU_PARAM(gcfg, doreflect) || (GPU_PARAM(gcfg, doreflect) && n1 == gproperty[0].w)) || (((isdet & 0xF) == bcUnknown && !GPU_PARAM(gcfg, doreflect))
+                              || (isdet & 0xF) == bcAbsorb || (isdet & 0xF) == bcCyclic)) && (isdet & 0xF) != bcMirror && (isdet & 0xF) != bcReflect) ||  f.y > gcfg->twin1) {
             if (isdet == bcCyclic) {
                 if (flipdir.w == 0) {
                     p.x = mcx_nextafterf(convert_float_rte(((idx1d == OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.x : 0)), (v.x > 0.f) - (v.x < 0.f));
@@ -1530,8 +1531,16 @@ __kernel void mcx_main_loop(__global const uint* media,
 
 #ifdef MCX_DO_REFLECTION
 
+        if (gcfg->mediaformat < 100) {
+            updateproperty(&prop, mediaid, gproperty, gcfg); ///< optical property across the interface
+        }
+
         //if hit the boundary, exceed the max time window or exit the domain, rebound or launch a new one
-        if (((GPU_PARAM(gcfg, doreflect) && (isdet & 0xF) == 0) || (isdet & 0x1)) && ((isdet & 0xF) == bcMirror || n1 != gproperty[(mediaid > 0 && GPU_PARAM(gcfg, mediaformat) >= 100) ? 1 : mediaid].w)) {
+        if (((mediaid && GPU_PARAM(gcfg, doreflect)) // if at an internal boundary, check cfg.isreflect flag
+                || (mediaid == 0 &&  // or if out of bbx or enters 0-voxel
+                    (((isdet & 0xF) == bcUnknown && GPU_PARAM(gcfg, doreflect)) // if cfg.bc is "_", check cfg.isreflect
+                     || (((isdet & 0xF) == bcReflect || (isdet & 0xF) == bcMirror)))))  // or if cfg.bc is 'r' or 'm'
+                && (((isdet & 0xF) == bcMirror) || n1 != ((GPU_PARAM(gcfg, mediaformat) < 100) ? (prop.w) : (gproperty[(mediaid > 0 && GPU_PARAM(gcfg, mediaformat) >= 100) ? 1 : mediaid].w)))) {
             float Rtotal = 1.f;
             float cphi, sphi, stheta, ctheta;
 
@@ -1554,7 +1563,10 @@ __kernel void mcx_main_loop(__global const uint* media,
                 GPUDEBUG(((__constant char*)"Rtotal=%f\n", Rtotal));
             }
 
-            if (Rtotal < 1.f && (((isdet & 0xF) == 0 && gproperty[mediaid].w >= 1.f) || isdet == bcReflect) &&  (isdet != bcMirror) && rand_next_reflect(t) > Rtotal) { // do transmission
+            if (Rtotal < 1.f // if total internal reflection does not happen
+                    && (!(mediaid == 0 && ((isdet & 0xF) == bcMirror))) // if out of bbx and cfg.bc is not 'm'
+                    && rand_next_reflect(t) > Rtotal) { // and if photon chooses the transmission path, then do transmission
+
                 transmit(&v, n1, prop.w, flipdir.w);
 
                 if (mediaid == 0) { // transmission to external boundary
@@ -1589,6 +1601,11 @@ __kernel void mcx_main_loop(__global const uint* media,
                 updateproperty(&prop, mediaid, gproperty, gcfg); ///< optical property across the interface
                 n1 = prop.w;
             }
+        }
+
+        if (mediaid == 0 || idx1d == OUTSIDE_VOLUME_MIN || idx1d == OUTSIDE_VOLUME_MAX) {
+            printf("ERROR: should never happen! mediaid=%d idx1d=%X gcfg->doreflect=%d n1=%f n2=%f isdet=%d flipdir[3]=%d p=(%f %f %f)[%d %d %d]\n", mediaid, idx1d, GPU_PARAM(gcfg, doreflect), n1, prop.w, isdet, flipdir.w, p.x, p.y, p.z, flipdir.x, flipdir.y, flipdir.z);
+            return;
         }
 
 #endif

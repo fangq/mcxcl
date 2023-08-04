@@ -28,6 +28,6 @@ cfg.tend=5e-9;
 cfg.tstep=5e-09;
 cfg.bc='mm____';
 
-flux=mcxlab(cfg);
+flux=mcxlabcl(cfg);
 
 mcxplotvol(log10(double(flux.data)))
