@@ -68,8 +68,9 @@ jobs:
             make oct CC=gcc-11 CXX=g++-11 LDFLAGS='-static-libgcc -static-libstdc++' EXTRALIB='-v'
             otool -L ../mcxlabcl/mcxcl.mex
           else
-            export PATH='C:\ProgramData\chocolatey\lib\octave.portable\tools\octave\mingw64\bin':$PATH
+            export PATH='/c/ProgramData/chocolatey/lib/octave.portable/tools/octave/mingw64/bin':$PATH
             echo $PATH
+            ls -lt /c/ProgramData/chocolatey/lib/octave.portable/tools/octave/mingw64/bin
             which gcc
             gcc -v
             make oct CC=gcc CXX=g++ LIBOPENCL='/c/Windows/System32/OpenCL.dll --verbose' EXTRALIB='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lm -lgomp -Wl,-Bdynamic -v'
