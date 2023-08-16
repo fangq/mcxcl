@@ -70,7 +70,7 @@ jobs:
           else
             export PATH='/c/ProgramData/chocolatey/lib/octave.portable/tools/octave/mingw64/bin':$PATH
             echo $PATH
-            ls -lt /c/ProgramData/chocolatey/lib/octave.portable/tools/octave/mingw64/bin
+            find /c/ProgramData/chocolatey/lib/octave.portable/tools/octave/mingw64/ -name "libgomp*"
             which gcc
             gcc -v
             make oct CC=gcc CXX=g++ LIBOPENCL='/c/Windows/System32/OpenCL.dll --verbose' EXTRALIB='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lm -lgomp -Wl,-Bdynamic -v'
