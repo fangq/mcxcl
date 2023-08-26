@@ -485,11 +485,11 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
 
         auto buffer_info = f_style_volume.request();
 
-        if (buffer_info.shape.at(0) > 0 && buffer_info.shape.at(1) != 4) {
+        if ((buffer_info.shape.size() > 1 && buffer_info.shape.at(0) > 0 && buffer_info.shape.at(1) != 4) || (buffer_info.shape.size() == 1 && buffer_info.shape.at(0) != 4)) {
             throw py::value_error("the 'detpos' field must have 4 columns (x,y,z,radius)");
         }
 
-        mcx_config.detnum = buffer_info.shape.at(0);
+        mcx_config.detnum = (buffer_info.shape.size() == 1) ? 1 : buffer_info.shape.at(0);
 
         if (mcx_config.detpos) {
             free(mcx_config.detpos);
@@ -513,11 +513,11 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
 
         auto buffer_info = f_style_volume.request();
 
-        if (buffer_info.shape.at(0) > 0 && buffer_info.shape.at(1) != 4) {
+        if ((buffer_info.shape.size() > 1 && buffer_info.shape.at(0) > 0 && buffer_info.shape.at(1) != 4) || buffer_info.shape.size() == 1 && buffer_info.shape.at(0) != 4) {
             throw py::value_error("the 'prop' field must have 4 columns (mua,mus,g,n)");
         }
 
-        mcx_config.medianum = buffer_info.shape.at(0);
+        mcx_config.medianum = (buffer_info.shape.size() == 1) ? 1 : buffer_info.shape.at(0);
 
         if (mcx_config.prop) {
             free(mcx_config.prop);
@@ -546,11 +546,11 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
                 throw py::value_error("the 'polprop' field must a 2D array");
             }
 
-            if (buffer_info.shape.at(0) > 0 && buffer_info.shape.at(1) != 5) {
+            if ((buffer_info.shape.size() > 1 && buffer_info.shape.at(0) > 0 && buffer_info.shape.at(1) != 5) || buffer_info.shape.size() == 1 && buffer_info.shape.at(0) != 5) {
                 throw py::value_error("the 'polprop' field must have 5 columns (mua, radius, rho, n_sph,n_bkg)");
             }
 
-            mcx_config.polmedianum = buffer_info.shape.at(0);
+            mcx_config.polmedianum = (buffer_info.shape.size() == 1) ? 1 : buffer_info.shape.at(0);
 
             if (mcx_config.polprop) {
                 free(mcx_config.polprop);
@@ -1194,7 +1194,7 @@ int mcx_throw_exception(const int id, const char* msg, const char* filename, con
 
 void print_mcx_usage() {
     std::cout
-            << "PMCX v2023.7\nUsage:\n    output = pmcxcl.run(cfg);\n\nRun 'help(pmcxcl.run)' for more details.\n";
+            << "PMCX-CL (" MCX_VERSION ")\nUsage:\n    output = pmcxcl.run(cfg);\n\nRun 'help(pmcxcl.run)' for more details.\n";
 }
 
 /**
@@ -1212,6 +1212,14 @@ py::dict pmcxcl_interface_wargs(py::args args, const py::kwargs& kwargs) {
     }
 
     return pmcxcl_interface(kwargs);
+}
+
+py::str print_version() {
+    Config mcx_config;            /** mcxconfig: structure to store all simulation parameters */
+    mcx_initcfg(&mcx_config);
+    mcx_printheader(&mcx_config);
+    mcx_clearcfg(&mcx_config);
+    return py::str(MCX_VERSION);
 }
 
 py::list get_GPU_info() {
@@ -1263,7 +1271,7 @@ py::list get_GPU_info() {
 }
 
 PYBIND11_MODULE(_pmcxcl, m) {
-    m.doc() = "PMCX-CL: Python bindings for Monte Carlo eXtreme photon transport simulator, http://mcx.space";
+    m.doc() = "PMCX (" MCX_VERSION "): Python bindings for Monte Carlo eXtreme photon transport simulator, http://mcx.space";
     m.def("run", &pmcxcl_interface, "Runs MCX with the given config.", py::call_guard<py::scoped_ostream_redirect,
           py::scoped_estream_redirect>());
     m.def("run", &pmcxcl_interface_wargs, "Runs MCX with the given config.", py::call_guard<py::scoped_ostream_redirect,
@@ -1273,5 +1281,9 @@ PYBIND11_MODULE(_pmcxcl, m) {
           "Prints out the list of OpenCL-capable devices attached to this system.",
           py::call_guard<py::scoped_ostream_redirect,
           py::scoped_estream_redirect>());
+    m.def("version",
+          &print_version,
+          "Prints mcx version information.",
+          py::call_guard<py::scoped_ostream_redirect,
+          py::scoped_estream_redirect>());
 }
-

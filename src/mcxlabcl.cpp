@@ -163,6 +163,11 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
 
             mcx_cleargpuinfo(&gpuinfo);
             mcx_clearcfg(&cfg);
+        } else if (strcmp(shortcmd, "version") == 0) {
+            mcx_initcfg(&cfg);
+            mcx_printheader(&cfg);
+            mcx_clearcfg(&cfg);
+            plhs[0] = mxCreateString(MCX_VERSION);
         }
 
         return;
@@ -1031,7 +1036,7 @@ extern "C" int mcx_throw_exception(const int id, const char* msg, const char* fi
  */
 
 void mcxlab_usage() {
-    printf("MCXLABCL v2023.7\nUsage:\n    [flux,detphoton,vol,seeds,traj]=mcxlabcl(cfg);\n\nPlease run 'help mcxlabcl' for more details.\n");
+    printf("MCXLABCL " MCX_VERSION "\nUsage:\n    [flux,detphoton,vol,seeds,traj]=mcxlabcl(cfg);\n\nPlease run 'help mcxlabcl' for more details.\n");
 }
 
 /**

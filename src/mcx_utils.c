@@ -4184,7 +4184,7 @@ int mcx_lookupindex(char* key, const char* index) {
 }
 
 void mcx_version(Config* cfg) {
-    const char ver[] = "$Rev::4fdc45$v2023.7";
+    const char ver[] = "$Rev::4fdc45$ " MCX_VERSION;
     int v = 0;
     sscanf(ver, "$Rev::%d", &v);
     MCX_FPRINTF(cfg->flog, "MCXCL Revision %d\n", v);
@@ -4211,14 +4211,18 @@ void mcx_printheader(Config* cfg) {
 ==============================================================================\n\
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =\n\
 =          Copyright (c) 2010-2023 Qianqian Fang <q.fang at neu.edu>         =\n\
-=                             http://mcx.space/                              =\n\
+=                https://mcx.space/  &  https://neurojson.org/               =\n\
 =                                                                            =\n\
 = Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =\n\
 =   Department of Bioengineering, Northeastern University, Boston, MA, USA   =\n\
 ==============================================================================\n\
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =\n\
 ==============================================================================\n\
-$Rev::4fdc45$v2023.7 $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
+= Open-source codes and reusable scientific data are essential for research, =\n\
+= MCX proudly developed human-readable JSON-based data formats for easy reuse=\n\
+= Please consider using JSON (https://neurojson.org/) for your research data =\n\
+==============================================================================\n\
+$Rev::4fdc45$ " MCX_VERSION "  $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
 ==============================================================================\n"S_RESET);
 }
 
