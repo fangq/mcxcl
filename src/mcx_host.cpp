@@ -460,7 +460,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     unsigned int hostdetreclen = partialdata + SAVE_DETID(cfg->savedetflag) + 3 * (SAVE_PEXIT(cfg->savedetflag) + SAVE_VEXIT(cfg->savedetflag)) + SAVE_W0(cfg->savedetflag); // host-side det photon data buffer length
     unsigned int is2d = (cfg->dim.x == 1 ? 1 : (cfg->dim.y == 1 ? 2 : (cfg->dim.z == 1 ? 3 : 0)));
 
-    MCXParam param = {{{cfg->srcpos.x, cfg->srcpos.y, cfg->srcpos.z, 1.f}},
+    MCXParam param = {{{cfg->srcpos.x, cfg->srcpos.y, cfg->srcpos.z, cfg->srcpos.w}},
         {{cfg->srcdir.x, cfg->srcdir.y, cfg->srcdir.z, cfg->srcdir.w}},
         {{(float)cfg->dim.x, (float)cfg->dim.y, (float)cfg->dim.z, 0}}, dimlen, cp0, cp1, cachebox,
         minstep, 0.f, 0.f, cfg->tend, R_C0* cfg->unitinmm, (uint)cfg->isrowmajor,

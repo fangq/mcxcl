@@ -1088,15 +1088,23 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
             auto dref_array = py::array_t<float, py::array::f_style>(array_dims);
 
             if (mcx_config.issaveref) {
+                int highdim = field_dim[3] * field_dim[4] * field_dim[5];
+                int voxellen = mcx_config.dim.x * mcx_config.dim.y * mcx_config.dim.z;
                 auto* dref = static_cast<float*>(dref_array.mutable_data());
                 memcpy(dref, mcx_config.exportfield, field_len * sizeof(float));
 
-                for (int i = 0; i < field_len; i++) {
-                    if (dref[i] < 0.f) {
-                        dref[i] = -dref[i];
-                        mcx_config.exportfield[i] = 0.f;
+                for (int voxelid = 0; voxelid < voxellen; voxelid++) {
+                    if (mcx_config.vol[voxelid]) {
+                        for (int gate = 0; gate < highdim; gate++)
+                            for (int srcid = 0; srcid < mcx_config.srcnum; srcid++) {
+                                dref[(gate * voxellen + voxelid) * mcx_config.srcnum + srcid] = 0.f;
+                            }
                     } else {
-                        dref[i] = 0.f;
+                        for (int gate = 0; gate < highdim; gate++)
+                            for (int srcid = 0; srcid < mcx_config.srcnum; srcid++) {
+                                dref[(gate * voxellen + voxelid) * mcx_config.srcnum + srcid] = -dref[(gate * voxellen + voxelid) * mcx_config.srcnum + srcid];
+                                mcx_config.exportfield[(gate * voxellen + voxelid) * mcx_config.srcnum + srcid] = 0.f;
+                            }
                     }
                 }
 

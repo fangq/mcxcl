@@ -5,11 +5,10 @@
 - Copyright: (C) Matin Raayai Ardakani (2022-2023) <raayaiardakani.m at northeastern.edu> 
 and Qianqian Fang (2019-2023) <q.fang at neu.edu>
 - License: GNU Public License V3 or later
-- Version: 0.0.10
+- Version: 0.0.11
 - URL: https://pypi.org/project/pmcxcl/
 - Github: https://github.com/fangq/mcxcl
 
-![Mex and Binaries](https://github.com/fangq/mcxcl/actions/workflows/build_all.yml/badge.svg)\
 ![Linux Python Module](https://github.com/fangq/mcxcl/actions/workflows/build_linux_manywheel.yml/badge.svg)\
 ![MacOS Python Module](https://github.com/fangq/mcxcl/actions/workflows/build_macos_wheel.yml/badge.svg)\
 ![Windows Python Module](https://github.com/fangq/mcxcl/actions/workflows/build_windows_wheel.yml/badge.svg)
@@ -27,7 +26,8 @@ CPU-based MC implementation.
 
 ## How to Install
 
-* PIP: ```pip install pmcxcl```
+* PIP: ```pip install pmcxcl```, see https://pypi.org/project/pmcxcl/
+
 
 ## Runtime Dependencies
 * **CPU or GPU**: An OpenCL-capable CPU or GPU; most modern CPUs or GPUs support OpenCL -
@@ -86,8 +86,13 @@ This can be queried via ```echo $env:PATH``` on Windows or ```echo $PATH``` on L
         git clone --recursive https://github.com/fangq/mcx.git
         cd mcx/pmcxcl
     ```
-3. Run ```pip wheel .``` inside the `pmcxcl` folder to locally build the Python wheel without installing it
-4. One can also run ```python setup.py install``` or ```pip install .``` to build and directly install the compiled package
+3. One can run `python3 setup.py install` or `python3 -m pip install .` to both locally build and install the module
+
+4. If one only wants to locally build the module, one should run `python3 -m pip wheel .`
+
+5. If the binary module is successfully built locally, you should see a binary wheel file `pmcxcl-X.X.X-cpXX-cpXX-*.whl`
+stored inside the `mcxcl/pmcxcl` folder. You can install this wheel package using `python3 -m pip install --force-reinstall pmcxcl-*.whl`
+to force installing this locally compiled `pmcxcl` module and overwrite any previously installed versions.
 
 
 ## How to use

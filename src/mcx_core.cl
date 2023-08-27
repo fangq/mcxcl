@@ -840,7 +840,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
     /**
      * First, let's terminate the current photon and perform detection calculations
      */
-    if (p[0].w >= 0.f) {
+    if (fabs(p[0].w) > 0.f) {
         ppath[GPU_PARAM(gcfg, partialdata)] += p[0].w; ///< sum all the remaining energy
 
 #if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
@@ -859,7 +859,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 #else
 
                 for (int i = 0; i < GPU_PARAM(gcfg, srcnum); i++) {
-                    if (ppath[GPU_PARAM(gcfg, w0offset) + i] > 0.f) {
+                    if (fabs(ppath[GPU_PARAM(gcfg, w0offset) + i]) > 0.f) {
 #ifdef USE_ATOMIC
                         atomicadd(& field[(*idx1d + tshift * gcfg->dimlen.z)*GPU_PARAM(gcfg, srcnum) + i], -((GPU_PARAM(gcfg, srcnum) == 1) ? p[0].w : p[0].w * ppath[GPU_PARAM(gcfg, w0offset) + i]));
 #else
@@ -962,7 +962,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 #if defined(MCX_SRC_PATTERN)  // need to prevent rx/ry=1 here
 
         if (GPU_PARAM(gcfg, srcnum) <= 1) {
-            p[0].w = srcpattern[(int)(ry * JUST_BELOW_ONE * gcfg->srcparam2.w) * (int)(gcfg->srcparam1.w) + (int)(rx * JUST_BELOW_ONE * gcfg->srcparam1.w)];
+            p[0].w = gcfg->ps.w * srcpattern[(int)(ry * JUST_BELOW_ONE * gcfg->srcparam2.w) * (int)(gcfg->srcparam1.w) + (int)(rx * JUST_BELOW_ONE * gcfg->srcparam1.w)];
             ppath[3] = p[0].w;
         } else {
             *((__local uint*)(ppath + 2)) = ((int)(ry * JUST_BELOW_ONE * gcfg->srcparam2.w) * (int)(gcfg->srcparam1.w) + (int)(rx * JUST_BELOW_ONE * gcfg->srcparam1.w));
@@ -977,8 +977,8 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 #elif defined(MCX_SRC_PATTERN3D)  // need to prevent rx/ry=1 here
 
         if (GPU_PARAM(gcfg, srcnum) <= 1) {
-            p[0].w = srcpattern[(int)(rz * JUST_BELOW_ONE * gcfg->srcparam1.z) * (int)(gcfg->srcparam1.y) * (int)(gcfg->srcparam1.x) +
-                                (int)(ry * JUST_BELOW_ONE * gcfg->srcparam1.y) * (int)(gcfg->srcparam1.x) + (int)(rx * JUST_BELOW_ONE * gcfg->srcparam1.x)];
+            p[0].w = gcfg->ps.w * srcpattern[(int)(rz * JUST_BELOW_ONE * gcfg->srcparam1.z) * (int)(gcfg->srcparam1.y) * (int)(gcfg->srcparam1.x) +
+                                             (int)(ry * JUST_BELOW_ONE * gcfg->srcparam1.y) * (int)(gcfg->srcparam1.x) + (int)(rx * JUST_BELOW_ONE * gcfg->srcparam1.x)];
             ppath[3] = p[0].w;
         } else {
             *((__local uint*)(ppath + 2)) = ((int)(rz * JUST_BELOW_ONE * gcfg->srcparam1.z) * (int)(gcfg->srcparam1.y) * (int)(gcfg->srcparam1.x) +
@@ -992,8 +992,8 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
         }
 
 #elif defined(MCX_SRC_FOURIER)  // need to prevent rx/ry=1 here
-        p[0].w = (MCX_MATHFUN(cos)((floor(gcfg->srcparam1.w) * rx + floor(gcfg->srcparam2.w) * ry
-                                    + gcfg->srcparam1.w - floor(gcfg->srcparam1.w)) * TWO_PI) * (1.f - gcfg->srcparam2.w + floor(gcfg->srcparam2.w)) + 1.f) * 0.5f; //between 0 and 1
+        p[0].w = gcfg->ps.w * (MCX_MATHFUN(cos)((floor(gcfg->srcparam1.w) * rx + floor(gcfg->srcparam2.w) * ry
+                                                + gcfg->srcparam1.w - floor(gcfg->srcparam1.w)) * TWO_PI) * (1.f - gcfg->srcparam2.w + floor(gcfg->srcparam2.w)) + 1.f) * 0.5f; //between 0 and 1
 #elif defined(MCX_SRC_PENCILARRAY)  // need to prevent rx/ry=1 here
         p[0].x = gcfg->ps.x + floor(rx * gcfg->srcparam1.w) * gcfg->srcparam1.x / (gcfg->srcparam1.w - 1.f) + floor(ry * gcfg->srcparam2.w) * gcfg->srcparam2.x / (gcfg->srcparam2.w - 1.f);
         p[0].y = gcfg->ps.y + floor(rx * gcfg->srcparam1.w) * gcfg->srcparam1.y / (gcfg->srcparam1.w - 1.f) + floor(ry * gcfg->srcparam2.w) * gcfg->srcparam2.y / (gcfg->srcparam2.w - 1.f);
@@ -1024,9 +1024,9 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
                         p[0].z + rx * gcfg->srcparam1.z + ry * v2.z,
                         p[0].w);
 #if defined(MCX_SRC_FOURIERX2D)
-        p[0].w = (MCX_MATHFUN(sin)((gcfg->srcparam2.x * rx + gcfg->srcparam2.z) * TWO_PI) * MCX_MATHFUN(sin)((gcfg->srcparam2.y * ry + gcfg->srcparam2.w) * TWO_PI) + 1.f) * 0.5f; //between 0 and 1
+        p[0].w = gcfg->ps.w * (MCX_MATHFUN(sin)((gcfg->srcparam2.x * rx + gcfg->srcparam2.z) * TWO_PI) * MCX_MATHFUN(sin)((gcfg->srcparam2.y * ry + gcfg->srcparam2.w) * TWO_PI) + 1.f) * 0.5f; //between 0 and 1
 #else
-        p[0].w = (MCX_MATHFUN(cos)((gcfg->srcparam2.x * rx + gcfg->srcparam2.y * ry + gcfg->srcparam2.z) * TWO_PI) * (1.f - gcfg->srcparam2.w) + 1.f) * 0.5f; //between 0 and 1
+        p[0].w = gcfg->ps.w * (MCX_MATHFUN(cos)((gcfg->srcparam2.x * rx + gcfg->srcparam2.y * ry + gcfg->srcparam2.z) * TWO_PI) * (1.f - gcfg->srcparam2.w) + 1.f) * 0.5f; //between 0 and 1
 #endif
 
         *idx1d = ((int)(floor(p[0].z)) * gcfg->dimlen.y + (int)(floor(p[0].y)) * gcfg->dimlen.x + (int)(floor(p[0].x)));
@@ -1138,7 +1138,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
          * If beam focus is set, determine the incident angle
          */
 
-        if (p[0].w <= GPU_PARAM(gcfg, minenergy)) {
+        if (fabs(p[0].w) <= GPU_PARAM(gcfg, minenergy)) {
             continue;
         }
 
@@ -1195,7 +1195,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
         if (*w0 > GPU_PARAM(gcfg, maxvoidstep)) {
             return -1;    // launch failed
         }
-    } while ((*mediaid & MED_MASK) == 0 || p[0].w <= GPU_PARAM(gcfg, minenergy));
+    } while ((*mediaid & MED_MASK) == 0 || fabs(p[0].w) <= GPU_PARAM(gcfg, minenergy));
 
     /**
      * Now a photon is successfully launched, perform necssary initialization for a new trajectory
@@ -1256,7 +1256,7 @@ __kernel void mcx_main_loop(__global const uint* media,
         return;
     }
 
-    float4 p = {0.f, 0.f, 0.f, -1.f}; //< {x,y,z}: x,y,z coordinates,{w}:packet weight
+    float4 p = {0.f, 0.f, 0.f, NAN}; //< {x,y,z}: x,y,z coordinates,{w}:packet weight
     float4 v = gcfg->c0; //< {x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event
     float4 f = {0.f, 0.f, 0.f, 0.f}; //< Photon parameter state: x/pscat: remaining scattering probability, y/t: photon elapse time, z/pathlen: total pathlen in one voxel, w/ndone: completed photons
 
@@ -1291,6 +1291,7 @@ __kernel void mcx_main_loop(__global const uint* media,
     gpu_rng_init(t, n_seed, idx);
 
 #if defined(MCX_DEBUG_RNG)
+
     for (int i = idx; i < gcfg->dimlen.w; i += get_global_size(0)) {
         field[i] = rand_uniform01(t);
     }
@@ -1387,7 +1388,7 @@ __kernel void mcx_main_loop(__global const uint* media,
 #else
                     float oldval = atomicadd(& field[idx1d + tshift * gcfg->dimlen.z], tmp0 * replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w)]);
 
-                    if (oldval > MAX_ACCUM) {
+                    if (fabs(oldval) > MAX_ACCUM) {
                         if (atomicadd(& field[idx1d + tshift * gcfg->dimlen.z], -oldval) < 0.f) {
                             atomicadd(& field[idx1d + tshift * gcfg->dimlen.z], oldval);
                         } else {
@@ -1491,33 +1492,27 @@ __kernel void mcx_main_loop(__global const uint* media,
 
                 GPUDEBUG(((__constant char*)"deposit to [%d] %e, w=%f\n", idx1dold, weight, p.w));
 
-                if (weight > 0.f) {
+                if (fabs(weight) > 0.f) {
 #ifndef USE_ATOMIC
                     field[idx1dold + tshift * gcfg->dimlen.z] += weight;
 #else
 #if !defined(MCX_SRC_PATTERN) && !defined(MCX_SRC_PATTERN3D)
                     float oldval = atomicadd(& field[idx1dold + tshift * gcfg->dimlen.z], weight);
 
-                    if (oldval > MAX_ACCUM) {
-                        if (atomicadd(& field[idx1dold + tshift * gcfg->dimlen.z], -oldval) < 0.f) {
-                            atomicadd(& field[idx1dold + tshift * gcfg->dimlen.z], oldval);
-                        } else {
-                            atomicadd(& field[idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w], oldval);
-                        }
+                    if (fabs(oldval) > MAX_ACCUM) {
+                        atomicadd(& field[idx1dold + tshift * gcfg->dimlen.z], ((oldval > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
+                        atomicadd(& field[idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w], ((oldval > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
                     }
 
 #else
 
                     for (int i = 0; i < GPU_PARAM(gcfg, srcnum); i++) {
-                        if (ppath[GPU_PARAM(gcfg, w0offset) + i] > 0.f) {
+                        if (fabs(ppath[GPU_PARAM(gcfg, w0offset) + i]) > 0.f) {
                             float oldval = atomicadd(& field[(idx1dold + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i], weight * ppath[GPU_PARAM(gcfg, w0offset) + i]);
 
-                            if (oldval > MAX_ACCUM) {
-                                if (atomicadd(& field[(idx1dold + tshift * gcfg->dimlen.z)*GPU_PARAM(gcfg, srcnum) + i], -oldval) < 0.f) {
-                                    atomicadd(& field[(idx1dold + tshift * gcfg->dimlen.z)*GPU_PARAM(gcfg, srcnum) + i], oldval);
-                                } else {
-                                    atomicadd(& field[(idx1dold + tshift * gcfg->dimlen.z)*GPU_PARAM(gcfg, srcnum) + i + gcfg->dimlen.w], oldval);
-                                }
+                            if (fabs(oldval) > MAX_ACCUM) {
+                                atomicadd(& field[(idx1dold + tshift * gcfg->dimlen.z)*gcfg->srcnum + i], ((oldval > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
+                                atomicadd(& field[(idx1dold + tshift * gcfg->dimlen.z)*gcfg->srcnum + i + gcfg->dimlen.w], ((oldval > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
                             }
                         }
                     }
@@ -1602,7 +1597,7 @@ __kernel void mcx_main_loop(__global const uint* media,
             f.z = 1.f - tmp0 / tmp1 * sphi; //1-[n1/n2*sin(si)]^2
             GPUDEBUG(((__constant char*)"ref total ref=%f\n", f.z));
 
-            if (f.z > 0.f) {
+            if (f.z > 0.f && (isdet & 0xF) != bcMirror) { //< if no total internal reflection, or not mirror bc
                 ctheta = tmp0 * cphi * cphi + tmp1 * f.z;
                 stheta = 2.f * n1 * prop.w * cphi * sqrt(f.z);
                 Rtotal = (ctheta - stheta) / (ctheta + stheta);

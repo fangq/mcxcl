@@ -287,6 +287,7 @@ void mcx_initcfg(Config* cfg) {
     cfg->energyabs = 0.f;
     cfg->energyesc = 0.f;
     cfg->runtime = 0;
+    cfg->srcpos.w = 1.f;
     cfg->debuglevel = 0;
     cfg->gpuid = 0;
 
@@ -2307,6 +2308,8 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
                 cfg->srcpos.y = subitem->child->next->valuedouble;
                 cfg->srcpos.z = subitem->child->next->next->valuedouble;
             }
+
+            cfg->srcpos.w = FIND_JSON_KEY("Weight", "Optode.Source.Weight", src, 1.f, valuedouble);
 
             subitem = FIND_JSON_OBJ("Dir", "Optode.Source.Dir", src);
 
