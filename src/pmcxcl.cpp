@@ -461,7 +461,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
     GET_SCALAR_FIELD(user_cfg, mcx_config, isatomic, py::int_);
     //GET_SCALAR_FIELD(user_cfg, mcx_config, omega, py::float_);
     //GET_SCALAR_FIELD(user_cfg, mcx_config, lambda, py::float_);
-    GET_VEC3_FIELD(user_cfg, mcx_config, srcpos, float);
+    GET_VEC34_FIELD(user_cfg, mcx_config, srcpos, float);
     GET_VEC34_FIELD(user_cfg, mcx_config, srcdir, float);
     GET_VEC3_FIELD(user_cfg, mcx_config, steps, float);
     GET_VEC3_FIELD(user_cfg, mcx_config, crop0, uint);

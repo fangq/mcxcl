@@ -29,14 +29,45 @@ res = pmcxcl.run(nphoton=1000000, vol=np.ones([60, 60, 60], dtype='uint8'),
 """
 
 try:
-    from _pmcxcl import gpuinfo, run
+    from _pmcxcl import gpuinfo, run, version
 except ImportError:  # pragma: no cover
     print("the pmcxcl binary extension (_pmcxcl) is not compiled! please compile first")
 
-# from .utils import detweight, cwdref
-# from .files import loadmc2, loadmch, load, save
+try:
+    from pmcx import (
+        detweight,
+        cwdref,
+        meanpath,
+        meanscat,
+        dettpsf,
+        dettime,
+        tddiffusion,
+        getdistance,
+        detphoton,
+        mcxlab,
+    )
+except ImportError:  # pragma: no cover
+    print(
+        "please first install pmcx module to use utility functions such as 'detweight', 'meanpath' etc"
+    )
+
 from .bench import bench
 
-__version__ = "0.0.11"
+__version__ = "0.0.12"
 
-__all__ = ("gpuinfo", "run", "bench")
+__all__ = (
+    "gpuinfo",
+    "run",
+    "version",
+    "bench",
+    "detweight",
+    "cwdref",
+    "meanpath",
+    "meanscat",
+    "dettpsf",
+    "dettime",
+    "tddiffusion",
+    "getdistance",
+    "detphoton",
+    "mcxlab",
+)
