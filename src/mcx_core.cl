@@ -1291,9 +1291,7 @@ __kernel void mcx_main_loop(__global const uint* media,
     gpu_rng_init(t, n_seed, idx);
 
 #if defined(MCX_DEBUG_RNG)
-    idx1d = gcfg->dimlen.w / get_global_size(0);
-
-    for (int i = idx; i < gcfg->dimlen.w; i += idx1d) {
+    for (int i = idx; i < gcfg->dimlen.w; i += get_global_size(0)) {
         field[i] = rand_uniform01(t);
     }
 
