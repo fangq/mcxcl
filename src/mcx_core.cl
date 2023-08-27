@@ -73,6 +73,9 @@
 
 #define MIN(a,b)           ((a)<(b)?(a):(b))
 
+#define MEDIA_2LABEL_SPLIT    97   /**<  media Format: 64bit:{[byte: lower label][byte: upper label][byte*3: reference point][byte*3: normal vector]} */
+#define MEDIA_2LABEL_MIX      98   /**<  media format: {[int: label1][int: label2][float32: label1 %]} -> 32bit:{[half: label1 %],[byte: label2],[byte: label1]} */
+#define MEDIA_LABEL_HALF      99   /**<  media format: {[float32: 1/2/3/4][float32: type][float32: mua/mus/g/n]} -> 32bit:{[half: mua/mus/g/n][int16: [B15-B16: 0/1/2/3][B1-B14: tissue type]} */
 #define MEDIA_AS_F2H          100  /**<  media format: {[float32: mua][float32: mus]} -> 32bit:{[half: mua],{half: mus}} */
 #define MEDIA_MUA_FLOAT       101  /**<  media format: 32bit:{[float32: mua]} */
 #define MEDIA_AS_HALF         102  /**<  media format: 32bit:{[half: mua],[half: mus]} */
@@ -608,7 +611,7 @@ void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant float4* gp
 #elif MED_TYPE==MEDIA_MUA_FLOAT
     prop[0].x = fabs(*((float*)&mediaid));
     prop[0].w = gproperty[(!(mediaid & MED_MASK)) == 0].w;
-#elif MED_TYPE==MEDIA_MUA_FLOAT || MED_TYPE==MEDIA_AS_HALF
+#elif MED_TYPE==MEDIA_AS_F2H || MED_TYPE==MEDIA_AS_HALF //< [h1][h0]: h1/h0: single-prec mua/mus for every voxel; g/n uses those in cfg.prop(2,:)
 #ifdef USE_HALF
     union {
         unsigned int i;
@@ -618,6 +621,43 @@ void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant float4* gp
     prop[0].x = fabs(convert_float(val.h[0]));
     prop[0].y = fabs(convert_float(val.h[1]));
     prop[0].w = gproperty[(!(mediaid & MED_MASK)) == 0].w;
+#endif
+#elif MED_TYPE==MEDIA_2LABEL_MIX //< [s1][c1][c0]: s1: (volume fraction of tissue 1)*(2^16-1), c1: tissue 1 label, c0: tissue 0 label
+    union {
+        unsigned int   i;
+        unsigned short h[2];
+        unsigned char  c[4];
+    } val;
+    val.i = mediaid & MED_MASK;
+
+    if (val.h[1] > 0) {
+        if ((rand_uniform01(t) * 32767.f) < val.h[1]) {
+            *((FLOAT4VEC*)(prop)) = gproperty[val.c[1]];
+            mediaid >>= 8;
+        } else {
+            *((FLOAT4VEC*)(prop)) = gproperty[val.c[0]];
+        }
+
+        mediaid &= 0xFFFF;
+    } else {
+        *((FLOAT4VEC*)(prop)) = gproperty[val.c[0]];
+    }
+
+#elif MED_TYPE==MEDIA_LABEL_HALF //< [h1][s0]: h1: half-prec property value; highest 2bit in s0: index 0-3, low 14bit: tissue label
+#ifdef USE_HALF
+    union {
+        unsigned int i;
+#if ! defined(__CUDACC_VER_MAJOR__) || __CUDACC_VER_MAJOR__ >= 9
+        __half_raw h[2];
+#else
+        half h[2];
+#endif
+        unsigned short s[2]; /**s[1]: half-prec property; s[0]: high 2bits: idx 0-3, low 14bits: tissue label*/
+    } val;
+    val.i = mediaid & MED_MASK;
+    *((FLOAT4VEC*)(prop)) = gproperty[val.s[0] & 0x3FFF];
+    float* p = (float*)(prop);
+    p[(val.s[0] & 0xC000) >> 14] = fabsf(__half2float(val.h[1]));
 #endif
 #elif MED_TYPE==MEDIA_ASGN_BYTE
     union {
@@ -1249,6 +1289,16 @@ __kernel void mcx_main_loop(__global const uint* media,
     ppath[GPU_PARAM(gcfg, partialdata) + 1] = genergy[(idx << 1) + 1];
 
     gpu_rng_init(t, n_seed, idx);
+
+#if defined(MCX_DEBUG_RNG)
+    idx1d = gcfg->dimlen.w / get_global_size(0);
+
+    for (int i = idx; i < gcfg->dimlen.w; i += idx1d) {
+        field[i] = rand_uniform01(t);
+    }
+
+    return;
+#endif
 
     if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove, 0, ppath,
                         n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton,

@@ -47,7 +47,25 @@ What's New
 
 The last official MCX-CL release was v2020 nearly 3 years ago. Many new
 features have been implemented in MCX/MCX-CL since then. Some of the key
-updates made to the v2023.7 version of MCX-CL are listed below
+updates made to the v2023 version of MCX-CL are listed below
+
+MCX-CL v2023 provides an official Python mcx module ('''pmcxcl''') to run stream-lined
+MCX simulations in Python, offering mcxlab-like interface.
+
+Starting in MCX-CL v2023, we have completed the migration from MCX-specific binary output
+formats (.mc2/.mch) to human-readable, extensible and future-proof JSON-based portable
+data formats defined by the [NeuroJSON](https://neurojson.org) project. The NeuroJSON
+project aims at simplify scientific data exchange using portable data formats that are
+readable, searchable, shareable, can be readily validated and served in the web and cloud.
+The NeuroJSON project is also led by MCX's author, Dr. Qianqian Fang, funded by the
+US NIH U24-NS124027 grant.
+
+As a result of this migration, the MCX-CL executable's default output formats are now
+`.jnii` for volumetric output data, and `.jdat` for detected photon/trajectory data.
+Both data formats are JSON compatible. Details on how to read/write these data files
+can be found below.
+
+In summary, v2023 is packed with exciting updates, including
 
 * pmcxcl (https://pypi.org/project/pmcxcl/) - a Python interface to mcxcl
 * New continuous integration (CI) and testing system based on Github Action
@@ -56,6 +74,7 @@ updates made to the v2023.7 version of MCX-CL are listed below
 * Efficient DDA (Digital Differential Analyzer) ray-marching algorithm, gain 40% speedup
 * Fixed loss of accuracy near the source (fangq/mcx#41)
 * Trajectory-only output with debuglevel=T
+* Adopted standardized NeuroJSON JNIfTI and JData formats to ease data exchange
 
 The detailed updates can be found in the below change log
 
@@ -681,14 +700,18 @@ such as the following:
 <pre>==============================================================================
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =
 =          Copyright (c) 2010-2023 Qianqian Fang <q.fang at neu.edu>         =
-=                             http://mcx.space/                              =
+=                https://mcx.space/  &  https://neurojson.org/               =
 =                                                                            =
 = Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =
 =   Department of Bioengineering, Northeastern University, Boston, MA, USA   =
 ==============================================================================
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =
 ==============================================================================
-$Rev::4fdc45$v2023.7 $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$
+= Open-source codes and reusable scientific data are essential for research, =
+= MCX proudly developed human-readable JSON-based data formats for easy reuse=
+= Please consider using JSON (https://neurojson.org/) for your research data =
+==============================================================================
+$Rev::4fdc45$ v2023  $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$
 ==============================================================================
 
 usage: mcxcl <param1> <param2> ...
@@ -805,7 +828,7 @@ where possible parameters include (the first value in [*|*] is the default)
  -M [0|1]      (--dumpmask)    1 to dump detector volume masks; 0 do not save
  -H [1000000] (--maxdetphoton) max number of detected photons
  -S [1|0]      (--save2pt)     1 to save the flux field; 0 do not save
- -F [mc2|...] (--outputformat) fluence data output format:
+ -F [jnii|...](--outputformat) fluence data output format:
                                mc2 - MCX mc2 format (binary 32bit float)
                                jnii - JNIfTI format (https://neurojson.org)
                                bnii - Binary JNIfTI (https://neurojson.org)

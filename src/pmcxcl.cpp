@@ -54,7 +54,7 @@ namespace py = pybind11;
 #endif
 
 float* det_ps = nullptr;     //! buffer to receive data from cfg.detphotons field
-unsigned int dim_det_ps[2] = {0, 0};  //! dimensions of the cfg.detphotons array
+int dim_det_ps[2] = {0, 0};  //! dimensions of the cfg.detphotons array
 int seed_byte = 0;
 
 /**
@@ -79,9 +79,8 @@ int seed_byte = 0;
         catch (const std::runtime_error &err ) {throw py::type_error(std::string("Failed to assign MCX property " + std::string(#prop) + ". Reason: " + err.what()));}}
 
 #define GET_VEC34_FIELD(src, dst, prop, type) if (src.contains(#prop)) {try {auto list = py::list(src[#prop]);\
-            dst.prop = {list[0].cast<type>(), list[1].cast<type>(), list[2].cast<type>(), list.size() == 4 ? list[3].cast<type>() : 1}; \
-            std::cout << #prop << ": [" << dst.prop.x << ", " << dst.prop.y << ", " << dst.prop.z;\
-            if (list.size() == 4) {std::cout << ", " << dst.prop.w;} std::cout << "]\n";}                                                 \
+            dst.prop = {list[0].cast<type>(), list[1].cast<type>(), list[2].cast<type>(), list.size() == 4 ? list[3].cast<type>() : dst.prop.w}; \
+            std::cout << #prop << ": [" << dst.prop.x << ", " << dst.prop.y << ", " << dst.prop.z << ", " << dst.prop.w << "]\n";} \                                     \
         catch (const std::runtime_error &err ) {throw py::type_error(std::string("Failed to assign MCX property " + std::string(#prop) + ". Reason: " + err.what()));}                                                                 \
     }
 
@@ -120,17 +119,16 @@ void parseVolume(const py::dict& user_cfg, Config& mcx_config) {
             if (buffer.shape.at(0) == 4) {
                 mcx_config.mediabyte = MEDIA_ASGN_BYTE;
                 memcpy(mcx_config.vol, buffer.ptr, dim_xyz * sizeof(unsigned int));
-                /*            } else if (buffer.shape.at(0) == 8) {
-                                mcx_config.mediabyte = MEDIA_2LABEL_SPLIT;
-                                auto val = (unsigned char*) buffer.ptr;
+            } else if (buffer.shape.at(0) == 8) {
+                mcx_config.mediabyte = MEDIA_2LABEL_SPLIT;
+                auto val = (unsigned char*) buffer.ptr;
 
-                                if (mcx_config.vol) {
-                                    free(mcx_config.vol);
-                                }
+                if (mcx_config.vol) {
+                    free(mcx_config.vol);
+                }
 
-                                mcx_config.vol = static_cast<unsigned int*>(malloc(dim_xyz << 3));
-                                memcpy(mcx_config.vol, val, (dim_xyz << 3));
-                */
+                mcx_config.vol = static_cast<unsigned int*>(malloc(dim_xyz << 3));
+                memcpy(mcx_config.vol, val, (dim_xyz << 3));
             }
         } else {
             mcx_config.mediabyte = 1;
@@ -152,22 +150,20 @@ void parseVolume(const py::dict& user_cfg, Config& mcx_config) {
 
         if (i == 1) {
             if (buffer.shape.at(0) == 3) {
-                /*
-                                mcx_config.mediabyte = MEDIA_2LABEL_MIX;
-                                auto* val = (unsigned short*) buffer.ptr;
-                                union {
-                                    unsigned short h[2];
-                                    unsigned char c[4];
-                                    unsigned int i[1];
-                                } f2bh;
+                mcx_config.mediabyte = MEDIA_2LABEL_MIX;
+                auto* val = (unsigned short*) buffer.ptr;
+                union {
+                    unsigned short h[2];
+                    unsigned char c[4];
+                    unsigned int i[1];
+                } f2bh;
 
-                                for (i = 0; i < dim_xyz; i++) {
-                                    f2bh.c[0] = val[i * 3] & 0xFF;
-                                    f2bh.c[1] = val[i * 3 + 1] & 0xFF;
-                                    f2bh.h[1] = val[i * 3 + 2] & 0x7FFF;
-                                    mcx_config.vol[i] = f2bh.i[0];
-                                }
-                  */
+                for (i = 0; i < dim_xyz; i++) {
+                    f2bh.c[0] = val[i * 3] & 0xFF;
+                    f2bh.c[1] = val[i * 3 + 1] & 0xFF;
+                    f2bh.h[1] = val[i * 3 + 2] & 0x7FFF;
+                    mcx_config.vol[i] = f2bh.i[0];
+                }
             } else if (buffer.shape.at(0) == 2) {
                 mcx_config.mediabyte = MEDIA_AS_SHORT;
                 memcpy(mcx_config.vol, buffer.ptr, dim_xyz * sizeof(unsigned int));
@@ -253,7 +249,7 @@ void parseVolume(const py::dict& user_cfg, Config& mcx_config) {
     } else if (py::array_t<float>::check_(volume_handle)) {
         auto f_style_volume = py::array_t<float, py::array::f_style>::ensure(volume_handle);
         auto buffer = f_style_volume.request();
-        unsigned int i = buffer.shape.size() == 4;
+        int i = buffer.shape.size() == 4;
         mcx_config.dim = {static_cast<unsigned int>(buffer.shape.at(i)),
                           static_cast<unsigned int>(buffer.shape.at(i + 1)),
                           static_cast<unsigned int>(buffer.shape.at(i + 2))
@@ -263,41 +259,40 @@ void parseVolume(const py::dict& user_cfg, Config& mcx_config) {
 
         if (i) {
             switch (buffer.shape.at(0)) {
-                /*
-                                case 3: {
-                                    mcx_config.mediabyte = MEDIA_LABEL_HALF;
-                                    auto val = (float*) buffer.ptr;
-                                    union {
-                                        float f[3];
-                                        unsigned int i[3];
-                                        unsigned short h[2];
-                                        unsigned char c[4];
-                                    } f2bh;
-                                    unsigned short tmp;
+                case 3: {
+                    mcx_config.mediabyte = MEDIA_LABEL_HALF;
+                    auto val = (float*) buffer.ptr;
+                    union {
+                        float f[3];
+                        unsigned int i[3];
+                        unsigned short h[2];
+                        unsigned char c[4];
+                    } f2bh;
+                    unsigned short tmp;
 
-                                    for (i = 0; i < dim_xyz; i++) {
-                                        f2bh.f[2] = val[i * 3];
-                                        f2bh.f[1] = val[i * 3 + 1];
-                                        f2bh.f[0] = val[i * 3 + 2];
+                    for (i = 0; i < dim_xyz; i++) {
+                        f2bh.f[2] = val[i * 3];
+                        f2bh.f[1] = val[i * 3 + 1];
+                        f2bh.f[0] = val[i * 3 + 2];
 
-                                        if (f2bh.f[1] < 0.f || f2bh.f[1] >= 4.f || f2bh.f[0] < 0.f) {
-                                            throw py::value_error("the 2nd volume must have an integer value between 0 and 3");
-                                        }
+                        if (f2bh.f[1] < 0.f || f2bh.f[1] >= 4.f || f2bh.f[0] < 0.f) {
+                            throw py::value_error("the 2nd volume must have an integer value between 0 and 3");
+                        }
 
-                                        f2bh.h[0] = ((((unsigned char) (f2bh.f[1]) & 0x3) << 14) | (unsigned short) (f2bh.f[0]));
+                        f2bh.h[0] = ((((unsigned char) (f2bh.f[1]) & 0x3) << 14) | (unsigned short) (f2bh.f[0]));
 
-                                        f2bh.h[1] = (f2bh.i[2] >> 31) << 5;
-                                        tmp = (f2bh.i[2] >> 23) & 0xff;
-                                        tmp = (tmp - 0x70) & ((unsigned int) ((int) (0x70 - tmp) >> 4) >> 27);
-                                        f2bh.h[1] = (f2bh.h[1] | tmp) << 10;
-                                        f2bh.h[1] |= (f2bh.i[2] >> 13) & 0x3ff;
+                        f2bh.h[1] = (f2bh.i[2] >> 31) << 5;
+                        tmp = (f2bh.i[2] >> 23) & 0xff;
+                        tmp = (tmp - 0x70) & ((unsigned int) ((int) (0x70 - tmp) >> 4) >> 27);
+                        f2bh.h[1] = (f2bh.h[1] | tmp) << 10;
+                        f2bh.h[1] |= (f2bh.i[2] >> 13) & 0x3ff;
 
-                                        mcx_config.vol[i] = f2bh.i[0];
-                                    }
+                        mcx_config.vol[i] = f2bh.i[0];
+                    }
 
-                                    break;
-                                }
-                */
+                    break;
+                }
+
                 case 2: {
                     mcx_config.mediabyte = MEDIA_AS_F2H;
                     auto val = (float*) buffer.ptr;
@@ -513,7 +508,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
 
         auto buffer_info = f_style_volume.request();
 
-        if ((buffer_info.shape.size() > 1 && buffer_info.shape.at(0) > 0 && buffer_info.shape.at(1) != 4) || buffer_info.shape.size() == 1 && buffer_info.shape.at(0) != 4) {
+        if ((buffer_info.shape.size() > 1 && buffer_info.shape.at(0) > 0 && buffer_info.shape.at(1) != 4) || (buffer_info.shape.size() == 1 && buffer_info.shape.at(0) != 4)) {
             throw py::value_error("the 'prop' field must have 4 columns (mua,mus,g,n)");
         }
 
@@ -925,8 +920,8 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
         mcx_flush(&mcx_config);
 
         /** Validate all input fields, and warn incompatible inputs */
-        mcx_validateconfig(&mcx_config);
-        mcx_replayprep(&mcx_config, det_ps, dim_det_ps, seed_byte);
+        mcx_validatecfg(&mcx_config, det_ps, dim_det_ps, seed_byte);
+        mcx_replayinit(&mcx_config, det_ps, dim_det_ps, seed_byte);
 
         partial_data =
             (mcx_config.medianum - 1) * (SAVE_NSCAT(mcx_config.savedetflag) + SAVE_PPATH(mcx_config.savedetflag) +

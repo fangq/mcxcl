@@ -2,7 +2,7 @@ function [data, header]=mcxloadfile(fname,varargin)
 %
 %    [data, header]=mcxloadfile(fname)
 %       or
-%    [data, header]=mcxplotvol(fname,dim,format)
+%    [data, header]=mcxloadfile(fname,dim,format)
 %
 %    author: Qianqian Fang (q.fang <at> neu.edu)
 %
@@ -27,6 +27,10 @@ if(strcmpi(ext,'.nii'))
     nii=mcxloadnii(fname,varargin{:});
     data=nii.img;
     header=nii.hdr;
+elseif(strcmpi(ext,'.jnii'))
+    nii=loadjson(fname,varargin{:});
+    data=nii.NIFTIData;
+    header=nii.NIFTIHeader;
 elseif(strcmpi(ext,'.mc2'))
     data=loadmc2(fname,varargin{:});
     data=log10(data);
