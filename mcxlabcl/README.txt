@@ -2,7 +2,7 @@
 
 Author: Qianqian Fang <q.fang at neu.edu>
 License: GNU General Public License version 3 (GPLv3)
-Version: this package is part of Monte Carlo eXtreme OpenCL (MCX-CL) v2020
+Version: this package is part of Monte Carlo eXtreme OpenCL (MCX-CL) v2023
 
 <toc>
 
@@ -59,7 +59,7 @@ the verbose command line options in MCX.
 <pre> ====================================================================
        MCXLAB-CL - Monte Carlo eXtreme (MCX) for MATLAB/GNU Octave
  --------------------------------------------------------------------
-        Copyright (c) 2018-2020 Qianqian Fang <q.fang at neu.edu>
+        Copyright (c) 2018-2023 Qianqian Fang <q.fang at neu.edu>
                        URL: http://mcx.space
  ====================================================================
  
@@ -73,7 +73,7 @@ the verbose command line options in MCX.
      cfg: a struct, or struct array. Each element of cfg defines 
           the parameters associated with a simulation. 
           if cfg='gpuinfo': return the supported GPUs and their parameters,
-          if cfg='version': return the version of MCXLABCL as a string,
+          if cfg='version': return the version of mcxlabcl as a string,
           see sample script at the bottom
      option: (optional), options is a string, specifying additional options
           option='preview': this plots the domain configuration using mcxpreview(cfg)
@@ -219,7 +219,7 @@ the verbose command line options in MCX.
                        'fourierx2d' [*] - a general 2D Fourier basis, parameters
                                 srcparam1: [v1x,v1y,v1z,|v2|], srcparam2: [kx,ky,phix,phiy]
                                 the phase shift is phi{x,y}*2*pi
-                       'zgaussian' - an angular gaussian beam, srcparam1(0) specifies the variance in the zenith angle
+                       'zgaussian' - an angular gaussian beam, srcparam1(1) specifies the variance in the zenith angle
                        'line' - a line source, emitting from the line segment between 
                                 cfg.srcpos and cfg.srcpos+cfg.srcparam(1:3), radiating 
                                 uniformly in the perpendicular direction
@@ -266,20 +266,27 @@ the verbose command line options in MCX.
                        next to a boundary voxel. The reflectance data are stored as 
                        negative values; must pad zeros next to boundaries
                        Example: see the demo script at the bottom
+       cfg.issavedet:  if the 2nd output is requested, this will be set to 1; in such case, user can force
+                       setting it to 3 to enable early termination of simulation if the detected photon
+                       buffer (length controlled by cfg.maxdetphoton) is filled; if the 2nd output is not
+                       present, this will be set to 0 regardless user input.
        cfg.outputtype: 'flux' - fluence-rate, (default value)
                        'fluence' - fluence integrated over each time gate, 
                        'energy' - energy deposit per voxel
                        'jacobian' or 'wl' - mua Jacobian (replay mode), 
                        'nscat' or 'wp' - weighted scattering counts for computing Jacobian for mus (replay mode)
+                       'wm' - weighted momentum transfer for a source/detector pair (replay mode)
+                       'length' total pathlengths accumulated per voxel,
                        for type jacobian/wl/wp, example: <demo_mcxlab_replay.m>
                        and  <demo_replay_timedomain.m>
        cfg.session:    a string for output file names (only used when no return variables)
  
  == Debug ==
-       cfg.debuglevel:  debug flag string (case insensitive), one or a combination of ['R','M','P'], no space
+       cfg.debuglevel:  debug flag string (case insensitive), one or a combination of ['R','M','P','T'], no space
                      'R':  debug RNG, output fluence.data is filled with 0-1 random numbers
                      'M':  return photon trajectory data as the 5th output
                      'P':  show progress bar
+                     'T':  save photon trajectory data only, as the 1st output, disable flux/detp/seeds outputs
        cfg.maxjumpdebug: [10000000|int] when trajectory is requested in the output, 
                       use this parameter to set the maximum position stored. By default,
                       only the first 1e6 positions are stored.
@@ -287,11 +294,28 @@ the verbose command line options in MCX.
        fields with * are required; options in [] are the default values
  
   Output:
-       fluence: a struct array, with a length equals to that of cfg.
-             For each element of fluence, fluence(i).data is a 4D array with
-             dimensions specified by [size(vol) total-time-gates]. 
-             The content of the array is the normalized fluence at 
-             each voxel of each time-gate.
+             For each element of fluence, 
+             fluence(i).data is a 4D array with
+                  dimensions specified by [size(vol) total-time-gates]. 
+                  The content of the array is the normalized fluence at 
+                  each voxel of each time-gate.
+ 
+                  when cfg.debuglevel contains 'T', fluence(i).data stores trajectory
+                  output, see below
+             fluence(i).dref is a 4D array with the same dimension as fluence(i).data
+                  if cfg.issaveref is set to 1, containing only non-zero values in the 
+                  layer of voxels immediately next to the non-zero voxels in cfg.vol,
+                  storing the normalized total diffuse reflectance (summation of the weights 
+                  of all escaped photon to the background regardless of their direction);
+                  it is an empty array [] when if cfg.issaveref is 0.
+             fluence(i).stat is a structure storing additional information, including
+                  runtime: total simulation run-time in millisecond
+                  nphoton: total simulated photon number
+                  energytot: total initial weight/energy of all launched photons
+                  energyabs: total absorbed weight/energy of all photons
+                  normalizer: normalization factor
+                  unitinmm: same as cfg.unitinmm, voxel edge-length in mm
+ 
        detphoton: (optional) a struct array, with a length equals to that of cfg.
              Starting from v2018, the detphoton contains the below subfields:
                detphoton.detid: the ID(>0) of the detector that captures the photon
@@ -359,6 +383,7 @@ the verbose command line options in MCX.
        newtraj=mcxplotphotons(traj);title('photon trajectories')
        subplot(236);
        imagesc(squeeze(log(cwdref(:,:,1))));title('diffuse refle. at z=1');
+ 
  
   This function is part of Monte Carlo eXtreme (MCX) URL: http://mcx.space
  
