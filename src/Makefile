@@ -21,7 +21,7 @@ CPPOPT:=$(CCOPT) -Wno-variadic-macros
 CCOPT+=-std=c99
 
 DLLFLAG=-fPIC
-OMP=-fopenmp
+OMP=#-fopenmp
 OUTPUTFLAG:=-o
 XXD=xxd
 
