@@ -61,10 +61,19 @@ end
 opt=struct(varargin{:});
 pname='mcx';
 
+clsource = fileread('mcx_core.cl');
+clsrc = sprintf('0x%02x, ', char(clsource));
+clhex = ['unsigned char mcx_core_cl[] = {' sprintf('\n') clsrc(1:end-2) sprintf('\n')  ...
+    sprintf('};\nunsigned int mcx_core_cl_len = %d;\n', length(clsource))];
+
+fp=fopen('mcx_core.clh','wb');
+fwrite(fp, clhex, 'char');
+fclose(fp);
+
 cflags=' -g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -std=c99 -DMCX_CONTAINER -c ';
 
 filelist={'mcx_utils.c','mcx_tictoc.c','cjson/cJSON.c','mcx_host.cpp',...
-    'mcxcl.c','mcx_shapes.c','mcxlabcl.cpp'};
+    'mcx_shapes.c','mcxlabcl.cpp'};
 if(isfield(opt,'filelist'))
     filelist=opt.filelist;
 end
@@ -72,12 +81,12 @@ if(isfield(opt,'include'))
     cflags=[cflags ' ' opt.include];
 end
 if(ispc)
-    linkflags='$LINKLIBS -fopenmp -lstdc++ -static';
+    linkflags='$LINKLIBS -lstdc++ -static';
     cflags=[cflags ' -I./mingw64/include -I"$MINGWROOT/opt/include"'];
     linkflags=[linkflags ' ''C:\Windows\System32\OpenCL.dll'' '];
     linkvar='LINKLIBS';
 else
-    linkflags='\$CLIBS -fopenmp -static-libgcc -static-libstdc++';
+    linkflags='$CLIBS -static-libgcc -static-libstdc++';
     cflags=[cflags ' -fPIC '];
     linkflags=[linkflags ' -lOpenCL '];
     linkvar='CLIBS';
