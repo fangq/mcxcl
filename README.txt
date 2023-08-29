@@ -12,21 +12,158 @@
 
 ---------------------------------------------------------------------
 
+== # What's New ==
+
+The last official MCX-CL release was v2020 nearly 3 years ago. Many new
+features have been implemented in MCX/MCX-CL since then. Some of the key
+updates made to the v2023 version of MCX-CL are listed below
+
+MCX-CL v2023 is significantly faster than the previous releases due to
+two major updates. First, on NVIDIA GPUs, an native PTX-based atomic function
+is used to gain 40% acceleration on NVIDIA hardware. Secondly, a highly
+efficient DDA (Digital Differential Analyzer) ray-marching algorithm was
+implemented to MCX and ported to MCX-CL. This also brings up to 40% speedup
+in certain benchmarks such as `cube60`. Moreover, MCX-CL v2023 provides an
+official Python mcx module (`pmcxcl`) to run stream-lined MCX simulations
+in Python, offering intuitive mcxlab-like interface. During the past year,
+a large effort was committed to build automated continuous integration (CI)
+pipelines using Github Action, allowing us to automatically create, test,
+and distribute portable packages across Linux, Windows, MacOS OSes, and
+MATLAB, GNU Octave and Python environments.
+
+Starting in MCX-CL v2023, we have completed the migration from MCX-specific binary output
+formats (.mc2/.mch) to human-readable, extensible and future-proof JSON-based portable
+data formats defined by the [https://neurojson.org NeuroJSON] project. The NeuroJSON
+project aims at simplify scientific data exchange using portable data formats that are
+readable, searchable, shareable, can be readily validated and served in the web and cloud.
+The NeuroJSON project is also led by MCX's author, Dr. Qianqian Fang, funded by the
+US NIH U24-NS124027 grant.
+
+As a result of this migration, the MCX-CL executable's default output formats are now
+`.jnii` for volumetric output data, and `.jdat` for detected photon/trajectory data.
+Both data formats are JSON compatible. Details on how to read/write these data files
+can be found below.
+
+In summary, v2023 is packed with exciting updates, including
+
+* pmcxcl (https://pypi.org/project/pmcxcl/) - a Python interface to mcxcl
+* New continuous integration (CI) and testing system based on Github Action
+* CMake based building environment
+* Use NVIDIA PTX-based float atomicadd to gain >30% speedup
+* Efficient DDA (Digital Differential Analyzer) ray-marching algorithm, gain 40% speedup
+* Fixed loss of accuracy near the source (fangq/mcx#41)
+* Trajectory-only output with debuglevel=T
+* Adopted standardized NeuroJSON JNIfTI and JData formats to ease data exchange
+
+The detailed updates can be found in the below change log
+
+* 2023-08-27 [080855a] fix pmcxcl gpu hanging bug, import utils from pmcx, v0.0.12
+* 2023-08-27 [e342756] port negative pattern support from mcx
+* 2023-08-27 [7a7b456] update debuglevel=R for RNG testing
+* 2023-08-25 [b8095a8] add mcxlab('version'), use MCX_VERSION macro, update msg, port many bug fixes from mcx
+* 2023-08-04 [9b4d76f] fix boundary condition handling, port from mcx
+* 2023-07-30 [50940de] update zmatlib to 0.9.9, use miniz, drop zlib
+* 2023-07-30 [370128a] support compileropt and kernelfile in mcxlab/pmcxcl, fix omp
+* 2023-07-30 [1b28a6d] fix windows gomp multiple linking bug
+* 2023-07-29 [4916939] automatically build and upload Python module via github action
+* 2023-07-28 [09c61b7] bump pmcxcl version, fix windows pypi version check
+* 2023-07-25 [4b5606e] port python module action scripts from mcx
+* 2023-07-25 [f92425e] add initial draft of pmcxcl for Python, add cmake
+* 2023-07-25 [3c2c735] update missing output structs
+* 2023-07-23 [87f3c0e] allow early termination if -d 3 or cfg.issavedet=3 is set
+* 2023-07-23 [c8ccc04] support outputtype=length/l for saving total path lengths per voxel
+* 2023-07-23 [57c3b9b] fix incorrect comment regarding gaussian src, fangq/mcx#165
+* 2023-07-23 [7d5bd16] update mcxplotphoton to mcx
+* 2023-07-23 [1cafd3e] allow to get fluence in non-absorbing medium, fangq/mcx#174
+* 2023-07-23 [8dbc397] update neurojson repo paths
+* 2023-07-23 [0d780bd] support trajectory only output with debuglevel=T
+* 2023-07-23 [e4ade36] fix replay test result matching
+* 2023-07-03 [b57b157] fix macos error
+* 2023-07-02 [99a4486] port zmat ci changes to mcxcl
+* 2023-06-03 [980cc9f] enable doxygen documentation via make doc
+* 2023-05-17 [a25f302] allow device query to handle open-source AMD ocl runtime, fix #44
+* 2023-03-12 [c9697a9] update action from mmc to mcxcl
+* 2023-03-12 [11938a3] copy mmc's merged action script
+* 2023-03-07 [ee7e940] add github action
+* 2022-10-08 [ae7f6e3] update version to 1.0
+* 2022-10-03 [695d2f3] run test on all platforms
+* 2022-10-03 [85beae7] revert debugging information, fix cyclic bc for mac
+* 2022-10-02 [53ec9e7] attempt to fix cyclic bc
+* 2022-10-02 [263abb2] test cyclic bc
+* 2022-10-02 [6c588fa] debug cyclic bc
+* 2022-10-02 [fc481ba] debug cyclic test on the mac
+* 2022-10-02 [8bdc33e] disable zmat and file IO functions in mex/oct targets
+* 2022-10-02 [c6e280a] fix CI error after using voxel index dda
+* 2022-10-01 [24bf948] allow disabling PTX based f32 atomicadd
+* 2022-10-01 [2277f7f] using nvidia native atomicadd for float add 30% speedup
+* 2022-09-29 [f0d0bad] update skipvoid
+* 2022-09-29 [b3d94d2] update to match mcx flipdir use
+* 2022-09-23 [1931489] adopt voxel-index based dda, like fangq/mcx b873f90c6
+* 2022-09-21 [d9e5eaa] add jammy to ci
+* 2022-09-21 [3e71eac] making double-buffer finally work to solve fangq/mcx#41, thanks to @ShijieYan
+* 2022-09-21 [2216686] sync mcxcl's json2mcx with the latest version from mcx
+* 2022-05-21 [39913fc] complete reformat of source code using astyle with 'make pretty'
+* 2022-05-21 [f7d69d5] sync mcx2json from mcx repo
+* 2022-01-27 [2559135] sync mcxdetphoton.m with mcx, move location
+* 2021-10-29 [867314a] Update README.md
+* 2021-06-23 [818f3a1] set maximum characters to read for fscanf, fix #41
+* 2021-06-23 [38d56a6] handle empty detector array in json2mcx
+* 2021-05-26 [4c18305] fix a few minor memory leaks based on valgrind output, still leaks on nvidia GPUs
+* 2021-05-15 [bbee39e] save volume in jdata format by default
+* 2021-02-26 [8eba2cd] add MATLAB_MEX_FILE in the makefile
+* 2021-02-24 [8f793a0] use memcpy to avoid strncpy warning from gcc 10
+* 2021-02-24 [89b46a9] update windows compilation commands
+* 2021-02-24 [49c6217] allow compiling GNU Octave mex on windows
+* 2021-02-07 [e9d2ce7] following Debian script suffix rule
+* 2020-09-06 [a39f271] update numeral version number
+* 2020-09-06 [6ea10b2] add back wiki versions of the README file for easy website update
+* 2020-09-04 [de59205] patch mcxcl for fangq/mcx#103 and fangq/mcx#104
+* 2020-09-01 [9b5431e] sync with mcx, add cubesph60b to match example/benchmark2
+* 2020-08-31 [7e7eb06] flush output for mcxlabcl
+* 2020-08-31 [6079b17] fix pattern3d demo script bug
+* 2020-08-31 [7b36ee8] fix photon sharing mcxlab crash
+* 2020-08-30 [f498e29] fix typo
+* 2020-08-29 [b001786] update mcxlabcl, update ChangeLog
+
+
 == # Introduction ==
 
-Monte Carlo eXtreme (MCX) is a fast photon transport simulation 
-software for 3D heterogeneous turbid media. By taking advantage of 
+Monte Carlo eXtreme (MCX) is a fast physically-accurate photon simulation 
+software for 3D heterogeneous complex media. By taking advantage of 
 the massively parallel threads and extremely low memory latency in a 
 modern graphics processing unit (GPU), this program is able to perform Monte 
 Carlo (MC) simulations at a blazing speed, typically hundreds to
-a thousand times faster than a fully optimized CPU-based MC 
-implementation.
+a thousand times faster than a single-threaded CPU-based MC implementation.
 
 MCX-CL is the OpenCL implementation of the MCX algorithm. Unlike MCX
-which only be executed on NVIDIA GPUs, MCX-CL is written in OpenCL,
+which can only be executed on NVIDIA GPUs, MCX-CL is written in OpenCL,
 the Open Computing Language, and can be executed on most modern CPUs
 and GPUs available today, including Intel and AMD CPUs and GPUs. MCX-CL
-is highly portable, highly scalable and is feature rich like MCX.
+is highly portable, highly scalable and is feature-rich just like MCX.
+
+Due to the nature of the underlying MC algorithms, MCX and MCX-CL are
+ray-tracing/ray-casting software under-the-hood. Compared to commonly
+seen ray-tracing libraries used in computer graphics or gaming
+engines, MCX-CL and MCX have many unique characteristics. The most
+important difference is that MCX/MCX-CL are rigorously based on physical
+laws. They are numerical solvers to the underlying radiative transfer equation
+(RTE) and their solutions have been validated across many publications
+using optical instruments and experimental measurements. In comparison,
+most graphics-oriented ray-tracers have to make many approximations in
+order to achieve fast rendering, enable to provide quantitatively accurate
+light simulation results. Because of this, MCX/MCX-CL have been extensively
+used by biophotonics research communities to obtain reference solutions and
+guide the development of novel medical imaging systems or clinical
+applications. Additionally, MCX/MCX-CL are volumetric ray-tracers; they
+traverse photon-rays throughout complex 3-D domains and computes physically
+meaningful quantities such as spatially resolved fluence, flux, diffuse
+reflectance/transmittance, energy deposition, partial pathlengths,
+among many others. In contrast, most graphics ray-tracing engines
+only trace the RGB color of a ray and render it on a flat 2-D screen.
+In other words, MCX/MCX-CL gives physically accurate 3-D light distributions
+while graphics ray-tracers focus on 2-D rendering of a scene at the camera.
+Nonetheless, they share many similarities, such as ray-marching computation,
+GPU acceleration, scattering/absorption handling etc.
 
 The details of MCX-CL can be found in the below paper
 
@@ -49,19 +186,22 @@ A short summary of the main features includes:
 * native Matlab/Octave support for high usability
 * flexible JSON interface for future extensions
 * multi-GPU support
+* advanced features: photon-replay, photon-sharing, and more
 
 MCX-CL can be used on Windows, Linux and Mac OS. Multiple user 
 interfaces are provided, including
 
-* command line mode: mcxcl can be executed in the command line, best suited \
+* '''Command line mode:''' mcxcl can be executed in the command line, best suited \
   for batch data processing
-* graphical user interface with MCXStudio: MCXStudio is a unified GUI program \
+* '''Graphical User Interface with MCXStudio:''' MCXStudio is a unified GUI program \
   for MCX, MCX-CL and MMC. One can intuitively set all parameters, including \
   GPU settings, MC settings and domain design, in the cross-platform interface
-* calling inside MATLAB/Octave: mcxlabcl is a mex function, one can call it \
+* '''Calling inside MATLAB/Octave:''' mcxlabcl is a mex function, one can call it \
   inside MATLAB or GNU Octave to get all functionalities as the command line \
   version.
-  
+* '''Calling inside Python:''' `pmcxcl` is a Python module wrapping the entire mcxcl \
+ simulation in an easy-to-use interface. One can install pmcxcl via `pip install pmcxcl`
+
 If a user is familiar with MATLAB/Octave, it is highly recommended to 
 use MCXCL in MATLAB/Octave to ease data visualization. If one prefers a 
 GUI, please use MCXStudio to start.  For users who are familiar with MCX/MCXCL 
@@ -74,10 +214,8 @@ recommended.
 With the up-to-date driver installed for your computers, MCXCL can run on
 almost all computers. The requirements for using this software include
 
-* a CPU, or
-* a CUDA capable NVIDIA graphics card, or
-* an AMD graphics card, and
-* pre-installed graphics driver - typically includes the OpenCL library (`libOpenCL.*` or `OpenCL.dll`)
+* a modern CPU or GPU (Intel, NVIDIA, AMD, among others)
+* pre-installed graphics driver - typically includes the OpenCL runtime (`libOpenCL.*` or `OpenCL.dll`)
 
 For speed differences between different CPUs/GPUs made by different vendors, please
 see your above paper [1] and our websites
@@ -85,7 +223,7 @@ see your above paper [1] and our websites
 * http://mcx.space/computebench/
 * http://mcx.space/mcxcl
 
-Generally speaking, AMD and NVIDIA high-end dedicated GPU performs the best, about 20-60x 
+Generally speaking, AMD and NVIDIA high-end dedicated GPUs perform the best, about 20-60x 
 faster than a multi-core CPU; Intel's integrated GPU is about 3-4 times faster than
 a multi-core CPU.
 
@@ -101,7 +239,7 @@ and MacOS users, please double check and make sure libOpenCL.so is installed und
 the /usr/lib directory. If it is installed under a different directory, please
 define environment variable LD_LIBRARY_PATH to include the path.
 
-If libOpenCL.so or OpenCL.dll does not exist on your system or, please
+If `libOpenCL.so` or `OpenCL.dll` does not exist on your system or, please
 make sure you have installed CUDA SDK (if you are using an nVidia card)
 or AMD APP SDK (if you are using an AMD card). 
 
@@ -482,15 +620,19 @@ such as the following:
 
 <pre>==============================================================================
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =
-=          Copyright (c) 2010-2020 Qianqian Fang <q.fang at neu.edu>         =
-=                             http://mcx.space/                              =
+=          Copyright (c) 2010-2023 Qianqian Fang <q.fang at neu.edu>         =
+=                https://mcx.space/  &  https://neurojson.org/               =
 =                                                                            =
 = Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =
 =   Department of Bioengineering, Northeastern University, Boston, MA, USA   =
 ==============================================================================
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =
 ==============================================================================
-$Rev::de5920$ v2020 $Date::2020-09-04 18:18:20 -04$ by $Author::Qianqian Fang$
+= Open-source codes and reusable scientific data are essential for research, =
+= MCX proudly developed human-readable JSON-based data formats for easy reuse=
+= Please consider using JSON (https://neurojson.org/) for your research data =
+==============================================================================
+$Rev::080855$ v2023  $Date::2023-08-27 15:14:25 -04$by $Author::Qianqian Fang$
 ==============================================================================
 
 usage: mcxcl <param1> <param2> ...
@@ -528,8 +670,8 @@ where possible parameters include (the first value in [*|*] is the default)
 			       eg: --bc ______010 saves photons exiting at y=0
  -u [1.|float] (--unitinmm)    defines the length unit for the grid edge
  -U [1|0]      (--normalize)   1 to normalize flux to unitary; 0 save raw
- -E [0|int|mch](--seed)        set random-number-generator seed, -1 to generate
-                               if an mch file is followed, MCX "replays" 
+ -E [0|int|.jdat](--seed)      set random-number-generator seed, -1 to generate
+                               if a jdat/mch file is followed, MCX "replays"
                                the detected photon; the replay mode can be used
                                to calculate the mua/mus Jacobian matrices
  -z [0|1]      (--srcfrom0)    1 volume origin is [0 0 0]; 0: origin at [1 1 1]
@@ -578,10 +720,13 @@ where possible parameters include (the first value in [*|*] is the default)
 
 == Output options ==
  -s sessionid  (--session)     a string to label all output file names
- -O [X|XFEJP]  (--outputtype)  X - output flux, F - fluence, E - energy density
+ -O [X|XFEJPML](--outputtype)  X - output flux, F - fluence, E - energy density
                                J - Jacobian (replay mode),   P - scattering
                                event counts at each voxel (replay mode only)
- -d [1|0]      (--savedet)     1 to save photon info at detectors; 0 not save
+                               M - momentum transfer; L - total pathlength
+ -d [1|0-3]    (--savedet)     1 to save photon info at detectors; 0 not save
+                               2 reserved, 3 terminate simulation when detected
+                               photon buffer is filled
  -w [DP|DSPMXVW](--savedetflag)a string controlling detected photon data fields
     /case insensitive/         1 D  output detector ID (1)
                                2 S  output partial scat. even counts (#media)
@@ -604,7 +749,7 @@ where possible parameters include (the first value in [*|*] is the default)
  -M [0|1]      (--dumpmask)    1 to dump detector volume masks; 0 do not save
  -H [1000000] (--maxdetphoton) max number of detected photons
  -S [1|0]      (--save2pt)     1 to save the flux field; 0 do not save
- -F [mc2|...] (--outputformat) fluence data output format:
+ -F [jnii|...](--outputformat) fluence data output format:
                                mc2 - MCX mc2 format (binary 32bit float)
                                jnii - JNIfTI format (https://neurojson.org)
                                bnii - Binary JNIfTI (https://neurojson.org)
@@ -614,7 +759,7 @@ where possible parameters include (the first value in [*|*] is the default)
 	the bnii/jnii formats support compression (-Z) and generate small files
 	load jnii (JSON) and bnii (UBJSON) files using below lightweight libs:
 	  MATLAB/Octave: JNIfTI toolbox   https://github.com/NeuroJSON/jnifti, 
-	  MATLAB/Octave: JSONLab toolbox  https://github.com/fangq/jsonlab, 
+	  MATLAB/Octave: JSONLab toolbox  https://github.com/NeuroJSON/jsonlab,
 	  Python:        PyJData:         https://pypi.org/project/jdata
 	  JavaScript:    JSData:          https://github.com/NeuroJSON/jsdata
  -Z [zlib|...] (--zip)         set compression method if -F jnii or --dumpjson
@@ -627,7 +772,7 @@ where possible parameters include (the first value in [*|*] is the default)
 			       5 lz4: LZ4 format (low compression,extrem. fast)
 			       6 lz4hc: LZ4HC format (moderate compression,fast)
  --dumpjson [-,0,1,'file.json']  export all settings,including volume data using
-                               JSON/JData (https://neurojson.org) format for 
+                               JSON/JData (https://neurojson.org) format for
 			       easy sharing; can be reused using -f
 			       if followed by nothing or '-', mcx will print
 			       the JSON to the console; write to a file if file
@@ -644,9 +789,10 @@ where possible parameters include (the first value in [*|*] is the default)
 == Debug options ==
  -D [0|int]    (--debug)       print debug information (you can use an integer
   or                           or a string by combining the following flags)
- -D [''|RMP]                   1 R  debug RNG
+ -D [''|RMPT]                  1 R  debug RNG
     /case insensitive/         2 M  store photon trajectory info
                                4 P  print progress bar
+                               8 T  save trajectory data only, disable flux/detp
       combine multiple items by using a string, or add selected numbers together
 
 == Additional options ==
@@ -1002,7 +1148,67 @@ When photon-sharing (simultaneous simulations of multiple patterns) or photon-re
 to a 5D array, with the left-most/fastest index being the number of patterns Ns (in the
 case of photon-sharing) or src/det pairs (in replay), denoted as Ns.
 
-Several data formats can be used to store the 3D/4D/5D volumetric output. 
+Several data formats can be used to store the 3D/4D/5D volumetric output. Starting
+in MCX-CL v2023, JSON-based jnii format is the default format for saving the volumetric
+data. Before v2023, the mc2 format is the default format.
+
+==== jnii files ====
+
+The JNIfTI format represents the next-generation scientific data storage 
+and exchange standard and is part of the NeuroJSON initiative (https://neurojson.org)
+led by the MCX author Dr. Qianqian Fang. The NeuroJSON project aims at developing
+easy-to-parse, human-readable and easy-to-reuse data storage formats based on
+the ubiquitously supported JSON/binary JSON formats and portable JData data annotation
+keywords. In short, .jnii file is simply a JSON file with capability of storing 
+binary strongly-typed data with internal compression and built in metadata.
+
+The format standard (Draft 1) of the JNIfTI file can be found at
+
+https://github.com/NeuroJSON/jnifti
+
+A .jnii output file can be generated by using `-F jnii` in the command line.
+
+The .jnii file can be potentially read in nearly all programming languages 
+because it is 100% comaptible to the JSON format. However, to properly decode
+the ND array with built-in compression, one should call JData compatible
+libraries, which can be found at https://neurojson.org/wiki
+
+Specifically, to parse/save .jnii files in MATLAB, you should use
+* JSONLab for MATLAB (https://github.com/fangq/jsonlab) or install `octave-jsonlab` on Fedora/Debian/Ubuntu
+* `jsonencode/jsondecode` in MATLAB + `jdataencode/jdatadecode` from JSONLab (https://github.com/fangq/jsonlab)
+
+To parse/save .jnii files in Python, you should use
+* PyJData module (https://pypi.org/project/jdata/) or install `python3-jdata` on Debian/Ubuntu
+
+In Python, the volumetric data is loaded as a `dict` object where `data['NIFTIData']` 
+is a NumPy `ndarray` object storing the volumetric data.
+
+
+==== bnii files ====
+
+The binary JNIfTI file is also part of the JNIfTI specification and the NeuroJSON
+project. In comparison to text-based JSON format, .bnii files can be much smaller
+and faster to parse. The .bnii format is also defined in the BJData specification
+
+https://github.com/fangq/bjdata
+
+and is the binary interface to .jnii. A .bnii output file can be generated by 
+using `-F bnii` in the command line.
+
+The .bnii file can be potentially read in nearly all programming languages 
+because it was based on UBJSON (Universal Binary JSON). However, to properly decode
+the ND array with built-in compression, one should call JData compatible
+libraries, which can be found at https://neurojson.org/wiki
+
+Specifically, to parse/save .jnii files in MATLAB, you should use one of
+* JSONLab for MATLAB (https://github.com/fangq/jsonlab) or install `octave-jsonlab` on Fedora/Debian/Ubuntu
+* `jsonencode/jsondecode` in MATLAB + `jdataencode/jdatadecode` from JSONLab (https://github.com/fangq/jsonlab)
+
+To parse/save .jnii files in Python, you should use
+* PyJData module (https://pypi.org/project/jdata/) or install `python3-jdata` on Debian/Ubuntu
+
+In Python, the volumetric data is loaded as a `dict` object where `data['NIFTIData']` 
+is a NumPy `ndarray` object storing the volumetric data.
 
 ==== mc2 files ====
 
@@ -1034,63 +1240,6 @@ MATLAB and Python. For example
 * JNIfTI toolbox by Qianqian Fang (https://github.com/NeuroJSON/jnifti/tree/master/lib/matlab)
 * PyNIfTI for Python http://niftilib.sourceforge.net/pynifti/intro.html
 
-==== jnii files ====
-
-The JNIfTI format represents the next-generation scientific data storage 
-and exchange standard and is part of the OpenJData initiative (https://neurojson.org)
-led by the MCX author Dr. Qianqian Fang. The OpenJData project aims at developing
-easy-to-parse, human-readable and easy-to-reuse data storage formats based on
-the ubiquitously supported JSON/binary JSON formats and portable JData data annotation
-keywords. In short, .jnii file is simply a JSON file with capability of storing 
-binary strongly-typed data with internal compression and built in metadata.
-
-The format standard (Draft 1) of the JNIfTI file can be found at
-
-https://github.com/NeuroJSON/jnifti
-
-A .jnii output file can be generated by using `-F jnii` in the command line.
-
-The .jnii file can be potentially read in nearly all programming languages 
-because it is 100% comaptible to the JSON format. However, to properly decode
-the ND array with built-in compression, one should call JData compatible
-libraries, which can be found at https://neurojson.org/wiki
-
-Specifically, to parse/save .jnii files in MATLAB, you should use
-* JSONLab for MATLAB (https://github.com/fangq/jsonlab) or install `octave-jsonlab` on Fedora/Debian/Ubuntu
-* `jsonencode/jsondecode` in MATLAB + `jdataencode/jdatadecode` from JSONLab (https://github.com/fangq/jsonlab)
-
-To parse/save .jnii files in Python, you should use
-* PyJData module (https://pypi.org/project/jdata/) or install `python3-jdata` on Debian/Ubuntu
-
-In Python, the volumetric data is loaded as a `dict` object where `data['NIFTIData']` 
-is a NumPy `ndarray` object storing the volumetric data.
-
-
-==== bnii files ====
-
-The binary JNIfTI file is also part of the JNIfTI specification and the OpenJData
-project. In comparison to text-based JSON format, .bnii files can be much smaller
-and faster to parse. The .bnii format is also defined in the BJData specification
-
-https://github.com/fangq/bjdata
-
-and is the binary interface to .jnii. A .bnii output file can be generated by 
-using `-F bnii` in the command line.
-
-The .bnii file can be potentially read in nearly all programming languages 
-because it was based on UBJSON (Universal Binary JSON). However, to properly decode
-the ND array with built-in compression, one should call JData compatible
-libraries, which can be found at https://neurojson.org/wiki
-
-Specifically, to parse/save .jnii files in MATLAB, you should use one of
-* JSONLab for MATLAB (https://github.com/fangq/jsonlab) or install `octave-jsonlab` on Fedora/Debian/Ubuntu
-* `jsonencode/jsondecode` in MATLAB + `jdataencode/jdatadecode` from JSONLab (https://github.com/fangq/jsonlab)
-
-To parse/save .jnii files in Python, you should use
-* PyJData module (https://pypi.org/project/jdata/) or install `python3-jdata` on Debian/Ubuntu
-
-In Python, the volumetric data is loaded as a `dict` object where `data['NIFTIData']` 
-is a NumPy `ndarray` object storing the volumetric data.
 
 === Detected photon data ===
 
@@ -1103,45 +1252,10 @@ disabled using the `-d` flag.
 The detected photon data are stored in a separate file from the volumetric output.
 The supported data file formats are explained below.
 
-==== mch files ====
-
-The .mch file, or MC history file, is stored by default, but we strongly encourage users
-to adpot the newly implemented JSON/.jdat format for easy data sharing. 
-
-The .mch file contains a 256 byte binary header, followed by a 2-D numerical array
-of dimensions #savedphoton * #colcount as recorded in the header.
-
- typedef struct MCXHistoryHeader{
-	char magic[4];                 /**< magic bits= 'M','C','X','H' */
-	unsigned int  version;         /**< version of the mch file format */
-	unsigned int  maxmedia;        /**< number of media in the simulation */
-	unsigned int  detnum;          /**< number of detectors in the simulation */
-	unsigned int  colcount;        /**< how many output files per detected photon */
-	unsigned int  totalphoton;     /**< how many total photon simulated */
-	unsigned int  detected;        /**< how many photons are detected (not necessarily all saved) */
-	unsigned int  savedphoton;     /**< how many detected photons are saved in this file */
-	float unitinmm;                /**< what is the voxel size of the simulation */
-	unsigned int  seedbyte;        /**< how many bytes per RNG seed */
-        float normalizer;              /**< what is the normalization factor */
-	int respin;                    /**< if positive, repeat count so total photon=totalphoton*respin; if negative, total number is processed in respin subset */
-	unsigned int  srcnum;          /**< number of sources for simultaneous pattern sources */
-	unsigned int  savedetflag;     /**< number of sources for simultaneous pattern sources */
-	int reserved[2];               /**< reserved fields for future extension */
- } History;
-
-When the `-q` flag is set to 1, the detected photon initial seeds are also stored
-following the detected photon data, consisting of a 2-D byte array of #savedphoton * #seedbyte.
-
-To load the mch file, one should call `loadmch.m` in MATLAB/Octave.
-
-Saving to .mch history file is depreciated as we are transitioning towards
-JSON/JData formatted outputs (.jdat).
-
 ==== jdat files ====
 
-When `-F jnii` is specified, instead of saving the detected photon into the legacy .mch format,
-a .jdat file is written, which is a pure JSON file. This file contains a hierachical data
-record of the following JSON structure
+By default, or when `-F jnii` is explicitly specified, a `.jdat` file is written, which is a
+pure JSON file. This file contains a hierachical data record of the following JSON structure
 
  {
    "MCXData": {
@@ -1192,26 +1306,61 @@ In Python, the volumetric data is loaded as a `dict` object where `data['MCXData
 stores the photon data, `data['MCXData']['Trajectory']` stores the trajectory data etc.
 
 
+==== mch files ====
+
+The .mch file, or MC history file is stored if one specifies `-F mc2` in the command line,
+but we strongly encourage users to adpot the default JSON/.jdat format for easy data sharing. 
+
+The .mch file contains a 256 byte binary header, followed by a 2-D numerical array
+of dimensions #savedphoton * #colcount as recorded in the header.
+
+ typedef struct MCXHistoryHeader{
+	char magic[4];                 /**< magic bits= 'M','C','X','H' */
+	unsigned int  version;         /**< version of the mch file format */
+	unsigned int  maxmedia;        /**< number of media in the simulation */
+	unsigned int  detnum;          /**< number of detectors in the simulation */
+	unsigned int  colcount;        /**< how many output files per detected photon */
+	unsigned int  totalphoton;     /**< how many total photon simulated */
+	unsigned int  detected;        /**< how many photons are detected (not necessarily all saved) */
+	unsigned int  savedphoton;     /**< how many detected photons are saved in this file */
+	float unitinmm;                /**< what is the voxel size of the simulation */
+	unsigned int  seedbyte;        /**< how many bytes per RNG seed */
+        float normalizer;              /**< what is the normalization factor */
+	int respin;                    /**< if positive, repeat count so total photon=totalphoton*respin; if negative, total number is processed in respin subset */
+	unsigned int  srcnum;          /**< number of sources for simultaneous pattern sources */
+	unsigned int  savedetflag;     /**< number of sources for simultaneous pattern sources */
+	int reserved[2];               /**< reserved fields for future extension */
+ } History;
+
+When the `-q` flag is set to 1, the detected photon initial seeds are also stored
+following the detected photon data, consisting of a 2-D byte array of #savedphoton * #seedbyte.
+
+To load the mch file, one should call `loadmch.m` in MATLAB/Octave.
+
+Saving to .mch history file is depreciated as we are transitioning towards
+JSON/JData formatted outputs (.jdat).
+
+
 === Photon trajectory data ===
 
 For debugging and plotting purposes, MCX can output photon trajectories, as polylines,
-when `-D M` flag is attached, or mcxlab is asked for the 5th output. Such information
+when `-D M` or `-D T` flag is attached, or mcxlab is asked for the 5th output. Such information
 can be stored in one of the following formats.
+
+==== jdat files ====
+
+By default, or when `-F jnii` is used, MCX-Cl merges the trajectory data with the detected photon and
+seed data and saved as a JSON-compatible .jdat file. The overall structure of the
+.jdat file as well as the relevant parsers can be found in the above section.
 
 ==== mct files ====
 
-By default, MCX stores the photon trajectory data in to a .mct file MC trajectory, which
+If `-F mc2` is used, MCX-CL stores the photon trajectory data in to a .mct file MC trajectory, which
 uses the same binary format as .mch but renamed as .mct. This file can be loaded to
 MATLAB using the same `loadmch.m` function. 
 
 Using .mct file is depreciated and users are encouraged to migrate to .jdat file
 as described below.
-
-==== jdat files ====
-
-When `-F jnii` is used, MCX merges the trajectory data with the detected photon and
-seed data and saved as a JSON-compatible .jdat file. The overall structure of the
-.jdat file as well as the relevant parsers can be found in the above section.
 
 ---------------------------------------------------------------------------
 == # Using MCXLABCL in MATLAB and Octave ==

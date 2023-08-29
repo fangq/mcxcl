@@ -80,6 +80,7 @@ FILES=mcx_host mcx_utils mcx_tictoc mcxcl mcx_shapes cjson/cJSON ubj/ubjw
 CLPROGRAM=mcx_core
 
 ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
+  EXTRALIB   +=-static
   LINKOPT=-L$(LIBOPENCLDIR) $(LIBOPENCL) $(EXTRALIB)
   INCLUDEDIRS +=-I"./mingw64/include"
   CPPOPT =-D_CRT_SECURE_NO_DEPRECATE -DWIN32
@@ -88,11 +89,10 @@ ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   EXESUFFIX=.exe
   LIBOPENCL   ="c:\Windows\System32\OpenCL.dll"
   MEXCCOPT+=-DMX_COMPAT_32
-  EXTRALIB   +=-static
   MEX        :=cmd /c mex.bat -v -f mexopts_msys2_gcc.xml
   DLLFLAG=
-  ZMATLIB    :=zmat/zmatlib.obj zmat/lz4/lz4.obj zmat/lz4/lz4hc.obj zmat/easylzma/*.obj zmat/easylzma/pavlov/*.obj
-  USERLINKOPT:=$(ZMATLIB) -lz
+  ZMATLIB    :=zmat/zmatlib.o zmat/miniz/miniz.o zmat/lz4/lz4.o zmat/lz4/lz4hc.o zmat/easylzma/*.o zmat/easylzma/pavlov/*.o
+  USERLINKOPT:=$(ZMATLIB)
   MEXLINKLIBS="\$$LINKLIBS"
 else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
   MW_MINGW64_LOC?=/c/msys64/usr
@@ -100,9 +100,9 @@ else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
   CCOPT +=-D__USE_MINGW_ANSI_STDIO=1
   INCLUDEDIRS+=-I"./mingw64/include"
   LIBOPENCL   ="c:\Windows\System32\OpenCL.dll"
+  EXTRALIB   +=-static
   LINKOPT=-L$(LIBOPENCLDIR) $(LIBOPENCL) $(EXTRALIB)
   MEXCCOPT+=-DMX_COMPAT_32
-  EXTRALIB   +=-static
   DLLFLAG    =
   MEXLINKLIBS="\$$LINKLIBS"
 else ifeq ($(findstring MSYS,$(PLATFORM)), MSYS)
@@ -110,9 +110,9 @@ else ifeq ($(findstring MSYS,$(PLATFORM)), MSYS)
   CCOPT +=-D__USE_MINGW_ANSI_STDIO=1
   INCLUDEDIRS+=-I"./mingw64/include"
   LIBOPENCL   ="c:\Windows\System32\OpenCL.dll"
+  EXTRALIB   +=-static
   LINKOPT=-L$(LIBOPENCLDIR) $(LIBOPENCL) $(EXTRALIB)
   MEXCCOPT+=-DMX_COMPAT_32
-  EXTRALIB   +=-static
   DLLFLAG    =
   MEXLINKLIBS="\$$LINKLIBS"
 else ifeq ($(findstring Darwin,$(PLATFORM)), Darwin)
@@ -171,7 +171,7 @@ makedocdir:
 	@if test ! -d $(DOCDIR); then $(MKDIR) $(DOCDIR); fi
 
 $(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(ZMATLIB) $(OBJS)
-	$(AR) $(OBJS) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY) $(USERLINKOPT) $(EXTRALIB)
+	$(AR) $(OBJS) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY) $(USERLINKOPT)
 
 %$(CLHEADER): mcx_core.cl xxd %.cl
 	$(XXD) -i $(CLPROGRAM).cl | sed 's/\([0-9a-f]\)$$/\0, 0x00/' > $(CLPROGRAM).clh

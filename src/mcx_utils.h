@@ -260,6 +260,7 @@ void mcx_maskdet(Config* cfg);
 void mcx_prepdomain(char* filename, Config* cfg);
 void mcx_createfluence(float** fluence, Config* cfg);
 void mcx_clearfluence(float** fluence);
+void mcx_convertrow2col64(size_t** vol, uint4* dim);
 void mcx_convertrow2col(unsigned int** vol, uint4* dim);
 void mcx_convertcol2row(unsigned int** vol, uint3* dim);
 void mcx_convertcol2row4d(unsigned int** vol, uint4* dim);
@@ -283,10 +284,10 @@ int  mcx_jdatadecode(void** vol, int* ndim, uint* dims, int maxdim, char** type,
 void mcx_savejnii(float* vol, int ndim, uint* dims, float* voxelsize, char* name, int isfloat, Config* cfg);
 void mcx_savebnii(float* vol, int ndim, uint* dims, float* voxelsize, char* name, int isfloat, Config* cfg);
 void mcx_savejdet(float* ppath, void* seeds, uint count, int doappend, Config* cfg);
-void mcx_replayprep(Config* cfg, float* detps, unsigned int dimdetps[2], int seedbyte);
-void mcx_validateconfig(Config* cfg);
+void mcx_replayprep(int* detid, float* ppath, History* his, Config* cfg);
 void mcx_loadbenchmark(char* key, Config* cfg);
-
+void mcx_replayinit(Config* cfg, float* detps, int dimdetps[2], int seedbyte);
+void mcx_validatecfg(Config* cfg, float* detps, int dimdetps[2], int seedbyte);
 
 #ifdef MCX_CONTAINER
 int  mcx_throw_exception(const int id, const char* msg, const char* filename, const int linenum);

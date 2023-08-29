@@ -24,6 +24,9 @@
 #ifndef _MCEXTREME_CONSTANT_H
 #define _MCEXTREME_CONSTANT_H
 
+#define MCX_VERSION        "v2023"
+#define MCX_VERSION_MAJOR  1
+#define MCX_VERSION_MINOR  0
 
 #define ONE_PI             3.1415926535897932f     /*pi*/
 #define TWO_PI             6.28318530717959f       /*2*pi*/
@@ -47,7 +50,12 @@
 #define DET_MASK           0x80000000              /**< mask of the sign bit to get the detector */
 #define MED_MASK           0x7FFFFFFF              /**< mask of the lower 16bit to get the medium index */
 #define MIX_MASK           0x7FFF0000              /**< mask of the upper 16bit to get the volume mix ratio */
+#define LOWER_MASK         0xFF000000              /**< mask of the lower label for SVMC */
+#define UPPER_MASK         0x00FF0000              /**< mask of the upper label for SVMC */
 
+#define MEDIA_2LABEL_SPLIT    97   /**<  media Format: 64bit:{[byte: lower label][byte: upper label][byte*3: reference point][byte*3: normal vector]} */
+#define MEDIA_2LABEL_MIX      98   /**<  media format: {[int: label1][int: label2][float32: label1 %]} -> 32bit:{[half: label1 %],[byte: label2],[byte: label1]} */
+#define MEDIA_LABEL_HALF      99   /**<  media format: {[float32: 1/2/3/4][float32: type][float32: mua/mus/g/n]} -> 32bit:{[half: mua/mus/g/n][int16: [B15-B16: 0/1/2/3][B1-B14: tissue type]} */
 #define MEDIA_AS_F2H          100  /**<  media format: {[float32: mua][float32: mus]} -> 32bit:{[half: mua],{half: mus}} */
 #define MEDIA_MUA_FLOAT       101  /**<  media format: 32bit:{[float32: mua]} */
 #define MEDIA_AS_HALF         102  /**<  media format: 32bit:{[half: mua],[half: mus]} */

@@ -460,7 +460,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     unsigned int hostdetreclen = partialdata + SAVE_DETID(cfg->savedetflag) + 3 * (SAVE_PEXIT(cfg->savedetflag) + SAVE_VEXIT(cfg->savedetflag)) + SAVE_W0(cfg->savedetflag); // host-side det photon data buffer length
     unsigned int is2d = (cfg->dim.x == 1 ? 1 : (cfg->dim.y == 1 ? 2 : (cfg->dim.z == 1 ? 3 : 0)));
 
-    MCXParam param = {{{cfg->srcpos.x, cfg->srcpos.y, cfg->srcpos.z, 1.f}},
+    MCXParam param = {{{cfg->srcpos.x, cfg->srcpos.y, cfg->srcpos.z, cfg->srcpos.w}},
         {{cfg->srcdir.x, cfg->srcdir.y, cfg->srcdir.z, cfg->srcdir.w}},
         {{(float)cfg->dim.x, (float)cfg->dim.y, (float)cfg->dim.z, 0}}, dimlen, cp0, cp1, cachebox,
         minstep, 0.f, 0.f, cfg->tend, R_C0* cfg->unitinmm, (uint)cfg->isrowmajor,
@@ -669,7 +669,12 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     }
 
     for (i = 0; i < workdev; i++) {
-        OCL_ASSERT(((gmedia[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(cl_uint) * (cfg->dim.x * cfg->dim.y * cfg->dim.z), media, &status), status)));
+        if (cfg->mediabyte != MEDIA_2LABEL_SPLIT) {
+            OCL_ASSERT(((gmedia[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(cl_uint) * (cfg->dim.x * cfg->dim.y * cfg->dim.z), media, &status), status)));
+        } else {
+            OCL_ASSERT(((gmedia[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(cl_uint) * (2 * cfg->dim.x * cfg->dim.y * cfg->dim.z), media, &status), status)));
+        }
+
         OCL_ASSERT(((gproperty[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->medianum * sizeof(Medium), cfg->prop, &status), status)));
         OCL_ASSERT(((gparam[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(MCXParam), &param, &status), status)));
         energy = (cl_float*)calloc(sizeof(cl_float), gpu[i].autothread << 1);
@@ -1094,8 +1099,12 @@ is more than what your have specified (%d), please use the -H option to specify 
                     MCX_FPRINTF(cfg->flog, "transfer complete:        %d ms\n", GetTimeMillis() - tic);
                     fflush(cfg->flog);
 
-                    for (i = 0; i < fieldlen; i++) { //accumulate field, can be done in the GPU
-                        field[i] = rawfield[i] + rawfield[i + fieldlen];
+                    if (!(param.debuglevel & MCX_DEBUG_RNG)) {
+                        for (i = 0; i < fieldlen; i++) { //accumulate field, can be done in the GPU
+                            field[i] = rawfield[i] + rawfield[i + fieldlen];
+                        }
+                    } else {
+                        memcpy(field, rawfield, sizeof(cl_float)*fieldlen);
                     }
 
                     free(rawfield);
