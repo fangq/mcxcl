@@ -40,7 +40,7 @@
 
 // Python binding for runtime_error exception in Python.
 namespace pybind11 {
-PYBIND11_RUNTIME_EXCEPTION(runtime_error, PyExc_RuntimeError);
+PYBIND11_RUNTIME_EXCEPTION(runtime_error, PyExc_RuntimeError)
 }
 
 namespace py = pybind11;
@@ -140,7 +140,7 @@ void parseVolume(const py::dict& user_cfg, Config& mcx_config) {
     } else if (py::array_t<int16_t>::check_(volume_handle)) {
         auto f_style_volume = py::array_t<int16_t, py::array::f_style>::ensure(volume_handle);
         auto buffer = f_style_volume.request();
-        int i = buffer.shape.size() == 4;
+        unsigned int i = buffer.shape.size() == 4;
         mcx_config.dim = {static_cast<unsigned int>(buffer.shape.at(i)),
                           static_cast<unsigned int>(buffer.shape.at(i + 1)),
                           static_cast<unsigned int>(buffer.shape.at(i + 2))
@@ -249,7 +249,7 @@ void parseVolume(const py::dict& user_cfg, Config& mcx_config) {
     } else if (py::array_t<float>::check_(volume_handle)) {
         auto f_style_volume = py::array_t<float, py::array::f_style>::ensure(volume_handle);
         auto buffer = f_style_volume.request();
-        int i = buffer.shape.size() == 4;
+        unsigned int i = buffer.shape.size() == 4;
         mcx_config.dim = {static_cast<unsigned int>(buffer.shape.at(i)),
                           static_cast<unsigned int>(buffer.shape.at(i + 1)),
                           static_cast<unsigned int>(buffer.shape.at(i + 2))
@@ -1096,12 +1096,12 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
                 for (int voxelid = 0; voxelid < voxellen; voxelid++) {
                     if (mcx_config.vol[voxelid]) {
                         for (int gate = 0; gate < highdim; gate++)
-                            for (int srcid = 0; srcid < mcx_config.srcnum; srcid++) {
+                            for (unsigned int srcid = 0; srcid < mcx_config.srcnum; srcid++) {
                                 dref[(gate * voxellen + voxelid) * mcx_config.srcnum + srcid] = 0.f;
                             }
                     } else {
                         for (int gate = 0; gate < highdim; gate++)
-                            for (int srcid = 0; srcid < mcx_config.srcnum; srcid++) {
+                            for (unsigned int srcid = 0; srcid < mcx_config.srcnum; srcid++) {
                                 dref[(gate * voxellen + voxelid) * mcx_config.srcnum + srcid] = -dref[(gate * voxellen + voxelid) * mcx_config.srcnum + srcid];
                                 mcx_config.exportfield[(gate * voxellen + voxelid) * mcx_config.srcnum + srcid] = 0.f;
                             }
