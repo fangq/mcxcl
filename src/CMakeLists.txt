@@ -17,7 +17,7 @@ project(mcxcl)
 
 cmake_policy(SET CMP0074 NEW)  # to make -DOPENCL_ROOT= work with newer CMake versions as well
 
-find_package(OpenMP REQUIRED)
+#find_package(OpenMP REQUIRED)
 find_package(OpenCL REQUIRED)
 
 add_subdirectory(zmat)
@@ -34,7 +34,7 @@ if(BUILD_MEX)
     find_package(Matlab)
 endif()
 
-set(CMAKE_CXX_FLAGS "-DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -D_hypot=hypot ${OpenMP_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "-DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -D_hypot=hypot")
 set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS}")
 
 if( ${CMAKE_COMPILER_IS_GNUCXX} )
@@ -97,7 +97,7 @@ set_target_properties(mcxcl-exe
 # Link options
 target_link_libraries(
     mcxcl-exe
-    mcxcl OpenMP::OpenMP_CXX
+    mcxcl
     zmat
     OpenCL::OpenCL
     )
@@ -122,11 +122,7 @@ if (BUILD_PYTHON)
             )
     target_compile_definitions(_pmcxcl PUBLIC MCX_CONTAINER PYBIND11_VERSION_MAJOR)
 
-    if(WIN32)
-        target_link_libraries(_pmcxcl pybind11::module pybind11::lto pybind11::windows_extras OpenCL::OpenCL)
-    else()
-        target_link_libraries(_pmcxcl pybind11::module pybind11::lto pybind11::windows_extras OpenCL::OpenCL OpenMP::OpenMP_CXX)
-    endif()
+    target_link_libraries(_pmcxcl pybind11::module pybind11::lto pybind11::windows_extras OpenCL::OpenCL)
 
     pybind11_extension(_pmcxcl)
     pybind11_strip(_pmcxcl)
