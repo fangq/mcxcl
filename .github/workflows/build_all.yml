@@ -86,7 +86,7 @@ jobs:
             make mex CC=gcc-11 CXX=g++-11 MEXLINKOPT="-static-libstdc++"
             otool -L ../mcxlabcl/mcxcl.mex*
           else
-            make mex MEXLINKOPT="-static-libgcc -static-libstdc++ -Wl,-Bstatic -lm -lstdc++ -lpthread -Wl,-Bdynamic" EXTRALIB="-v"
+            make mex MEXLINKOPT="-static-libgcc -static-libstdc++ -Wl,-Bstatic -lstdc++ -lpthread -Wl,-Bdynamic" EXTRALIB="-v"
             ldd ../mcxlabcl/mcxcl.mex*
           fi
       - name: Build binary
