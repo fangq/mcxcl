@@ -87,8 +87,6 @@ jobs:
             make mex CC=gcc-11 CXX=g++-11 MEXLINKOPT="-static-libstdc++"
             otool -L ../mcxlabcl/mcxcl.mex*
           else
-            LIBOMP=$(gcc --print-file=libgomp.a)
-            LIBM=$(gcc --print-file=libm.a)
             make mex MEXLINKOPT="-static-libgcc -static-libstdc++ -Wl,-Bstatic -lstdc++ -lpthread -Wl,-Bdynamic" EXTRALIB="-v"
             ldd ../mcxlabcl/mcxcl.mex*
           fi
