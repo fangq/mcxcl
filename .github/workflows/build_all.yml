@@ -60,8 +60,8 @@ jobs:
           mkoctfile --version
           mkoctfile -p OCTLIBDIR
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            LIBOMP=$(gcc --print-file=libgomp.a)
-            LIBM=$(gcc --print-file=libm.a)
+            LIBOMP=$(gcc --print-file-name=libgomp.a)
+            LIBM=$(gcc --print-file-name=libm.a)
             make oct MEXLINKOPT="-static-libgcc -static-libstdc++ $LIBM -Wl,-Bstatic -lc -lstdc++ -lpthread -fopenmp -lgomp -Wl,-Bdynamic" EXTRALIB="-v -s"
             ldd ../mcxlabcl/mcxcl.mex
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
@@ -89,8 +89,8 @@ jobs:
             make mex CC=gcc-11 CXX=g++-11 MEXLINKOPT="-static-libstdc++"
             otool -L ../mcxlabcl/mcxcl.mex*
           else
-            LIBOMP=$(gcc --print-file=libgomp.a)
-            LIBM=$(gcc --print-file=libm.a)
+            LIBOMP=$(gcc --print-file-name=libgomp.a)
+            LIBM=$(gcc --print-file-name=libm.a)
             make mex MEXLINKOPT="-static-libgcc -static-libstdc++ $LIBM -Wl,-Bstatic -lstdc++ -lpthread -fopenmp -Wl,-Bdynamic" EXTRALIB="-v"
             ldd ../mcxlabcl/mcxcl.mex*
           fi
@@ -99,8 +99,8 @@ jobs:
           cd src
           make clean
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            LIBOMP=$(gcc --print-file=libgomp.a)
-            LIBM=$(gcc --print-file=libm.a)
+            LIBOMP=$(gcc --print-file-name=libgomp.a)
+            LIBM=$(gcc --print-file-name=libm.a)
             make static USERARFLAGS="$LIBM -Wl,-Bstatic -lc -lstdc++ -lpthread -fopenmp -lgomp -Wl,-Bdynamic"
             ldd ../bin/mcxcl
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
