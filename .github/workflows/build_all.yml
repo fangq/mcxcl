@@ -111,10 +111,9 @@ jobs:
         run: perl -e "print 'RELEASE_TAG='. lc('${{ runner.os }}-${{ runner.arch }}-github-latest')" >> $GITHUB_ENV
       - name: Zip mcxlabcl
         run: |
-          upx -9 mcxlabcl/mmc.mex*
+          upx -9 mcxlabcl/mcxcl.mex* || true
           mv mcxlabcl/mcxcl.mex mcxlabcl/octave/${{ env.OCTAVE_ARCH }}
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            upx -9 mmclab/octave/${{ env.OCTAVE_ARCH }}/*.dll
             7z a -tzip packages/mcxlabcl-${{ env.RELEASE_TAG }}.zip mcxlabcl
           else
             zip -FSr --symlink packages/mcxlabcl-${{ env.RELEASE_TAG }}.zip mcxlabcl
