@@ -36,6 +36,7 @@
 #include "mcx_shapes.h"
 #include "mcx_const.h"
 #include "mcx_bench.h"
+#include "mcx_tictoc.h"
 
 #ifndef MCX_CONTAINER
     #include "zmat/zmatlib.h"
@@ -2919,7 +2920,7 @@ void mcx_savejdata(char* filename, Config* cfg) {
 void mcx_loadvolume(char* filename, Config* cfg, int isbuf) {
     unsigned int i, datalen, res;
     unsigned char* inputvol = NULL;
-    FILE* fp;
+    FILE* fp = NULL;
 
     if (!isbuf) {
         if (strstr(filename, ".json") != NULL) {
@@ -3933,6 +3934,10 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
     char logfile[MAX_PATH_LENGTH] = {0};
     float np = 0.f;
 
+#if defined(_WIN32) && defined(USE_OS_TIMER)
+    EnableVTMode();
+#endif
+
     if (argc <= 1) {
         mcx_usage(cfg, argv[0]);
         exit(0);
@@ -4309,7 +4314,7 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
                         } else {
                             MCX_FPRINTF(cfg->flog, "Built-in benchmarks:\n");
 
-                            for (int i = 0; i < sizeof(benchname) / sizeof(char*) -1; i++) {
+                            for (int i = 0; i < sizeof(benchname) / sizeof(char*) - 1; i++) {
                                 MCX_FPRINTF(cfg->flog, "\t%s\n", benchname[i]);
                             }
 
