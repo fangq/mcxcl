@@ -57,6 +57,7 @@ In summary, v2023 is packed with exciting updates, including
 
 The detailed updates can be found in the below change log
 
+* 2023-09-13 [0722c09] support ASCII escape code in Windows terminals
 * 2023-08-27 [080855a] fix pmcxcl gpu hanging bug, import utils from pmcx, v0.0.12
 * 2023-08-27 [e342756] port negative pattern support from mcx
 * 2023-08-27 [7a7b456] update debuglevel=R for RNG testing
@@ -632,7 +633,7 @@ such as the following:
 = MCX proudly developed human-readable JSON-based data formats for easy reuse=
 = Please consider using JSON (https://neurojson.org/) for your research data =
 ==============================================================================
-$Rev::080855$ v2023  $Date::2023-08-27 15:14:25 -04$by $Author::Qianqian Fang$
+$Rev::c51a25$ v2023  $Date::2023-09-13 12:12:56 -04$by $Author::Qianqian Fang$
 ==============================================================================
 
 usage: mcxcl <param1> <param2> ...
@@ -670,8 +671,8 @@ where possible parameters include (the first value in [*|*] is the default)
 			       eg: --bc ______010 saves photons exiting at y=0
  -u [1.|float] (--unitinmm)    defines the length unit for the grid edge
  -U [1|0]      (--normalize)   1 to normalize flux to unitary; 0 save raw
- -E [0|int|.jdat](--seed)      set random-number-generator seed, -1 to generate
-                               if a jdat/mch file is followed, MCX "replays"
+ -E [0|int|.jdat] (--seed)     set random-number-generator seed, -1 to generate
+                               if a jdat/mch file is followed, MCX "replays" 
                                the detected photon; the replay mode can be used
                                to calculate the mua/mus Jacobian matrices
  -z [0|1]      (--srcfrom0)    1 volume origin is [0 0 0]; 0: origin at [1 1 1]
