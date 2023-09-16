@@ -1,7 +1,39 @@
 Change Log
 
-== MCX 1.0.0 (Fractal), FangQ <q.fang at neu.edu> ==
+== MCX-CL 1.0.0 (Fractal), FangQ <q.fang at neu.edu> ==
 
+ 2023-09-16 [cebba31] update deploy script after reformat
+ 2023-09-15 [8a51281] update documentation
+ 2023-09-13 [c51a252] avoid error on old windows sdk
+ 2023-09-13 [0722c09] support ASCII escape code in Windows terminals
+ 2023-09-10 [97eca8e] apply upx compression, static libgcc for oct
+ 2023-09-08 [4f4b159] add NO_IMPLICIT_LINK_TO_MATLAB_LIBRARIES for cmake 3.24+
+ 2023-09-01 [0403ec4] allow oct to build on octave 7.x
+ 2023-08-30 [fefaf1b] add jnii header
+ 2023-08-29 [cd65fae] fix pmcxcl warning
+ 2023-08-29 [d4a831c] update buildmcxcl.m script
+ 2023-08-28 [b4b6f56] remove openmp from dependencies
+ 2023-08-27 [080855a] fix gpu hanging bug, import utils from pmcx, v0.0.12
+ 2023-08-27 [e342756] port negative pattern support from mcx
+ 2023-08-27 [7a7b456] update debuglevel=R for RNG testing
+ 2023-08-27 [11c5047] migrate to jnii/jdat format,add more cont. media, fix pmcx
+ 2023-08-25 [b8095a8] add mcxlab('version'), use MCX_VERSION macro, update msg
+ 2023-08-23 [103e865] enable static linking on windows
+ 2023-08-16 [936d332] revert to octave 5.2 for windows build
+ 2023-08-15 [9dbc7f3] build windows mex files for octave 8.2
+ 2023-08-04 [9b4d76f] fix boundary condition handling, port from mcx
+ 2023-08-04 [7ee85d4] fix build warnings, use large file support with miniz
+ 2023-07-30 [3887625] update README
+ 2023-07-30 [9c98ca7] bump pmcxcl to 0.0.9
+ 2023-07-30 [50940de] update zmatlib to 0.9.9, use miniz, drop zlib
+ 2023-07-30 [50f5ea2] revert back to gcc with Ninja generator for pmcxcl
+ 2023-07-30 [370128a] support compileropt and kernelfile in mcxlab/pmcxcl, fix omp
+ 2023-07-30 [8d34e3d] test clheader target on windows
+ 2023-07-30 [7194199] remove pmcxcl.cpp warnings, fix gpuinfo output
+ 2023-07-30 [5547f2d] fix gpu listing bug
+ 2023-07-30 [1b28a6d] fix windows gomp multiple linking bug
+ 2023-07-30 [7b37d18] rebuild linux and mac python modules
+ 2023-07-29 [a215db7] statically link libraries in pmcxcl on windows
  2023-07-29 [4916939] automatically build and upload Python module via github action
  2023-07-28 [09c61b7] bump pmcxcl version, fix windows pypi version check
  2023-07-25 [4b5606e] port python module action scripts from mcx
@@ -62,7 +94,7 @@ Change Log
  2020-08-30 [f498e29] fix typo
  2020-08-29 [b001786] update mcxlabcl, update ChangeLog
 
-== MCX 0.9.9 (Eternity) branch, FangQ <q.fang at neu.edu> ==
+== MCX-CL 0.9.9 (Eternity) branch, FangQ <q.fang at neu.edu> ==
 
  2020-08-28 [2ef3ee7] sync mcxlabcl with mcxlab
  2020-08-28 [89df0be] patch mcxcl for fangq/mcx#101
@@ -180,7 +212,7 @@ Change Log
  2019-05-31 [0fe7813] remove un-needed -k parameter from samples
  2019-03-20 [a6d38d4] fix empty string test
 
-== MCX 0.9 (Eternity - beta) branch, FangQ <q.fang at neu.edu> ==
+== MCX-CL 0.9 (Eternity - beta) branch, FangQ <q.fang at neu.edu> ==
 
  2019-03-16 [1ce5240] update installation guide
  2019-03-13 [7d6c192] update documentation for internalsrc flag
@@ -211,7 +243,7 @@ Change Log
  2018-09-15 [51e8c97] launchphoton supports half precision
  2018-09-01 [d316023] add nightly build script for mcxcl
 
-== MCX 0.8 (Duality) beta branch, FangQ <q.fang at neu.edu> ==
+== MCX-CL 0.8 (Duality) beta branch, FangQ <q.fang at neu.edu> ==
 
  2018-08-18 [6ca494c] avoid static linking libm to work with gcc 5.4
  2018-08-16*[939ee95] fix floating point accummulation error, port from mcx #41
