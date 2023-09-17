@@ -87,14 +87,9 @@ make clean
 
 if [ "$OS" == "win" ]; then
 	OLDPATH="$PATH"
-	export PATH="C:\Octave\Octave-8.2.0\mingw64\bin":$PATH
+	export PATH="C:\Octave\Octave-8.2.1\mingw64\bin":$PATH
 	make mex CC=gcc &>../mcxlabcl/AUTO_BUILD_${DATE}.log
 	export PATH="$OLDPATH"
-
-	echo "Windows mcxcl build"
-	cd ../mcxlabcl
-	upx -9 mcxcl.mexw64
-	cd ../src
 else
 	make mex &>../mcxlabcl/AUTO_BUILD_${DATE}.log
 fi
@@ -103,7 +98,7 @@ make clean
 
 if [ "$OS" == "win" ]; then
 	OLDPATH="$PATH"
-	export PATH="C:\Octave\Octave-8.2.0\mingw64\bin":$PATH
+	export PATH="C:\Octave\Octave-8.2.1\mingw64\bin":$PATH
 	make oct CC=gcc MEXLINKOPT='"C:\tools\msys64\mingw64\lib\gcc\x86_64-w64-mingw32\10.3.0\libgomp.a" "C:\cygwin64\usr\x86_64-w64-mingw32\sys-root\mingw\lib\libwinpthread.a" -static-libgcc -static-libstdc++' >>../mcxlabcl/AUTO_BUILD_${DATE}.log 2>&1
 	export PATH="$OLDPATH"
 else
@@ -124,6 +119,8 @@ if [ -f "$mexfile" ]; then
 else
 	echo "Build Failed" >>../mcxlabcl/AUTO_BUILD_${DATE}.log
 fi
+
+upx -9 ../mcxlabcl/mcxcl.mex* || true
 
 rm -rf ../mcxlabcl/mcxlabcl.o*
 
@@ -160,9 +157,9 @@ else
 	exit 1
 fi
 
-#cp $BUILDROOT/dlls/*.dll ../bin
+upx -9 ../bin/mcxcl* || true
 
-#upx -9 ../bin/mcxcl
+#cp $BUILDROOT/dlls/*.dll ../bin
 
 cd ../
 rm -rf .git* .travis* mcxlabcl bin/mcxcl.dSYM src .git_filters .gitattributes deploy
