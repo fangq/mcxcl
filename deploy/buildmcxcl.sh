@@ -7,21 +7,24 @@
 #  by Qianqian Fang <q.fang at neu.edu>
 #
 #  Format:
-#     ./buildmcxcl.sh <releasetag> <branch>
+#     ./buildmcxcl.sh <releasetag> <branchname>
 #                   releasetag defaults to "nightly" if not given
-#                   branch defaults to "master" if not given
+#                   branchname defaults to "master" if not given
 #
 #  Dependency:
 #   - To compile mcxcl binary, mcxlabcl for octave
 #
-#     sudo apt-get install gcc ocl-icd-opencl-dev liboctave-dev vim-common
+#     sudo apt-get install gcc ocl-icd-opencl-dev liboctave-dev vim-common upx-ucl
 #
 #   - To compile mcxlabcl for MATLAB, one must install MATLAB first, also search
 #     and replace R20xx in this script to match your system's MATLAB version
 #   - One can also install vendor-specific OpenCL libraries, such as nvidia-opencl-dev
 #   - For Windows, first install Cygwin64, and install x86_64-w64-mingw32-gcc/g++
+#     or install MSYS2 with mingw64 based gcc compilers
 #
 ###############################################################################
+
+## setting up environment
 
 BUILD='nightly'
 if [ ! -z "$1" ]; then
@@ -48,14 +51,20 @@ else
 	TAG=${OS}-${MACHINE}-${BUILD}
 fi
 
+## setting up upload server (blank if no need to upload)
+
 SERVER=
 REMOTEPATH=
+
+## checking out latest github code
 
 mkdir -p $BUILDROOT
 cd $BUILDROOT
 
 rm -rf mcxcl
 git clone https://github.com/fangq/mcxcl.git
+
+## automatically update revision/version number
 
 cat <<EOF >>mcxcl/.git/config
 [filter "rcs-keywords"]
@@ -74,11 +83,15 @@ git checkout .
 
 rm -rf .git
 
+## zip and upload source code package
+
 cd ..
 zip -FSr $BUILDROOT/mcxcl-src-${BUILD}.zip mcxcl
 if [ "$OS" == "linux" ] && [ ! -z "$SERVER" ]; then
 	scp $BUILDROOT/mcxcl-src-${BUILD}.zip $SERVER:$REMOTEPATH/src/
 fi
+
+## build matlab mex file
 
 cd mcxcl/src
 
@@ -94,8 +107,9 @@ else
 	make mex &>../mcxlabcl/AUTO_BUILD_${DATE}.log
 fi
 
-make clean
+## build octave mex file
 
+make clean
 if [ "$OS" == "win" ]; then
 	OLDPATH="$PATH"
 	export PATH="C:\Octave\Octave-8.2.1\mingw64\bin":$PATH
@@ -104,6 +118,8 @@ if [ "$OS" == "win" ]; then
 else
 	make oct >>../mcxlabcl/AUTO_BUILD_${DATE}.log 2>&1
 fi
+
+## test mex file dependencies
 
 mexfile=(../mcxlabcl/mcxcl.mex*)
 
@@ -120,7 +136,11 @@ else
 	echo "Build Failed" >>../mcxlabcl/AUTO_BUILD_${DATE}.log
 fi
 
+## compress mex files with upx
+
 upx -9 ../mcxlabcl/mcxcl.mex* || true
+
+## zip and upload mex package
 
 rm -rf ../mcxlabcl/mcxlabcl.o*
 
@@ -134,6 +154,8 @@ zip -FSr $BUILDROOT/mcxlabcl-${TAG}.zip mcxlabcl
 cd src
 [ ! -z "$SERVER" ] && scp $BUILDROOT/mcxlabcl-${TAG}.zip $SERVER:$REMOTEPATH/${OS}64/
 
+## compile standalone binary/executable
+
 make clean
 if [ "$OS" == "macos" ]; then
 	make &>$BUILDROOT/mcxcl_buildlog_${DATE}.log
@@ -142,6 +164,8 @@ elif [ "$OS" == "win" ]; then
 else
 	make static &>$BUILDROOT/mcxcl_buildlog_${DATE}.log
 fi
+
+## test binary dependencies
 
 if [ -f "../bin/mcxcl" ]; then
 	if [ "$OS" == "macos" ]; then
@@ -157,7 +181,11 @@ else
 	exit 1
 fi
 
+## compress binary with upx
+
 upx -9 ../bin/mcxcl* || true
+
+## zip and upload binary package
 
 #cp $BUILDROOT/dlls/*.dll ../bin
 
