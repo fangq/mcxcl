@@ -19,6 +19,7 @@ if(exist('sphdiffusionslab','file')~=2)
     error(sprintf('Script "sphdiffusionslab.m" was not found.\nThis demo requires you to add the "mmc/matlab" directory first.'));
 end
 
+% only clear cfg to avoid accidentally clearing other useful data
 clear cfg ana;
 
 %% preparing the input data

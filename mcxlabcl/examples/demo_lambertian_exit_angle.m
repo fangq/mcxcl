@@ -5,6 +5,7 @@
 % Initial version: May 5, 2018
 %==========================================================================
 
+% only clear cfg to avoid accidentally clearing other useful data
 clear cfg
 cfg.nphoton=1e8;
 cfg.vol=uint8(ones(60,60,60));
