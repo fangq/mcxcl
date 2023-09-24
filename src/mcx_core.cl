@@ -647,17 +647,13 @@ void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant float4* gp
 #elif MED_TYPE==MEDIA_LABEL_HALF //< [h1][s0]: h1: half-prec property value; highest 2bit in s0: index 0-3, low 14bit: tissue label
     union {
         unsigned int i;
-#if ! defined(__CUDACC_VER_MAJOR__) || __CUDACC_VER_MAJOR__ >= 9
-        __half_raw h[2];
-#else
         half h[2];
-#endif
         unsigned short s[2]; /**s[1]: half-prec property; s[0]: high 2bits: idx 0-3, low 14bits: tissue label*/
     } val;
     val.i = mediaid & MED_MASK;
     *((FLOAT4VEC*)(prop)) = gproperty[val.s[0] & 0x3FFF];
     float* p = (float*)(prop);
-    p[(val.s[0] & 0xC000) >> 14] = fabsf(__half2float(val.h[1]));
+    p[(val.s[0] & 0xC000) >> 14] = fabs(convert_float(vload_half(1, val.h)));
 #elif MED_TYPE==MEDIA_ASGN_BYTE
     union {
         unsigned int i;
