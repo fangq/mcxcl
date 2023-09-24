@@ -17,8 +17,11 @@
     #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
 #endif
 
-#ifdef USE_HALF
+#if defined(USE_HALF) || MED_TYPE==MEDIA_AS_F2H || MED_TYPE==MEDIA_AS_HALF || MED_TYPE==MEDIA_LABEL_HALF
     #pragma OPENCL EXTENSION cl_khr_fp16 : enable
+#endif
+
+#ifdef USE_HALF
     #define FLOAT4VEC half4
     #define TOFLOAT4  convert_half4
 #else
@@ -73,14 +76,14 @@
 
 #define MIN(a,b)           ((a)<(b)?(a):(b))
 
-#define MEDIA_2LABEL_SPLIT    97   /**<  media Format: 64bit:{[byte: lower label][byte: upper label][byte*3: reference point][byte*3: normal vector]} */
-#define MEDIA_2LABEL_MIX      98   /**<  media format: {[int: label1][int: label2][float32: label1 %]} -> 32bit:{[half: label1 %],[byte: label2],[byte: label1]} */
-#define MEDIA_LABEL_HALF      99   /**<  media format: {[float32: 1/2/3/4][float32: type][float32: mua/mus/g/n]} -> 32bit:{[half: mua/mus/g/n][int16: [B15-B16: 0/1/2/3][B1-B14: tissue type]} */
-#define MEDIA_AS_F2H          100  /**<  media format: {[float32: mua][float32: mus]} -> 32bit:{[half: mua],{half: mus}} */
-#define MEDIA_MUA_FLOAT       101  /**<  media format: 32bit:{[float32: mua]} */
-#define MEDIA_AS_HALF         102  /**<  media format: 32bit:{[half: mua],[half: mus]} */
-#define MEDIA_ASGN_BYTE       103  /**<  media format: 32bit:{[byte: mua],[byte: mus],[byte: g],[byte: n]} */
-#define MEDIA_AS_SHORT        104  /**<  media format: 32bit:{[short: mua],[short: mus]} */
+#define MEDIA_2LABEL_SPLIT    97   /**<  svmc media format (not supported): 64bit:{[byte: lower label][byte: upper label][byte*3: reference point][byte*3: normal vector]} */
+#define MEDIA_2LABEL_MIX      98   /**<  mixlabel media format: {[int: label1][int: label2][float32: label1 %]} -> 32bit:{[short label1 % scaled to 65535],[byte: label2],[byte: label1]} */
+#define MEDIA_LABEL_HALF      99   /**<  labelplus media format: {[float32: 1/2/3/4][float32: type][float32: mua/mus/g/n]} -> 32bit:{[half: mua/mus/g/n][int16: [B15-B16: 0/1/2/3][B1-B14: tissue type]} */
+#define MEDIA_AS_F2H          100  /**<  muamus_float media format: {[float32: mua][float32: mus]} -> 32bit:{[half: mua],{half: mus}} */
+#define MEDIA_MUA_FLOAT       101  /**<  mua_float media format: 32bit:{[float32: mua]} */
+#define MEDIA_AS_HALF         102  /**<  muamus_half media format: 32bit:{[half: mua],[half: mus]} */
+#define MEDIA_ASGN_BYTE       103  /**<  asgn_byte media format: 32bit:{[byte: mua],[byte: mus],[byte: g],[byte: n]} */
+#define MEDIA_AS_SHORT        104  /**<  muamus_short media format: 32bit:{[short: mua],[short: mus]} */
 
 #define SAVE_DETID(a)         ((a)    & 0x1)   /**<  mask to save detector ID*/
 #define SAVE_NSCAT(a)         ((a)>>1 & 0x1)   /**<  output partial scattering counts */
@@ -612,16 +615,14 @@ void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant float4* gp
     prop[0].x = fabs(*((float*)&mediaid));
     prop[0].w = gproperty[(!(mediaid & MED_MASK)) == 0].w;
 #elif MED_TYPE==MEDIA_AS_F2H || MED_TYPE==MEDIA_AS_HALF //< [h1][h0]: h1/h0: single-prec mua/mus for every voxel; g/n uses those in cfg.prop(2,:)
-#ifdef USE_HALF
     union {
         unsigned int i;
         half h[2];
     } val;
     val.i = mediaid & MED_MASK;
-    prop[0].x = fabs(convert_float(val.h[0]));
-    prop[0].y = fabs(convert_float(val.h[1]));
+    prop[0].x = fabs(convert_float(vload_half(0, val.h)));
+    prop[0].y = fabs(convert_float(vload_half(1, val.h)));
     prop[0].w = gproperty[(!(mediaid & MED_MASK)) == 0].w;
-#endif
 #elif MED_TYPE==MEDIA_2LABEL_MIX //< [s1][c1][c0]: s1: (volume fraction of tissue 1)*(2^16-1), c1: tissue 1 label, c0: tissue 0 label
     union {
         unsigned int   i;
@@ -644,7 +645,6 @@ void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant float4* gp
     }
 
 #elif MED_TYPE==MEDIA_LABEL_HALF //< [h1][s0]: h1: half-prec property value; highest 2bit in s0: index 0-3, low 14bit: tissue label
-#ifdef USE_HALF
     union {
         unsigned int i;
 #if ! defined(__CUDACC_VER_MAJOR__) || __CUDACC_VER_MAJOR__ >= 9
@@ -658,7 +658,6 @@ void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant float4* gp
     *((FLOAT4VEC*)(prop)) = gproperty[val.s[0] & 0x3FFF];
     float* p = (float*)(prop);
     p[(val.s[0] & 0xC000) >> 14] = fabsf(__half2float(val.h[1]));
-#endif
 #elif MED_TYPE==MEDIA_ASGN_BYTE
     union {
         unsigned int i;
