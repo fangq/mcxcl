@@ -2,6 +2,9 @@ Change Log
 
 == MCX-CL 1.0.0 (Fractal), FangQ <q.fang at neu.edu> ==
 
+ 2023-09-24 [3e79262] add 2d test, fix test error on macos-12
+ 2023-09-24 [c0dc765] support muamus_float, labelplus and muamus_half formats, fix mcxlabcl demo
+ 2023-09-23 [70853cc] update mcxlabcl demo scripts
  2023-09-16 [cebba31] update deploy script after reformat
  2023-09-15 [8a51281] update documentation
  2023-09-13 [c51a252] avoid error on old windows sdk
