@@ -964,12 +964,11 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
             for (devid = 0; devid < workdev; devid++) {
                 int nblock = gpu[devid].autothread / gpu[devid].autoblock;
-                int np = cfg->nphoton / nblock;
 
                 param.threadphoton = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * gpu[devid].autothread * cfg->respin));
                 param.oddphoton   = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * cfg->respin) - param.threadphoton * gpu[devid].autothread);
-                param.blockphoton = (int)(np * cfg->workload[devid] / (fullload * nblock * cfg->respin));
-                param.blockextra  = (int)(np * cfg->workload[devid] / (fullload * cfg->respin) - param.blockphoton * nblock);
+                param.blockphoton = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * nblock * cfg->respin));
+                param.blockextra  = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * cfg->respin) - param.blockphoton * nblock);
                 OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid], gparam[devid], CL_TRUE, 0, sizeof(MCXParam), &param, 0, NULL, NULL)));
                 OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 17, sizeof(cl_mem), (void*)(gparam + devid))));
 

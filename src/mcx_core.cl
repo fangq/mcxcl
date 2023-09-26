@@ -226,8 +226,6 @@ void gpu_rng_init(__private RandType t[RAND_BUF_LEN], __global uint* n_seed, int
 
 #else
 
-#pragma OPENCL EXTENSION cl_khr_fp64 : enable
-
 #define RAND_BUF_LEN       2        //register arrays
 #define RAND_SEED_LEN      4        //48 bit packed with 64bit length
 #define LOG_MT_MAX         22.1807097779182f
@@ -883,20 +881,22 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 
         clearpath(ppath, GPU_PARAM(gcfg, partialdata));
 #endif
-#ifdef GROUP_LOAD_BALANCE
-        GPUDEBUG(("block workload [%f] done over [%d]\n", f[0].w, blockphoton[0]));
-
-        if (atomic_sub(blockphoton, 1) <= 1) {
-            return 1;
-        }
-
-#endif
     }
 
+#ifdef GROUP_LOAD_BALANCE
+    /**
+     * checking out a photon from the block's total workload, terminate if nothing left to run
+     */
+    GPUDEBUG(("block workload [%f] done over [%d]\n", f[0].w, blockphoton[0]));
+
+    if (atomic_dec(blockphoton) < 1) {
+        return 1;  // all photons assigned to the block are done
+    }
+
+#else
     /**
      * If the thread completes all assigned photons, terminate this thread.
      */
-#ifndef GROUP_LOAD_BALANCE
     GPUDEBUG(("thread workload [%f] done over [%d]\n", f[0].w, (gcfg->threadphoton + (threadid < gcfg->oddphoton))));
 
     if (f[0].w >= (gcfg->threadphoton + (threadid < gcfg->oddphoton))) {
@@ -1204,10 +1204,10 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 #endif
 
     /**
-      total energy enters the volume. for diverging/converting
-      beams, this is less than nphoton due to specular reflection
-      loss. This is different from the wide-field MMC, where the
-      total launched energy includes the specular reflection loss
+     * total energy enters the volume. for diverging/converting
+     * beams, this is less than nphoton due to specular reflection
+     * loss. This is different from the wide-field MMC, where the
+     * total launched energy includes the specular reflection loss
      */
     ppath[1] += p[0].w;
     *w0 = p[0].w;
@@ -1307,7 +1307,7 @@ __kernel void mcx_main_loop(__global const uint* media,
 
 #ifdef GROUP_LOAD_BALANCE
 
-    while (blockphoton[0] > 0 || f.w < 0.f) {
+    while (1) {
         GPUDEBUG(("block workload [%d] left\n", blockphoton[0]));
 #else
 
