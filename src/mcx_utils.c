@@ -292,7 +292,7 @@ void mcx_initcfg(Config* cfg) {
     cfg->debuglevel = 0;
     cfg->gpuid = 0;
 
-    memset(cfg->bc, 0, 12);
+    memset(cfg->bc, 0, 13);
     memset(&cfg->his, 0, sizeof(History));
     memcpy(cfg->his.magic, "MCXH", 4);
     cfg->his.version = 1;

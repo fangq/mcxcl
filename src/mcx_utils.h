@@ -232,7 +232,7 @@ typedef struct MCXConfig {
     int parentid;                /**<flag for testing if mcx is executed inside matlab*/
     uint optlevel;               /**<OpenCL JIT compilation optimization level*/
     uint mediabyte;              /**< how many bytes per media index, mcx supports 1, 2 and 4, 4 is the default*/
-    char bc[12];                 /**<boundary condition flag for [-x,-y,-z,+x,+y,+z, det(-x,-y,-z,+x,+y,+z)] */
+    char bc[13];                 /**<boundary condition flag for [-x,-y,-z,+x,+y,+z, det(-x,-y,-z,+x,+y,+z)], last element is always NULL for string termination */
 } Config;
 
 #ifdef  __cplusplus
