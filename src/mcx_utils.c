@@ -2241,13 +2241,6 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
                         break;
                     }
                 }
-
-                if (cfg->unitinmm != 1.f) {
-                    for (i = 0; i < cfg->medianum; i++) {
-                        cfg->prop[i].mus *= cfg->unitinmm;
-                        cfg->prop[i].mua *= cfg->unitinmm;
-                    }
-                }
             }
         }
 
