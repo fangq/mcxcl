@@ -757,15 +757,15 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     }
 
     if (cfg->optlevel >= 2) {
-        sprintf(opt + strlen(opt), "%s ", "-DUSE_MACRO_CONST");
-    }
-
-    if (cfg->optlevel >= 3) {
         sprintf(opt + strlen(opt), "%s ", "-DMCX_SIMPLIFY_BRANCH -DMCX_VECTOR_INDEX");
     }
 
-    if (cfg->optlevel >= 4) {
+    if (cfg->optlevel >= 3) {
         sprintf(opt + strlen(opt), "%s ", "-DGROUP_LOAD_BALANCE");
+    }
+
+    if (cfg->optlevel >= 4 && cfg->seed != SEED_FROM_FILE) { // optlevel 2 - i.e. defining parameters as macros - fails replay test, need to debug
+        sprintf(opt + strlen(opt), "%s ", "-DUSE_MACRO_CONST");
     }
 
     for (i = 0; i < 3; i++)

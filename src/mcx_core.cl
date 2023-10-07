@@ -875,7 +875,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 #ifdef MCX_SAVE_DETECTORS
 
         // let's handle detectors here
-        if ((isdet & DET_MASK) == DET_MASK && *mediaid == 0 && GPU_PARAM(gcfg, issaveref) < 2) {
+        if ((isdet & DET_MASK) == DET_MASK && *mediaid == 0 && (bool)(GPU_PARAM(gcfg, issaveref) < 2)) {
             savedetphoton(n_det, dpnum, ppath, p, v, photonseed, gseeddata, gdetpos, gcfg, isdet);
         }
 
@@ -1372,7 +1372,7 @@ __kernel void mcx_main_loop(__global const uint* media,
 
                 v.w += 1.f;
 
-                if (GPU_PARAM(gcfg, outputtype) == otWP || GPU_PARAM(gcfg, outputtype) == otDCS) {
+                if ((bool)(GPU_PARAM(gcfg, outputtype) == otWP) || (bool)(GPU_PARAM(gcfg, outputtype) == otDCS)) {
                     ///< photontof[] and replayweight[] should be cached using local mem to avoid global read
                     int tshift = (idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w);
                     tmp0 = (GPU_PARAM(gcfg, outputtype) == otDCS) ? (1.f - ctheta) : 1.f;
@@ -1472,7 +1472,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                 /** calculate the quality to be accummulated */
                 if (GPU_PARAM(gcfg, outputtype) == otEnergy) {
                     weight = w0 - p.w;
-                } else if (GPU_PARAM(gcfg, outputtype) == otFluence || GPU_PARAM(gcfg, outputtype) == otFlux) {
+                } else if ((bool)(GPU_PARAM(gcfg, outputtype) == otFluence) || (bool)(GPU_PARAM(gcfg, outputtype) == otFlux)) {
                     weight = (prop.x * f.z < 0.001f) ? (w0 * f.z) : ((w0 - p.w) / (prop.x));
                 } else if (GPU_PARAM(gcfg, seed) == SEED_FROM_FILE) {
                     if (GPU_PARAM(gcfg, outputtype) == otJacobian) {
@@ -1523,8 +1523,8 @@ __kernel void mcx_main_loop(__global const uint* media,
         }
 
         /** launch new photon when exceed time window or moving from non-zero voxel to zero voxel without reflection */
-        if ((mediaid == 0 && ((!GPU_PARAM(gcfg, doreflect) || (GPU_PARAM(gcfg, doreflect) && n1 == gproperty[0].w)) || (((isdet & 0xF) == bcUnknown && !GPU_PARAM(gcfg, doreflect))
-                              || (isdet & 0xF) == bcAbsorb || (isdet & 0xF) == bcCyclic)) && (isdet & 0xF) != bcMirror && (isdet & 0xF) != bcReflect) ||  f.y > gcfg->twin1) {
+        if ((mediaid == 0 && (bool)(((bool)(!(GPU_PARAM(gcfg, doreflect))) || ((bool)(GPU_PARAM(gcfg, doreflect)) && n1 == gproperty[0].w)) || (((isdet & 0xF) == bcUnknown && (bool)(!(GPU_PARAM(gcfg, doreflect))))
+                                    || (isdet & 0xF) == bcAbsorb || (isdet & 0xF) == bcCyclic)) && (isdet & 0xF) != bcMirror && (isdet & 0xF) != bcReflect) ||  f.y > gcfg->twin1) {
             if (isdet == bcCyclic) {
                 if (flipdir.w == 0) {
                     p.x = mcx_nextafterf(convert_float_rte(((idx1d == OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.x : 0)), (v.x > 0.f) - (v.x < 0.f));
@@ -1578,7 +1578,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                 || (mediaid == 0 &&  // or if out of bbx or enters 0-voxel
                     (((isdet & 0xF) == bcUnknown && GPU_PARAM(gcfg, doreflect)) // if cfg.bc is "_", check cfg.isreflect
                      || (((isdet & 0xF) == bcReflect || (isdet & 0xF) == bcMirror)))))  // or if cfg.bc is 'r' or 'm'
-                && (((isdet & 0xF) == bcMirror) || n1 != ((GPU_PARAM(gcfg, mediaformat) < 100) ? (prop.w) : (gproperty[(mediaid > 0 && GPU_PARAM(gcfg, mediaformat) >= 100) ? 1 : mediaid].w)))) {
+                && (((isdet & 0xF) == bcMirror) || n1 != ((GPU_PARAM(gcfg, mediaformat) < 100) ? (prop.w) : (gproperty[(mediaid > 0 && (bool)(GPU_PARAM(gcfg, mediaformat) >= 100)) ? 1 : mediaid].w)))) {
             float Rtotal = 1.f;
             float cphi, sphi, stheta, ctheta;
 

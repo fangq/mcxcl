@@ -4488,9 +4488,9 @@ void mcx_printheader(Config* cfg) {
 ==============================================================================\n\
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =\n\
 =          Copyright (c) 2010-2023 Qianqian Fang <q.fang at neu.edu>         =\n\
-=                https://mcx.space/  &  https://neurojson.org/               =\n\
+=" S_CYAN "                https://mcx.space/  &  https://neurojson.org/               " S_BLUE "=\n\
 =                                                                            =\n\
-= Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =\n\
+= Computational Optics&Translational Imaging (COTI) Lab - " S_CYAN "http://fanglab.org " S_BLUE "=\n\
 =   Department of Bioengineering, Northeastern University, Boston, MA, USA   =\n\
 ==============================================================================\n\
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =\n\
@@ -4499,7 +4499,7 @@ void mcx_printheader(Config* cfg) {
 = MCX proudly developed human-readable JSON-based data formats for easy reuse=\n\
 = Please consider using JSON (https://neurojson.org/) for your research data =\n\
 ==============================================================================\n\
-$Rev::4fdc45$ " MCX_VERSION "  $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
+$Rev::4fdc45$ " S_CYAN MCX_VERSION S_BLUE "  $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
 ==============================================================================\n"S_RESET);
 }
 
@@ -4564,7 +4564,7 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -G '1101'     (--gpu)         using multiple devices (1 enable, 0 disable)\n\
  -W '50,30,20' (--workload)    workload for active devices; normalized by sum\n\
  -I            (--printgpu)    print GPU information and run program\n\
- -o [1|int]    (--optlevel)    optimization level 0-no opt;1,2,3 more optimized\n\
+ -o [1|int]    (--optlevel)    optimization level 0-no opt;1-4 more optimized\n\
  -J '-DMACRO'  (--compileropt) specify additional JIT compiler options\n\
                                A few built-in preprocessors include\n\
               -DMCX_GPU_DEBUG  - print step-by-step debug info\n\
