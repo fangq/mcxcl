@@ -2001,13 +2001,6 @@ void mcx_loadconfig(FILE* in, Config* cfg) {
         }
     }
 
-    if (cfg->unitinmm != 1.f) {
-        for (i = 1; i < cfg->medianum; i++) {
-            cfg->prop[i].mus *= cfg->unitinmm;
-            cfg->prop[i].mua *= cfg->unitinmm;
-        }
-    }
-
     if (in == stdin) {
         MCX_FPRINTF(stdout, "Please specify the total number of detectors and fiber diameter (in grid unit):\n\t");
     }
@@ -2239,13 +2232,6 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
 
                     if (med == NULL) {
                         break;
-                    }
-                }
-
-                if (cfg->unitinmm != 1.f) {
-                    for (i = 0; i < cfg->medianum; i++) {
-                        cfg->prop[i].mus *= cfg->unitinmm;
-                        cfg->prop[i].mua *= cfg->unitinmm;
                     }
                 }
             }
