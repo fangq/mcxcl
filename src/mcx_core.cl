@@ -1452,7 +1452,7 @@ __kernel void mcx_main_loop(__global const uint* media,
             mediaid = 0;
             idx1d = (flipdir.x < 0 || flipdir.y < 0 || flipdir.z < 0) ? OUTSIDE_VOLUME_MIN : OUTSIDE_VOLUME_MAX;
             isdet = gcfg->bc[(idx1d == OUTSIDE_VOLUME_MAX) * 3 + flipdir.w]; /** isdet now stores the boundary condition flag, this will be overwriten before the end of the loop */
-            isdet = ((isdet & 0xF) == bcUnknown) ? (GPU_PARAM(gcfg, doreflect) ? bcReflect : bcAbsorb ) : isdet;
+            isdet = ((isdet & 0xF) == bcUnknown) ? (GPU_PARAM(gcfg, doreflect) ? bcReflect : bcAbsorb) : isdet;
             GPUDEBUG(("moving outside: [%f %f %f], idx1d [%d]->[out], bcflag %d\n", p.x, p.y, p.z, idx1d, isdet));
         } else {
             mediaid = media[idx1d];
@@ -1524,8 +1524,7 @@ __kernel void mcx_main_loop(__global const uint* media,
         }
 
         /** launch new photon when exceed time window or moving from non-zero voxel to zero voxel without reflection */
-        if ((mediaid == 0 && (((isdet & 0xF) == bcAbsorb || ((isdet & 0xF) == bcReflect && n1 == gproperty[0].w)) ||
-                              ((isdet & 0xF) == bcCyclic)) && (isdet & 0xF) != bcMirror) ||  f.y > gcfg->twin1) {
+        if ((mediaid == 0 && ((isdet & 0xF) == bcAbsorb || (isdet & 0xF) == bcCyclic || ((isdet & 0xF) == bcReflect && n1 == gproperty[0].w))) ||  f.y > gcfg->twin1) {
             if (isdet == bcCyclic) {
                 if (flipdir.w == 0) {
                     p.x = mcx_nextafterf(convert_float_rte(((idx1d == OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.x : 0)), (v.x > 0.f) - (v.x < 0.f));
