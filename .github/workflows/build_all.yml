@@ -47,6 +47,8 @@ jobs:
           cp 'c:\vcpkg\packages\opencl_x64-windows\bin\OpenCL.dll' 'c:\Windows\System32'
       - name: Set up MATLAB
         uses: matlab-actions/setup-matlab@v1
+        with:
+          release: R2022a
       - name: Update RCS keywords
         run: |
           printf '\n[filter "rcs-keywords"]\n\tclean  = .git_filters/rcs-keywords.clean\n\tsmudge = .git_filters/rcs-keywords.smudge %f\n' >> .git/config
