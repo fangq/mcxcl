@@ -845,7 +845,13 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
                 int tshift = MIN((int)GPU_PARAM(gcfg, maxgate) - 1, (int)(floor((f[0].y - gcfg->twin0) * GPU_PARAM(gcfg, Rtstep))));
 #if !defined(MCX_SRC_PATTERN) && !defined(MCX_SRC_PATTERN3D)
 #ifdef USE_ATOMIC
-                atomicadd(& field[*idx1d + tshift * gcfg->dimlen.z], -p[0].w);
+                float oldval = atomicadd(& field[*idx1d + tshift * gcfg->dimlen.z], -p[0].w);
+
+                if (fabs(oldval) > MAX_ACCUM) {
+                    atomicadd(& field[*idx1d + tshift * gcfg->dimlen.z], ((oldval > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
+                    atomicadd(& field[*idx1d + tshift * gcfg->dimlen.z + gcfg->dimlen.w], ((oldval > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
+                }
+
 #else
                 field[*idx1d + tshift * gcfg->dimlen.z] += -p[0].w;
 #endif
@@ -854,7 +860,13 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
                 for (int i = 0; i < GPU_PARAM(gcfg, srcnum); i++) {
                     if (fabs(ppath[GPU_PARAM(gcfg, w0offset) + i]) > 0.f) {
 #ifdef USE_ATOMIC
-                        atomicadd(& field[(*idx1d + tshift * gcfg->dimlen.z)*GPU_PARAM(gcfg, srcnum) + i], -((GPU_PARAM(gcfg, srcnum) == 1) ? p[0].w : p[0].w * ppath[GPU_PARAM(gcfg, w0offset) + i]));
+                        float oldval = atomicadd(& field[(*idx1d + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i], -((GPU_PARAM(gcfg, srcnum) == 1) ? p[0].w : p[0].w * ppath[GPU_PARAM(gcfg, w0offset) + i]));
+
+                        if (fabs(oldval) > MAX_ACCUM) {
+                            atomicadd(& field[(*idx1d + tshift * gcfg->dimlen.z)*GPU_PARAM(gcfg, srcnum) + i], ((oldval > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
+                            atomicadd(& field[(*idx1d + tshift * gcfg->dimlen.z)*GPU_PARAM(gcfg, srcnum) + i + gcfg->dimlen.w], ((oldval > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
+                        }
+
 #else
                         field[(*idx1d + tshift * gcfg->dimlen.z)*GPU_PARAM(gcfg, srcnum) + i] += -((GPU_PARAM(gcfg, srcnum) == 1) ? p[0].w : p[0].w * ppath[GPU_PARAM(gcfg, w0offset) + i]);
 #endif
