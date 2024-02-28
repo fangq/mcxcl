@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.3)
 
 project(zmat)
 
-find_package(ZLIB REQUIRED)
+#find_package(ZLIB REQUIRED)
 #find_package(Matlab)
 
 option(STATIC_LIB "Build static library" ON)
@@ -74,7 +74,6 @@ endif()
 # Link options
 target_link_libraries(
     zmat
-    ZLIB::ZLIB
     )
 
 if(Matlab_FOUND)
