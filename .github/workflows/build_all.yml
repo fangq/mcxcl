@@ -14,7 +14,7 @@ jobs:
     name: Build All
     strategy:
       matrix:
-        os: [ubuntu-20.04, ubuntu-22.04, macos-11, macos-12, windows-2019]
+        os: [ubuntu-20.04, ubuntu-22.04, macos-12, windows-2019]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -124,7 +124,7 @@ jobs:
             zip -FSr --symlink packages/mcxlabcl-${{ env.RELEASE_TAG }}.zip mcxlabcl
           fi
       - name: Upload mcxlabcl package
-        if: ${{ matrix.os == 'ubuntu-20.04' || matrix.os == 'macos-11' || matrix.os == 'windows-2019' }}
+        if: ${{ matrix.os == 'ubuntu-20.04' || matrix.os == 'macos-12' || matrix.os == 'windows-2019' }}
         uses: actions/upload-artifact@v3
         with:
           name: all-mcxcl-packages
@@ -142,7 +142,7 @@ jobs:
             zip -FSr --symlink mcxcl/packages/mcxcl-${{ env.RELEASE_TAG }}.zip mcxcl -x 'mcxcl/packages*'
           fi
       - name: Upload mcxcl package
-        if: ${{ matrix.os == 'ubuntu-20.04' || matrix.os == 'macos-11' || matrix.os == 'windows-2019' }}
+        if: ${{ matrix.os == 'ubuntu-20.04' || matrix.os == 'macos-12' || matrix.os == 'windows-2019' }}
         uses: actions/upload-artifact@v3
         with:
           name: all-mcxcl-packages
