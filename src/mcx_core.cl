@@ -1516,7 +1516,7 @@ __kernel void mcx_main_loop(__global const uint* media,
 
                     for (int i = 0; i < GPU_PARAM(gcfg, srcnum); i++) {
                         if (fabs(ppath[GPU_PARAM(gcfg, w0offset) + i]) > 0.f) {
-                            float oldval = atomicadd(& field[(idx1dold + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i], weight * ppath[GPU_PARAM(gcfg, w0offset) + i]);
+                            float oldval = atomicadd(& field[(idx1dold + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i], ((GPU_PARAM(gcfg, srcnum) == 1) ? weight : weight * ppath[GPU_PARAM(gcfg, w0offset) + i]));
 
                             if (fabs(oldval) > MAX_ACCUM) {
                                 atomicadd(& field[(idx1dold + tshift * gcfg->dimlen.z)*gcfg->srcnum + i], ((oldval > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
