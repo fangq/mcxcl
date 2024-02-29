@@ -434,7 +434,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     cl_mem* gmedia = NULL, *gproperty = NULL, *gparam = NULL;
     cl_mem greplaydetid = NULL, greplayw = NULL, greplaytof = NULL, *gsrcpattern = NULL;
     cl_mem* gfield = NULL, *gdetphoton, *gseed = NULL, *genergy = NULL, *gseeddata = NULL;
-    cl_mem* gprogress = NULL, *gdetected = NULL, *gdetpos = NULL, *gjumpdebug = NULL, *gdebugdata = NULL;
+    cl_mem* gprogress = NULL, *gdetected = NULL, *gdetpos = NULL, *gjumpdebug = NULL, *gdebugdata = NULL, *ginvcdf = NULL, *gangleinvcdf = NULL;
 
     cl_uint dimxyz = cfg->dim.x * cfg->dim.y * cfg->dim.z * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) ? cfg->srcnum : 1);
 
@@ -473,7 +473,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         (uint)cfg->maxvoidstep, cfg->issaveexit > 0, cfg->issaveseed > 0, (uint)cfg->issaveref,
         cfg->isspecular > 0, cfg->maxgate, cfg->seed, (uint)cfg->outputtype, 0, 0,
         (uint)cfg->debuglevel, cfg->savedetflag, hostdetreclen, partialdata, w0offset, (uint)cfg->mediabyte,
-        (uint)cfg->maxjumpdebug, cfg->gscatter, is2d, cfg->replaydet, cfg->srcnum
+        (uint)cfg->maxjumpdebug, cfg->gscatter, is2d, cfg->replaydet, cfg->srcnum, cfg->nphase,
+        cfg->nphase + (cfg->nphase & 0x1), cfg->nangle, cfg->nangle + (cfg->nangle & 0x1)
     };
 
     platform = mcx_list_gpu(cfg, &workdev, devices, &gpu);
@@ -513,6 +514,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     gdebugdata = (cl_mem*)malloc(workdev * sizeof(cl_mem));
     gseeddata = (cl_mem*)malloc(workdev * sizeof(cl_mem));
     gsrcpattern = (cl_mem*)malloc(workdev * sizeof(cl_mem));
+    ginvcdf = (cl_mem*)malloc(workdev * sizeof(cl_mem));
+    gangleinvcdf = (cl_mem*)malloc(workdev * sizeof(cl_mem));
 
     /* The block is to move the declaration of prop closer to its use */
     cl_command_queue_properties prop = CL_QUEUE_PROFILING_ENABLE;
@@ -711,6 +714,14 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             free(seeddata);
         }
 
+        if (cfg->nphase) {
+            OCL_ASSERT(((ginvcdf[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * cfg->nphase, cfg->invcdf, &status), status)));
+        }
+
+        if (cfg->nangle) {
+            OCL_ASSERT(((gangleinvcdf[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * cfg->nangle, cfg->angleinvcdf, &status), status)));
+        }
+
         if (cfg->detnum > 0) {
             OCL_ASSERT(((gdetpos[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->detnum * sizeof(float4), cfg->detpos, &status), status)));
         }
@@ -884,7 +895,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
         threadphoton = (int)(cfg->nphoton * cfg->workload[i] / (fullload * gpu[i].autothread * cfg->respin));
         oddphoton = (int)(cfg->nphoton * cfg->workload[i] / (fullload * cfg->respin) - threadphoton * gpu[i].autothread);
-        sharedbuf = gpu[i].autoblock * (cfg->issaveseed * (RAND_BUF_LEN * sizeof(RandType)) + sizeof(float) * (param.w0offset + cfg->srcnum));
+        sharedbuf = (param.nphaselen + param.nanglelen) * sizeof(float) + gpu[i].autoblock * (cfg->issaveseed * (RAND_BUF_LEN * sizeof(RandType)) + sizeof(float) * (param.w0offset + cfg->srcnum));
 
         MCX_FPRINTF(cfg->flog, "- [device %d(%d): %s] threadph=%d extra=%d np=%.0f nthread=%d nblock=%d sharedbuf=%d\n", i, gpu[i].id, gpu[i].name, threadphoton, oddphoton,
                     cfg->nphoton * cfg->workload[i] / fullload, (int)gpu[i].autothread, (int)gpu[i].autoblock, sharedbuf);
@@ -906,7 +917,9 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         OCL_ASSERT((clSetKernelArg(mcxkernel[i], 13, sizeof(cl_mem), ((cfg->issaveseed) ? (void*)(gseeddata + i) : NULL) )));
         OCL_ASSERT((clSetKernelArg(mcxkernel[i], 14, sizeof(cl_mem), ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) ? (void*)(gjumpdebug + i) : NULL) )));
         OCL_ASSERT((clSetKernelArg(mcxkernel[i], 15, sizeof(cl_mem), ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) ? (void*)(gdebugdata + i) : NULL) )));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 16, sharedbuf, NULL)));
+        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 16, sizeof(cl_mem), ((cfg->nphase) ? (void*)(ginvcdf + i) : NULL) )));
+        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 17, sizeof(cl_mem), ((cfg->nangle) ? (void*)(gangleinvcdf + i) : NULL) )));
+        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 18, sharedbuf, NULL)));
     }
 
     MCX_FPRINTF(cfg->flog, "set kernel arguments complete : %d ms\n", GetTimeMillis() - tic);
@@ -1379,6 +1392,14 @@ is more than what your have specified (%d), please use the -H option to specify 
 
         if (cfg->issaveseed) {
             clReleaseMemObject(gseeddata[i]);
+        }
+
+        if (cfg->nphase) {
+            clReleaseMemObject(ginvcdf[i]);
+        }
+
+        if (cfg->nangle) {
+            clReleaseMemObject(gangleinvcdf[i]);
         }
 
         clReleaseKernel(mcxkernel[i]);

@@ -1017,6 +1017,48 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
         }
 
         printf("mcx.srcpattern=[%ld %ld %ld];\n", arraydim[0], arraydim[1], dimz);
+    } else if (strcmp(name, "invcdf") == 0) {
+        dimtype nphase = mxGetNumberOfElements(item);
+        double* val = mxGetPr(item);
+
+        if (cfg->invcdf) {
+            free(cfg->invcdf);
+        }
+
+        cfg->nphase = (unsigned int)nphase + 2;
+        cfg->invcdf = (float*)calloc(cfg->nphase, sizeof(float));
+
+        for (i = 0; i < nphase; i++) {
+            cfg->invcdf[i + 1] = val[i];
+
+            if ((i > 0 && val[i] < val[i - 1]) || val[i] > 1.f || val[i] < -1.f) {
+                mexErrMsgTxt("cfg.invcdf contains invalid data; it must be a monotonically increasing vector with all values between -1 and 1");
+            }
+        }
+
+        cfg->invcdf[0] = -1.f;
+        cfg->invcdf[cfg->nphase - 1] = 1.f;
+        printf("mcx.invcdf=[%ld];\n", cfg->nphase);
+    } else if (strcmp(name, "angleinvcdf") == 0) {
+        dimtype nangle = mxGetNumberOfElements(item);
+        double* val = mxGetPr(item);
+
+        if (cfg->angleinvcdf) {
+            free(cfg->angleinvcdf);
+        }
+
+        cfg->nangle = (unsigned int)nangle;
+        cfg->angleinvcdf = (float*)calloc(cfg->nangle, sizeof(float));
+
+        for (i = 0; i < nangle; i++) {
+            cfg->angleinvcdf[i] = val[i];
+
+            if ((i > 0 && val[i] < val[i - 1]) || val[i] > 1.f || val[i] < 0.f) {
+                mexErrMsgTxt("cfg.angleinvcdf contains invalid data; it must be a monotonically increasing vector with all values between 0 and 1");
+            }
+        }
+
+        printf("mcx.angleinvcdf=[%ld];\n", cfg->nangle);
     } else if (strcmp(name, "shapes") == 0) {
         int len = mxGetNumberOfElements(item);
 

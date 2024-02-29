@@ -317,6 +317,10 @@ void mcx_initcfg(Config* cfg) {
     cfg->outputtype = otFlux;
     cfg->outputformat = ofJNifti;
     cfg->srcdir.w = 0.f;
+    cfg->nphase = 0;
+    cfg->invcdf = NULL;
+    cfg->nangle = 0;
+    cfg->angleinvcdf = NULL;
     memset(cfg->jsonfile, 0, MAX_PATH_LENGTH);
 
 }
@@ -384,6 +388,14 @@ void mcx_clearcfg(Config* cfg) {
 
     if (cfg->extrajson) {
         free(cfg->extrajson);
+    }
+
+    if (cfg->invcdf) {
+        free(cfg->invcdf);
+    }
+
+    if (cfg->angleinvcdf) {
+        free(cfg->angleinvcdf);
     }
 
     mcx_initcfg(cfg);
@@ -2141,7 +2153,7 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
 
     if (Domain) {
         char volfile[MAX_PATH_LENGTH];
-        cJSON* meds, *val;
+        cJSON* meds, *val, *vv;
         val = FIND_JSON_OBJ("VolumeFile", "Domain.VolumeFile", Domain);
 
         if (val) {
@@ -2275,6 +2287,33 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
             cfg->steps.z = cfg->unitinmm;
         }
 
+        val = FIND_JSON_OBJ("InverseCDF", "Domain.InverseCDF", Domain);
+
+        if (val) {
+            int nphase = cJSON_GetArraySize(val);
+            cfg->nphase = nphase + 2; /*left-/right-ends are excluded, so added 2*/
+
+            if (cfg->invcdf) {
+                free(cfg->invcdf);
+            }
+
+            cfg->invcdf = (float*)calloc(cfg->nphase, sizeof(float));
+            cfg->invcdf[0] = -1.f; /*left end is always -1.f,right-end is always 1.f*/
+            vv = val->child;
+
+            for (i = 1; i <= nphase; i++) {
+                cfg->invcdf[i] = vv->valuedouble;
+                vv = vv->next;
+
+                if (cfg->invcdf[i] < cfg->invcdf[i - 1] || cfg->invcdf[i] > 1.f || cfg->invcdf[i] < -1.f) {
+                    MCX_ERROR(-1, "Domain.InverseCDF contains invalid data; it must be a monotonically increasing vector with all values between -1 and 1");
+                }
+            }
+
+            cfg->invcdf[nphase + 1] = 1.f; /*left end is always -1.f,right-end is always 1.f*/
+            cfg->invcdf[cfg->nphase - 1] = 1.f;
+        }
+
         val = FIND_JSON_OBJ("CacheBoxP0", "Domain.CacheBoxP0", Domain);
 
         if (val) {
@@ -2331,7 +2370,7 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
     }
 
     if (Optode) {
-        cJSON* dets, *src = FIND_JSON_OBJ("Source", "Optode.Source", Optode);
+        cJSON* dets, *vv, *src = FIND_JSON_OBJ("Source", "Optode.Source", Optode);
 
         if (src) {
             subitem = FIND_JSON_OBJ("Pos", "Optode.Source.Pos", src);
@@ -2445,6 +2484,29 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
 
                             fclose(fid);
                         }
+                    }
+                }
+            }
+
+            subitem = FIND_JSON_OBJ("AngleInverseCDF", "Optode.Source.AngleInverseCDF", src);
+
+            if (subitem) {
+                int nangle = cJSON_GetArraySize(subitem);
+
+                if (cfg->angleinvcdf) {
+                    free(cfg->angleinvcdf);
+                }
+
+                cfg->nangle = nangle;
+                cfg->angleinvcdf = (float*)calloc(cfg->nangle, sizeof(float));
+                vv = subitem->child;
+
+                for (i = 0; i < nangle; i++) {
+                    cfg->angleinvcdf[i] = vv->valuedouble;
+                    vv = vv->next;
+
+                    if ((i > 0 && cfg->angleinvcdf[i] < cfg->angleinvcdf[i - 1]) || cfg->angleinvcdf[i] > 1.f || cfg->angleinvcdf[i] < 0.f) {
+                        MCX_ERROR(-1, "Optode.Source.AngleInverseCDF contains invalid data; it must be a monotonically increasing vector with all values between 0 and 1");
                     }
                 }
             }

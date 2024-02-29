@@ -154,6 +154,10 @@ typedef struct KernelParams {
     uint   is2d;                 /**< is the domain a 2D slice? */
     int    replaydet;                     /**< select which detector to replay, 0 for all, -1 save all separately */
     uint   srcnum;               /**< total number of source patterns */
+    unsigned int nphase;               /**< number of samples for inverse-cdf, will be added by 2 to include -1 and 1 on the two ends */
+    unsigned int nphaselen;            /**< even-rounded nphase so that shared memory buffer won't give an error */
+    unsigned int nangle;               /**< number of samples for launch angle inverse-cdf, will be added by 2 to include 0 and 1 on the two ends */
+    unsigned int nanglelen;            /**< even-rounded nangle so that shared memory buffer won't give an error */
     unsigned char bc[12];               /**< boundary conditions */
 } MCXParam __attribute__ ((aligned (32)));
 
@@ -1149,7 +1153,37 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
             continue;
         }
 
-        if (*Lmove < 0.f) {
+        if (GPU_PARAM(gcfg, nangle)) {
+            /**
+             * If angleinvcdf is defined, use user defined launch zenith angle distribution
+             */
+
+            float ang, stheta, ctheta, sphi, cphi;
+
+            if (launchsrc->dir.w > 0.f) { // if focal-length > 0, no interpolation, just read the angleinvcdf value
+                ang = fmin(rand_uniform01(t) * GPU_PARAM(gcfg, nangle), GPU_PARAM(gcfg, nangle) - EPS);
+                cphi = ((float*)(sharedmem))[(int)(ang) + GPU_PARAM(gcfg, nphaselen];
+            } else { // odd number length, interpolate between neigboring values
+                ang = fmin(rand_uniform01(t) * (GPU_PARAM(gcfg, nangle) - 1), GPU_PARAM(gcfg, nangle) - 1 - EPS);
+                sphi = ang - ((int)ang);
+                cphi = ((1.f - sphi) * (((float*)(sharedmem))[((int)ang >= GPU_PARAM(gcfg, nangle) - 1 ? GPU_PARAM(gcfg, nangle) - 1 : (int)(ang)) + GPU_PARAM(gcfg, nphaselen]) +
+                                        sphi * (((float*)(sharedmem))[((int)ang + 1 >= GPU_PARAM(gcfg, nangle) - 1 ? GPU_PARAM(gcfg, nangle) - 1 : (int)(ang) + 1) + GPU_PARAM(gcfg, nphaselen]));
+            }
+
+                    cphi *= ONE_PI; // next zenith angle computed based on angleinvcdf
+                   MCX_SINCOS(cphi, stheta, ctheta);
+                   ang = TWO_PI * rand_uniform01(t); //next arimuth angle
+                   MCX_SINCOS(ang, sphi, cphi);
+
+            if (launchsrc->dir.w < 1.5f && launchsrc->dir.w >= 0.f) {
+                *((float4*)v) = launchsrc->dir;
+            }
+
+            rotatevector(v, stheta, ctheta, sphi, cphi);
+        } else if (*Lmove < 0.f) {
+            /**
+             * If beam focus is set, determine the incident angle
+             */
             if (isnan(gcfg->c0.w)) { // isotropic if focal length is -0.f
                 float ang, stheta, ctheta, sphi, cphi;
                 ang = TWO_PI * rand_uniform01(t); //next arimuth angle
@@ -1255,13 +1289,9 @@ __kernel void mcx_main_loop(__global const uint* media,
                             __constant float4* gdetpos, volatile __global uint* gprogress, __global uint* detectedphoton,
                             __global float* replayweight, __global float* photontof, __global int* photondetid,
                             __global RandType* gseeddata, __global uint* gjumpdebug, __global float* gdebugdata,
-                            __local RandType* sharedmem, __constant MCXParam* gcfg) {
+                            __global float* ginvcdf, __global float* gangleinvcdf, __local RandType* sharedmem, __constant MCXParam* gcfg) {
 
     int idx = get_global_id(0);
-
-    if ((uint)idx >= gcfg->threadphoton * (get_local_size(0) * get_num_groups(0)) + gcfg->oddphoton) {
-        return;
-    }
 
     float4 p = {0.f, 0.f, 0.f, NAN}; //< {x,y,z}: x,y,z coordinates,{w}:packet weight
     float4 v = gcfg->c0; //< {x,y,z}: ix,iy,iz unitary direction vector, {w}:total scat event
@@ -1277,8 +1307,52 @@ __kernel void mcx_main_loop(__global const uint* media,
     RandType t[RAND_BUF_LEN];
     FLOAT4VEC prop;    //can become float2 if no reflection
 
-    __local float* ppath = (__local float*)((__local char*)sharedmem + get_local_size(0) * (GPU_PARAM(gcfg, issaveseed) * RAND_BUF_LEN * sizeof(RandType)));
+    __local float* ppath = (__local float*)sharedmem;
     __local int   blockphoton[1];
+
+    /**
+     *  Load use-defined phase function (inversion of CDF) to the shared memory (first GPU_PARAM(gcfg, nphase) floats)
+     */
+    if (GPU_PARAM(gcfg, nphase)) {
+        idx1d = GPU_PARAM(gcfg, nphase) / get_local_size(0);
+
+        for (idx1dold = 0; idx1dold < idx1d; idx1dold++) {
+            ppath[get_local_id(0) * idx1d + idx1dold] = ginvcdf[get_local_id(0) * idx1d + idx1dold];
+        }
+
+        if (GPU_PARAM(gcfg, nphase) - (idx1d * get_local_size(0)) > 0 && get_local_id(0) == 0) {
+            for (idx1dold = 0; idx1dold < GPU_PARAM(gcfg, nphase) - (idx1d * get_local_size(0)) ; idx1dold++) {
+                ppath[get_local_size(0) * idx1d + idx1dold] = ginvcdf[get_local_size(0) * idx1d + idx1dold];
+            }
+        }
+
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    /**
+     *  Load use-defined launch angle function (inversion of CDF) to the shared memory (second GPU_PARAM(gcfg, nangle) floats)
+     */
+    if (GPU_PARAM(gcfg, nangle)) {
+        idx1d = GPU_PARAM(gcfg, nangle) / get_local_size(0);
+
+        for (idx1dold = 0; idx1dold < idx1d; idx1dold++) {
+            ppath[get_local_id(0) * idx1d + idx1dold + GPU_PARAM(gcfg, nphaselen)] = gangleinvcdf[get_local_id(0) * idx1d + idx1dold];
+        }
+
+        if (GPU_PARAM(gcfg, nangle) - (idx1d * get_local_size(0)) > 0 && get_local_id(0) == 0) {
+            for (idx1dold = 0; idx1dold < GPU_PARAM(gcfg, nangle) - (idx1d * get_local_size(0)) ; idx1dold++) {
+                ppath[get_local_size(0) * idx1d + idx1dold + GPU_PARAM(gcfg, nphaselen)] = gangleinvcdf[get_local_size(0) * idx1d + idx1dold];
+            }
+        }
+
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    if (idx >= gcfg->threadphoton * (get_local_size(0) * get_num_groups(0)) + gcfg->oddphotons) {
+        return;
+    }
+
+    ppath = (float*)(sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) + get_local_size(0) * (GPU_PARAM(gcfg, issaveseed) * RAND_BUF_LEN * sizeof(RandType)));
 
 #ifdef GROUP_LOAD_BALANCE
 
@@ -1308,7 +1382,7 @@ __kernel void mcx_main_loop(__global const uint* media,
 
     if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove, 0, ppath,
                         n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton,
-                        gprogress, (__local RandType*)((__local char*)sharedmem + get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)),
+                        gprogress, (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) + get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)),
                         gseeddata, gjumpdebug, gdebugdata)) {
         n_seed[idx] = NO_LAUNCH;
         return;
@@ -1334,30 +1408,44 @@ __kernel void mcx_main_loop(__global const uint* media,
 
             if (v.w != EPS) { //weight
                 //random arimuthal angle
-                float cphi, sphi, theta, stheta, ctheta;
-                float tmp0 = TWO_PI * rand_next_aangle(t); //next arimuth angle
-                MCX_SINCOS(tmp0, sphi, cphi);
-                GPUDEBUG(((__constant char*)"scat phi=%f\n", tmp0));
-                tmp0 = (v.w > GPU_PARAM(gcfg, gscatter)) ? 0.f : prop.z;
+                float cphi = 1.f, sphi = 0.f, theta, stheta, ctheta;
+                float tmp0 = 0.f;
 
-                //Henyey-Greenstein Phase Function, "Handbook of Optical
-                //Biomedical Diagnostics",2002,Chap3,p234, also see Boas2002
+                if (!GPU_PARAM(gcfg, is2d)) {
+                    tmp0 = TWO_PI * rand_next_aangle(t); //next arimuth angle
+                    MCX_SINCOS(tmp0, sphi, cphi);
+                }
 
-                if (tmp0 > EPS) { //if prop.z is too small, the distribution of theta is bad
-                    tmp0 = (1.f - prop.z * prop.z) / (1.f - prop.z + 2.f * prop.z * rand_next_zangle(t));
-                    tmp0 *= tmp0;
-                    tmp0 = (1.f + prop.z * prop.z - tmp0) / (2.f * prop.z);
+                GPUDEBUG(("scat phi=%f\n", tmp0));
 
-                    // when ran=1, CUDA will give me 1.000002 for tmp0 which produces nan later
-                    // detected by Ocelot,thanks to Greg Diamos,see http://bit.ly/cR2NMP
-                    tmp0 = max(-1.f, min(1.f, tmp0));
-
+                if (GPU_PARAM(gcfg, nphase) > 2) { // after padding the left/right ends, nphase must be 3 or more
+                    tmp0 = rand_uniform01(t) * (GPU_PARAM(gcfg, nphase) - 1);
+                    theta = tmp0 - ((int)tmp0);
+                    tmp0 = (1.f - theta) * ((float*)(sharedmem))[(int)tmp0   >= GPU_PARAM(gcfg, nphase) ? GPU_PARAM(gcfg, nphase) - 1 : (int)(tmp0)  ] +
+                           theta * ((float*)(sharedmem))[(int)tmp0 + 1 >= GPU_PARAM(gcfg, nphase) ? GPU_PARAM(gcfg, nphase) - 1 : (int)(tmp0) + 1];
                     theta = acos(tmp0);
                     stheta = MCX_MATHFUN(sin)(theta);
                     ctheta = tmp0;
                 } else {
-                    theta = acos(2.f * rand_next_zangle(t) - 1.f);
-                    MCX_SINCOS(theta, stheta, ctheta);
+                    tmp0 = (v.w > GPU_PARAM(gcfg, gscatter)) ? 0.f : prop.z;
+
+                    /** Here we use Henyey-Greenstein Phase Function, "Handbook of Optical Biomedical Diagnostics",2002,Chap3,p234, also see Boas2002 */
+                    if (fabs(tmp0) > EPS) { //< if prop.g is too small, the distribution of theta is bad
+                        tmp0 = (1.f - prop.z * prop.z) / (1.f - prop.z + 2.f * prop.z * rand_next_zangle(t));
+                        tmp0 *= tmp0;
+                        tmp0 = (1.f + prop.z * prop.z - tmp0) / (2.f * prop.z);
+
+                        // in early CUDA, when ran=1, CUDA gives 1.000002 for tmp0 which produces nan later
+                        // detected by Ocelot,thanks to Greg Diamos,see http://bit.ly/cR2NMP
+                        tmp0 = fmaxf(-1.f, fminf(1.f, tmp0));
+
+                        theta = acos(tmp0);
+                        stheta = MCX_MATHFUN(sin)(theta);
+                        ctheta = tmp0;
+                    } else {
+                        theta = acos(2.f * rand_next_zangle(t) - 1.f);
+                        MCX_SINCOS(theta, stheta, ctheta);
+                    }
                 }
 
                 GPUDEBUG(((__constant char*)"scat theta=%f\n", theta));
@@ -1570,7 +1658,7 @@ __kernel void mcx_main_loop(__global const uint* media,
             if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
                                 (((idx1d == OUTSIDE_VOLUME_MAX && gcfg->bc[9 + flipdir.w]) || (idx1d == OUTSIDE_VOLUME_MIN && gcfg->bc[6 + flipdir.w])) ? OUTSIDE_VOLUME_MIN : (mediaidold & DET_MASK)),
                                 ppath, n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
-                                (__local RandType*)((__local char*)sharedmem + get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)), gseeddata, gjumpdebug, gdebugdata)) {
+                                (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) + get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)), gseeddata, gjumpdebug, gdebugdata)) {
                 break;
             }
 
@@ -1624,7 +1712,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                     if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
                                         (((idx1d == OUTSIDE_VOLUME_MAX && gcfg->bc[9 + flipdir.w]) || (idx1d == OUTSIDE_VOLUME_MIN && gcfg->bc[6 + flipdir.w])) ? OUTSIDE_VOLUME_MIN : (mediaidold & DET_MASK)),
                                         ppath, n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
-                                        (__local RandType*)((__local char*)sharedmem + get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)), gseeddata, gjumpdebug, gdebugdata)) {
+                                        (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) + get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)), gseeddata, gjumpdebug, gdebugdata)) {
                         break;
                     }
 

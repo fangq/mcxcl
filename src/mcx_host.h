@@ -150,6 +150,10 @@ typedef struct KernelParams {
     cl_uint   is2d;                 /**< is the domain a 2D slice? */
     cl_int    replaydet;            /**< select which detector to replay, 0 for all, -1 save all separately */
     cl_uint   srcnum;               /**< total number of source patterns */
+    cl_uint   nphase;               /**< number of samples for inverse-cdf, will be added by 2 to include -1 and 1 on the two ends */
+    cl_uint   nphaselen;            /**< even-rounded nphase so that shared memory buffer won't give an error */
+    cl_uint   nangle;               /**< number of samples for launch angle inverse-cdf, will be added by 2 to include 0 and 1 on the two ends */
+    cl_uint   nanglelen;            /**< even-rounded nangle so that shared memory buffer won't give an error */
     cl_char   bc[8];                /**< boundary conditions */
 } MCXParam POST_ALIGN(16);
 
