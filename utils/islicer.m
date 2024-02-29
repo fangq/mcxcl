@@ -1,4 +1,4 @@
-function h = islicer(vol,T, varargin)
+function h = islicer(vol, T, varargin)
 %
 %    h = islicer(vol);
 %       or
@@ -22,24 +22,20 @@ function h = islicer(vol,T, varargin)
 %
 
 if nargin < 2
-  T = eye(4);
+    T = eye(4);
 end
 
-h1 = slice3i(vol,T,1,round(size(vol,1)/2));
-h2 = slice3i(vol,T,2,round(size(vol,2)/2));
-h3 = slice3i(vol,T,3,round(size(vol,3)/2));
+h1 = slice3i(vol, T, 1, round(size(vol, 1) / 2));
+h2 = slice3i(vol, T, 2, round(size(vol, 2) / 2));
+h3 = slice3i(vol, T, 3, round(size(vol, 3) / 2));
 
-if(nargout>=1)
-    h = [h1,h2,h3];
+if (nargout >= 1)
+    h = [h1, h2, h3];
 end
 
-set([h1,h2,h3],'CDataMapping','scaled', varargin{:});
+set([h1, h2, h3], 'CDataMapping', 'scaled', varargin{:});
 
-%colormap(jet(64));
+% colormap(jet(64));
 
 view(3);
 axis equal;
-
-
-
- 

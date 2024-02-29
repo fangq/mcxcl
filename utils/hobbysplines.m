@@ -1,5 +1,5 @@
-function Q = hobbysplines(points,varargin)
-%HOBBYSPLINES Draws open or closed smooth curves from keypoints
+function Q = hobbysplines(points, varargin)
+% HOBBYSPLINES Draws open or closed smooth curves from keypoints
 %
 % Q = hobbysplines({[x1 y1], [x2 y2],... ,[xN yN]},[opts]);
 % Q = hobbysplines({[x1 y1 z1], [x2 y2 z2],... ,[xN yN zN]},[opts]);
@@ -48,7 +48,7 @@ function Q = hobbysplines(points,varargin)
 %   'bezierpoints' 50               number of points in each bezier segment
 %   'plot'       true               whether to actually draw anything
 %
-% Distributed under the terms and conditions of the 2-clause BSD license:  
+% Distributed under the terms and conditions of the 2-clause BSD license:
 % <http://opensource.org/licenses/bsd-license.php>
 %
 % Copyright 2013, 2015 Will Robertson and The University of Adelaide
@@ -57,17 +57,17 @@ function Q = hobbysplines(points,varargin)
 %% Parse inputs
 
 p = inputParser;
-p.addRequired('points',@iscell)
-p.addOptional('tension',1);
-p.addOptional('offset',[0 0]);
-p.addOptional('cycle',true);
-p.addOptional('color','black');
-p.addOptional('debug',false);
-p.addOptional('linestyle',{'linewidth',1});
-p.addOptional('bezierpoints',50)
-p.addOptional('plot',true);
+p.addRequired('points', @iscell);
+p.addOptional('tension', 1);
+p.addOptional('offset', [0 0]);
+p.addOptional('cycle', true);
+p.addOptional('color', 'black');
+p.addOptional('debug', false);
+p.addOptional('linestyle', {'linewidth', 1});
+p.addOptional('bezierpoints', 50);
+p.addOptional('plot', true);
 
-p.parse(points,varargin{:});
+p.parse(points, varargin{:});
 
 cycle  = p.Results.cycle;
 offset = p.Results.offset;
@@ -76,138 +76,139 @@ points = p.Results.points;
 bezierpoints = p.Results.bezierpoints;
 plotcurve = p.Results.plot;
 
-if numel(offset) == 2, offset(3) = 0; end
+if numel(offset) == 2
+    offset(3) = 0;
+end
 
 color = p.Results.color;
 linestyle = p.Results.linestyle;
 if ~iscell(linestyle)
-  linestyle = {linestyle};
+    linestyle = {linestyle};
 end
-  
+
 if cycle
-  points{end+1} = points{1};
+    points{end + 1} = points{1};
 end
 
 Npoints = numel(points);
 
-z = cell(Npoints,1); % points
-w = cell(Npoints,1); % unit vectors of direction of curve through each point
-tin = cell(Npoints,1); % tension of curve in to point
-tout = cell(Npoints,1); % tension of curve out from point
+z = cell(Npoints, 1); % points
+w = cell(Npoints, 1); % unit vectors of direction of curve through each point
+tin = cell(Npoints, 1); % tension of curve in to point
+tout = cell(Npoints, 1); % tension of curve out from point
 
 for n = 1:Npoints
-  
-  pp = points{n};
-  
-  w{n} = [NaN NaN NaN];
-  tout{n} = p.Results.tension;
-  tin{n} = p.Results.tension;
-  
-  if iscell(pp)
-    % for input in the form pp := { [x1 y1 z1] s1 t1_in t1_out }
-    
-    veclen = numel(pp);
-    
-    if numel(pp{1}) == 2
-      z{n} = offset+[pp{1} 0];
-    else
-      z{n} = offset+pp{1};
-    end
-    
-    if veclen >= 2 && isnumeric(pp{2}) % lazy evaluation is my friend
-      switch numel(pp{2}) 
-        case 1
-          w{n} = [cosd(pp{2}) sind(pp{2}) 0];
-        case 2
-          w{n} = [pp{2} 0];
-        case 3
-          w{n} = pp{2};
-      end
-    end
-    
-    if veclen >= 3 && isnumeric(pp{3})
-      tin{n} = pp{3};
-    end
-    
-    if veclen == 4 && isnumeric(pp{4})
-      tout{n} = pp{4};
-    end
-    
-  else
-    % if input in the form pp := [x1 y1 z1]
-    
-    if numel(pp) == 2
-      z{n} = offset+[pp 0];
-    else
-      z{n} = offset+pp;
-    end
-  end
-  
-end
 
+    pp = points{n};
+
+    w{n} = [NaN NaN NaN];
+    tout{n} = p.Results.tension;
+    tin{n} = p.Results.tension;
+
+    if iscell(pp)
+        % for input in the form pp := { [x1 y1 z1] s1 t1_in t1_out }
+
+        veclen = numel(pp);
+
+        if numel(pp{1}) == 2
+            z{n} = offset + [pp{1} 0];
+        else
+            z{n} = offset + pp{1};
+        end
+
+        if veclen >= 2 && isnumeric(pp{2}) % lazy evaluation is my friend
+            switch numel(pp{2})
+                case 1
+                    w{n} = [cosd(pp{2}) sind(pp{2}) 0];
+                case 2
+                    w{n} = [pp{2} 0];
+                case 3
+                    w{n} = pp{2};
+            end
+        end
+
+        if veclen >= 3 && isnumeric(pp{3})
+            tin{n} = pp{3};
+        end
+
+        if veclen == 4 && isnumeric(pp{4})
+            tout{n} = pp{4};
+        end
+
+    else
+        % if input in the form pp := [x1 y1 z1]
+
+        if numel(pp) == 2
+            z{n} = offset + [pp 0];
+        else
+            z{n} = offset + pp;
+        end
+    end
+
+end
 
 %% fixup vectors iff necessary
 
-if all( isnan(w{1}) )
-  if cycle
-    w{1} = z{2}-z{end-1};
-  else
-    w{1} = z{2}-z{1};
-  end
-  w{1} = w{1}/norm(w{1});
+if all(isnan(w{1}))
+    if cycle
+        w{1} = z{2} - z{end - 1};
+    else
+        w{1} = z{2} - z{1};
+    end
+    w{1} = w{1} / norm(w{1});
 end
-if all( isnan(w{end}) )
-  if cycle
-    w{end} = z{2}-z{end-1};
-  else
-    w{end} = z{end}-z{end-1};
-  end
-  w{end} = w{end}/norm(w{end});
+if all(isnan(w{end}))
+    if cycle
+        w{end} = z{2} - z{end - 1};
+    else
+        w{end} = z{end} - z{end - 1};
+    end
+    w{end} = w{end} / norm(w{end});
 end
-for ii = 2:Npoints-1
-  if all( isnan(w{ii}) )
-    w{ii} = -z{ii-1} + z{ii+1};
-  end
-  w{ii} = w{ii}/norm(w{ii});
+for ii = 2:Npoints - 1
+    if all(isnan(w{ii}))
+        w{ii} = -z{ii - 1} + z{ii + 1};
+    end
+    w{ii} = w{ii} / norm(w{ii});
 end
 
 %% Calculate control points and plot bezier curve segments
 
-hold on
+hold on;
 
-q = nan(bezierpoints*(Npoints-1),3);
+q = nan(bezierpoints * (Npoints - 1), 3);
 
-for ii = 1:Npoints-1
-  
-  theta = arg(w{ii})-arg(z{ii+1}-z{ii});
-  phi   = arg(z{ii+1}-z{ii})-arg(w{ii+1});
-  
-  [rho,sigma] = velocity_parameters(theta,phi);
-  
-  q( (ii-1)*bezierpoints + (1:bezierpoints) ,:) = plot_bezier(...
-    z{ii},...
-    z{ii}+rho/(3*tout{ii})*norm(z{ii+1}-z{ii})*w{ii},...
-    z{ii+1}-sigma/(3*tin{ii+1})*norm(z{ii+1}-z{ii})*w{ii+1},...
-    z{ii+1},...
-    bezierpoints,plotcurve,...
-    [linestyle,{'color',color}]);
+for ii = 1:Npoints - 1
+
+    theta = arg(w{ii}) - arg(z{ii + 1} - z{ii});
+    phi   = arg(z{ii + 1} - z{ii}) - arg(w{ii + 1});
+
+    [rho, sigma] = velocity_parameters(theta, phi);
+
+    q((ii - 1) * bezierpoints + (1:bezierpoints), :) = plot_bezier( ...
+                                                                   z{ii}, ...
+                                                                   z{ii} + rho / (3 * tout{ii}) * norm(z{ii + 1} - z{ii}) * w{ii}, ...
+                                                                   z{ii + 1} - sigma / (3 * tin{ii + 1}) * norm(z{ii + 1} - z{ii}) * w{ii + 1}, ...
+                                                                   z{ii + 1}, ...
+                                                                   bezierpoints, plotcurve, ...
+                                                                   [linestyle, {'color', color}]);
 
 end
 
 if nargout == 1
-   Q = q; 
+    Q = q;
 end
 
 if plotcurve && debug
-  if cycle
-    Mpoints = Npoints-1;
-  else
-    Mpoints = Npoints;
-  end
-  for ii = 1:Mpoints
-    plot3(z{ii}(1),z{ii}(2),z{ii}(3),'o','color',color)
-    text(z{ii}(1),z{ii}(2),z{ii}(3),['   ',num2str(ii)])
-  end
+    if cycle
+        Mpoints = Npoints - 1;
+    else
+        Mpoints = Npoints;
+    end
+    for ii = 1:Mpoints
+        plot3(z{ii}(1), z{ii}(2), z{ii}(3), 'o', 'color', color);
+        text(z{ii}(1), z{ii}(2), z{ii}(3), ['   ', num2str(ii)]);
+    end
 end
 
 end
@@ -215,10 +216,10 @@ end
 %% Sub-functions
 
 function o = arg(w)
-  o = atan2(w(2),w(1));
+o = atan2(w(2), w(1));
 end
 
-function [rho,sigma] = velocity_parameters(theta,phi)
+function [rho, sigma] = velocity_parameters(theta, phi)
 % From "Smooth, easy to compute interpolating splines" by John D. Hobby
 % <http://www.springerlink.com/content/p4w1k8w738035w80/>
 
@@ -231,24 +232,24 @@ ct = cos(theta);
 sp = sin(phi);
 cp = cos(phi);
 
-alpha = a*(st-b*sp)*(sp-b*st)*(ct-cp);
-rho   = (2+alpha)/(1+(1-c)*ct+c*cp);
-sigma = (2-alpha)/(1+(1-c)*cp+c*ct);
+alpha = a * (st - b * sp) * (sp - b * st) * (ct - cp);
+rho   = (2 + alpha) / (1 + (1 - c) * ct + c * cp);
+sigma = (2 - alpha) / (1 + (1 - c) * cp + c * ct);
 
 end
 
-function Q = plot_bezier(P1,P2,P3,P4,N,plotcurve,linestyle)
+function Q = plot_bezier(P1, P2, P3, P4, N, plotcurve, linestyle)
 
-t = linspace(0,1,N)';
+t = linspace(0, 1, N)';
 
-c1 = 3*(P2 - P1);
-c2 = 3*(P1 - 2*P2 + P3);
-c3 = -P1 + 3*(P2-P3) + P4;
+c1 = 3 * (P2 - P1);
+c2 = 3 * (P1 - 2 * P2 + P3);
+c3 = -P1 + 3 * (P2 - P3) + P4;
 
-Q = t.^3*c3 + t.^2*c2 + t*c1 + repmat(P1,[N 1]);
+Q = t.^3 * c3 + t.^2 * c2 + t * c1 + repmat(P1, [N 1]);
 
 if plotcurve
-    plot3(Q(:,1),Q(:,2),Q(:,3),linestyle{:});
+    plot3(Q(:, 1), Q(:, 2), Q(:, 3), linestyle{:});
 end
 
 end

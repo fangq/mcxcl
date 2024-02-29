@@ -3,8 +3,8 @@ function buildmcxcl(varargin)
 % Format:
 %    buildmcxcl or buildmcxcl('option1',value1,'option2',value2,...)
 %
-% Compiling script for mcxlabcl mex file in MATLAB and GNU Octave. 
-% If compiled successfully, the output mex file can be found in the 
+% Compiling script for mcxlabcl mex file in MATLAB and GNU Octave.
+% If compiled successfully, the output mex file can be found in the
 % mcxcl/mcxlabcl folder (or ../mcxlabcl using relative path from mcxcl/src)
 %
 % Author: Qianqian Fang <q.fang at neu.edu>
@@ -12,7 +12,7 @@ function buildmcxcl(varargin)
 % Input:
 %    options: without any option, this script compiles mcxcl.mex* using
 %    default settings. Supported options include
-%      'include': a string made of sequences of ' -I"/folder/path" ' that 
+%      'include': a string made of sequences of ' -I"/folder/path" ' that
 %            can be included for compilation (format similar to the -I
 %            option for gcc)
 %      'lib': a string made of sequences of ' -L"/folder/path" ' and '
@@ -22,8 +22,8 @@ function buildmcxcl(varargin)
 %
 % Dependency (Windows only):
 %  1.If you have MATLAB R2017b or later, you may skip this step.
-%    To compile mcxlabcl in MATLAB R2017a or earlier on Windows, you must 
-%    pre-install the MATLAB support for MinGW-w64 compiler 
+%    To compile mcxlabcl in MATLAB R2017a or earlier on Windows, you must
+%    pre-install the MATLAB support for MinGW-w64 compiler
 %    https://www.mathworks.com/matlabcentral/fileexchange/52848-matlab-support-for-mingw-w64-c-c-compiler
 %
 %    Note: it appears that installing the above Add On is no longer working
@@ -38,8 +38,8 @@ function buildmcxcl(varargin)
 %    Then, start MATLAB, and in the command window, run
 %
 %       setenv('MW_MINGW64_LOC','C:\msys64\usr');
-%  2.After installation of MATLAB MinGW support, you must type 
-%    "mex -setup C" in MATLAB and select "MinGW64 Compiler (C)". 
+%  2.After installation of MATLAB MinGW support, you must type
+%    "mex -setup C" in MATLAB and select "MinGW64 Compiler (C)".
 %  3.Once you select the MingW C compiler, you should run "mex -setup C++"
 %    again in MATLAB and select "MinGW64 Compiler (C++)" to compile C++.
 %  4.File C:\Windows\System32\OpenCL.dll must exist. You can obtain this
@@ -52,78 +52,78 @@ function buildmcxcl(varargin)
 %
 
 cd(fileparts(which(mfilename)));
-if(nargin==1 && strcmp(varargin{1},'clean'))
-    if(~isempty(dir('*.o')))
-        delete('*.o'); 
+if (nargin == 1 && strcmp(varargin{1}, 'clean'))
+    if (~isempty(dir('*.o')))
+        delete('*.o');
     end
-    return;
+    return
 end
-opt=struct(varargin{:});
-pname='mcx';
+opt = struct(varargin{:});
+pname = 'mcx';
 
 clsource = fileread('mcx_core.cl');
 clsrc = sprintf('0x%02x, ', char(clsource));
-clhex = ['unsigned char mcx_core_cl[] = {' sprintf('\n') clsrc(1:end-2) sprintf('\n')  ...
-    sprintf('};\nunsigned int mcx_core_cl_len = %d;\n', length(clsource))];
+clhex = ['unsigned char mcx_core_cl[] = {' sprintf('\n') clsrc(1:end - 2) sprintf('\n')  ...
+         sprintf('};\nunsigned int mcx_core_cl_len = %d;\n', length(clsource))];
 
-fp=fopen('mcx_core.clh','wb');
+fp = fopen('mcx_core.clh', 'wb');
 fwrite(fp, clhex, 'char');
 fclose(fp);
 
-cflags=' -g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -std=c99 -DMCX_CONTAINER -c ';
+cflags = ' -g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -std=c99 -DMCX_CONTAINER -c ';
 
-filelist={'mcx_utils.c','mcx_tictoc.c','cjson/cJSON.c','mcx_host.cpp',...
-    'mcx_shapes.c','mcxlabcl.cpp'};
-if(isfield(opt,'filelist'))
-    filelist=opt.filelist;
+filelist = {'mcx_utils.c', 'mcx_tictoc.c', 'cjson/cJSON.c', 'mcx_host.cpp', ...
+            'mcx_shapes.c', 'mcxlabcl.cpp'};
+if (isfield(opt, 'filelist'))
+    filelist = opt.filelist;
 end
-if(isfield(opt,'include'))
-    cflags=[cflags ' ' opt.include];
+if (isfield(opt, 'include'))
+    cflags = [cflags ' ' opt.include];
 end
-if(ispc)
-    linkflags='$LINKLIBS -lstdc++ -static';
-    cflags=[cflags ' -I./mingw64/include -I"$MINGWROOT/opt/include"'];
-    linkflags=[linkflags ' ''C:\Windows\System32\OpenCL.dll'' '];
-    linkvar='LINKLIBS';
+if (ispc)
+    linkflags = '$LINKLIBS -lstdc++ -static';
+    cflags = [cflags ' -I./mingw64/include -I"$MINGWROOT/opt/include"'];
+    linkflags = [linkflags ' ''C:\Windows\System32\OpenCL.dll'' '];
+    linkvar = 'LINKLIBS';
 else
-    linkflags='$CLIBS -static-libgcc -static-libstdc++';
-    cflags=[cflags ' -fPIC '];
-    linkflags=[linkflags ' -lOpenCL '];
-    linkvar='CLIBS';
+    linkflags = '$CLIBS -static-libgcc -static-libstdc++';
+    cflags = [cflags ' -fPIC '];
+    linkflags = [linkflags ' -lOpenCL '];
+    linkvar = 'CLIBS';
 end
-if(~exist('OCTAVE_VERSION','builtin'))
-    for i=1:length(filelist)
-        flag='CFLAGS';
-        cflag=cflags;
-        if(regexp(filelist{i},'\.[Cc][Pp][Pp]$'))
-            flag='CXXFLAGS';
-            cflag=regexprep(cflags,'-std=c99','-std=gnu++0x');
+if (~exist('OCTAVE_VERSION', 'builtin'))
+    for i = 1:length(filelist)
+        flag = 'CFLAGS';
+        cflag = cflags;
+        if (regexp(filelist{i}, '\.[Cc][Pp][Pp]$'))
+            flag = 'CXXFLAGS';
+            cflag = regexprep(cflags, '-std=c99', '-std=gnu++0x');
         end
-        fprintf(1, 'mex OBJEXT=.o %s=''%s'' -c ''%s'' \n',flag,cflag,filelist{i});
-        eval(sprintf('mex OBJEXT=.o %s=''%s'' -c ''%s'' ',flag,cflag,filelist{i}));
+        fprintf(1, 'mex OBJEXT=.o %s=''%s'' -c ''%s'' \n', flag, cflag, filelist{i});
+        eval(sprintf('mex OBJEXT=.o %s=''%s'' -c ''%s'' ', flag, cflag, filelist{i}));
     end
-    if(isfield(opt,'lib'))
-        linkflags=[linkflags ' ' opt.lib];
+    if (isfield(opt, 'lib'))
+        linkflags = [linkflags ' ' opt.lib];
     end
-    fn=dir('*.o');
-    fprintf(1,'mex %s -output %scl -outdir ../%slabcl %s=''%s'' \n',strjoin({fn.name}),pname,pname,linkvar,linkflags);
-    eval(sprintf('mex %s -output %scl -outdir ../%slabcl %s=''%s'' ',strjoin({fn.name}),pname,pname,linkvar,linkflags));
+    fn = dir('*.o');
+    fprintf(1, 'mex %s -output %scl -outdir ../%slabcl %s=''%s'' \n', strjoin({fn.name}), pname, pname, linkvar, linkflags);
+    eval(sprintf('mex %s -output %scl -outdir ../%slabcl %s=''%s'' ', strjoin({fn.name}), pname, pname, linkvar, linkflags));
 else
-    linkflags=regexprep(linkflags,['[\\]*\$' linkvar],'');
-    for i=1:length(filelist)
-        cflag=cflags;
-        if(regexp(filelist{i},'\.[Cc][Pp][Pp]$'))
-            cflag=regexprep(cflags,'-std=c99','-std=gnu++0x');
-            cflag=[cflag,' -Wno-variadic-macros'];
+    linkflags = regexprep(linkflags, ['[\\]*\$' linkvar], '');
+    for i = 1:length(filelist)
+        cflag = cflags;
+        if (regexp(filelist{i}, '\.[Cc][Pp][Pp]$'))
+            cflag = regexprep(cflags, '-std=c99', '-std=gnu++0x');
+            cflag = [cflag, ' -Wno-variadic-macros'];
         end
-        cmd=sprintf('mex %s -c ''%s'' ',cflag,filelist{i});
-        fprintf(stdout,'%s\n',cmd);
-	fflush(stdout);
+        cmd = sprintf('mex %s -c ''%s'' ', cflag, filelist{i});
+        fprintf(stdout, '%s\n', cmd);
+        fflush(stdout);
         eval(cmd);
     end
-    fn=dir('*.o');
-    cmd=sprintf('mex %s -o ../%slabcl/%scl %s ',strjoin({fn.name}),pname,pname,linkflags);
-    fprintf(1,'%s\n',cmd);
+    fn = dir('*.o');
+    cmd = sprintf('mex %s -o ../%slabcl/%scl %s ', strjoin({fn.name}), pname, pname, linkflags);
+    fprintf(1, '%s\n', cmd);
     fflush(1);
     eval(cmd);
 end
