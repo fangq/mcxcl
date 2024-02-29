@@ -983,7 +983,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                 param.blockphoton = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * nblock * cfg->respin));
                 param.blockextra  = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * cfg->respin) - param.blockphoton * nblock);
                 OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid], gparam[devid], CL_TRUE, 0, sizeof(MCXParam), &param, 0, NULL, NULL)));
-                OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 17, sizeof(cl_mem), (void*)(gparam + devid))));
+                OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 19, sizeof(cl_mem), (void*)(gparam + devid))));
 
                 // launch mcxkernel
                 OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid], mcxkernel[devid], 1, NULL, &gpu[devid].autothread, &gpu[devid].autoblock, 0, NULL, &waittoread[devid])));
