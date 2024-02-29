@@ -1419,6 +1419,8 @@ is more than what your have specified (%d), please use the -H option to specify 
     free(gjumpdebug);
     free(gdebugdata);
     free(gseeddata);
+    free(ginvcdf);
+    free(gangleinvcdf);
     free(mcxkernel);
     free(waittoread);
     free(Pdet);
