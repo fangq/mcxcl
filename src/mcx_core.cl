@@ -1162,12 +1162,12 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 
             if ( gcfg->c0.w > 0.f) { // if focal-length > 0, no interpolation, just read the angleinvcdf value
                 ang = fmin(rand_uniform01(t) * GPU_PARAM(gcfg, nangle), GPU_PARAM(gcfg, nangle) - EPS);
-                cphi = ((float*)(sharedmem))[(int)(ang) + GPU_PARAM(gcfg, nphaselen)];
+                cphi = ((__local float*)(sharedmem))[(int)(ang) + GPU_PARAM(gcfg, nphaselen)];
             } else { // odd number length, interpolate between neigboring values
                 ang = fmin(rand_uniform01(t) * (GPU_PARAM(gcfg, nangle) - 1), GPU_PARAM(gcfg, nangle) - 1 - EPS);
                 sphi = ang - ((int)ang);
-                cphi = ((1.f - sphi) * (((float*)(sharedmem))[((int)ang >= GPU_PARAM(gcfg, nangle) - 1 ? GPU_PARAM(gcfg, nangle) - 1 : (int)(ang)) + GPU_PARAM(gcfg, nphaselen)]) +
-                        sphi * (((float*)(sharedmem))[((int)ang + 1 >= GPU_PARAM(gcfg, nangle) - 1 ? GPU_PARAM(gcfg, nangle) - 1 : (int)(ang) + 1) + GPU_PARAM(gcfg, nphaselen)]));
+                cphi = ((1.f - sphi) * (((__local float*)(sharedmem))[((int)ang >= GPU_PARAM(gcfg, nangle) - 1 ? GPU_PARAM(gcfg, nangle) - 1 : (int)(ang)) + GPU_PARAM(gcfg, nphaselen)]) +
+                        sphi * (((__local float*)(sharedmem))[((int)ang + 1 >= GPU_PARAM(gcfg, nangle) - 1 ? GPU_PARAM(gcfg, nangle) - 1 : (int)(ang) + 1) + GPU_PARAM(gcfg, nphaselen)]));
             }
 
             cphi *= ONE_PI; // next zenith angle computed based on angleinvcdf
@@ -1352,7 +1352,7 @@ __kernel void mcx_main_loop(__global const uint* media,
         return;
     }
 
-    ppath = (__local float*)(sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) + get_local_size(0) * (GPU_PARAM(gcfg, issaveseed) * RAND_BUF_LEN * sizeof(RandType)));
+    ppath = (__local float*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) + get_local_size(0) * (GPU_PARAM(gcfg, issaveseed) * RAND_BUF_LEN * sizeof(RandType)));
 
 #ifdef GROUP_LOAD_BALANCE
 
@@ -1421,8 +1421,8 @@ __kernel void mcx_main_loop(__global const uint* media,
                 if (GPU_PARAM(gcfg, nphase) > 2) { // after padding the left/right ends, nphase must be 3 or more
                     tmp0 = rand_uniform01(t) * (GPU_PARAM(gcfg, nphase) - 1);
                     theta = tmp0 - ((int)tmp0);
-                    tmp0 = (1.f - theta) * ((float*)(sharedmem))[(int)tmp0   >= GPU_PARAM(gcfg, nphase) ? GPU_PARAM(gcfg, nphase) - 1 : (int)(tmp0)  ] +
-                           theta * ((float*)(sharedmem))[(int)tmp0 + 1 >= GPU_PARAM(gcfg, nphase) ? GPU_PARAM(gcfg, nphase) - 1 : (int)(tmp0) + 1];
+                    tmp0 = (1.f - theta) * ((__local float*)(sharedmem))[(int)tmp0   >= GPU_PARAM(gcfg, nphase) ? GPU_PARAM(gcfg, nphase) - 1 : (int)(tmp0)  ] +
+                           theta * ((__local float*)(sharedmem))[(int)tmp0 + 1 >= GPU_PARAM(gcfg, nphase) ? GPU_PARAM(gcfg, nphase) - 1 : (int)(tmp0) + 1];
                     theta = acos(tmp0);
                     stheta = MCX_MATHFUN(sin)(theta);
                     ctheta = tmp0;
