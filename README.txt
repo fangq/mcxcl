@@ -18,6 +18,7 @@ MCX-CL v2024.2 contains both new major features and critical bug fixes.
 It is a strongly recommended upgrade for all users.
 
 Specifically, MCX-CL v2024.2 received two important features ported from MCX:
+
 * user-defined scattering phase function (fangq/mcx#129) and
 * user-defined photon launch angle distribution (fangq/mcx#13)
 
@@ -26,15 +27,15 @@ via a discretized inverse CDF (cumulative distribution function). The
 second feature allows users to define the zenith angle distribution for
 launching a photon, relative to the source-direction vector, also via
 a discretized inverse CDF. In MATLAB/Octave, they can be set as
-cfg.invcdf or cfg.angleinvcdf, respectively. We provided ready-to-use
+`cfg.invcdf` or `cfg.angleinvcdf`, respectively. We provided ready-to-use
 demo scripts in `mcxlabcl/examples/demo_mcxlab_phasefun.m` and
 `demo_mcxlab_launchangle.m`.
 
 Additionally, in this release, we further improved the simulations when
 using Intel CPU or integrated GPU.
 
-Aside from new features, a severe bug was discovered that affect all 
-`pattern` and `pattern3d` simulations that does not use photon-sharing, 
+Aside from new features, a severe bug was discovered that affects all 
+`pattern` and `pattern3d` simulations that do not use photon-sharing, 
 please see
 
 https://github.com/fangq/mcx/issues/212
@@ -52,6 +53,34 @@ saving diffuse reflectance.
 We want to thank Haohui Zhang for reporting a number of critical issues
 (fangq/mcx#195 and fangq/mcx#212). ShijieYan and fanyuyen have also contributed
 to the bug fixes and improvements.
+
+The detailed updates can be found in the below change log
+
+* 2024-02-29 [580cb27] [format] reformat all MATLAB codes with miss_hit
+* 2024-02-29 [ce1d374] [bug] fixes to pass tests on Intel CPU, AMD GPU and pthread-AMD
+* 2024-02-29 [2f70174] [bug] free ginvcdf and gangleinvcdf buffers
+* 2024-02-29 [9aee8ce] [bug] fix many errors after testing, still need to fix replay
+* 2024-02-29 [b82c856] [feat] add missing demo scripts
+* 2024-02-29 [21e1e72]*[feat] port scattering and launch angle invcdf from fangq/mcx#129 fangq/mcx#13
+* 2024-02-28 [90a28f3] [ci] remove macos-11 as brew fails for octave, Homebrew/brew#16209
+* 2024-02-28 [fbe270b] [pmcxcl] bump pmcxcl to 0.1.4 after fixing fangq/mcx#212
+* 2024-02-27 [4e1ec7f] [ci] fix windows cmake zlib error, fix mac libomp error
+* 2024-02-27 [3d18b78]*[bug] fix critical bug, squaring pattern/pattern3d, fangq/mcx#212
+* 2023-11-10 [26ec422] [ci] install mingw 8.1 for matlab mex build, matlab-actions/setup-matlab#75
+* 2023-11-10 [5a96d02] [ci] set MW_MINGW64_LOC to octave bunded mingw, matlab-actions/setup-matlab#75
+* 2023-10-31 [337c51c] [bug] apply fangq/mcx#195 fix to avoid dref accuracy loss
+* 2023-10-29 [3b01475] further simplify bc handling, #47
+* 2023-10-29 [f816140] latest matlab fails to respect MW_MINGW64_LOC on windows, use R2022a
+* 2023-10-29 [adc0316] simplify boundary condition handling, fix #47
+* 2023-10-07 [04a7155] bump pmcxcl to 0.1.3
+* 2023-10-07 [e930448] remove opencl jit warnings, adjust optlevel order
+* 2023-10-07 [1a30e5c] update copyright dates
+* 2023-10-07 [dcdb117] fix unitinmm double-scaling bug, close #46, close #45
+* 2023-10-03 [fa8dbb2] fix bc mcxlab/pmcxcl memory error,fangq/mcx#191,fangq/mcx#192
+* 2023-09-29 [aa5da8c] fix -F flag overwrite bug
+* 2023-09-26 [507b37b] fix continuous media scaling issue,pmcxcl 0.1.2, fangq/mcx#185
+* 2023-09-26 [378f4eb] fix group load balancing for --optlevel 4
+* 2023-09-24 [07bc297] additional patch to handle half-formatted cont. media
 
 
 == # Introduction ==
@@ -148,8 +177,8 @@ almost all computers. The requirements for using this software include
 For speed differences between different CPUs/GPUs made by different vendors, please
 see your above paper [1] and our websites
 
-* http://mcx.space/computebench/
-* http://mcx.space/mcxcl
+* https://mcx.space/computebench/
+* https://mcx.space/mcxcl
 
 Generally speaking, AMD and NVIDIA high-end dedicated GPUs perform the best, about 20-60x 
 faster than a multi-core CPU; Intel's integrated GPU is about 3-4 times faster than
@@ -173,7 +202,7 @@ or AMD APP SDK (if you are using an AMD card).
 
 The below installation steps can be browsed online at 
 
-http://mcx.space/wiki/index.cgi/wiki/index.cgi?Workshop/MCX18Preparation/MethodA
+https://mcx.space/wiki/index.cgi/wiki/index.cgi?Workshop/MCX18Preparation/MethodA
 
 
 === # Step 1. Verify your CPU/GPU support ==
@@ -287,7 +316,7 @@ stable released can be found on the MCX's website. However, if you want to use t
 latest (but sometimes containing half-implemented features) software, you can access
 the nightly-built packages from
 
-http://mcx.space/nightly/
+https://mcx.space/nightly/
 
 If one has downloaded the mcxcl binary package, after extraction, you may open
 a terminal (on Windows, type cmd the Start menu), cd mcxcl folder and then cd
@@ -434,15 +463,21 @@ mcxcl --session "preptest"  --input "/drives/taote1/users/fangq/Download/MCXStud
 "-- Executing Simulation --"
 ==============================================================================
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =
-=          Copyright (c) 2010-2018 Qianqian Fang <q.fang at neu.edu>         =
-=                             http://mcx.space/                              =
+=          Copyright (c) 2010-2024 Qianqian Fang <q.fang at neu.edu>         =
+=                https://mcx.space/  &  https://neurojson.io/                =
 =                                                                            =
 = Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =
-=            Department of Bioengineering, Northeastern University           =
+=   Department of Bioengineering, Northeastern University, Boston, MA, USA   =
 ==============================================================================
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =
 ==============================================================================
-$Rev::6e839e $ Last $Date::2017-07-20 12:46:23 -04$ by $Author::Qianqian Fang$
+= Open-source codes and reusable scientific data are essential for research, =
+= MCX proudly developed human-readable JSON-based data formats for easy reuse=
+=                                                                            =
+=Please visit our free scientific data sharing portal at https://neurojson.io=
+= and consider sharing your public datasets in standardized JSON/JData format =
+==============================================================================
+$Rev::4fdc45$v2024.2 $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$
 ==============================================================================
 - variant name: [Detective MCXCL] compiled with OpenCL version [1]
 - compiled with: [RNG] Logistic-Lattice [Seed Length] 5
@@ -548,8 +583,8 @@ such as the following:
 
 <pre>==============================================================================
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =
-=          Copyright (c) 2010-2023 Qianqian Fang <q.fang at neu.edu>         =
-=                https://mcx.space/  &  https://neurojson.org/               =
+=          Copyright (c) 2010-2024 Qianqian Fang <q.fang at neu.edu>         =
+=                https://mcx.space/  &  https://neurojson.io/                =
 =                                                                            =
 = Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =
 =   Department of Bioengineering, Northeastern University, Boston, MA, USA   =
@@ -558,9 +593,11 @@ such as the following:
 ==============================================================================
 = Open-source codes and reusable scientific data are essential for research, =
 = MCX proudly developed human-readable JSON-based data formats for easy reuse=
-= Please consider using JSON (https://neurojson.org/) for your research data =
+=                                                                            =
+=Please visit our free scientific data sharing portal at https://neurojson.io=
+= and consider sharing your public datasets in standardized JSON/JData format =
 ==============================================================================
-$Rev::c51a25$ v2023  $Date::2023-09-13 12:12:56 -04$by $Author::Qianqian Fang$
+$Rev::4fdc45$v2024.2 $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$
 ==============================================================================
 
 usage: mcxcl <param1> <param2> ...
