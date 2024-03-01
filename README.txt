@@ -3,8 +3,8 @@
 
 * '''Author:''' Qianqian Fang (q.fang at neu.edu)
 * '''License:''' GNU General Public License version 3 (GPLv3)
-* '''Version:''' 1.0 (Fractal)
-* '''Website:''' http://mcx.space
+* '''Version:''' 1.2 (Gravity)
+* '''Website:''' https://mcx.space
 
 ---------------------------------------------------------------------
 
@@ -14,117 +14,44 @@
 
 == # What's New ==
 
-The last official MCX-CL release was v2020 nearly 3 years ago. Many new
-features have been implemented in MCX/MCX-CL since then. Some of the key
-updates made to the v2023 version of MCX-CL are listed below
+MCX-CL v2024.2 contains both new major features and critical bug fixes.
+It is a strongly recommended upgrade for all users.
 
-MCX-CL v2023 is significantly faster than the previous releases due to
-two major updates. First, on NVIDIA GPUs, an native PTX-based atomic function
-is used to gain 40% acceleration on NVIDIA hardware. Secondly, a highly
-efficient DDA (Digital Differential Analyzer) ray-marching algorithm was
-implemented to MCX and ported to MCX-CL. This also brings up to 40% speedup
-in certain benchmarks such as `cube60`. Moreover, MCX-CL v2023 provides an
-official Python mcx module (`pmcxcl`) to run stream-lined MCX simulations
-in Python, offering intuitive mcxlab-like interface. During the past year,
-a large effort was committed to build automated continuous integration (CI)
-pipelines using Github Action, allowing us to automatically create, test,
-and distribute portable packages across Linux, Windows, MacOS OSes, and
-MATLAB, GNU Octave and Python environments.
+Specifically, MCX-CL v2024.2 received two important features ported from MCX:
+* user-defined scattering phase function (fangq/mcx#129) and
+* user-defined photon launch angle distribution (fangq/mcx#13)
 
-Starting in MCX-CL v2023, we have completed the migration from MCX-specific binary output
-formats (.mc2/.mch) to human-readable, extensible and future-proof JSON-based portable
-data formats defined by the [https://neurojson.org NeuroJSON] project. The NeuroJSON
-project aims at simplify scientific data exchange using portable data formats that are
-readable, searchable, shareable, can be readily validated and served in the web and cloud.
-The NeuroJSON project is also led by MCX's author, Dr. Qianqian Fang, funded by the
-US NIH U24-NS124027 grant.
+The first feature allows users to define a scattering zenith angle distribution
+via a discretized inverse CDF (cumulative distribution function). The
+second feature allows users to define the zenith angle distribution for
+launching a photon, relative to the source-direction vector, also via
+a discretized inverse CDF. In MATLAB/Octave, they can be set as
+cfg.invcdf or cfg.angleinvcdf, respectively. We provided ready-to-use
+demo scripts in `mcxlabcl/examples/demo_mcxlab_phasefun.m` and
+`demo_mcxlab_launchangle.m`.
 
-As a result of this migration, the MCX-CL executable's default output formats are now
-`.jnii` for volumetric output data, and `.jdat` for detected photon/trajectory data.
-Both data formats are JSON compatible. Details on how to read/write these data files
-can be found below.
+Additionally, in this release, we further improved the simulations when
+using Intel CPU or integrated GPU.
 
-In summary, v2023 is packed with exciting updates, including
+Aside from new features, a severe bug was discovered that affect all 
+`pattern` and `pattern3d` simulations that does not use photon-sharing, 
+please see
 
-* pmcxcl (https://pypi.org/project/pmcxcl/) - a Python interface to mcxcl
-* New continuous integration (CI) and testing system based on Github Action
-* CMake based building environment
-* Use NVIDIA PTX-based float atomicadd to gain >30% speedup
-* Efficient DDA (Digital Differential Analyzer) ray-marching algorithm, gain 40% speedup
-* Fixed loss of accuracy near the source (fangq/mcx#41)
-* Trajectory-only output with debuglevel=T
-* Adopted standardized NeuroJSON JNIfTI and JData formats to ease data exchange
+https://github.com/fangq/mcx/issues/212
 
-The detailed updates can be found in the below change log
+Because of this bug, MCX/MCX-CL in older releases has been simulating squared
+pattern/pattern3d data instead of the pattern itself. If your simulation
+uses these two source types and you do not use photon-sharing (i.e. simulating
+multiple patterns together), please upgrade your MCX/MCX-CL and rerun your
+simulations. This bug only affect volumetric fluence/flux outputs; it does not
+affect diffuse reflectance outputs or binary patterns.
 
-* 2023-09-13 [0722c09] support ASCII escape code in Windows terminals
-* 2023-08-27 [080855a] fix pmcxcl gpu hanging bug, import utils from pmcx, v0.0.12
-* 2023-08-27 [e342756] port negative pattern support from mcx
-* 2023-08-27 [7a7b456] update debuglevel=R for RNG testing
-* 2023-08-25 [b8095a8] add mcxlab('version'), use MCX_VERSION macro, update msg, port many bug fixes from mcx
-* 2023-08-04 [9b4d76f] fix boundary condition handling, port from mcx
-* 2023-07-30 [50940de] update zmatlib to 0.9.9, use miniz, drop zlib
-* 2023-07-30 [370128a] support compileropt and kernelfile in mcxlab/pmcxcl, fix omp
-* 2023-07-30 [1b28a6d] fix windows gomp multiple linking bug
-* 2023-07-29 [4916939] automatically build and upload Python module via github action
-* 2023-07-28 [09c61b7] bump pmcxcl version, fix windows pypi version check
-* 2023-07-25 [4b5606e] port python module action scripts from mcx
-* 2023-07-25 [f92425e] add initial draft of pmcxcl for Python, add cmake
-* 2023-07-25 [3c2c735] update missing output structs
-* 2023-07-23 [87f3c0e] allow early termination if -d 3 or cfg.issavedet=3 is set
-* 2023-07-23 [c8ccc04] support outputtype=length/l for saving total path lengths per voxel
-* 2023-07-23 [57c3b9b] fix incorrect comment regarding gaussian src, fangq/mcx#165
-* 2023-07-23 [7d5bd16] update mcxplotphoton to mcx
-* 2023-07-23 [1cafd3e] allow to get fluence in non-absorbing medium, fangq/mcx#174
-* 2023-07-23 [8dbc397] update neurojson repo paths
-* 2023-07-23 [0d780bd] support trajectory only output with debuglevel=T
-* 2023-07-23 [e4ade36] fix replay test result matching
-* 2023-07-03 [b57b157] fix macos error
-* 2023-07-02 [99a4486] port zmat ci changes to mcxcl
-* 2023-06-03 [980cc9f] enable doxygen documentation via make doc
-* 2023-05-17 [a25f302] allow device query to handle open-source AMD ocl runtime, fix #44
-* 2023-03-12 [c9697a9] update action from mmc to mcxcl
-* 2023-03-12 [11938a3] copy mmc's merged action script
-* 2023-03-07 [ee7e940] add github action
-* 2022-10-08 [ae7f6e3] update version to 1.0
-* 2022-10-03 [695d2f3] run test on all platforms
-* 2022-10-03 [85beae7] revert debugging information, fix cyclic bc for mac
-* 2022-10-02 [53ec9e7] attempt to fix cyclic bc
-* 2022-10-02 [263abb2] test cyclic bc
-* 2022-10-02 [6c588fa] debug cyclic bc
-* 2022-10-02 [fc481ba] debug cyclic test on the mac
-* 2022-10-02 [8bdc33e] disable zmat and file IO functions in mex/oct targets
-* 2022-10-02 [c6e280a] fix CI error after using voxel index dda
-* 2022-10-01 [24bf948] allow disabling PTX based f32 atomicadd
-* 2022-10-01 [2277f7f] using nvidia native atomicadd for float add 30% speedup
-* 2022-09-29 [f0d0bad] update skipvoid
-* 2022-09-29 [b3d94d2] update to match mcx flipdir use
-* 2022-09-23 [1931489] adopt voxel-index based dda, like fangq/mcx b873f90c6
-* 2022-09-21 [d9e5eaa] add jammy to ci
-* 2022-09-21 [3e71eac] making double-buffer finally work to solve fangq/mcx#41, thanks to @ShijieYan
-* 2022-09-21 [2216686] sync mcxcl's json2mcx with the latest version from mcx
-* 2022-05-21 [39913fc] complete reformat of source code using astyle with 'make pretty'
-* 2022-05-21 [f7d69d5] sync mcx2json from mcx repo
-* 2022-01-27 [2559135] sync mcxdetphoton.m with mcx, move location
-* 2021-10-29 [867314a] Update README.md
-* 2021-06-23 [818f3a1] set maximum characters to read for fscanf, fix #41
-* 2021-06-23 [38d56a6] handle empty detector array in json2mcx
-* 2021-05-26 [4c18305] fix a few minor memory leaks based on valgrind output, still leaks on nvidia GPUs
-* 2021-05-15 [bbee39e] save volume in jdata format by default
-* 2021-02-26 [8eba2cd] add MATLAB_MEX_FILE in the makefile
-* 2021-02-24 [8f793a0] use memcpy to avoid strncpy warning from gcc 10
-* 2021-02-24 [89b46a9] update windows compilation commands
-* 2021-02-24 [49c6217] allow compiling GNU Octave mex on windows
-* 2021-02-07 [e9d2ce7] following Debian script suffix rule
-* 2020-09-06 [a39f271] update numeral version number
-* 2020-09-06 [6ea10b2] add back wiki versions of the README file for easy website update
-* 2020-09-04 [de59205] patch mcxcl for fangq/mcx#103 and fangq/mcx#104
-* 2020-09-01 [9b5431e] sync with mcx, add cubesph60b to match example/benchmark2
-* 2020-08-31 [7e7eb06] flush output for mcxlabcl
-* 2020-08-31 [6079b17] fix pattern3d demo script bug
-* 2020-08-31 [7b36ee8] fix photon sharing mcxlab crash
-* 2020-08-30 [f498e29] fix typo
-* 2020-08-29 [b001786] update mcxlabcl, update ChangeLog
+We also ported a bug fix from fangq/mcx#195 regarding precision loss when
+saving diffuse reflectance. 
+
+We want to thank Haohui Zhang for reporting a number of critical issues
+(fangq/mcx#195 and fangq/mcx#212). ShijieYan and fanyuyen have also contributed
+to the bug fixes and improvements.
 
 
 == # Introduction ==

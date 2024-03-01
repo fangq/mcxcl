@@ -1,5 +1,5 @@
 # Copyright (c) 2022-2023 Matin Raayai Ardakani <raayaiardakani.m at northeastern.edu>. All rights reserved.
-# Copyright (c) 2022-2023 Qianqian Fang <q.fang at neu.edu>. All rights reserved.
+# Copyright (c) 2022-2024 Qianqian Fang <q.fang at neu.edu>. All rights reserved.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -53,7 +53,7 @@ except ImportError:  # pragma: no cover
 
 from .bench import bench
 
-__version__ = "0.1.4"
+__version__ = "0.1.5"
 
 __all__ = (
     "gpuinfo",

@@ -21,16 +21,16 @@ cfg.tend = 5e-9;
 cfg.tstep = 5e-9;
 
 % use built-in Henyey-Greenstein phase function
-flux = mcxlab(cfg);
+flux = mcxlabcl(cfg);
 
 % define Henyey-Greenstein phase function using cfg.invcdf
 invhg = @(u, g) (1 + g * g - ((1 - g * g) ./ (1 - g + 2 * g * u)).^2) ./ (2 * g);
 cfg.invcdf = invhg(0.01:0.01:1 - 0.01, 0.8);
-flux = mcxlab(cfg);
+flux = mcxlabcl(cfg);
 
 % now use Rayleigh scattering phase function P(cos(theta))=P(u)=3/4*(1+u.^2)
 invrayleigh = @(u) (4 * u + ((4 * u - 2).^2 + 1).^(1 / 2) - 2).^(1 / 3) - 1 ./ (4 * u + ((4 * u - 2).^2 + 1).^(1 / 2) - 2).^(1 / 3);
 cfg.invcdf = invrayleigh(0.01:0.01:1 - 0.01);
 
 % calculate the flux distribution using Rayleigh scattering phase function
-flux = mcxlab(cfg);
+flux = mcxlabcl(cfg);

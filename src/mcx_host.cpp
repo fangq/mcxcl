@@ -2,7 +2,7 @@
 **  \mainpage Monte Carlo eXtreme - GPU accelerated Monte Carlo Photon Migration \
 **      -- OpenCL edition
 **  \author Qianqian Fang <q.fang at neu.edu>
-**  \copyright Qianqian Fang, 2009-2023
+**  \copyright Qianqian Fang, 2009-2024
 **
 **  \section sref Reference:
 **  \li \c (\b Yu2018) Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,
@@ -747,10 +747,10 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     tic = StartTimer();
 
 #if __OPENCL_C_VERSION__
-    MCX_FPRINTF(cfg->flog, "- code name: [Fractal] compiled with OpenCL [%d] on [%s]\n",
+    MCX_FPRINTF(cfg->flog, "- code name: [Genesis] compiled with OpenCL [%d] on [%s]\n",
                 __OPENCL_C_VERSION__, __DATE__);
 #else
-    MCX_FPRINTF(cfg->flog, "- code name: [Fractal] compiled with OpenCL [%d] on [%s]\n",
+    MCX_FPRINTF(cfg->flog, "- code name: [Genesis] compiled with OpenCL [%d] on [%s]\n",
                 CL_VERSION_1_0, __DATE__);
 #endif
 

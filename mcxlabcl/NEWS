@@ -1,5 +1,33 @@
 Change Log
 
+== MCX-CL 1.2.0 (Genesis), FangQ <q.fang at neu.edu> ==
+
+ 2024-02-29 [580cb27] [format] reformat all MATLAB codes with miss_hit
+ 2024-02-29 [ce1d374] [bug] fixes to pass tests on Intel CPU, AMD GPU and pthread-AMD
+ 2024-02-29 [2f70174] [bug] free ginvcdf and gangleinvcdf buffers
+ 2024-02-29 [9aee8ce] [bug] fix many errors after testing, still need to fix replay
+ 2024-02-29 [b82c856] [feat] add missing demo scripts
+ 2024-02-29 [21e1e72]*[feat] port scattering and launch angle invcdf from fangq/mcx#129 fangq/mcx#13
+ 2024-02-28 [90a28f3] [ci] remove macos-11 as brew fails for octave, Homebrew/brew#16209
+ 2024-02-28 [fbe270b] [pmcxcl] bump pmcxcl to 0.1.4 after fixing fangq/mcx#212
+ 2024-02-27 [4e1ec7f] [ci] fix windows cmake zlib error, fix mac libomp error
+ 2024-02-27 [3d18b78]*[bug] fix critical bug, squaring pattern/pattern3d, fangq/mcx#212
+ 2023-11-10 [26ec422] [ci] install mingw 8.1 for matlab mex build, matlab-actions/setup-matlab#75
+ 2023-11-10 [5a96d02] [ci] set MW_MINGW64_LOC to octave bunded mingw, matlab-actions/setup-matlab#75
+ 2023-10-31 [337c51c] [bug] apply fangq/mcx#195 fix to avoid dref accuracy loss
+ 2023-10-29 [3b01475] further simplify bc handling, #47
+ 2023-10-29 [f816140] latest matlab fails to respect MW_MINGW64_LOC on windows, use R2022a
+ 2023-10-29 [adc0316] simplify boundary condition handling, fix #47
+ 2023-10-07 [04a7155] bump pmcxcl to 0.1.3
+ 2023-10-07 [e930448] remove opencl jit warnings, adjust optlevel order
+ 2023-10-07 [1a30e5c] update copyright dates
+ 2023-10-07 [dcdb117] fix unitinmm double-scaling bug, close #46, close #45
+ 2023-10-03 [fa8dbb2] fix bc mcxlab/pmcxcl memory error,fangq/mcx#191,fangq/mcx#192
+ 2023-09-29 [aa5da8c] fix -F flag overwrite bug
+ 2023-09-26 [507b37b] fix continuous media scaling issue,pmcxcl 0.1.2, fangq/mcx#185
+ 2023-09-26 [378f4eb] fix group load balancing for --optlevel 4
+ 2023-09-24 [07bc297] additional patch to handle half-formatted cont. media
+
 == MCX-CL 1.0.0 (Fractal), FangQ <q.fang at neu.edu> ==
 
  2023-09-24 [3e79262] add 2d test, fix test error on macos-12

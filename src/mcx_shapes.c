@@ -2,7 +2,7 @@
 **  \mainpage Monte Carlo eXtreme - GPU accelerated Monte Carlo Photon Migration \
 **      -- OpenCL edition
 **  \author Qianqian Fang <q.fang at neu.edu>
-**  \copyright Qianqian Fang, 2009-2023
+**  \copyright Qianqian Fang, 2009-2024
 **
 **  \section sref Reference:
 **  \li \c (\b Yu2018) Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,

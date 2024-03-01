@@ -2,7 +2,7 @@
 **  \mainpage Monte Carlo eXtreme - GPU accelerated Monte Carlo Photon Migration \
 **      -- OpenCL edition
 **  \author Qianqian Fang <q.fang at neu.edu>
-**  \copyright Qianqian Fang, 2009-2023
+**  \copyright Qianqian Fang, 2009-2024
 **
 **  \section sref Reference:
 **  \li \c (\b Yu2018) Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,
@@ -4549,7 +4549,7 @@ void mcx_printheader(Config* cfg) {
     MCX_FPRINTF(cfg->flog, S_BLUE"\
 ==============================================================================\n\
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =\n\
-=          Copyright (c) 2010-2023 Qianqian Fang <q.fang at neu.edu>         =\n\
+=          Copyright (c) 2010-2024 Qianqian Fang <q.fang at neu.edu>         =\n\
 =" S_CYAN "                https://mcx.space/  &  https://neurojson.org/               " S_BLUE "=\n\
 =                                                                            =\n\
 = Computational Optics&Translational Imaging (COTI) Lab - " S_CYAN "http://fanglab.org " S_BLUE "=\n\
@@ -4561,7 +4561,7 @@ void mcx_printheader(Config* cfg) {
 = MCX proudly developed human-readable JSON-based data formats for easy reuse=\n\
 = Please consider using JSON (https://neurojson.org/) for your research data =\n\
 ==============================================================================\n\
-$Rev::4fdc45$ " S_CYAN MCX_VERSION S_BLUE "  $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
+$Rev::4fdc45$" S_CYAN MCX_VERSION S_BLUE " $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
 ==============================================================================\n"S_RESET);
 }
 
