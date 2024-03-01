@@ -4550,7 +4550,7 @@ void mcx_printheader(Config* cfg) {
 ==============================================================================\n\
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =\n\
 =          Copyright (c) 2010-2024 Qianqian Fang <q.fang at neu.edu>         =\n\
-=" S_CYAN "                https://mcx.space/  &  https://neurojson.org/               " S_BLUE "=\n\
+=" S_CYAN "                https://mcx.space/  &  https://neurojson.io/                " S_BLUE "=\n\
 =                                                                            =\n\
 = Computational Optics&Translational Imaging (COTI) Lab - " S_CYAN "http://fanglab.org " S_BLUE "=\n\
 =   Department of Bioengineering, Northeastern University, Boston, MA, USA   =\n\
@@ -4559,7 +4559,9 @@ void mcx_printheader(Config* cfg) {
 ==============================================================================\n\
 = Open-source codes and reusable scientific data are essential for research, =\n\
 = MCX proudly developed human-readable JSON-based data formats for easy reuse=\n\
-= Please consider using JSON (https://neurojson.org/) for your research data =\n\
+=                                                                            =\n\
+=Please visit our free scientific data sharing portal at " S_CYAN "https://neurojson.io" S_BLUE "=\n\
+= and consider sharing your public datasets in standardized JSON/JData format=\n\
 ==============================================================================\n\
 $Rev::4fdc45$" S_CYAN MCX_VERSION S_BLUE " $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
 ==============================================================================\n"S_RESET);
