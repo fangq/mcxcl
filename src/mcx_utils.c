@@ -249,9 +249,7 @@ void mcx_initcfg(Config* cfg) {
     cfg->clsource = NULL;
 #endif
     cfg->maxdetphoton = 1000000;
-    cfg->maxjumpdebug = 10000000;
-    cfg->exportdebugdata = NULL;
-    cfg->debugdatalen = 0;
+
     cfg->isdumpmask = 0;
     cfg->autopilot = 1;
     cfg->shapedata = NULL;
@@ -269,7 +267,8 @@ void mcx_initcfg(Config* cfg) {
     cfg->exportfield = NULL;
     cfg->exportdetected = NULL;
     cfg->exportdebugdata = NULL;
-    cfg->maxjumpdebug = 1000000;
+    cfg->maxjumpdebug = 10000000;
+    cfg->debugdatalen = 0;
 
     cfg->seeddata = NULL;
     cfg->issaveseed = 0;
