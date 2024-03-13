@@ -115,6 +115,8 @@ if [ "$OS" == "win" ]; then
 	export PATH="C:\Octave\Octave-8.2.1\mingw64\bin":$PATH
 	make oct CC=gcc MEXLINKOPT='"C:\tools\msys64\mingw64\lib\gcc\x86_64-w64-mingw32\10.3.0\libgomp.a" "C:\cygwin64\usr\x86_64-w64-mingw32\sys-root\mingw\lib\libwinpthread.a" -static-libgcc -static-libstdc++' >>../mcxlabcl/AUTO_BUILD_${DATE}.log 2>&1
 	export PATH="$OLDPATH"
+elif [ "$OS" == "macos" ]; then
+	make oct MEXLINKOPT="-L/opt/local/lib/octave/8.3.0/" >>../mcxlabcl/AUTO_BUILD_${DATE}.log 2>&1
 else
 	make oct >>../mcxlabcl/AUTO_BUILD_${DATE}.log 2>&1
 fi
@@ -184,6 +186,14 @@ fi
 ## compress binary with upx
 
 upx -9 ../bin/mcxcl* || true
+
+if [ "$OS" == "macos" ]; then
+	cat <<EOF >../MAC_USER_PLEASE_RUN_THIS_FIRST.sh
+#/bin/sh
+xattr -dr com.apple.quarantine *
+EOF
+	chmod +x ../MAC_USER_PLEASE_RUN_THIS_FIRST.sh
+fi
 
 ## zip and upload binary package
 
