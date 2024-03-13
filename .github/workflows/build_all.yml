@@ -85,7 +85,6 @@ jobs:
           octave-cli --eval "fprintf(1,['OCTAVE_ARCH=' regexprep(computer('arch'), 'darwin[0-9.]+-', 'darwin-')])"
           octave-cli --eval "fprintf(1,['OCTAVE_ARCH=' regexprep(computer('arch'), 'darwin[0-9.]+-', 'darwin-')])" >> $GITHUB_ENV
       - name: Build mcxlabcl for MATLAB
-        if: ${{ matrix.os != 'macos-14' }}
         run: |
           cd src
           if [[ "$RUNNER_OS" == "Windows" ]]; then
