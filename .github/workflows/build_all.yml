@@ -47,7 +47,7 @@ jobs:
           vcpkg --triplet=x64-windows install opencl
           cp 'c:\vcpkg\packages\opencl_x64-windows\bin\OpenCL.dll' 'c:\Windows\System32'
       - name: Set up MATLAB
-        uses: matlab-actions/setup-matlab@v1
+        uses: matlab-actions/setup-matlab@v2
         with:
           release: R2022a
       - name: Update RCS keywords
