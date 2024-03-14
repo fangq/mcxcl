@@ -3,7 +3,7 @@
 
 * '''Author:''' Qianqian Fang (q.fang at neu.edu)
 * '''License:''' GNU General Public License version 3 (GPLv3)
-* '''Version:''' 1.2 (Gravity)
+* '''Version:''' 1.2 (Genesis)
 * '''Website:''' https://mcx.space
 
 ---------------------------------------------------------------------
@@ -48,7 +48,9 @@ simulations. This bug only affect volumetric fluence/flux outputs; it does not
 affect diffuse reflectance outputs or binary patterns.
 
 We also ported a bug fix from fangq/mcx#195 regarding precision loss when
-saving diffuse reflectance. 
+saving diffuse reflectance. Finally, starting from this release, we are providing
+native binary packages built for Apple M1/M2 (arm64) processors. All Apple silicon
+packages are labeled with `macos-arm64` in the package names.
 
 We want to thank Haohui Zhang for reporting a number of critical issues
 (fangq/mcx#195 and fangq/mcx#212). ShijieYan and fanyuyen have also contributed
@@ -56,6 +58,14 @@ to the bug fixes and improvements.
 
 The detailed updates can be found in the below change log
 
+* 2024-03-12 [1fc8286] [ci] building binaries on Apple M1 macos-14 runner
+* 2024-03-12 [bf89aff] [ci] update nightly build script
+* 2024-03-08 [4891c72] [ci] remove mcxlabcl gcc warnings
+* 2024-03-05 [80551a4] [bug] remove duplicated and overwritten cfg initialization
+* 2024-03-04 [84c64ec] [bug] fix cuda core count for Ada and Blackwell
+* 2024-03-01 [1e56f5b] [doc] update documentation for v2024.2
+* 2024-03-01 [d4fb874] [ci] bump pmcxcl to v0.1.6
+* 2024-03-01 [0d9f77f] [doc] update neurojson website url to https://neurojson.io
 * 2024-02-29 [580cb27] [format] reformat all MATLAB codes with miss_hit
 * 2024-02-29 [ce1d374] [bug] fixes to pass tests on Intel CPU, AMD GPU and pthread-AMD
 * 2024-02-29 [2f70174] [bug] free ginvcdf and gangleinvcdf buffers
@@ -285,8 +295,45 @@ Runtime for CPU only if you haven't installed it already.
 https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
 
 Note: if you have an NVIDIA GPU, there is no need to install CUDA in 
-order for you to run MCX/MCXLAB.
+order for you to run MCX-CL/MCXLABCL.
 
+==== # Computers with hybrid GPUs ===
+
+We noticed that running Ubuntu Linux 22.04 with a 6.5 kernel on a laptop with 
+a hybrid GPU with an Intel iGPU and an NVIDIA GPU, you must configure the
+laptop to use the NVIDIA GPU as the primary GPU by choosing "NVIDIA (Performance Mode)"
+in the PRIME Profiles section of **NVIDIA X Server Settings**. You can also run 
+
+
+    sudo prime-select nvidia
+
+
+to achieve the same goal. Otherwise, the simulation may hang your system
+after running for a few seconds. A hybrid GPU laptop combing an NVIDIA GPU 
+with an AMD iGPU does not seem to have this issue if using Linux.
+
+In addition, NVIDIA drirver (520 or newer) has a known glitch running on Linux kernel
+6.x (such as those in Ubuntu 22.04). See
+
+https://forums.developer.nvidia.com/t/dev-nvidia-uvm-io-error-on-ubuntu-22-04-520-to-535-driver-versions/262153
+
+When the laptop is in the "performance" mode and wakes up from suspension, MCX/MCX-CL/MMC or any
+CUDA program fails to run with an error
+
+
+    MCX ERROR(-999):unknown error in unit mcx_core.cu:2523
+
+
+This is because the kernel module `nvida-uvm` fails to be reloaded after suspension.
+If you had an open MATLAB session, you must close MATLAB first, and
+run the below commands (if MATLAB is open, you will see `rmmod: ERROR: Module nvidia_uvm is in use`)
+
+
+    sudo rmmod /dev/nvidia-uvm
+    sudo modprobe nvidia-uvm
+
+
+after the above command, MCX-CL should be able to run again.
 
 === # Step 2. Install MATLAB or GNU Octave =
 

@@ -2,6 +2,14 @@ Change Log
 
 == MCX-CL 1.2.0 (Genesis), FangQ <q.fang at neu.edu> ==
 
+ 2024-03-12 [1fc8286] [ci] building binaries on Apple M1 macos-14 runner
+ 2024-03-12 [bf89aff] [ci] update nightly build script
+ 2024-03-08 [4891c72] [ci] remove mcxlabcl gcc warnings
+ 2024-03-05 [80551a4] [bug] remove duplicated and overwritten cfg initialization
+ 2024-03-04 [84c64ec] [bug] fix cuda core count for Ada and Blackwell
+ 2024-03-01 [1e56f5b] [doc] update documentation for v2024.2
+ 2024-03-01 [d4fb874] [ci] bump pmcxcl to v0.1.6
+ 2024-03-01 [0d9f77f] [doc] update neurojson website url to https://neurojson.io
  2024-02-29 [580cb27] [format] reformat all MATLAB codes with miss_hit
  2024-02-29 [ce1d374] [bug] fixes to pass tests on Intel CPU, AMD GPU and pthread-AMD
  2024-02-29 [2f70174] [bug] free ginvcdf and gangleinvcdf buffers

@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""PMCXCL - Python bindings for Monte Carlo eXtreme photon transport simulator
+"""PMCXCL - Python bindings for Monte Carlo eXtreme (OpenCL) photon transport simulator
 
 Example usage:
 
@@ -53,7 +53,7 @@ except ImportError:  # pragma: no cover
 
 from .bench import bench
 
-__version__ = "0.1.6"
+__version__ = "0.2.0"
 
 __all__ = (
     "gpuinfo",
