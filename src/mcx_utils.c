@@ -3795,7 +3795,12 @@ int  mcx_jdataencode(void* vol, int ndim, uint* dims, char* type, int byte, int 
     }
 
     /*compress data using zlib*/
-    ret = zmat_encode(totalbytes, (unsigned char*)vol, &compressedbytes, (unsigned char**)&compressed, zipid, &status);
+    if (zipid != zmBase64) {
+        ret = zmat_encode(totalbytes, (uchar*)vol, &compressedbytes, (uchar**)&compressed, zipid, &status);
+    } else {
+        compressed = (uchar*)vol;
+        compressedbytes = totalbytes;
+    }
 
     if (!ret) {
         if (!cfg->isdumpjson) {
@@ -3830,7 +3835,7 @@ int  mcx_jdataencode(void* vol, int ndim, uint* dims, char* type, int byte, int 
         }
     }
 
-    if (compressed) {
+    if (compressed && zipid != zmBase64) {
         free(compressed);
     }
 
