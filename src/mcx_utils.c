@@ -1781,11 +1781,7 @@ void mcx_readconfig(char* fname, Config* cfg) {
             mcx_parsejson(jbuf, cfg);
 
             if (fp != NULL) {
-                if (fp != NULL) {
-                    free(jbuf);
-                }
-
-                fclose(fp);
+                free(jbuf);
             }
 
         } else {
