@@ -80,7 +80,7 @@
 char shortopt[] = {'h', 'i', 'f', 'n', 'm', 't', 'T', 's', 'a', 'g', 'b', 'B', 'D', '-', 'G', 'W', 'z',
                    'd', 'r', 'S', 'p', 'e', 'U', 'R', 'l', 'L', 'M', 'I', '-', 'o', 'k', 'v', 'J',
                    'A', 'P', 'E', 'F', 'H', 'K', 'u', '-', 'x', 'X', '-', 'w', '-', 'q', 'V', 'm',
-                   'Y', 'O', '-', '-', '-', '-', 'Z', 'j', '\0'
+                   'Y', 'O', '-', '-', '-', '-', 'Z', 'j', '-', '\0'
                   };
 
 /**
@@ -98,7 +98,7 @@ const char* fullopt[] = {"--help", "--interactive", "--input", "--photon", "--mo
                          "--mediabyte", "--unitinmm", "--atomic", "--saveexit", "--saveref",
                          "--internalsrc", "--savedetflag", "--gscatter", "--saveseed", "--specular",
                          "--momentum", "--replaydet", "--outputtype", "--voidtime", "--showkernel",
-                         "--bench", "--dumpjson", "--zip", "--json", ""
+                         "--bench", "--dumpjson", "--zip", "--json", "--maxjumpdebug", ""
                         };
 
 /**
@@ -4329,7 +4329,9 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
                     } else if (strcmp(argv[i] + 2, "voidtime") == 0) {
                         i = mcx_readarg(argc, argv, i, &(cfg->voidtime), "char");
                     } else if (strcmp(argv[i] + 2, "maxjumpdebug") == 0) {
-                        i = mcx_readarg(argc, argv, i, &(cfg->maxjumpdebug), "int");
+                        float maxjump;
+                        i = mcx_readarg(argc, argv, i, &maxjump, "float");
+                        cfg->maxjumpdebug = (unsigned int)maxjump;
                     } else if (strcmp(argv[i] + 2, "gscatter") == 0) {
                         i = mcx_readarg(argc, argv, i, &(cfg->gscatter), "int");
                     } else if (strcmp(argv[i] + 2, "showkernel") == 0) {
