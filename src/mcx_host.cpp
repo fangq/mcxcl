@@ -448,13 +448,14 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     RandType* seeddata = NULL;
     RandType* Pseed = NULL;
 
-    /*
-                                  |----------------------------------------------->  hostdetreclen  <--------------------------------------|
-                                            |------------------------>    partialdata   <-------------------|
-     host detected photon buffer: detid (1), partial_scat (#media), partial_path (#media), momontum (#media), p_exit (3), v_exit(3), w0 (1)
-                                            |--------------------------------------------->    w0offset   <-------------------------------------||<----- w0 (#srcnum) ----->|
-      gpu detected photon buffer:            partial_scat (#media), partial_path (#media), momontum (#media), E_escape (1), E_launch (1), w0 (1), w0_photonsharing (#srcnum)
-    */
+    /**
+     *                              |----------------------------------------------->  hostdetreclen  <--------------------------------------|
+     *                                        |------------------------>    partialdata   <-------------------|
+     * host detected photon buffer: detid (1), partial_scat (#media), partial_path (#media), momontum (#media), p_exit (3), v_exit(3), w0 (1)
+     *                                        |--------------------------------------------->    w0offset   <-------------------------------------||<----- w0 (#srcnum) ----->|
+     * gpu detected photon buffer:             partial_scat (#media), partial_path (#media), momontum (#media), E_escape (1), E_launch (1), w0 (1), w0_photonsharing (#srcnum)
+     */
+
     unsigned int partialdata = (cfg->medianum - 1) * (SAVE_NSCAT(cfg->savedetflag) + SAVE_PPATH(cfg->savedetflag) + SAVE_MOM(cfg->savedetflag)); // buf len for media-specific data, copy from gpu to host
     unsigned int w0offset = partialdata + 3; // offset for photon sharing buffer
     unsigned int hostdetreclen = partialdata + SAVE_DETID(cfg->savedetflag) + 3 * (SAVE_PEXIT(cfg->savedetflag) + SAVE_VEXIT(cfg->savedetflag)) + SAVE_W0(cfg->savedetflag); // host-side det photon data buffer length

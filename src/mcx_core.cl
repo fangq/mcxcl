@@ -1450,7 +1450,7 @@ __kernel void mcx_main_loop(__global const uint* media,
 
                 GPUDEBUG(((__constant char*)"scat theta=%f\n", theta));
 
-#ifdef SAVE_DETECTORS
+#ifdef MCX_SAVE_DETECTORS
 
                 if (SAVE_NSCAT(GPU_PARAM(gcfg, savedetflag))) {
                     ppath[(mediaid & MED_MASK) - 1]++;
