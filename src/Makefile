@@ -157,7 +157,7 @@ mex oct:    CCOPT+=$(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
 mex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
 
 oct:        BINARY=mcxcl.mex
-oct:        AR=XTRA_CFLAGS=' ' XTRA_CXXFLAGS=' ' CXXFLAGS='-std=c++11 $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LFLAGS='$(LDFLAGS) -g -L$(LIBOPENCLDIR) $(LIBOPENCL)' DL_LDFLAGS='-shared -Wl,-Bsymbolic $(LDFLAGS) -g -L$(LIBOPENCLDIR) $(LIBOPENCL) $(MEXLINKOPT)' mkoctfile -v
+oct:        AR=XTRA_CFLAGS=' ' XTRA_CXXFLAGS=' ' CXXFLAGS='-std=c++11 $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LFLAGS='$(LDFLAGS) -g -L$(LIBOPENCLDIR) $(LIBOPENCL)' DL_LDFLAGS='-shared $(LDFLAGS) -g -L$(LIBOPENCLDIR) $(LIBOPENCL) $(MEXLINKOPT)' mkoctfile -v
 oct:        LINKOPT=--mex -DMATLAB_MEX_FILE mcxlabcl.cpp $(INCLUDEDIRS) $(EXTRALIB)
 
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
