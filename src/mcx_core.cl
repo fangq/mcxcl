@@ -837,14 +837,14 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
     /**
      * First, let's terminate the current photon and perform detection calculations
      */
-    if (fabs(p[0].w) > 0.f) {
+    if (fabs(p[0].w) >= 0.f) {
         ppath[GPU_PARAM(gcfg, partialdata)] += p[0].w; ///< sum all the remaining energy
 
 #if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
         savedebugdata(p, (uint)f[0].w + threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton), gjumpdebug, gdebugdata, gcfg);
 #endif
 
-        if (*mediaid == 0 && *idx1d != OUTSIDE_VOLUME_MIN && *idx1d != OUTSIDE_VOLUME_MAX && GPU_PARAM(gcfg, issaveref)) {
+        if (*mediaid == 0 && *idx1d != OUTSIDE_VOLUME_MIN && *idx1d != OUTSIDE_VOLUME_MAX && GPU_PARAM(gcfg, issaveref) && p[0].w > 0.f) {
             if (GPU_PARAM(gcfg, issaveref) == 1) {
                 int tshift = MIN((int)GPU_PARAM(gcfg, maxgate) - 1, (int)(floor((f[0].y - gcfg->twin0) * GPU_PARAM(gcfg, Rtstep))));
 #if !defined(MCX_SRC_PATTERN) && !defined(MCX_SRC_PATTERN3D)
@@ -895,9 +895,12 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
             savedetphoton(n_det, dpnum, ppath, p, v, photonseed, gseeddata, gdetpos, gcfg, isdet);
         }
 
-        clearpath(ppath, GPU_PARAM(gcfg, partialdata));
 #endif
     }
+
+#ifdef MCX_SAVE_DETECTORS
+    clearpath(ppath, GPU_PARAM(gcfg, partialdata));
+#endif
 
 #ifdef GROUP_LOAD_BALANCE
     /**

@@ -1042,7 +1042,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
                     if (debugrec > 0) {
                         if (debugrec > cfg->maxdetphoton) {
-                            MCX_FPRINTF(cfg->flog, S_RED "WARNING: the saved trajectory positions (%d) \
+                            MCX_FPRINTF(cfg->flog, S_RED "WARNING: the saved trajectory positions (%u) \
   are more than what your have specified (%d), please use the --maxjumpdebug option to specify a greater number\n" S_RESET
                                         , debugrec, cfg->maxjumpdebug);
                         } else {
@@ -1070,7 +1070,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                     }
 
                     if (detected > cfg->maxdetphoton) {
-                        MCX_FPRINTF(cfg->flog, S_RED "WARNING: the detected photon (%d) \
+                        MCX_FPRINTF(cfg->flog, S_RED "WARNING: the detected photon (%u) \
 is more than what your have specified (%d), please use the -H option to specify a greater number\t" S_RESET
                                     , detected, cfg->maxdetphoton);
                     } else {
