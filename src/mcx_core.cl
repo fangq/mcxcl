@@ -1680,7 +1680,8 @@ __kernel void mcx_main_loop(__global const uint* media,
         //if hit the boundary, exceed the max time window or exit the domain, rebound or launch a new one
         if (((mediaid && GPU_PARAM(gcfg, doreflect)) // if at an internal boundary, check cfg.isreflect flag
                 || (mediaid == 0 &&  // or if out of bbx or enters 0-voxel
-                    ((isdet & 0xF) == bcReflect || (isdet & 0xF) == bcMirror)))  // or if cfg.bc is 'r' or 'm'
+                    (((isdet & 0xF) == bcUnknown && GPU_PARAM(gcfg, doreflect)) // if cfg.bc is "_", check cfg.isreflect
+                     || ((isdet & 0xF) == bcReflect || (isdet & 0xF) == bcMirror))))  // or if cfg.bc is 'r' or 'm'
                 && (((isdet & 0xF) == bcMirror) || n1 != ((GPU_PARAM(gcfg, mediaformat) < 100) ? (prop.w) : (gproperty[(mediaid > 0 && (bool)(GPU_PARAM(gcfg, mediaformat) >= 100)) ? 1 : mediaid].w)))) {
             float Rtotal = 1.f;
             float cphi, sphi, stheta, ctheta;
