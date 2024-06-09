@@ -58,7 +58,7 @@
 enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS, otL};   /**< types of output */
 enum TMCXParent  {mpStandalone, mpMATLAB, mpPython};                   /**< whether MCX is run in binary or mex mode */
 enum TOutputFormat {ofMC2, ofNifti, ofAnalyze, ofUBJSON, ofTX3, ofJNifti, ofBJNifti};           /**< output data format */
-enum TDeviceVendor {dvUnknown, dvNVIDIA, dvAMD, dvIntel, dvIntelGPU, dvAppleCPU};
+enum TDeviceVendor {dvUnknown, dvNVIDIA, dvAMD, dvIntel, dvIntelGPU, dvAppleCPU, dvAppleGPU};
 enum TBoundary {bcUnknown, bcReflect, bcAbsorb, bcMirror, bcCyclic};            /**< boundary conditions */
 enum TBJData {JDB_mixed, JDB_nulltype, JDB_noop, JDB_true, JDB_false,
               JDB_char, JDB_string, JDB_hp, JDB_int8, JDB_uint8, JDB_int16, JDB_int32,

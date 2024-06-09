@@ -239,7 +239,7 @@ sub runbench(){
                                 printf(RED);
                                 printf("Speed: %.0f photon/ms", $bench{'speed'});
                                 printf(RESET);
-			}elsif($line =~ /total simulated energy:\s*([-0-9.]+)\s*absorbed: ([-0-9.]+)%/){
+			}elsif($line =~ /total simulated energy:\s*([-0-9.]+)\s*absorbed: ([-0-9.na]+)%/){
 				$bench{'stat'}{'energytot'}=$1+0;
 				$bench{'stat'}{'absorbfrac'}=$2+0;
 				$bench{'stat'}{'energyabs'}=$1*0.01*$2;
@@ -260,13 +260,13 @@ sub runbench(){
 			$report{$keyname}=\%bench;
 			my $absfrac=$bench{'stat'}{'absorbfrac'};
 			if(abs($absfrac - $absorb)/$absorb > 0.1){
-				die('$benchname failed (expected $absorb, got $absfrac), can not continue');
+				die("$benchname failed (expected $absorb, got $absfrac), can not continue");
 			}
 		}else{
-			die('$benchname failed, output incomplete');
+			die("$benchname failed, output incomplete");
 		}
 	}else{
-                die('$benchname failed, output incomplete');
+                die("$benchname failed, output incomplete");
 	}
         print("\n");
 }
