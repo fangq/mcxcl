@@ -1348,6 +1348,7 @@ void mcx_replayprep(int* detid, float* ppath, History* his, Config* cfg) {
             }
 
             cfg->replay.weight[cfg->nphoton] = 1.f;
+            cfg->replay.tof[cfg->nphoton] = 0.f;
             cfg->replay.detid[cfg->nphoton] = (detid != NULL) ? detid[i] : 1;
 
             for (j = 0; j < his->maxmedia; j++) {
@@ -3306,6 +3307,7 @@ void mcx_loadseedfile(Config* cfg) {
                 }
 
                 cfg->replay.weight[cfg->nphoton] = 1.f;
+                cfg->replay.tof[cfg->nphoton] = 0.f;
                 cfg->replay.detid[cfg->nphoton] = (hasdetid) ? (int)(ppath[i * his.colcount]) : 1;
 
                 for (j = hasdetid; j < his.maxmedia + hasdetid; j++) {

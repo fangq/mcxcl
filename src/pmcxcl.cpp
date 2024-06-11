@@ -943,7 +943,6 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
 
         /** Validate all input fields, and warn incompatible inputs */
         mcx_validatecfg(&mcx_config, det_ps, dim_det_ps, seed_byte);
-        mcx_replayinit(&mcx_config, det_ps, dim_det_ps, seed_byte);
 
         partial_data =
             (mcx_config.medianum - 1) * (SAVE_NSCAT(mcx_config.savedetflag) + SAVE_PPATH(mcx_config.savedetflag) +
