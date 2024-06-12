@@ -160,7 +160,7 @@ typedef struct MCXConfig {
     float4* detpos;               /**<detector positions and radius, overwrite detradius*/
 
     unsigned int maxgate;         /**<simultaneous recording gates*/
-    unsigned int respin;          /**<number of repeatitions (if positive), or number of divisions (if negative)*/
+    int respin;                   /**<number of repeatitions (if positive), or number of divisions (if negative)*/
     unsigned int printnum;        /**<number of printed threads (for debugging)*/
     int gpuid;                    /**<the ID of the GPU to use, starting from 1, 0 for auto*/
 

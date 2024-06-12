@@ -960,8 +960,11 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 #if defined(MCX_SRC_PLANAR) || defined(MCX_SRC_PATTERN) || defined(MCX_SRC_PATTERN3D) || defined(MCX_SRC_FOURIER) || defined(MCX_SRC_PENCILARRAY) /*a rectangular grid over a plane*/
         float rx = rand_uniform01(t);
         float ry = rand_uniform01(t);
-        float rz;
+
 #if defined(MCX_SRC_PATTERN3D)
+
+        float rz;
+
         rz = rand_uniform01(t);
         p[0] = (float4)(p[0].x + rx * gcfg->srcparam1.x,
                         p[0].y + ry * gcfg->srcparam1.y,
@@ -1169,8 +1172,8 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
             } else { // odd number length, interpolate between neigboring values
                 ang = fmin(rand_uniform01(t) * (GPU_PARAM(gcfg, nangle) - 1), GPU_PARAM(gcfg, nangle) - 1 - EPS);
                 sphi = ang - ((int)ang);
-                cphi = ((1.f - sphi) * (((__local float*)(sharedmem))[((int)ang >= GPU_PARAM(gcfg, nangle) - 1 ? GPU_PARAM(gcfg, nangle) - 1 : (int)(ang)) + GPU_PARAM(gcfg, nphaselen)]) +
-                        sphi * (((__local float*)(sharedmem))[((int)ang + 1 >= GPU_PARAM(gcfg, nangle) - 1 ? GPU_PARAM(gcfg, nangle) - 1 : (int)(ang) + 1) + GPU_PARAM(gcfg, nphaselen)]));
+                cphi = ((1.f - sphi) * (((__local float*)(sharedmem))[((uint)ang >= GPU_PARAM(gcfg, nangle) - 1 ? GPU_PARAM(gcfg, nangle) - 1 : (int)(ang)) + GPU_PARAM(gcfg, nphaselen)]) +
+                        sphi * (((__local float*)(sharedmem))[((uint)ang + 1 >= GPU_PARAM(gcfg, nangle) - 1 ? GPU_PARAM(gcfg, nangle) - 1 : (int)(ang) + 1) + GPU_PARAM(gcfg, nphaselen)]));
             }
 
             cphi *= ONE_PI; // next zenith angle computed based on angleinvcdf
@@ -1351,7 +1354,7 @@ __kernel void mcx_main_loop(__global const uint* media,
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    if (idx >= gcfg->threadphoton * (get_local_size(0) * get_num_groups(0)) + gcfg->oddphoton) {
+    if ((uint)idx >= gcfg->threadphoton * (get_local_size(0) * get_num_groups(0)) + gcfg->oddphoton) {
         return;
     }
 
@@ -1424,8 +1427,8 @@ __kernel void mcx_main_loop(__global const uint* media,
                 if (GPU_PARAM(gcfg, nphase) > 2) { // after padding the left/right ends, nphase must be 3 or more
                     tmp0 = rand_uniform01(t) * (GPU_PARAM(gcfg, nphase) - 1);
                     theta = tmp0 - ((int)tmp0);
-                    tmp0 = (1.f - theta) * ((__local float*)(sharedmem))[(int)tmp0   >= GPU_PARAM(gcfg, nphase) ? GPU_PARAM(gcfg, nphase) - 1 : (int)(tmp0)  ] +
-                           theta * ((__local float*)(sharedmem))[(int)tmp0 + 1 >= GPU_PARAM(gcfg, nphase) ? GPU_PARAM(gcfg, nphase) - 1 : (int)(tmp0) + 1];
+                    tmp0 = (1.f - theta) * ((__local float*)(sharedmem))[(uint)tmp0   >= GPU_PARAM(gcfg, nphase) ? GPU_PARAM(gcfg, nphase) - 1 : (int)(tmp0)  ] +
+                           theta * ((__local float*)(sharedmem))[(uint)tmp0 + 1 >= GPU_PARAM(gcfg, nphase) ? GPU_PARAM(gcfg, nphase) - 1 : (int)(tmp0) + 1];
                     theta = acos(tmp0);
                     stheta = MCX_MATHFUN(sin)(theta);
                     ctheta = tmp0;
