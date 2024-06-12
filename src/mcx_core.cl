@@ -367,7 +367,7 @@ uint finddetector(float4* p0, __constant float4* gdetpos, __constant MCXParam* g
     for (i = 0; i < GPU_PARAM(gcfg, detnum); i++) {
         if ((gdetpos[i].x - p0[0].x) * (gdetpos[i].x - p0[0].x) +
                 (gdetpos[i].y - p0[0].y) * (gdetpos[i].y - p0[0].y) +
-                (gdetpos[i].z - p0[0].z) * (gdetpos[i].z - p0[0].z) < gdetpos[i].w) {
+                (gdetpos[i].z - p0[0].z) * (gdetpos[i].z - p0[0].z) < gdetpos[i].w * gdetpos[i].w) {
             return i + 1;
         }
     }

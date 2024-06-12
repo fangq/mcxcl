@@ -1028,7 +1028,7 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
         cfg->nphase = (unsigned int)nphase + 2;
         cfg->invcdf = (float*)calloc(cfg->nphase, sizeof(float));
 
-        for (unsigned int i = 0; i < nphase; i++) {
+        for (int i = 0; i < nphase; i++) {
             cfg->invcdf[i + 1] = val[i];
 
             if ((i > 0 && val[i] < val[i - 1]) || val[i] > 1.f || val[i] < -1.f) {
@@ -1050,7 +1050,7 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
         cfg->nangle = (unsigned int)nangle;
         cfg->angleinvcdf = (float*)calloc(cfg->nangle, sizeof(float));
 
-        for (unsigned int i = 0; i < nangle; i++) {
+        for (int i = 0; i < nangle; i++) {
             cfg->angleinvcdf[i] = val[i];
 
             if ((i > 0 && val[i] < val[i - 1]) || val[i] > 1.f || val[i] < 0.f) {
