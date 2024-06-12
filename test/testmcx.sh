@@ -119,12 +119,12 @@ if [ -z "$temp" ]; then echo "fail to save photon seeds"; fail=$((fail+1)); else
 
 echo "test photon replay flag -E ... "
 rm -rf replaytest.*
-temp=`("$MCX" --bench cube60 -s replaytest -q 1 -S 0 $PARAM && "$MCX" --bench cube60 -E replaytest_detp.jdat -S 0 $PARAM) | sed 's/\x1b\[[0-9;]*m//g' | grep -o -E '(simulated|detected)\s+[0-9.]+ photons' | tail -2 | sed -e 's/^[a-z ]*//g' | sort | uniq -c | grep '^\s*2\s*\d*'`
+temp=`("$MCX" --bench cube60 -s replaytest -q 1 -S 0 $PARAM && "$MCX" --bench cube60 -E replaytest_detp.jdat -S 0 $PARAM) | sed $'s/\x1b\[[0-9;]*m//g' | grep -o -E '(simulated|detected)\s+[0-9.]+ photons' | tail -2 | sed -e 's/^[a-z ]*//g' | sort | uniq -c | grep '^\s*2\s*\d*'`
 if [ -z "$temp" ]; then echo "fail to run photon replay -E"; fail=$((fail+1)); else echo "ok"; fi
 
 echo "test photon replay ... "
 rm -rf replaytest.*
-temp=`("$MCX" --bench cube60 -s replaytest -q 1 -S 0 $PARAM && "$MCX" --bench cube60 -E replaytest_detp.jdat -S 0 $PARAM) | sed 's/\x1b\[[0-9;]*m//g' | grep -o -E 'absorbed:.*3[0-8]\.[0-9]+%'`
+temp=`("$MCX" --bench cube60 -s replaytest -q 1 -S 0 $PARAM && "$MCX" --bench cube60 -E replaytest_detp.jdat -S 0 $PARAM) | sed $'s/\x1b\[[0-9;]*m//g' | grep -o -E 'absorbed:.*3[0-8]\.[0-9]+%'`
 if [ -z "$temp" ]; then echo "fail to run photon replay"; fail=$((fail+1)); else echo "ok"; fi
 
 echo "test heterogeneous domain ... "
