@@ -479,8 +479,7 @@ float hitgrid(float4* p0, float4* v, short4* id) {
     float4 htime;
 
     //time-of-flight to hit the wall in each direction
-
-    htime = fabs(convert_float4(id[0]) - convert_float4(isgreater(v[0], ((float4)(0.f)))) - p0[0]);
+    htime = fabs(convert_float4_rtp(id[0]) - convert_float4_rtp(isgreater(v[0], ((float4)(0.f)))) - p0[0]);
     htime = fabs(native_divide(htime + (float4)EPS, v[0]));
 
     //get the direction with the smallest time-of-flight
