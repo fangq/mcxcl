@@ -409,7 +409,8 @@ cl_platform_id mcx_list_gpu(Config* cfg, unsigned int* activedev, cl_device_id* 
 */
 void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
-    cl_uint i, j, iter;
+    cl_uint i, j;
+    cl_int iter;
     cl_float  minstep = MIN(MIN(cfg->steps.x, cfg->steps.y), cfg->steps.z);
     cl_float t, twindow0, twindow1;
     cl_float fullload = 0.f;
