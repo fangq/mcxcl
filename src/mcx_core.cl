@@ -1748,10 +1748,14 @@ __kernel void mcx_main_loop(__global const uint* media,
             }
         }
 
+#if defined(MCX_DEBUG_MOVE_ONLY)
+
         if (mediaid == 0 || idx1d == OUTSIDE_VOLUME_MIN || idx1d == OUTSIDE_VOLUME_MAX) {
             printf("ERROR: should never happen! mediaid=%d idx1d=%X gcfg->doreflect=%d n1=%f n2=%f isdet=%d flipdir[3]=%d p=(%f %f %f)[%d %d %d]\n", mediaid, idx1d, GPU_PARAM(gcfg, doreflect), n1, prop.w, isdet, flipdir.w, p.x, p.y, p.z, flipdir.x, flipdir.y, flipdir.z);
             return;
         }
+
+#endif
 
 #endif
     }
