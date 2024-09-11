@@ -31,7 +31,7 @@ jobs:
         if: ${{ runner.os == 'macOS' }}
         run: |
           brew install octave
-          brew install upx
+          #brew install upx
       - name: Install dependencies (Windows only)
         if: ${{ runner.os == 'Windows' }}
         run: |
@@ -120,7 +120,7 @@ jobs:
         run: perl -e "print 'RELEASE_TAG='. lc('${{ runner.os }}-${{ runner.arch }}-github-latest')" >> $GITHUB_ENV
       - name: Zip mcxlabcl
         run: |
-          if [[ "$RUNNER_ARCH" != "ARM64" ]]; then
+          if [[ "$RUNNER_OS" != "macOS" ]]; then
             upx -9 mcxlabcl/mcxcl.mex* || true
           fi
           mv mcxlabcl/mcxcl.mex mcxlabcl/octave/${{ env.OCTAVE_ARCH }}
@@ -143,7 +143,7 @@ jobs:
       - name: Zip mcxcl
         run: |
           cd .. && pwd
-          if [[ "$RUNNER_ARCH" != "ARM64" ]]; then
+          if [[ "$RUNNER_OS" != "macOS" ]]; then
             upx -9 mcxcl/bin/*
           fi
           if [[ "$RUNNER_OS" == "Windows" ]]; then
