@@ -16,7 +16,7 @@ DOCDIR=../doc
 INCLUDEDIRS=-Izmat -Izmat/easylzma -I/usr/local/cuda/include -Iubj
 
 CUCCOPT:=
-CCOPT=-g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER 
+CCOPT=-g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER
 CPPOPT:=$(CCOPT) -Wno-variadic-macros
 CCOPT+=-std=c99
 
@@ -53,7 +53,7 @@ endif
 
 HAS_CUDA := $(shell [ -d $(CUDA_LIB) ] && echo "1" )
 ifeq ($(HAS_CUDA), 1)
-  CUCCOPT +=-DUSE_OS_TIMER #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope 
+  CUCCOPT +=-DUSE_OS_TIMER #-m32 -msse2 -Wfloat-equal -Wpointer-arith  -DATI_OS_LINUX -g3 -ffor-scope
   CCOPT +=-DUSE_OS_TIMER
   LIBOPENCLDIR=$(CUDA_LIB)/lib64
   ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
@@ -159,7 +159,7 @@ mex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
 OCT_LDFLAGS := $(shell mkoctfile -p LDFLAGS)
 
 oct:        BINARY=mcxcl.mex
-oct:        AR=XTRA_CFLAGS=' ' XTRA_CXXFLAGS=' ' CXXFLAGS='-std=c++11 $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LDFLAGS='$(OCT_LDFLAGS) -g -L$(LIBOPENCLDIR) $(LIBOPENCL)' DL_LDFLAGS='$(LDFLAGS) -g -L$(LIBOPENCLDIR) $(LIBOPENCL) $(MEXLINKOPT)' mkoctfile -v
+oct:        AR=XTRA_CFLAGS=' ' XTRA_CXXFLAGS=' ' CXXFLAGS='-std=c++11 $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LDFLAGS='$(OCT_LDFLAGS) -g -L$(LIBOPENCLDIR) $(LIBOPENCL)' mkoctfile -v
 oct:        LINKOPT=--mex -DMATLAB_MEX_FILE mcxlabcl.cpp $(INCLUDEDIRS) $(EXTRALIB)
 
 OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
