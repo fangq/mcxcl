@@ -14,7 +14,7 @@ jobs:
     name: Build All
     strategy:
       matrix:
-        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04, macos-12, macos-13, macos-14]
+        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04, macos-12, macos-13, macos-14, windows-2019]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -79,8 +79,6 @@ jobs:
             otool -L ../mcxlabcl/mcxcl.mex
           else
             PATH='/c/ProgramData/chocolatey/lib/octave.portable/tools/octave/mingw64/bin':$PATH
-            which g++
-            g++ -v
             make oct CC=gcc CXX=g++ LIBOPENCL='/c/Windows/System32/OpenCL.dll --verbose' MEXLINKOPT='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lm -Wl,-Bdynamic -v'
             objdump -p ../mcxlabcl/mcxcl.mex | grep "DLL Name:"
             make clean
