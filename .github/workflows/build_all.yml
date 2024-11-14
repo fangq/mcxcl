@@ -53,7 +53,7 @@ jobs:
           rm -rf octave_9.2.7z
           echo "$PWD/octave/octave-9.2.0-w64-64/mingw64/bin" >> $GITHUB_PATH
           choco install upx
-          choco install mingw --version=8.1.0
+          choco install mingw --version=13.2.0
           echo 'C:\ProgramData\Chocolatey\lib\mingw\tools\install\mingw64\bin\' >> $GITHUB_PATH
           echo 'MW_MINGW64_LOC=/c/ProgramData/Chocolatey/lib/mingw/tools/install/mingw64' >> $GITHUB_ENV
       - name: Install OpenCL.dll and static libraries (Windows only)
