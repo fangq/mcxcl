@@ -37,6 +37,8 @@ jobs:
           xattr -c Octave-*.dmg
           sudo hdiutil attach Octave-9.2-Intel.dmg
           sudo cp -a /Volumes/Octave\ 9.2/Octave-9.2.app /Applications
+          sudo hdiutil detach /Volumes/Octave\ 9.2
+          rm -rf Octave-9.2-Intel.dmg
           echo "/Applications/Octave-9.2.app/Contents/Resources/usr/Cellar/octave-octapp@9.2.0/9.2.0/bin" >> $GITHUB_PATH
       - name: Install dependencies (MacOS only)
         if: ${{ runner.os == 'macOS' && matrix.os == 'macos-14' }}
