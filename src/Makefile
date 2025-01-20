@@ -76,7 +76,7 @@ MKDIR      := mkdir
 
 MEXLINKLIBS=-L"\$$MATLABROOT/extern/lib/\$$ARCH" -L"\$$MATLABROOT/bin/\$$ARCH" -lmx -lmex
 
-FILES=mcx_host mcx_utils mcx_tictoc mcxcl mcx_shapes cjson/cJSON ubj/ubjw
+FILES=mcx_host mcx_utils mcx_tictoc mcxcl mcx_shapes mcx_neurojson cjson/cJSON ubj/ubjw
 CLPROGRAM=mcx_core
 
 ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)

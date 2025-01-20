@@ -37,6 +37,7 @@
 #include "mcx_const.h"
 #include "mcx_bench.h"
 #include "mcx_tictoc.h"
+#include "mcx_neurojson.h"
 
 #ifndef MCX_CONTAINER
     #include "zmat/zmatlib.h"
@@ -80,7 +81,7 @@
 char shortopt[] = {'h', 'i', 'f', 'n', 'm', 't', 'T', 's', 'a', 'g', 'b', 'B', 'D', '-', 'G', 'W', 'z',
                    'd', 'r', 'S', 'p', 'e', 'U', 'R', 'l', 'L', 'M', 'I', '-', 'o', 'k', 'v', 'J',
                    'A', 'P', 'E', 'F', 'H', 'K', 'u', '-', 'x', 'X', '-', 'w', '-', 'q', 'V', 'm',
-                   'Y', 'O', '-', '-', '-', '-', 'Z', 'j', '-', '\0'
+                   'Y', 'O', '-', '-', 'Q', '-', 'Z', 'j', '-', 'N', '\0'
                   };
 
 /**
@@ -98,7 +99,7 @@ const char* fullopt[] = {"--help", "--interactive", "--input", "--photon", "--mo
                          "--mediabyte", "--unitinmm", "--atomic", "--saveexit", "--saveref",
                          "--internalsrc", "--savedetflag", "--gscatter", "--saveseed", "--specular",
                          "--momentum", "--replaydet", "--outputtype", "--voidtime", "--showkernel",
-                         "--bench", "--dumpjson", "--zip", "--json", "--maxjumpdebug", ""
+                         "--bench", "--dumpjson", "--zip", "--json", "--maxjumpdebug", "--net", ""
                         };
 
 /**
@@ -4321,6 +4322,67 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
 
                     break;
 
+                case 'Q':
+                    if (i + 1 < argc && isalpha((int)argv[i + 1][0]) ) {
+                        int idx = mcx_keylookup(argv[++i], benchname);
+
+                        if (idx == -1) {
+                            MCX_ERROR(-1, "Unsupported bechmark.");
+                        }
+
+                        isinteractive = 0;
+                        jsoninput = (char*)benchjson[idx];
+                    } else {
+                        MCX_FPRINTF(cfg->flog, "Built-in benchmarks:\n");
+
+                        for (int i = 0; i < sizeof(benchname) / sizeof(char*) - 1; i++) {
+                            MCX_FPRINTF(cfg->flog, "\t%s\n", benchname[i]);
+                        }
+
+                        exit(0);
+                    }
+
+                    break;
+
+                case 'N':
+                    if (i == argc - 1 || argv[i + 1][0] == '-') {
+                        int j, doclen;
+                        char* jbuf = NULL;
+                        runcommand("curl -s -X GET 'https://neurojson.io:7777/mcx/_all_docs'", "", &jbuf);
+                        cJSON* root = cJSON_Parse(jbuf), *docs = cJSON_GetObjectItem(root, "rows"), *subitem, *tmp;
+
+                        if (!docs) {
+                            MCX_ERROR(-1, jbuf);
+                        }
+
+                        doclen = cJSON_GetArraySize(docs);
+                        subitem = docs->child;
+                        printf("Downloading %d simulations from NeuroJSON.io (https://neurojson.org/db/mcx)\n", doclen - 1);
+
+                        for (j = 0; j < doclen; j++) {
+                            if (strchr(FIND_JSON_KEY("id", "id", subitem, "", valuestring), '_') == NULL) {
+                                printf("\t%s\n", FIND_JSON_KEY("id", "id", subitem, "", valuestring));
+                            }
+
+                            subitem = subitem->next;
+                        }
+
+                        free(jbuf);
+                        exit(0);
+                    } else {
+                        if (strstr(argv[i + 1], "http") == argv[i + 1]) {
+                            runcommand("curl -s -X GET ", argv[i + 1], &jsoninput);
+                        } else if (strchr(argv[i + 1], '/')) {
+                            runcommand("curl -s -X GET https://neurojson.io:7777/", argv[i + 1], &jsoninput);
+                        } else {
+                            runcommand("curl -s -X GET https://neurojson.io:7777/mcx/", argv[i + 1], &jsoninput);
+                        }
+
+                        isinteractive = 2;
+                    }
+
+                    break;
+
                 case '-':  /*additional verbose parameters*/
                     if (strcmp(argv[i] + 2, "devicelist") == 0) {
                         i = mcx_readarg(argc, argv, i, cfg->deviceid, "string");
@@ -4352,25 +4414,6 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
                             i++;
                         } else {
                             i = mcx_readarg(argc, argv, i, &(cfg->isdumpjson), "int");
-                        }
-                    } else if (strcmp(argv[i] + 2, "bench") == 0) {
-                        if (i + 1 < argc && isalpha((int)argv[i + 1][0]) ) {
-                            int idx = mcx_keylookup(argv[++i], benchname);
-
-                            if (idx == -1) {
-                                MCX_ERROR(-1, "Unsupported bechmark.");
-                            }
-
-                            isinteractive = 0;
-                            jsoninput = (char*)benchjson[idx];
-                        } else {
-                            MCX_FPRINTF(cfg->flog, "Built-in benchmarks:\n");
-
-                            for (int i = 0; i < sizeof(benchname) / sizeof(char*) - 1; i++) {
-                                MCX_FPRINTF(cfg->flog, "\t%s\n", benchname[i]);
-                            }
-
-                            exit(0);
                         }
                     } else {
                         MCX_FPRINTF(cfg->flog, "unknown verbose option: --%s\n", argv[i] + 2);
@@ -4430,7 +4473,10 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
     }
 
     if (cfg->isgpuinfo != 2) { /*print gpu info only*/
-        if (isinteractive) {
+        if (isinteractive == 2 && jsoninput) {
+            mcx_readconfig(jsoninput, cfg);
+            free(jsoninput);
+        } else if (isinteractive) {
             mcx_readconfig((char*)"", cfg);
         } else if (jsoninput) {
             mcx_readconfig(jsoninput, cfg);
@@ -4582,8 +4628,11 @@ where possible parameters include (the first value in [*|*] is the default)\n\
                                if the string starts with '{', it is parsed as\n\
                                an inline JSON input file\n\
       or\n\
- --bench ['cube60','skinvessel',..] run a buint-in benchmark specified by name\n\
-                               run --bench without parameter to get a list\n\
+ -Q/--bench [cube60, skinvessel,...] run a buint-in benchmark specified by name\n\
+                               run -Q without parameter to get a list\n\
+ -N benchmark  (--net)         get benchmark from NeuroJSON.io, -N only to list\n\
+                               benchmark can be dataset URL,or dbname/benchname\n\
+                               requires 'curl', install from https://curl.se/\n\
 \n"S_BOLD S_CYAN"\
 == MC options ==\n"S_RESET"\
  -n [0|int]    (--photon)      total photon number (exponential form accepted)\n\
