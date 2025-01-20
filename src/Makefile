@@ -16,7 +16,7 @@ DOCDIR=../doc
 INCLUDEDIRS=-Izmat -Izmat/easylzma -I/usr/local/cuda/include -Iubj
 
 CUCCOPT:=
-CCOPT=-g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER
+CCOPT=-g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -DCL_SILENCE_DEPRECATION
 CPPOPT:=$(CCOPT) -Wno-variadic-macros
 CCOPT+=-std=c99
 
@@ -26,7 +26,7 @@ OUTPUTFLAG:=-o
 XXD=xxd
 
 ZMATLIB    :=lib/libzmat.a
-USERLINKOPT?=$(ZMATLIB)
+USERLINKOPT?=$(ZMATLIB) -lstdc++
 DOXYCFG=mcx_doxygen.cfg
 
 # setup for amd
