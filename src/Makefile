@@ -26,7 +26,7 @@ OUTPUTFLAG:=-o
 XXD=xxd
 
 ZMATLIB    :=lib/libzmat.a
-USERLINKOPT?=$(ZMATLIB) -lstdc++
+USERLINKOPT?=$(ZMATLIB)
 DOXYCFG=mcx_doxygen.cfg
 
 # setup for amd

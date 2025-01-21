@@ -14,7 +14,7 @@ jobs:
     name: Build All
     strategy:
       matrix:
-        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04, macos-12, macos-13, macos-14, windows-2019]
+        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04, macos-13, macos-14, windows-2019]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -121,7 +121,7 @@ jobs:
             make static USERARFLAGS="-Wl,-Bstatic -lm -Wl,-Bdynamic"
             ldd ../bin/mcxcl
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            make CC=gcc-12 CXX=g++-12 AR=g++-12
+            make CC=gcc-12 CXX=g++-12
             otool -L ../bin/mcxcl
           else
             make CC=gcc CXX=g++ USERARFLAGS="-Lc:/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/x86_64-w64-mingw32/lib -Lc:/ghcup/ghc/9.0.2/mingw/lib -Lc:/ghcup/ghc/9.0.2/mingw/x86_64-w64-mingw32/lib libzmat.a"

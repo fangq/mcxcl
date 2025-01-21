@@ -35,7 +35,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-void runcommand(char* cmd, char* param, char** output);
+int runcommand(char* cmd, char* param, char** output);
 
 #ifdef __cplusplus
 }
