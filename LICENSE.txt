@@ -2,7 +2,7 @@
 =                      Monte Carlo eXtreme (MCX) -- OpenCL                    =
 ===============================================================================
 
-Copyright (C) 2010-2024  Qianqian Fang <q.fang at neu.edu>
+Copyright (C) 2010-2025  Qianqian Fang <q.fang at neu.edu>
 
 -------------------------------------------------------------------------------
 

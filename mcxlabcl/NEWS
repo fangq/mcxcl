@@ -1,5 +1,59 @@
 Change Log
 
+== MCX-CL 1.6.0 (Harmonic), FangQ <q.fang at neu.edu> ==
+
+ 2025-01-23 [e22edad] [doc] update README.md for v2025 updates
+ 2025-01-23 [2a9476b] [feat] support reading pipe from command line with -f -
+ 2025-01-22 [febd932] [bug] fix incorrect per-voxel pathlength when mua->0, fangq/mcx#164
+ 2025-01-21 [3640d79] [bug] fix windows -N error
+ 2025-01-21 [44f63c0] [cmake] update cmake to add -N support
+ 2025-01-20 [6de71b0] [neurojson] avoid needing c++11, fix ci
+ 2025-01-20 [3cb78c4] [ci] fix mac warnings and errors
+ 2025-01-20 [29b0f3b] [feat] add -N/--net to download simulations from NeuroJSON.io, add -Q
+ 2024-11-13 [57f22bc] [ci] upgrade mingw on windows for octave 9.2
+ 2024-11-13 [96b8dbc] [ci] speedup macos-13 and windows octave download
+ 2024-11-13 [299b920] [ci] add install octave using dmg
+ 2024-11-13 [f8bb370] [ci] add windows octave mex build back
+ 2024-09-30 [0f642c3] [pmcxcl] bump pmcxcl version to 0.2.1 to include fix in fangq/mcx#233
+ 2024-09-29 [42917da] [bug] fix incorrect angleinvcdf and invcdf length, fangq/mcx#233
+ 2024-09-14 [8b20177] [ci] add back macos-12
+ 2024-09-14 [f15814c] [ci] revert pybind11 version further for python3.6
+ 2024-09-14 [d3baf8c] [ci] add ubuntu-24.04 and macos-14
+ 2024-09-14 [e2fa087] [ci] remove DL_LDFLAGS
+ 2024-09-14 [dd99f92] [ci] macos ci fails with -shared
+ 2024-09-14 [7a3e4aa] [ci] test without macos-14
+ 2024-09-13 [4b9e21b] [bug] fix the potential typo in Custo et al for CSF mua, fangq/mcx#232
+ 2024-09-11 [c13dcf2] [ci] remove upx as github disabled upx for macos
+ 2024-09-11 [2191885] [ci] allow make oct to link with OpenCL on macos
+ 2024-09-03 [7c57318] [ci] fix action alert related to download-artifact https://github.com/NeuroJSON/zmat/security/dependabot/1
+ 2024-08-20 [8f84acf] [ci] use gcc-12 on macos runner
+ 2024-08-18 [d7defeb] [bug] fix lzma memory leakage, NeuroJSON/zmat#11, lloyd/easylzma#4
+ 2024-07-19 [9c86f6b] [bug] fix multi-gpu serialization bug on nvidia GPUs the bug was introduced in https://github.com/fangq/mcxcl/commit/9b4d76f03d86c2c9f3f449e340925649d4514379
+ 2024-06-12 [953c4e9] [ci] remove compiler warnings
+ 2024-06-12 [57612d0] [test] make mcxcl pass all tests on Alder lake Intel iGPU
+ 2024-06-12 [4609451] [bug] detector radius is not squared, fix #58
+ 2024-06-11 [2b91626] [intel] pass all tests and remove all warnings on old i7-2635QM on mac
+ 2024-06-11 [59d88a0] [test] sync test script between mcx and mcxcl after #57
+ 2024-06-11 [88899f9] [bug] reset replay.tof when tof too big, improve replay test, fix #57
+ 2024-06-09 [6e91fe3] [opencl] optimizing thread number on Apple silicon, gain 7x speedup
+ 2024-06-09 [c2bbf7f] [ci] test on macos-13
+ 2024-06-09 [7b558a4] [bug] fix colin27 failure on Apple silicon, fix #49
+ 2024-06-08 [93c589c] [ci] trying to fix macos-12 build
+ 2024-06-08 [9e84ecc] [bug] apply the same patch to ensure shared mem reset, fangq/mcx#222
+ 2024-06-08 [1154916] [bug] fix missing nscat output due to incorrect macro, fix #56
+ 2024-06-05 [8918150] [bug] add missing --maxjumpdebug flag, accept float, fix #54
+ 2024-06-04 [4b00f6d] [bug] fix double fclose error, close #53
+ 2024-04-25 [027cc55] [bug] avoid double-base64-encoding when -Z 2 is used, fangq/mcx#219
+ 2024-03-29 [cbfa564] [ci] modify DL_LDFLAGS
+ 2024-03-29 [ac879dc] [ci] revert LDFLAGS changes to compare difference on macos-12
+ 2024-03-29 [d175187] [ci] print verbose mkoctfile log to debug macos-12
+ 2024-03-29 [334c882] [package] copy LFLAGS to LDFLAGS, close #50
+ 2024-03-14 [629ab55] [release] bump pmcxcl to 0.2.0, update README for v2024.2
+ 2024-03-13 [059a975] [ci] disable upx for macos-14, #48
+ 2024-03-13 [541b903] [ci] try building mcxcl mex on macos-14 using R2023b
+ 2024-03-13 [c455fba] [ci] use R2023b for macos-14
+ 2024-03-13 [858ef22] [ci] skip matlab mex build on macos-14 due to matlab-actions/setup-matlab#100
+
 == MCX-CL 1.2.0 (Genesis), FangQ <q.fang at neu.edu> ==
 
  2024-02-29 [580cb27] [format] reformat all MATLAB codes with miss_hit

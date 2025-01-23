@@ -4440,6 +4440,7 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
     if (issavelog == 0) {
         cfg->printnum = -1;
     }
+
     if (issavelog > 0) {
         sprintf(logfile, "%s.log", (strlen(cfg->session) ? cfg->session : "unnamed"));
         cfg->flog = fopen(logfile, "wt");
@@ -4608,8 +4609,8 @@ void mcx_printheader(Config* cfg) {
     MCX_FPRINTF(cfg->flog, S_BLUE"\
 ==============================================================================\n\
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =\n\
-=          Copyright (c) 2010-2024 Qianqian Fang <q.fang at neu.edu>         =\n\
-=" S_CYAN "                https://mcx.space/  &  https://neurojson.io/                " S_BLUE "=\n\
+=          Copyright (c) 2010-2025 Qianqian Fang <q.fang at neu.edu>         =\n\
+=" S_CYAN "                https://mcx.space/  &  https://neurojson.io                 " S_BLUE "=\n\
 =                                                                            =\n\
 = Computational Optics&Translational Imaging (COTI) Lab - " S_CYAN "http://fanglab.org " S_BLUE "=\n\
 =   Department of Bioengineering, Northeastern University, Boston, MA, USA   =\n\
@@ -4622,7 +4623,7 @@ void mcx_printheader(Config* cfg) {
 =Please visit our free scientific data sharing portal at " S_CYAN "https://neurojson.io" S_BLUE "=\n\
 = and consider sharing your public datasets in standardized JSON/JData format=\n\
 ==============================================================================\n\
-$Rev::4fdc45$" S_CYAN MCX_VERSION S_BLUE " $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
+$Rev::4fdc45 $ " S_CYAN MCX_VERSION S_BLUE " $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
 ==============================================================================\n"S_RESET);
 }
 
@@ -4633,7 +4634,7 @@ usage: %s <param1> <param2> ...\n\
 where possible parameters include (the first value in [*|*] is the default)\n\
 \n"S_BOLD S_CYAN"\
 == Required option ==\n"S_RESET"\
- -f config     (--input)       read an input file in the .json format,if config\n\
+ -f config.json  (--input)     read an input file in the .json format,if config\n\
                                string starts with '{',it is parsed as an inline\n\
                                JSON input file; if -f is followed by nothing or\n\
                                a single '-', it reads input from stdin via pipe\n\
@@ -4825,9 +4826,9 @@ where possible parameters include (the first value in [*|*] is the default)\n\
                                stored (default: 1e7)\n\
 \n"S_BOLD S_CYAN"\
 == Example ==\n"S_RESET"\
-example: (list built-in benchmarks: -Q/--net)\n"S_MAGENTA"\
+example: (list built-in benchmarks: -Q/--bench)\n"S_GREEN"\
        %s -Q\n" S_RESET"\
-or (list supported GPUs on the system: -L/--listgpu)\n"S_MAGENTA"\
+or (list supported GPUs on the system: -L/--listgpu)\n"S_GREEN"\
        %s -L\n" S_RESET"\
 or (use multiple devices - 1st,2nd and 4th GPUs - together with equal load)\n"S_GREEN"\
        %s -Q cube60b -n 1e7 -G 1101 -W 10,10,10\n" S_RESET"\
@@ -4837,13 +4838,13 @@ or (use inline json setting modifier)\n"S_GREEN"\
        %s -f input.json -j '{\"Optode\":{\"Source\":{\"Type\":\"isotropic\"}}}'\n" S_RESET"\
 or (dump simulation in a single json file)\n"S_GREEN"\
        %s -Q cube60planar --dumpjson\n" S_RESET"\
-or (use -N/--net to browse community-contributed mcxcl simulations at https://neurojson.io)\n"S_MAGENTA"\
+or (use -N/--net to browse community-contributed mcxcl simulations at https://neurojson.io)\n"S_GREEN"\
        %s -N\n" S_RESET"\
-or (run user-shared mcxcl simulations, see full list at https://neurojson.org/db/mcx)\n"S_MAGENTA"\
+or (run user-shared mcxcl simulations, see full list at https://neurojson.org/db/mcx)\n"S_GREEN"\
        %s -N aircube60\n" S_RESET"\
-or (use -f - to read piped input file modified by shell text processing utilities)\n"S_MAGENTA"\
+or (use -f - to read piped input file modified by shell text processing utilities)\n"S_GREEN"\
        %s -Q cube60 --dumpjson | sed -e 's/pencil/cone/g' | %s -f -\n" S_RESET"\
-or (download/modify simulations from NeuroJSON.io and run with mcxcl -f)\n"S_MAGENTA"\
+or (download/modify simulations from NeuroJSON.io and run with mcxcl -f)\n"S_GREEN"\
        curl -s -X GET https://neurojson.io:7777/mcx/aircube60 | jq '.Forward.Dt = 1e-9' | %s -f" S_RESET"\n",
            exename, exename, exename, exename, exename, exename, exename, exename, exename, exename, exename, exename);
 }
