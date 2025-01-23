@@ -2,7 +2,7 @@
 
 - **Author:** Qianqian Fang (q.fang at neu.edu)
 - **License:** GNU General Public License version 3 (GPLv3)
-- **Version:** 1.2 (Genesis)
+- **Version:** 1.6 (Harmonic)
 - **Website:** [ https://mcx.space]( https://mcx.space)
 
 ![Mex and Binaries](https://github.com/fangq/mcxcl/actions/workflows/build_all.yml/badge.svg)\
@@ -45,83 +45,89 @@ Table of Contents:
 What's New
 -------------
 
-MCX-CL v2024.2 contains both new major features and critical bug fixes.
-It is a strongly recommended upgrade for all users.
+MCX-CL v2025 is a maintenance release with multiple bug fixes and minor new features.
+It is highly recommended to upgrade for all users.
 
-Specifically, MCX-CL v2024.2 received two important features ported from MCX:
+Notable major bug fixes include
+* a high priority bug fangq/mcx#222, introduced in 198cd34, was fixed. this bug affects all simulations
+  since v2023. Particularly, when a photon has a long pathlength, with weight drops to numerical 0,
+  its pathlength data is carried in the immediately launched new photon, causing skews in the
+  detected photon pathlength distributions
+* multi-GPU simulations was not working (serialized) in v2024.2, this has been fixed
+* further updates to the handling of low absorption medium (fangq/mcx#164), previously affect not-so-low mua values
+* fix incorrect angleinvcdf and invcdf buffer length, ported from fangq/mcx#233
+* fix missing nscat output due to incorrect macro, fix #56
+* add missing --maxjumpdebug flag, accept float, fix #54
+* avoid double-base64-encoding when -Z 2 is used, fangq/mcx#219
+* for all brain related simulations, we have updated the CSF mua value of 0.004/mm that was
+  previously used in Custo et al. 2006 paper to 0.0004/mm, matching its upstream reference Strangman et al. 2003.
+  However, we want to highlight that both literature may not provide the best mua value for CSF - as such low
+  mua/mus CSF properties are mostly for CSF in the inner part of the brain, but not representiative to those in
+  the subarachnoid space. A few literature have shown that CSF in the subarachnoid space may have a higher
+  mus' value, in the range between 0.16/mm to 0.32/mm, as shown in Okada et al. 2003
 
-* user-defined scattering phase function (fangq/mcx#129) and
-* user-defined photon launch angle distribution (fangq/mcx#13)
+* [Okada_2003] E. Okada and D. T. Delpy, “Near-infrared light propagation in an adult head model. I. Modeling of low-level scattering in the cerebrospinal fluid layer,” Applied Optics 42, 2906–2914 (2003)
+* [Custo_2006] A. Custo, W. M. Wells III., A. H. Barnett, et al., “Effective scattering coefficient of the cerebral spinal fluid in adult head models for diffuse optical imaging,” Applied Optics 45, 4747 (2006)
+* [Strangman_2003] G. Strangman, M. A. Franceschini, and D. A. Boas, “Factors affecting the accuracy of near-infrared spectroscopy concentration calculations for focal changes in oxygenation parameters,” NeuroImage 18, 865–879 (2003)
 
-The first feature allows users to define a scattering zenith angle distribution
-via a discretized inverse CDF (cumulative distribution function). The
-second feature allows users to define the zenith angle distribution for
-launching a photon, relative to the source-direction vector, also via
-a discretized inverse CDF. In MATLAB/Octave, they can be set as
-`cfg.invcdf` or `cfg.angleinvcdf`, respectively. We provided ready-to-use
-demo scripts in `mcxlabcl/examples/demo_mcxlab_phasefun.m` and
-`demo_mcxlab_launchangle.m`.
+In addition, in this release, we also added the following key new features
 
-Additionally, in this release, we further improved the simulations when
-using Intel CPU or integrated GPU.
+* optimize thread configurations on Apple processors (M1/M2/M3/M4) and achieve 7x speed acceleration
+* the new `-N/--net` command line flag allows one to browse and run growing number of community-contributed
+  simulations hosted on https://neurojson.io (one can browse the list at https://neurojson.org/db/mcx)
+* mcx can read stdin (standard input) using pipe, allow one to use advanced text processing utilities in the shell,
+  such as `sed, perl, jq` to modify JSON inputs at runtime. For example `mcx -N cube60 | jq '.Forward.Dt=1e-10' | mcx -f`
+* a new shortcut option `-Q` for `--bench` to conveniently browse and run built-in benchmarks
+* mcxlabcl and pmcxcl cam set `cfg.flog=1` or 0 to disable printing of mcxcl banner
 
-Aside from new features, a severe bug was discovered that affects all 
-`pattern` and `pattern3d` simulations that do not use photon-sharing, 
-please see
-
-https://github.com/fangq/mcx/issues/212
-
-Because of this bug, MCX/MCX-CL in older releases has been simulating squared
-pattern/pattern3d data instead of the pattern itself. If your simulation
-uses these two source types and you do not use photon-sharing (i.e. simulating
-multiple patterns together), please upgrade your MCX/MCX-CL and rerun your
-simulations. This bug only affect volumetric fluence/flux outputs; it does not
-affect diffuse reflectance outputs or binary patterns.
-
-We also ported a bug fix from fangq/mcx#195 regarding precision loss when
-saving diffuse reflectance. Finally, starting from this release, we are providing
-native binary packages built for Apple M1/M2 (arm64) processors. All Apple silicon
-packages are labeled with `macos-arm64` in the package names.
-
-We want to thank Haohui Zhang for reporting a number of critical issues
-(fangq/mcx#195 and fangq/mcx#212). ShijieYan and fanyuyen have also contributed
-to the bug fixes and improvements.
 
 The detailed updates can be found in the below change log
 
-* 2024-03-12 [1fc8286] [ci] building binaries on Apple M1 macos-14 runner
-* 2024-03-12 [bf89aff] [ci] update nightly build script
-* 2024-03-08 [4891c72] [ci] remove mcxlabcl gcc warnings
-* 2024-03-05 [80551a4] [bug] remove duplicated and overwritten cfg initialization
-* 2024-03-04 [84c64ec] [bug] fix cuda core count for Ada and Blackwell
-* 2024-03-01 [1e56f5b] [doc] update documentation for v2024.2
-* 2024-03-01 [d4fb874] [ci] bump pmcxcl to v0.1.6
-* 2024-03-01 [0d9f77f] [doc] update neurojson website url to https://neurojson.io
-* 2024-02-29 [580cb27] [format] reformat all MATLAB codes with miss_hit
-* 2024-02-29 [ce1d374] [bug] fixes to pass tests on Intel CPU, AMD GPU and pthread-AMD
-* 2024-02-29 [2f70174] [bug] free ginvcdf and gangleinvcdf buffers
-* 2024-02-29 [9aee8ce] [bug] fix many errors after testing, still need to fix replay
-* 2024-02-29 [b82c856] [feat] add missing demo scripts
-* 2024-02-29 [21e1e72] \*[feat] port scattering and launch angle invcdf from fangq/mcx#129 fangq/mcx#13
-* 2024-02-28 [90a28f3] [ci] remove macos-11 as brew fails for octave, Homebrew/brew#16209
-* 2024-02-28 [fbe270b] [pmcxcl] bump pmcxcl to 0.1.4 after fixing fangq/mcx#212
-* 2024-02-27 [4e1ec7f] [ci] fix windows cmake zlib error, fix mac libomp error
-* 2024-02-27 [3d18b78] \*[bug] fix critical bug, squaring pattern/pattern3d, fangq/mcx#212
-* 2023-11-10 [26ec422] [ci] install mingw 8.1 for matlab mex build, matlab-actions/setup-matlab#75
-* 2023-11-10 [5a96d02] [ci] set MW_MINGW64_LOC to octave bunded mingw, matlab-actions/setup-matlab#75
-* 2023-10-31 [337c51c] [bug] apply fangq/mcx#195 fix to avoid dref accuracy loss
-* 2023-10-29 [3b01475] further simplify bc handling, #47
-* 2023-10-29 [f816140] latest matlab fails to respect MW_MINGW64_LOC on windows, use R2022a
-* 2023-10-29 [adc0316] simplify boundary condition handling, fix #47
-* 2023-10-07 [04a7155] bump pmcxcl to 0.1.3
-* 2023-10-07 [e930448] remove opencl jit warnings, adjust optlevel order
-* 2023-10-07 [1a30e5c] update copyright dates
-* 2023-10-07 [dcdb117] fix unitinmm double-scaling bug, close #46, close #45
-* 2023-10-03 [fa8dbb2] fix bc mcxlab/pmcxcl memory error,fangq/mcx#191,fangq/mcx#192
-* 2023-09-29 [aa5da8c] fix -F flag overwrite bug
-* 2023-09-26 [507b37b] fix continuous media scaling issue,pmcxcl 0.1.2, fangq/mcx#185
-* 2023-09-26 [378f4eb] fix group load balancing for --optlevel 4
-* 2023-09-24 [07bc297] additional patch to handle half-formatted cont. media
+* 2025-01-23 [2a9476b] [feat] support reading pipe from command line with -f -
+* 2025-01-22 [febd932] [bug] fix incorrect per-voxel pathlength when mua->0, fangq/mcx#164
+* 2025-01-21 [3640d79] [bug] fix windows -N error
+* 2025-01-21 [44f63c0] [cmake] update cmake to add -N support
+* 2025-01-20 [6de71b0] [neurojson] avoid needing c++11, fix ci
+* 2025-01-20 [3cb78c4] [ci] fix mac warnings and errors
+* 2025-01-20 [29b0f3b] [feat] add -N/--net to download simulations from NeuroJSON.io, add -Q
+* 2024-11-13 [d79f6ed] [ci] remove mac local file
+* 2024-11-13 [96b8dbc] [ci] speedup macos-13 and windows octave download
+* 2024-11-13 [299b920] [ci] add install octave using dmg
+* 2024-11-13 [f8bb370] [ci] add windows octave mex build back
+* 2024-09-30 [0f642c3] [pmcxcl] bump pmcxcl version to 0.2.1 to include fix in fangq/mcx#233
+* 2024-09-29 [42917da] [bug] fix incorrect angleinvcdf and invcdf length, fangq/mcx#233
+* 2024-09-14 [f15814c] [ci] revert pybind11 version further for python3.6
+* 2024-09-14 [d3baf8c] [ci] add ubuntu-24.04 and macos-14
+* 2024-09-14 [e2fa087] [ci] remove DL_LDFLAGS
+* 2024-09-14 [dd99f92] [ci] macos ci fails with -shared
+* 2024-09-14 [7a3e4aa] [ci] test without macos-14
+* 2024-09-13 [4b9e21b] [bug] fix the potential typo in Custo et al for CSF mua, fangq/mcx#232
+* 2024-09-11 [c13dcf2] [ci] remove upx as github disabled upx for macos
+* 2024-09-11 [2191885] [ci] allow make oct to link with OpenCL on macos
+* 2024-09-03 [7c57318] [ci] fix action alert related to download-artifact https://github.com/NeuroJSON/zmat/security/dependabot/1
+* 2024-08-20 [8f84acf] [ci] use gcc-12 on macos runner
+* 2024-08-18 [d7defeb] [bug] fix lzma memory leakage, NeuroJSON/zmat#11, lloyd/easylzma#4
+* 2024-07-19 [9c86f6b] [bug] fix multi-gpu serialization bug on nvidia GPUs the bug was introduced in https://github.com/fangq/mcxcl/commit/9b4d76f03d86c2c9f3f449e340925649d4514379
+* 2024-06-12 [953c4e9] [ci] remove compiler warnings
+* 2024-06-12 [57612d0] [test] make mcxcl pass all tests on Alder lake Intel iGPU
+* 2024-06-12 [4609451] [bug] detector radius is not squared, fix #58
+* 2024-06-11 [2b91626] [intel] pass all tests and remove all warnings on old i7-2635QM on mac
+* 2024-06-11 [59d88a0] [test] sync test script between mcx and mcxcl after #57
+* 2024-06-11 [88899f9] [bug] reset replay.tof when tof too big, improve replay test, fix #57
+* 2024-06-09 [6e91fe3] [opencl] optimizing thread number on Apple silicon, gain 7x speedup
+* 2024-06-09 [c2bbf7f] [ci] test on macos-13
+* 2024-06-09 [7b558a4] [bug] fix colin27 failure on Apple silicon, fix #49
+* 2024-06-08 [93c589c] [ci] trying to fix macos-12 build
+* 2024-06-08 [9e84ecc] [bug] apply the same patch to ensure shared mem reset, fangq/mcx#222
+* 2024-06-08 [1154916] [bug] fix missing nscat output due to incorrect macro, fix #56
+* 2024-06-05 [8918150] [bug] add missing --maxjumpdebug flag, accept float, fix #54
+* 2024-06-04 [4b00f6d] [bug] fix double fclose error, close #53
+* 2024-04-25 [027cc55] [bug] avoid double-base64-encoding when -Z 2 is used, fangq/mcx#219
+* 2024-03-29 [cbfa564] [ci] modify DL_LDFLAGS
+* 2024-03-29 [ac879dc] [ci] revert LDFLAGS changes to compare difference on macos-12
+* 2024-03-29 [d175187] [ci] print verbose mkoctfile log to debug macos-12
+* 2024-03-29 [334c882] [package] copy LFLAGS to LDFLAGS, close #50
+
 
 Introduction
 -------------
