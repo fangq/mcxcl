@@ -1,4 +1,4 @@
-![](http://mcx.space/img/mcx18_banner.png)
+![](https://mcx.space/img/mcx_wiki_banner.png)
 
 # PMCX-CL - Python bindings for Monte Carlo eXtreme (OpenCL) photon transport simulator
 
