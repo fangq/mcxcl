@@ -1,4 +1,4 @@
-function h = image3i(im, ij2xyz, handle)
+function h = image3i(im, ij2xyz, handle, keepxyz)
 % Display a 2-D image in Matlab xyz 3-D space
 % h = image3i(C, IJ2XYZ, handle)
 %
@@ -109,6 +109,13 @@ else
     error('Only scalar and RGB images supported');
 end
 
+if (nargin >= 4 && handle ~= 0 && keepxyz)
+    set(handle, 'CData', im);
+    h = handle;
+    set(gcf, 'renderer', 'opengl');
+    return
+end
+
 % Create the slice
 [uu, vv] = ndgrid(0:stepsize:1, 0:stepsize:1);
 % ij2xyz refers to voxel centers. Therefore we need to
@@ -128,7 +135,7 @@ z = ij2xyz(3, 1) * iidx + ij2xyz(3, 2) * jidx + +ij2xyz(3, 3);
 if nargin < 3 || handle == 0
     % Make a new surface
     h = surface('XData', x, 'YData', y, 'ZData', z, ...
-                'CData', im, ...
+                'CData', double(im), ...
                 'FaceColor', 'texturemap', ...
                 'EdgeColor', 'none', ...
                 'LineStyle', 'none', ...
@@ -138,7 +145,7 @@ if nargin < 3 || handle == 0
                 'CDataMapping', 'direct');
 else
     % Reuse old surface
-    set(handle, 'XData', x, 'YData', y, 'ZData', z, 'CData', im);
+    set(handle, 'XData', x, 'YData', y, 'ZData', z, 'CData', double(im));
     h = handle;
 end
 

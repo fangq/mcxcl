@@ -75,7 +75,7 @@ set(hfig, 'name', ['MCX Viewer (mcxplotvol) ' fname]);
 set(hfig, 'NumberTitle', 'off');
 set(gca, 'UserData', guidata);
 
-helpinfo = sprintf('Drag mouse left-btn  to move slices;\r Click and drag mouse mid-btn to rotate; \rDrag right-key up-down to change color level;\rUp-arrow key :next time-gate; \rDown-arrow key:prev time-gate');
+helpinfo = sprintf('Drag slice using left-btn to move slices; Click with mouse mid-btn to start rotation; Drag right-key up-down to change color level; Up-arrow key :next time-gate; Down-arrow key:prev time-gate');
 
 helpbtn = uicontrol('Parent', hfig, 'Style', 'pushbutton', 'String', 'Help', 'Units', 'points', 'Position', [10 10 50 20], 'Visible', 'on', 'Callback', @showhelp);
 
@@ -104,8 +104,7 @@ switch (event.Key)
 end
 
 if (newframe > 0 && newframe ~= guidata.frame)
-    delete(guidata.handles);
-    guidata.handles = islicer(guidata.data(:, :, :, newframe));
+    guidata.handles = islicer(guidata.data(:, :, :, newframe), eye(4), guidata.handles, 1);
     xlabel(sprintf('x (frame=%d of %d)', newframe, size(guidata.data, 4)));
     guidata.frame = newframe;
     set(gca, 'UserData', guidata);

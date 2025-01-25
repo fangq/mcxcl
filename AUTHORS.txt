@@ -8,6 +8,6 @@ Address: Dept. of Bioengineering
 URL: http://fanglab.org
 Email: <q.fang at neu.edu>
 
-MCX-CL Website : http://mcx.space/mcxcl
-MCX Wiki:        http://mcx.space/wiki
-Source Code:     http://github.com/fangq/mcxcl
+MCX-CL Website : https://mcx.space/mcxcl
+MCX Wiki:        https://mcx.space/wiki
+Source Code:     https://github.com/fangq/mcxcl

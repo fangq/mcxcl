@@ -23,11 +23,12 @@ function [data, headerstruct, photonseed] = loadmch(fname, format, endian)
 %                when the exit photon position/dir are recorded, 6 additional columns
 %                are inserted before the last column, first 3 columns represent the
 %                exiting position (x/y/z); the next 3 columns are the dir vector (vx/vy/vz).
+%                in polarized photon simulation, the last 4 colums are the exit Stokes vector.
 %                in other words, data is stored in the follow format
-%                    [detid(1) nscat(M) ppath(M) mom(M) p(3) v(3) w0(1)]
+%                    [detid(1) nscat(M) ppath(M) mom(M) p(3) v(3) w0(1) s(4)]
 %        header: file header info, a structure has the following fields
 %                [version,medianum,detnum,recordnum,totalphoton,detectedphoton,
-%                 savedphoton,lengthunit,seedbyte,normalizer,respin,srcnum,savedetflag]
+%                 savedphoton,lengthunit,seedbyte,normalizer,respin,srcnum,savedetflag,totalsource]
 %        photonseed: (optional) if the mch file contains a seed section, this
 %                returns the seed data for each detected photon. Each row of
 %                photonseed is a byte array, which can be used to initialize a
@@ -71,17 +72,22 @@ while (~feof(fid))
     respin = fread(fid, 1, 'int');
     srcnum = fread(fid, 1, 'uint');
     savedetflag = fread(fid, 1, 'uint');
-    junk = fread(fid, 2, 'uint');
+    totalsource = fread(fid, 1, 'uint');
+    junk = fread(fid, 1, 'uint');
 
-    detflag = dec2bin(bitand(savedetflag, 63)) - '0';
-    datalen = [1 hd(2) hd(2) hd(2) 3 3 1];
+    detflag = dec2bin(bitand(savedetflag, (2^8 - 1))) - '0';
+    if (strcmp(endian, 'ieee-le'))
+        detflag = fliplr(detflag);
+    end
+
+    datalen = [1 hd(2) hd(2) hd(2) 3 3 1 4];
     datlen = detflag .* datalen(1:length(detflag));
 
     dat = fread(fid, hd(7) * hd(4), format);
     dat = reshape(dat, [hd(4), hd(7)])';
     if (savedetflag && length(detflag) > 2 && detflag(3) > 0)
         dat(:, sum(datlen(1:2)) + 1:sum(datlen(1:3))) = dat(:, sum(datlen(1:2)) + 1:sum(datlen(1:3))) * unitmm;
-    else
+    elseif (savedetflag == 0)
         dat(:, 2 + hd(2):(1 + 2 * hd(2))) = dat(:, 2 + hd(2):(1 + 2 * hd(2))) * unitmm;
     end
     data = [data; dat];
@@ -116,5 +122,5 @@ if (nargout >= 2)
                           'recordnum', header(4), 'totalphoton', header(5), ...
                           'detectedphoton', header(6), 'savedphoton', header(7), ...
                           'lengthunit', header(8), 'seedbyte', seedbyte, 'normalizer', normalizer, ...
-                          'respin', respin, 'srcnum', srcnum, 'savedetflag', savedetflag);
+                          'respin', respin, 'srcnum', srcnum, 'savedetflag', savedetflag, 'totalsource', totalsource);
 end
