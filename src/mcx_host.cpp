@@ -323,7 +323,7 @@ cl_platform_id mcx_list_gpu(Config* cfg, unsigned int* activedev, cl_device_id* 
                         } else if (strstr(cuinfo.name, "Intel") && strstr(cuinfo.name, "Graphics") && j == 0) {
                             cuinfo.autoblock = 64;
                             cuinfo.vendor = dvIntelGPU;
-                        } else if (strstr(cuinfo.name, "Intel")) {
+                        } else if (strstr(pbuf, "Intel" || strstr(cuinfo.name, "Intel"))) {
                             cuinfo.vendor = dvIntel;
                         }
 
