@@ -182,7 +182,8 @@ jobs:
       - name: Download mcxcl
         uses: actions/download-artifact@v4
         with:
-          name: all-mcxlabcl-packages-*
+          pattern: all-mcxlabcl-packages-*
+          merge-multiple: true
           path: packages
       - name: Create all-in-one mcxlabcl package
         run: |

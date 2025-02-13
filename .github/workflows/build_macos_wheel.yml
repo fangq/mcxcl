@@ -48,7 +48,7 @@ jobs:
       - name: Prepare Wheels for Upload
         uses: actions/upload-artifact@v4
         with:
-          name: macos-wheels
+          name: macos-wheels-${{ matrix.python_version }}
           path: dist/
 
   upload_macos_wheels:
@@ -59,7 +59,8 @@ jobs:
       - name: Download Wheels from Build Job
         uses: actions/download-artifact@v4
         with:
-          name: macos-wheels
+          pattern: macos-wheels-*
+          merge-multiple: true
           path: dist/
       - name: Upload packages to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
