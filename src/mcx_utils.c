@@ -3983,7 +3983,8 @@ int mcx_remap(char* opt) {
 
 void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
     int i = 1, isinteractive = 1, showkernel = 0, len;
-    char filename[MAX_PATH_LENGTH] = {0}, *jsoninput = NULL, issavelog = -1;
+    char filename[MAX_PATH_LENGTH] = {0}, *jsoninput = NULL;
+    int issavelog = -1;
     char logfile[MAX_PATH_LENGTH] = {0};
     float np = 0.f;
 
@@ -4129,7 +4130,7 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
                     break;
 
                 case 'l':
-                    i = mcx_readarg(argc, argv, i, &issavelog, "char");
+                    i = mcx_readarg(argc, argv, i, &issavelog, "int");
                     break;
 
                 case 'L':

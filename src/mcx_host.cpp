@@ -27,7 +27,7 @@
 
 cl_event kernelevent;
 
-const char* VendorList[] = {"Unknown", "NVIDIA", "AMD", "Intel", "IntelGPU", "AppleCPU", "AppleGPU"};
+const char* VendorList[] = {"Unknown", "NVIDIA", "AMD", "Intel", "IntelGPU", "AppleCPU", "AppleGPU", "ArmGPU"};
 
 const char* sourceflag[] = {"-DMCX_SRC_PENCIL", "-DMCX_SRC_ISOTROPIC", "-DMCX_SRC_CONE",
                             "-DMCX_SRC_GAUSSIAN", "-DMCX_SRC_PLANAR", "-DMCX_SRC_PATTERN", "-DMCX_SRC_FOURIER",
@@ -325,6 +325,8 @@ cl_platform_id mcx_list_gpu(Config* cfg, unsigned int* activedev, cl_device_id* 
                             cuinfo.vendor = dvIntelGPU;
                         } else if (strstr(pbuf, "Intel") || strstr(cuinfo.name, "Intel")) {
                             cuinfo.vendor = dvIntel;
+                        } else if (strstr(pbuf, "Mali") || strstr(cuinfo.name, "Mali")) {
+                            cuinfo.vendor = dvArmGPU;
                         }
 
                         if (strstr(cuinfo.name, "Apple M")) {
@@ -335,6 +337,9 @@ cl_platform_id mcx_list_gpu(Config* cfg, unsigned int* activedev, cl_device_id* 
                             cuinfo.vendor = dvAppleCPU;
                             cuinfo.autoblock = 1;
                             cuinfo.autothread = 2048;
+                        } else if (strstr(pbuf, "Mali") || strstr(cuinfo.name, "Mali")) {
+                            cuinfo.autothread = cuinfo.core * 1024;
+                            cuinfo.autoblock = 32;
                         } else {
                             cuinfo.autothread = cuinfo.autoblock * cuinfo.core;
                         }

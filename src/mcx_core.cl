@@ -69,7 +69,9 @@
 #define DET_MASK           0x80000000              /**< mask of the sign bit to get the detector */
 #define MED_MASK           0x7FFFFFFF              /**< mask of the remaining bits to get the medium index */
 #define MIX_MASK           0x7FFF0000              /**< mask of the upper 16bit to get the volume mix ratio */
-#define NULL               0
+#ifndef NULL
+    #define NULL           0
+#endif
 #define MAX_ACCUM          1000.f
 
 #define MCX_DEBUG_REC_LEN   6  /**<  number of floating points per position saved when -D M is used for trajectory */
