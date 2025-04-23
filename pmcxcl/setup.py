@@ -48,7 +48,8 @@ class CMakeBuild(build_ext):
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={extdir}",
             f"-DPYTHON_EXECUTABLE={sys.executable}",
             f"-DCMAKE_BUILD_TYPE={cfg}",  # not used on MSVC, but no harm
-            "-DBUILD_PYTHON=true"
+            "-DBUILD_PYTHON=true",
+            "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
         ]
         build_args = []
         # Adding CMake arguments set as environment variable
@@ -119,7 +120,7 @@ class CMakeBuild(build_ext):
 setup(
     name="pmcxcl",
     packages=['pmcxcl'],
-    version="0.3.0",
+    version="0.3.1",
     requires=['numpy'],
     license='GPLv3+',
     author="Matin Raayai Ardakani, Qianqian Fang",
@@ -141,7 +142,7 @@ setup(
       'Intended Audience :: Science/Research',
       'Environment :: GPU',
       'Topic :: Scientific/Engineering :: Physics',
-      'License :: OSI Approved :: Apache Software License',
+      'License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)',
       'Programming Language :: Python :: 3.6',
       'Programming Language :: Python :: 3.7',
       'Programming Language :: Python :: 3.8',
