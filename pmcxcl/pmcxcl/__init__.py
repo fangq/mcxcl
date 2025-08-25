@@ -45,6 +45,23 @@ try:
         getdistance,
         detphoton,
         mcxlab,
+        cwdiffusion,
+        cwfluxdiffusion,
+        cwfluencediffusion,
+        dcsg1,
+        mcxcreate,
+        rfreplay,
+        rfmusreplay,
+        loadmc2,
+        loadmch,
+        loadfile,
+        mcx2json,
+        json2mcx,
+        loadnii,
+        preview,
+        plotshapes,
+        plotphotons,
+        plotvol,
     )
 except ImportError:  # pragma: no cover
     print(
@@ -53,7 +70,7 @@ except ImportError:  # pragma: no cover
 
 from .bench import bench
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 
 __all__ = (
     "gpuinfo",
@@ -70,4 +87,21 @@ __all__ = (
     "getdistance",
     "detphoton",
     "mcxlab",
+    "cwdiffusion",
+    "cwfluxdiffusion",
+    "cwfluencediffusion",
+    "dcsg1",
+    "mcxcreate",
+    "rfreplay",
+    "rfmusreplay",
+    "loadmc2",
+    "loadmch",
+    "loadfile",
+    "mcx2json",
+    "json2mcx",
+    "loadnii",
+    "preview",
+    "plotshapes",
+    "plotphotons",
+    "plotvol",
 )
