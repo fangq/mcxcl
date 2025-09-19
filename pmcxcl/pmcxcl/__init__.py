@@ -70,7 +70,7 @@ except ImportError:  # pragma: no cover
 
 from .bench import bench
 
-__version__ = "0.3.2"
+__version__ = "0.3.5"
 
 __all__ = (
     "gpuinfo",
