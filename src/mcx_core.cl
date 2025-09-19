@@ -418,7 +418,7 @@ void savedetphoton(__global float* n_det, __global uint* detectedphoton,
 
             if (SAVE_DETID(GPU_PARAM(gcfg, savedetflag))) {
                 if (gcfg->extrasrclen && gcfg->srcid <= 0) {
-                    detid |= (((int)ppath[gcfg->w0offset - 1]) << 16);
+                    detid |= (((int)ppath[GPU_PARAM(gcfg, w0offset) - 1]) << 16);
                 }
 
                 n_det[baseaddr++] = detid;
@@ -852,7 +852,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
         ppath[GPU_PARAM(gcfg, partialdata)] += p[0].w; ///< sum all the remaining energy
 
 #if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
-        savedebugdata(p, (uint)f[0].w + threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton), gjumpdebug, gdebugdata, gcfg, (int)ppath[gcfg->w0offset - 1]);
+        savedebugdata(p, (uint)f[0].w + threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton), gjumpdebug, gdebugdata, gcfg, (int)ppath[GPU_PARAM(gcfg, w0offset) - 1]);
 #endif
 
         if (*mediaid == 0 && *idx1d != OUTSIDE_VOLUME_MIN && *idx1d != OUTSIDE_VOLUME_MAX && GPU_PARAM(gcfg, issaveref) && p[0].w > 0.f) {
@@ -860,7 +860,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
                 int tshift = MIN((int)GPU_PARAM(gcfg, maxgate) - 1, (int)(floor((f[0].y - gcfg->twin0) * GPU_PARAM(gcfg, Rtstep))));
 
                 if (gcfg->extrasrclen && gcfg->srcid < 0) {
-                    tshift += ((int)ppath[gcfg->w0offset - 1] - 1) * (int)GPU_PARAM(gcfg, maxgate);
+                    tshift += ((int)ppath[GPU_PARAM(gcfg, w0offset) - 1] - 1) * (int)GPU_PARAM(gcfg, maxgate);
                 }
 
 #if !defined(MCX_SRC_PATTERN) && !defined(MCX_SRC_PATTERN3D)
@@ -942,12 +942,12 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 
     if (gcfg->extrasrclen && gcfg->srcid != 1) {
         if (gcfg->srcid > 1) {
-            launchsrc = (__constant MCXSrc*)(gproperty + gcfg->maxmedia + 1 + gcfg->detnum + ((gcfg->srcid - 2) * 4));
+            launchsrc = (__constant MCXSrc*)(gproperty + gcfg->maxmedia + 1 + ((gcfg->srcid - 2) * 4));
         } else { // gcfg->srcid = 0 or -1: simulate all sources; = 0 merge all solutions; = -1 separately store each source
-            ppath[gcfg->w0offset - 1] = (int)(rand_uniform01(t) * JUST_BELOW_ONE * (gcfg->extrasrclen + 1)) + 1; // borrow initial weight section of photon-sharing for storing launch src id
+            ppath[GPU_PARAM(gcfg, w0offset) - 1] = (int)(rand_uniform01(t) * JUST_BELOW_ONE * (gcfg->extrasrclen + 1)) + 1; // borrow initial weight section of photon-sharing for storing launch src id
 
-            if ((int)ppath[gcfg->w0offset - 1] > 1) {
-                launchsrc = (__constant MCXSrc*)(gproperty + gcfg->maxmedia + 1 + gcfg->detnum + ((int)(ppath[gcfg->w0offset - 1] - 2) * 4));
+            if ((int)ppath[GPU_PARAM(gcfg, w0offset) - 1] > 1) {
+                launchsrc = (__constant MCXSrc*)(gproperty + gcfg->maxmedia + 1 + ((int)(ppath[GPU_PARAM(gcfg, w0offset) - 1] - 2) * 4));
             }
         }
     }
@@ -1523,10 +1523,10 @@ __kernel void mcx_main_loop(__global const uint* media,
                              ( (GPU_PARAM(gcfg, replaydet) == -1) ? ((photondetid[tshift] - 1) * GPU_PARAM(gcfg, maxgate)) : 0);
 
                     if (gcfg->extrasrclen && gcfg->srcid < 0) {
-                        tshift += ((int)ppath[gcfg->w0offset - 1] - 1) * gcfg->maxgate;
+                        tshift += ((int)ppath[GPU_PARAM(gcfg, w0offset) - 1] - 1) * GPU_PARAM(gcfg, maxgate);
                     }
 
-                    tshift = MIN(gcfg->maxgate - 1, tshift);
+                    tshift = MIN(GPU_PARAM(gcfg, maxgate) - 1, tshift);
 
 #ifndef USE_ATOMIC
                     field[idx1d + tshift * gcfg->dimlen.z] += tmp0 * replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w)];
@@ -1546,7 +1546,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                 }
 
 #if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
-                savedebugdata(&p, (uint)f.w + idx * gcfg->threadphoton + min(idx, (idx < gcfg->oddphoton)*idx), gjumpdebug, gdebugdata, gcfg, (int)ppath[gcfg->w0offset - 1]);
+                savedebugdata(&p, (uint)f.w + idx * gcfg->threadphoton + min(idx, (idx < gcfg->oddphoton)*idx), gjumpdebug, gdebugdata, gcfg, (int)ppath[GPU_PARAM(gcfg, w0offset) - 1]);
 #endif
             }
 
@@ -1631,13 +1631,14 @@ __kernel void mcx_main_loop(__global const uint* media,
                         tshift = (idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w - 1);
                         tshift = (int)(floor((photontof[tshift] - gcfg->twin0) * GPU_PARAM(gcfg, Rtstep))) +
                                  ( (GPU_PARAM(gcfg, replaydet) == -1) ? ((photondetid[tshift] - 1) * GPU_PARAM(gcfg, maxgate)) : 0);
+                        tshift = MIN(GPU_PARAM(gcfg, maxgate) - 1, tshift);
                     }
                 } else if (GPU_PARAM(gcfg, outputtype) == otL) {
                     weight = w0 * pathlen;
                 }
 
                 if (gcfg->extrasrclen && gcfg->srcid < 0) {
-                    tshift += ((int)ppath[gcfg->w0offset - 1] - 1) * gcfg->maxgate;
+                    tshift += ((int)ppath[GPU_PARAM(gcfg, w0offset) - 1] - 1) * GPU_PARAM(gcfg, maxgate);
                 }
 
                 GPUDEBUG(((__constant char*)"deposit to [%d] %e, w=%f\n", idx1dold, weight, p.w));
@@ -1757,7 +1758,7 @@ __kernel void mcx_main_loop(__global const uint* media,
             }
 
 #if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
-            savedebugdata(&p, (uint)f.ndone + idx * gcfg->threadphoton + umin(idx, gcfg->oddphotons), gdebugdata, (int)ppath[gcfg->w0offset - 1]);
+            savedebugdata(&p, (uint)f.ndone + idx * gcfg->threadphoton + umin(idx, gcfg->oddphotons), gdebugdata, (int)ppath[GPU_PARAM(gcfg, w0offset) - 1]);
 #endif
 
             if (Rtotal < 1.f // if total internal reflection does not happen

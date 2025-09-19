@@ -630,8 +630,10 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         fieldlen = dimlen.z * dimlen.w;
     }
 
-    memcpy(&(param.dimlen.x), &(dimlen.x), sizeof(uint4));
-    memcpy(&(param.cachebox.x), &(cachebox.x), sizeof(uint2));
+    dimlen.w = fieldlen;
+
+    param.dimlen = dimlen;
+    param.cachebox = cachebox;
 
     if (cfg->seed > 0) {
         srand(cfg->seed);

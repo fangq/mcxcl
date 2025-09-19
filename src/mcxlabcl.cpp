@@ -405,8 +405,6 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                     fielddim[5] *= (cfg.extrasrclen + 1);
                 }
 
-                printf("extrasrclen=%d srcid=%d fielddim=[%d %d]\n", cfg.extrasrclen, cfg.srcid, fielddim[4], fielddim[5]);
-
                 fieldlen = fielddim[0] * fielddim[1] * fielddim[2] * fielddim[3] * fielddim[4] * fielddim[5];
 
                 if (cfg.issaveref) {
