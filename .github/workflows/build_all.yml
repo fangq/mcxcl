@@ -53,7 +53,7 @@ jobs:
           curl --retry 3 -kL https://ftpmirror.gnu.org/octave/windows/octave-9.2.0-w64.7z --output octave_9.2.7z
           7z x octave_9.2.7z -ooctave -y
           rm -rf octave_9.2.7z
-          echo "$PWD/octave/octave-9.2.0-w64-64/mingw64/bin" >> $GITHUB_PATH
+          echo "$PWD/octave/octave-9.2.0-w64/mingw64/bin" >> $GITHUB_PATH
           choco install upx
           choco install mingw --version=8.1.0
           echo 'C:\ProgramData\Chocolatey\lib\mingw\tools\install\mingw64\bin\' >> $GITHUB_PATH
@@ -92,7 +92,6 @@ jobs:
             make oct CC=gcc-12 CXX=g++-12 LDFLAGS='-static-libgcc -static-libstdc++' EXTRALIB='-v'
             otool -L ../mcxlabcl/mcxcl.mex
           else
-            PATH='$PWD/../octave/octave-9.2.0-w64-64/mingw64/bin':$PATH
             make oct CC=gcc CXX=g++ LIBOPENCL='/c/Windows/System32/OpenCL.dll --verbose' MEXLINKOPT='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lm -Wl,-Bdynamic -v'
             objdump -p ../mcxlabcl/mcxcl.mex | grep "DLL Name:"
             make clean
@@ -140,7 +139,7 @@ jobs:
           fi
           mv mcxlabcl/mcxcl.mex mcxlabcl/octave/${{ env.OCTAVE_ARCH }}
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            cp "$PWD/octave/octave-9.2.0-w64-64/mingw64/bin/libwinpthread-1.dll" mcxlabcl/octave/${{ env.OCTAVE_ARCH }}
+            cp "$PWD/octave/octave-9.2.0-w64/mingw64/bin/libwinpthread-1.dll" mcxlabcl/octave/${{ env.OCTAVE_ARCH }}
             upx -9 mcxlabcl/octave/${{ env.OCTAVE_ARCH }}/* || true
             7z a -tzip packages/mcxlabcl-${{ env.RELEASE_TAG }}.zip mcxlabcl
           else
