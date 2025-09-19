@@ -90,6 +90,13 @@ typedef cl_bitfield         cl_mem_flags_NV;
 #define CL_DEVICE_GFXIP_MAJOR_AMD                       0x404A
 #define CL_DEVICE_GFXIP_MINOR_AMD                       0x404B
 
+typedef struct MCXSource {
+    float4 pos;      /**< initial position vector, for pencil beam */
+    float4 dir;      /**< initial directon vector, for pencil beam */
+    float4 param1;   /**< source parameters set 1 */
+    float4 param2;   /**< source parameters set 2 */
+} MCXSrc;
+
 /**
  * @brief Simulation constant parameters stored in the constant memory
  *
@@ -97,8 +104,9 @@ typedef cl_bitfield         cl_mem_flags_NV;
  */
 
 typedef struct KernelParams {
-    cl_float4 ps;                   /**< initial position vector, for pencil beam */
-    cl_float4 c0;                   /**< initial directon vector, for pencil beam */
+    MCXSrc    src;                  /**< additional source data, including pos, dir, param1, param2 */
+    cl_uint   extrasrclen;          /**< number of additional sources */
+    cl_int    srcid;                /**< number of additional sources */
     cl_float4 maxidx;               /**< maximum index in x/y/z directions for out-of-bound tests */
     cl_uint4  dimlen;               /**< maximum index used to convert x/y/z to 1D array index */
     cl_uint4  cp0;                  /**< 3D coordinates of one diagonal of the cached region  (obsolete) */
@@ -121,14 +129,10 @@ typedef struct KernelParams {
     cl_uint maxdetphoton;           /**< max number of detected photons */
     cl_uint maxmedia;               /**< max number of media labels */
     cl_uint detnum;                 /**< max number of detectors */
-    cl_uint idx1dorig;              /**< pre-computed 1D index of the photon at launch for pencil/isotropic beams */
-    cl_uint mediaidorig;            /**< pre-computed media index of the photon at launch for pencil/isotropic beams */
     cl_uint blockphoton;
     cl_uint blockextra;
     cl_uint voidtime;               /**< flag if the time-of-flight in the background is counted */
     cl_uint srctype;                /**< type of the source */
-    cl_float4 srcparam1;            /**< source parameters set 1 */
-    cl_float4 srcparam2;            /**< source parameters set 2 */
     cl_uint   maxvoidstep;          /**< max steps that photon can travel in the background before entering non-zero voxels */
     cl_uint   issaveexit;           /**<1 save the exit position and dir of a detected photon, 0 do not save*/
     cl_uint   issaveseed;           /**< flag if one need to save the detected photon seeds for replay */

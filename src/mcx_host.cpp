@@ -446,7 +446,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     cl_mem* gfield = NULL, *gdetphoton, *gseed = NULL, *genergy = NULL, *gseeddata = NULL;
     cl_mem* gprogress = NULL, *gdetected = NULL, *gdetpos = NULL, *gjumpdebug = NULL, *gdebugdata = NULL, *ginvcdf = NULL, *gangleinvcdf = NULL;
 
-    cl_uint dimxyz = cfg->dim.x * cfg->dim.y * cfg->dim.z * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) ? cfg->srcnum : 1);
+    size_t dimxyz = cfg->dim.x * cfg->dim.y * cfg->dim.z * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) ? cfg->srcnum : (cfg->srcid == -1) ? (cfg->extrasrclen + 1) : 1);
 
     cl_uint*  media = (cl_uint*)(cfg->vol);
     cl_float*  field;
@@ -462,25 +462,25 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
      *                              |----------------------------------------------->  hostdetreclen  <--------------------------------------|
      *                                        |------------------------>    partialdata   <-------------------|
      * host detected photon buffer: detid (1), partial_scat (#media), partial_path (#media), momontum (#media), p_exit (3), v_exit(3), w0 (1)
-     *                                        |--------------------------------------------->    w0offset   <-------------------------------------||<----- w0 (#srcnum) ----->|
-     * gpu detected photon buffer:             partial_scat (#media), partial_path (#media), momontum (#media), E_escape (1), E_launch (1), w0 (1), w0_photonsharing (#srcnum)
+     *                                        |--------------------------------------------->    w0offset   <-----------------------------------------------||<----- w0 (#srcnum) ----->|
+     * gpu detected photon buffer:             partial_scat (#media), partial_path (#media), momontum (#media), E_escape (1), E_launch (1), w0 (1), srcid(1), w0_photonsharing (#srcnum)
      */
 
     unsigned int partialdata = (cfg->medianum - 1) * (SAVE_NSCAT(cfg->savedetflag) + SAVE_PPATH(cfg->savedetflag) + SAVE_MOM(cfg->savedetflag)); // buf len for media-specific data, copy from gpu to host
-    unsigned int w0offset = partialdata + 3; // offset for photon sharing buffer
+    unsigned int w0offset = partialdata + 4;  //< the extra 4 numbers are total-escaped-energy, total-launched-energy, initial-weight, source_id
     unsigned int hostdetreclen = partialdata + SAVE_DETID(cfg->savedetflag) + 3 * (SAVE_PEXIT(cfg->savedetflag) + SAVE_VEXIT(cfg->savedetflag)) + SAVE_W0(cfg->savedetflag); // host-side det photon data buffer length
     unsigned int is2d = (cfg->dim.x == 1 ? 1 : (cfg->dim.y == 1 ? 2 : (cfg->dim.z == 1 ? 3 : 0)));
 
-    MCXParam param = {{{cfg->srcpos.x, cfg->srcpos.y, cfg->srcpos.z, cfg->srcpos.w}},
-        {{cfg->srcdir.x, cfg->srcdir.y, cfg->srcdir.z, cfg->srcdir.w}},
+    MCXParam param = {{{cfg->srcpos.x, cfg->srcpos.y, cfg->srcpos.z, cfg->srcpos.w},
+            {cfg->srcdir.x, cfg->srcdir.y, cfg->srcdir.z, cfg->srcdir.w}, {cfg->srcparam1.x, cfg->srcparam1.y, cfg->srcparam1.z, cfg->srcparam1.w},
+            {cfg->srcparam2.x, cfg->srcparam2.y, cfg->srcparam2.z, cfg->srcparam2.w}
+        }, cfg->extrasrclen, cfg->srcid,
         {{(float)cfg->dim.x, (float)cfg->dim.y, (float)cfg->dim.z, 0}}, dimlen, cp0, cp1, cachebox,
         minstep, 0.f, 0.f, cfg->tend, R_C0* cfg->unitinmm, (uint)cfg->isrowmajor,
         (uint)cfg->issave2pt, (uint)cfg->isreflect, (uint)cfg->isrefint,
         (uint)cfg->issavedet, 1.f / cfg->tstep, cfg->minenergy,
         cfg->sradius* cfg->sradius, minstep* R_C0* cfg->unitinmm, cfg->maxdetphoton,
-        cfg->medianum - 1, cfg->detnum, 0, 0, 0, 0, (uint)cfg->voidtime, (uint)cfg->srctype,
-        {{cfg->srcparam1.x, cfg->srcparam1.y, cfg->srcparam1.z, cfg->srcparam1.w}},
-        {{cfg->srcparam2.x, cfg->srcparam2.y, cfg->srcparam2.z, cfg->srcparam2.w}},
+        cfg->medianum - 1, cfg->detnum, 0, 0, (uint)cfg->voidtime, (uint)cfg->srctype,
         (uint)cfg->maxvoidstep, cfg->issaveexit > 0, cfg->issaveseed > 0, (uint)cfg->issaveref,
         cfg->isspecular > 0, cfg->maxgate, cfg->seed, (uint)cfg->outputtype, 0, 0,
         (uint)cfg->debuglevel, cfg->savedetflag, hostdetreclen, partialdata, w0offset, (uint)cfg->mediabyte,
@@ -583,7 +583,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     }
 
     if (is2d) {
-        float* vec = &(param.c0.x);
+        float* vec = &(param.src.dir.x);
 
         if (ABS(vec[is2d - 1]) > EPS) {
             mcx_error(-1, "input domain is 2D, the initial direction can not have non-zero value in the singular dimension", __FILE__, __LINE__);
@@ -615,29 +615,23 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
     Pdet = (float*)calloc(cfg->maxdetphoton, sizeof(float) * hostdetreclen);
 
-    if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
-        fieldlen = dimxyz * cfg->maxgate * cfg->detnum;
-    } else {
-        fieldlen = dimxyz * cfg->maxgate;
-    }
-
     cachebox.x = (cp1.x - cp0.x + 1);
     cachebox.y = (cp1.y - cp0.y + 1) * (cp1.x - cp0.x + 1);
     dimlen.x = cfg->dim.x;
     dimlen.y = cfg->dim.x * cfg->dim.y;
     dimlen.z = cfg->dim.x * cfg->dim.y * cfg->dim.z;
-    dimlen.w = fieldlen;
+    dimlen.w = cfg->maxgate * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) ? cfg->srcnum : (cfg->srcid == -1) ? (cfg->extrasrclen + 1) : 1);
+
+    /** Here we decide the total output buffer, field's length. it is Nx*Ny*Nz*Nt*Ns */
+    if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
+        dimlen.w *= cfg->detnum;
+        fieldlen = dimlen.z * dimlen.w;
+    } else {
+        fieldlen = dimlen.z * dimlen.w;
+    }
 
     memcpy(&(param.dimlen.x), &(dimlen.x), sizeof(uint4));
     memcpy(&(param.cachebox.x), &(cachebox.x), sizeof(uint2));
-
-    if (param.ps.x < 0.f || param.ps.y < 0.f || param.ps.z < 0.f || param.ps.x >= cfg->dim.x || param.ps.y >= cfg->dim.y || param.ps.z >= cfg->dim.z) {
-        param.idx1dorig = 0;
-        param.mediaidorig = 0;
-    } else {
-        param.idx1dorig = (int(floorf(param.ps.z)) * dimlen.y + int(floorf(param.ps.y)) * dimlen.x + int(floorf(param.ps.x)));
-        param.mediaidorig = (cfg->vol[param.idx1dorig] & MED_MASK);
-    }
 
     if (cfg->seed > 0) {
         srand(cfg->seed);
@@ -689,7 +683,16 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             OCL_ASSERT(((gmedia[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(cl_uint) * (2 * cfg->dim.x * cfg->dim.y * cfg->dim.z), media, &status), status)));
         }
 
-        OCL_ASSERT(((gproperty[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->medianum * sizeof(Medium), cfg->prop, &status), status)));
+        if (cfg->srcdata) {
+            float4* medsrc = (float4*)malloc(cfg->extrasrclen * 4 * sizeof(float4) + cfg->medianum * sizeof(Medium) + cfg->detnum * sizeof(float4));
+            memcpy(medsrc, cfg->prop, cfg->medianum * sizeof(Medium));
+            memcpy(medsrc + cfg->medianum, cfg->srcdata, cfg->extrasrclen * 4 * sizeof(float4));
+            OCL_ASSERT(((gproperty[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->extrasrclen * 4 * sizeof(float4) + cfg->medianum * sizeof(Medium), medsrc, &status), status)));
+            free(medsrc);
+        } else {
+            OCL_ASSERT(((gproperty[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->medianum * sizeof(Medium), cfg->prop, &status), status)));
+        }
+
         OCL_ASSERT(((gparam[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(MCXParam), &param, &status), status)));
         energy = (cl_float*)calloc(sizeof(cl_float), gpu[i].autothread << 1);
 
@@ -815,7 +818,6 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         IPARAM_TO_MACRO(opt, param, detnum);
         IPARAM_TO_MACRO(opt, param, doreflect);
         IPARAM_TO_MACRO(opt, param, gscatter);
-        IPARAM_TO_MACRO(opt, param, idx1dorig);
         IPARAM_TO_MACRO(opt, param, is2d);
         IPARAM_TO_MACRO(opt, param, issaveref);
         IPARAM_TO_MACRO(opt, param, issaveseed);
@@ -826,7 +828,6 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         IPARAM_TO_MACRO(opt, param, maxmedia);
         IPARAM_TO_MACRO(opt, param, maxvoidstep);
         IPARAM_TO_MACRO(opt, param, mediaformat);
-        IPARAM_TO_MACRO(opt, param, mediaidorig);
         FPARAM_TO_MACRO(opt, param, minaccumtime);
         FPARAM_TO_MACRO(opt, param, minenergy);
         FPARAM_TO_MACRO(opt, param, oneoverc0);
@@ -855,10 +856,6 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             if (cfg->bc[i] == bcReflect || cfg->bc[i] == bcMirror) {
                 sprintf(opt + strlen(opt), " -DMCX_DO_REFLECTION");
             }
-    }
-
-    if (cfg->internalsrc || (param.mediaidorig && (cfg->srctype == MCX_SRC_PENCIL || cfg->srctype == MCX_SRC_CONE || cfg->srctype == MCX_SRC_ISOTROPIC))) {
-        sprintf(opt + strlen(opt), " -DINTERNAL_SOURCE");
     }
 
     if (workdev == 1 && gpu[0].iscpu) {
@@ -1282,13 +1279,21 @@ is more than what your have specified (%d), please use the -H option to specify 
             }
         }
 
-        if (cfg->srctype == MCX_SRC_PATTERN && cfg->srcnum > 1) { // post-processing only for multi-srcpattern
+        if ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) && cfg->srcnum > 1) { // post-processing only for multi-srcpattern
             float scaleref = scale[0];
             int psize = (int)cfg->srcparam1.w * (int)cfg->srcparam2.w;
+
+            if (cfg->srctype == MCX_SRC_PATTERN3D) {
+                psize = (int)cfg->srcparam1.x * (int)cfg->srcparam1.y * (int)cfg->srcparam1.z;
+            }
 
             for (i = 0; i < cfg->srcnum; i++) {
                 scale[i] = psize / srcpw[i] * scaleref;
             }
+        }
+
+        if (cfg->extrasrclen && cfg->srcid < 0) { // when multiple sources are simulated, the total photons are evenly divided
+            scale[0] *= (cfg->extrasrclen + 1);
         }
 
         cfg->normalizer = scale[0];

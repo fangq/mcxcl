@@ -210,6 +210,9 @@ function varargout = mcxlabcl(varargin)
 %                      simultaneously simulated; only works for 'pattern'
 %                      source, see cfg.srctype='pattern' for details
 %                      Example <demo_photon_sharing.m>
+%      cfg.srcid:      when multiple sources are defined, if srcid is -1, each source is separately
+%                      simulated; if set to 0, all source solution are summed; if set to a positive
+%                      number starting from 1, only the specified source is simulated; default to 0
 %      cfg.issrcfrom0: 1-first voxel is [0 0 0], [0]- first voxel is [1 1 1]
 %      cfg.replaydet:  only works when cfg.outputtype is 'jacobian', 'wl', 'nscat', or 'wp' and cfg.seed is an array
 %                      -1 replay all detectors and save in separate volumes (output has 5 dimensions)

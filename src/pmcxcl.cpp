@@ -461,19 +461,204 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
     GET_SCALAR_FIELD(user_cfg, mcx_config, internalsrc, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, gscatter, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, srcnum, py::int_);
+    GET_SCALAR_FIELD(user_cfg, mcx_config, srcid, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, optlevel, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, isatomic, py::int_);
     //GET_SCALAR_FIELD(user_cfg, mcx_config, omega, py::float_);
     //GET_SCALAR_FIELD(user_cfg, mcx_config, lambda, py::float_);
-    GET_VEC34_FIELD(user_cfg, mcx_config, srcpos, float);
-    GET_VEC34_FIELD(user_cfg, mcx_config, srcdir, float);
     GET_VEC3_FIELD(user_cfg, mcx_config, steps, float);
     GET_VEC3_FIELD(user_cfg, mcx_config, crop0, uint);
     GET_VEC3_FIELD(user_cfg, mcx_config, crop1, uint);
-    GET_VEC4_FIELD(user_cfg, mcx_config, srcparam1, float);
-    GET_VEC4_FIELD(user_cfg, mcx_config, srcparam2, float);
     //GET_VEC4_FIELD(user_cfg, mcx_config, srciquv, float);
     parseVolume(user_cfg, mcx_config);
+
+    if (user_cfg.contains("srcpos")) {
+        auto f_style_volume = py::array_t < float, py::array::f_style | py::array::forcecast >::ensure(user_cfg["srcpos"]);
+
+        if (!f_style_volume) {
+            throw py::value_error("Invalid srcpos field value");
+        }
+
+        auto buffer_info = f_style_volume.request();
+
+        size_t arraydim[2] = {0};
+
+        if (buffer_info.shape.size() == 1) {
+            arraydim[0] = 1;
+            arraydim[1] = buffer_info.shape.at(0);
+        } else if (buffer_info.shape.size() > 1) {
+            arraydim[0] = buffer_info.shape.at(0);
+            arraydim[1] = buffer_info.shape.at(1);
+        }
+
+        if (arraydim[0] == 0 || arraydim[1] < 3 || arraydim[1] > 4) {
+            throw py::value_error("the 'srcpos' field must have 3 or 4 columns (x,y,z,w0)");
+        }
+
+        auto val = static_cast<float*>(buffer_info.ptr);
+
+        for (int i = 0; i < arraydim[1]; i++) {
+            ((float*)(&mcx_config.srcpos.x))[i] = val[i * arraydim[0]];
+        }
+
+        if (arraydim[0] > 1 || mcx_config.extrasrclen > 0) {
+            if (mcx_config.extrasrclen && mcx_config.extrasrclen != arraydim[0] - 1) {
+                throw py::value_error("Length of sub-elements of srcpos/srcdir/srcparam1/srcparam2 must match");
+            } else {
+                mcx_config.extrasrclen = arraydim[0] - 1;
+            }
+
+            if (mcx_config.srcdata == NULL) {
+                mcx_config.srcdata = (ExtraSrc*)calloc(sizeof(ExtraSrc), mcx_config.extrasrclen);
+            }
+
+            for (int j = 0; j < arraydim[1]; j++)
+                for (int i = 0; i < mcx_config.extrasrclen; i++) {
+                    ((float*)(&mcx_config.srcdata[i].srcpos.x))[j] = val[j * arraydim[0] + i + 1];
+                }
+        }
+    }
+
+    if (user_cfg.contains("srcdir")) {
+        auto f_style_volume = py::array_t < float, py::array::f_style | py::array::forcecast >::ensure(user_cfg["srcdir"]);
+
+        if (!f_style_volume) {
+            throw py::value_error("Invalid srcdir field value");
+        }
+
+        auto buffer_info = f_style_volume.request();
+
+        size_t arraydim[2] = {0};
+
+        if (buffer_info.shape.size() == 1) {
+            arraydim[0] = 1;
+            arraydim[1] = buffer_info.shape.at(0);
+        } else if (buffer_info.shape.size() > 1) {
+            arraydim[0] = buffer_info.shape.at(0);
+            arraydim[1] = buffer_info.shape.at(1);
+        }
+
+        if (arraydim[0] == 0 || arraydim[1] < 3 || arraydim[1] > 4) {
+            throw py::value_error("the 'srcdir' field must have 3 or 4 columns (vx,vy,vz,focallength)");
+        }
+
+        auto val = static_cast<float*>(buffer_info.ptr);
+
+        for (int i = 0; i < arraydim[1]; i++) {
+            ((float*)(&mcx_config.srcdir.x))[i] = val[i * arraydim[0]];
+        }
+
+        if (arraydim[0] > 1 || mcx_config.extrasrclen > 0) {
+            if (mcx_config.extrasrclen && mcx_config.extrasrclen != arraydim[0] - 1) {
+                throw py::value_error("Length of sub-elements of srcpos/srcdir/srcparam1/srcparam2 must match");
+            } else {
+                mcx_config.extrasrclen = arraydim[0] - 1;
+            }
+
+            if (mcx_config.srcdata == NULL) {
+                mcx_config.srcdata = (ExtraSrc*)calloc(sizeof(ExtraSrc), mcx_config.extrasrclen);
+            }
+
+            for (int j = 0; j < arraydim[1]; j++)
+                for (int i = 0; i < mcx_config.extrasrclen; i++) {
+                    ((float*)(&mcx_config.srcdata[i].srcdir.x))[j] = val[j * arraydim[0] + i + 1];
+                }
+        }
+    }
+
+    if (user_cfg.contains("srcparam1")) {
+        auto f_style_volume = py::array_t < float, py::array::f_style | py::array::forcecast >::ensure(user_cfg["srcparam1"]);
+
+        if (!f_style_volume) {
+            throw py::value_error("Invalid srcparam1 field value");
+        }
+
+        auto buffer_info = f_style_volume.request();
+
+        size_t arraydim[2] = {0};
+
+        if (buffer_info.shape.size() == 1) {
+            arraydim[0] = 1;
+            arraydim[1] = buffer_info.shape.at(0);
+        } else if (buffer_info.shape.size() > 1) {
+            arraydim[0] = buffer_info.shape.at(0);
+            arraydim[1] = buffer_info.shape.at(1);
+        }
+
+        if (arraydim[0] == 0 || (arraydim[1] == 0 && arraydim[1] > 4)) {
+            throw py::value_error("the 'srcparam1' field must have 1-4 columns");
+        }
+
+        auto val = static_cast<float*>(buffer_info.ptr);
+
+        for (int i = 0; i < arraydim[1]; i++) {
+            ((float*)(&mcx_config.srcparam1.x))[i] = val[i * arraydim[0]];
+        }
+
+        if (arraydim[0] > 1 || mcx_config.extrasrclen > 0) {
+            if (mcx_config.extrasrclen && mcx_config.extrasrclen != arraydim[0] - 1) {
+                throw py::value_error("Length of sub-elements of srcpos/srcdir/srcparam1/srcparam2 must match");
+            } else {
+                mcx_config.extrasrclen = arraydim[0] - 1;
+            }
+
+            if (mcx_config.srcdata == NULL) {
+                mcx_config.srcdata = (ExtraSrc*)calloc(sizeof(ExtraSrc), mcx_config.extrasrclen);
+            }
+
+            for (int j = 0; j < arraydim[1]; j++)
+                for (int i = 0; i < mcx_config.extrasrclen; i++) {
+                    ((float*)(&mcx_config.srcdata[i].srcparam1.x))[j] = val[j * arraydim[0] + i + 1];
+                }
+        }
+    }
+
+    if (user_cfg.contains("srcparam2")) {
+        auto f_style_volume = py::array_t < float, py::array::f_style | py::array::forcecast >::ensure(user_cfg["srcparam2"]);
+
+        if (!f_style_volume) {
+            throw py::value_error("Invalid srcparam2 field value");
+        }
+
+        auto buffer_info = f_style_volume.request();
+
+        size_t arraydim[2] = {0};
+
+        if (buffer_info.shape.size() == 1) {
+            arraydim[0] = 1;
+            arraydim[1] = buffer_info.shape.at(0);
+        } else if (buffer_info.shape.size() > 1) {
+            arraydim[0] = buffer_info.shape.at(0);
+            arraydim[1] = buffer_info.shape.at(1);
+        }
+
+        if (arraydim[0] == 0 || (arraydim[1] == 0 && arraydim[1] > 4)) {
+            throw py::value_error("the 'srcparam2' field must have 1-4 columns");
+        }
+
+        auto val = static_cast<float*>(buffer_info.ptr);
+
+        for (int i = 0; i < arraydim[1]; i++) {
+            ((float*)(&mcx_config.srcparam2.x))[i] = val[i * arraydim[0]];
+        }
+
+        if (arraydim[0] > 1 || mcx_config.extrasrclen > 0) {
+            if (mcx_config.extrasrclen && mcx_config.extrasrclen != arraydim[0] - 1) {
+                throw py::value_error("Length of sub-elements of srcpos/srcdir/srcparam1/srcparam2 must match");
+            } else {
+                mcx_config.extrasrclen = arraydim[0] - 1;
+            }
+
+            if (mcx_config.srcdata == NULL) {
+                mcx_config.srcdata = (ExtraSrc*)calloc(sizeof(ExtraSrc), mcx_config.extrasrclen);
+            }
+
+            for (int j = 0; j < arraydim[1]; j++)
+                for (int i = 0; i < mcx_config.extrasrclen; i++) {
+                    ((float*)(&mcx_config.srcdata[i].srcparam2.x))[j] = val[j * arraydim[0] + i + 1];
+                }
+        }
+    }
 
     if (user_cfg.contains("detpos")) {
         auto f_style_volume = py::array_t < float, py::array::f_style | py::array::forcecast >::ensure(user_cfg["detpos"]);
@@ -970,6 +1155,11 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
                             field_len *= 2;
                         }
             */
+
+            if (mcx_config.extrasrclen && mcx_config.srcid == -1) {
+                field_len *= (mcx_config.extrasrclen + 1);
+            }
+
             mcx_config.exportfield = (float*) calloc(field_len, sizeof(float));
         }
 
@@ -1096,6 +1286,11 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
                             field_dim[5] = 2;
                         }
             */
+
+            if (mcx_config.extrasrclen && mcx_config.srcid == -1) {
+                field_dim[5] *= (mcx_config.extrasrclen + 1);
+            }
+
             field_len = field_dim[0] * field_dim[1] * field_dim[2] * field_dim[3] * field_dim[4] * field_dim[5];
             std::vector<size_t> array_dims;
 
