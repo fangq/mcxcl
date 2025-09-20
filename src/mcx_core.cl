@@ -60,11 +60,12 @@
 #define SAME_VOXEL         -9999.f                 //scatter within a voxel
 #define NO_LAUNCH          9999                    //when fail to launch, for debug
 #define FILL_MAXDETPHOTON  3                       /**< when the detector photon buffer is filled, terminate simulation*/
-#define MAX_PROP           2000                     /*maximum property number*/
+#define MAX_PROP           2000                    /*maximum property number*/
 #define OUTSIDE_VOLUME_MIN 0xFFFFFFFF              /**< flag indicating the index is outside of the volume from x=xmax,y=ymax,z=zmax*/
 #define OUTSIDE_VOLUME_MAX 0x7FFFFFFF              /**< flag indicating the index is outside of the volume from x=0/y=0/z=0*/
 #define BOUNDARY_DET_MASK  0xFFFF0000              /**< flag indicating a boundary face is used as a detector*/
 #define SEED_FROM_FILE      -999                   /**< special flag indicating to read seeds from an mch file for replay */
+#define ROULETTE_SIZE       10.f                   /**< Russian Roulette size */
 
 #define DET_MASK           0x80000000              /**< mask of the sign bit to get the detector */
 #define MED_MASK           0x7FFFFFFF              /**< mask of the remaining bits to get the medium index */
@@ -1085,15 +1086,56 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
         *prop = TOFLOAT4((float4)(prop[0].x + (launchsrc->param1.x + v2.x) * 0.5f,
                                   prop[0].y + (launchsrc->param1.y + v2.y) * 0.5f,
                                   prop[0].z + (launchsrc->param1.z + v2.z) * 0.5f, 0.f));
-#elif defined(MCX_SRC_DISK) || defined(MCX_SRC_GAUSSIAN) // uniform disk distribution or Gaussian-beam
+#elif defined(MCX_SRC_HYPERBOLOID_GAUSSIAN)
+        float sphi, cphi;
+        float r = TWO_PI * rand_uniform01(t);
+        MCX_SINCOS(r, &sphi, &cphi);
+
+        r = sqrt(0.5f * rand_next_scatlen(t)) * launchsrc->param1.x;
+
+        /** parameter to generate photon path from coordinates at focus (depends on focal distance and rayleigh range) */
+        rv[0].x = -launchsrc->param1.y / launchsrc->param1.z;
+        rv[0].y = rsqrt(r * r + launchsrc->param1.z * launchsrc->param1.z);
+
+        /** if beam direction is along +z or -z direction */
+        p[0] = (float4)(r * (cphi - rv[0].x * sphi), r * (sphi + rv[0].x * cphi), 0.f, p[0].w); // position displacement from srcpos
+        *prop = TOFLOAT4((float4)(-r * sphi * rv[0].y, r * cphi * rv[0].y, launchsrc->param1.z * rv[0].y, 0.f); // photon dir. w.r.t the beam dir. v
+
+                         /** if beam dir. is not +z or -z, compute photon position and direction after rotation */
+        if ( v[0].z > -1.f + EPS && v[0].z < 1.f - EPS ) {
+        r = 1.f - v[0].z * v[0].z;
+            float stheta = sqrt(r);
+            r = rsqrt(r);
+            cphi = v[0].x * r;
+            sphi = v[0].y * r;
+
+            /** photon position displacement after rotation */
+            p[0] = (float4)(p[0].x * cphi * v[0].z - p[0].y * sphi, p[0].x * sphi * v[0].z + p[0].y * cphi, -p[0].x * stheta, p[0].w);
+
+            /** photon direction after rotation */
+            v[0] = (float4)(rv[0].x * cphi * v[0].z - rv[0].y * sphi + rv[0].z * cphi * stheta,
+                            rv[0].x * sphi * v[0].z + rv[0].y * cphi + rv[0].z * sphi * stheta,
+                            -rv[0].x * stheta + rv[0].z * v[0].z,
+                            v[0].nscat);
+            GPUDEBUG(("new dir: %10.5e %10.5e %10.5e\n", v[0].x, v[0].y, v[0].z));
+        } else {
+            *((float4*)v) = float4(rv[0].x, rv[0].y, (v[0].z > 0.f) ? rv[0].z : -rv[0].z, v[0].nscat);
+            GPUDEBUG(("new dir-z: %10.5e %10.5e %10.5e\n", v[0].x, v[0].y, v[0].z));
+        }
+
+        /** compute final launch position and update medium label */
+        p[0] = (float4)(p[0].x + launchsrc->pos.x, p[0].y + launchsrc->pos.y, p[0].z + launchsrc->pos.z, p[0].w);
+
+               *Lmove = 0.f;
+#elif defined(MCX_SRC_DISK) || defined(MCX_SRC_GAUSSIAN) || defined(MCX_SRC_RING) // uniform disk distribution or Gaussian-beam
         // Uniform disk point picking
         // http://mathworld.wolfram.com/DiskPointPicking.html
         float sphi, cphi;
         float phi = TWO_PI * rand_uniform01(t);
         MCX_SINCOS(phi, sphi, cphi);
         float r;
-#if defined(MCX_SRC_DISK)
-        r = sqrt(rand_uniform01(t)) * launchsrc->param1.x;
+#if defined(MCX_SRC_DISK) || defined(MCX_SRC_RING)
+        r = sqrt(rand_uniform01(t) * fabs(launchsrc->param1.x * launchsrc->param1.x - launchsrc->param1.y * launchsrc->param1.y) + launchsrc->param1.y * launchsrc->param1.y);
 #else
 
         if (fabs(launchsrc->dir.w) < 1e-5f || fabs(launchsrc->param1.y) < 1e-5f) {
@@ -1173,6 +1215,23 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
         v[0] = (float4)(v[0].y * q - v[0].z * s, v[0].z * r - v[0].x * q, v[0].x * s - v[0].y * r, v[0].w);
         *Lmove = 0.f;
 #else
+
+        if (launchsrc->param2.x > 0.f || launchsrc->param2.y > 0.f) {
+            float sphi, cphi;
+            r = TWO_PI * rand_uniform01(t);
+            MCX_SINCOS(r, sphi, cphi);
+            r = sqrt(2.f * rand_next_scatlen(t));
+            // gaussian broadening factor in the direction perpendicular to both slit and v directions
+            cphi *= launchsrc->param2.x * r;
+            // gaussian broadening factor in the direction of the slit (srcparam1.x/y/z)
+            sphi *= launchsrc->param2.y * r;
+            sphi *= rsqrt(launchsrc->param1.x * launchsrc->param1.x + launchsrc->param1.y * launchsrc->param1.y + launchsrc->param1.z * launchsrc->param1.z);
+            cphi *= rsqrt(rv[0].x * rv[0].x + rv[0].y * rv[0].y + rv[0].z * rv[0].z);
+            v[0].xyz += cphi * rv[0].xyz + sphi * launchsrc->param1.x;
+            r = rsqrt(v[0].x * v[0].x + v[0].y * v[0].y + v[0].z * v[0].z);
+            v[0].xyz *= r;
+        }
+
         *Lmove = -1.f;
 #endif
         *prop = TOFLOAT4((float4)(prop[0].x + (launchsrc->param1.x) * 0.5f,
@@ -1721,6 +1780,27 @@ __kernel void mcx_main_loop(__global const uint* media,
             isdet = mediaid & DET_MASK;
             mediaid &= MED_MASK;
             continue;
+        }
+
+        /** perform Russian Roulette*/
+        if (fabs(p.w) < gcfg->minenergy) {
+            if (rand_do_roulette(t)*ROULETTE_SIZE <= 1.f) {
+                p.w *= ROULETTE_SIZE;
+            } else {
+                GPUDEBUG(("relaunch after Russian roulette at idx=[%d] mediaid=[%d], ref=[%d]\n", idx1d, mediaid, GPU_PARAM(gcfg, doreflect)));
+
+                if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
+                                    (mediaidold & DET_MASK), ppath, n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
+                                    (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) +
+                                                        get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)), gseeddata, gjumpdebug, gdebugdata, sharedmem)) {
+                    break;
+                }
+
+                isdet = mediaid & DET_MASK;
+                mediaid &= MED_MASK;
+
+                continue;
+            }
         }
 
 #ifdef MCX_DO_REFLECTION
