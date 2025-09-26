@@ -1379,6 +1379,9 @@ is more than what your have specified (%d), please use the -H option to specify 
     }
 
     for (i = 0; i < workdev; i++) {
+        clFlush(mcxqueue[i]);
+        clFinish(mcxqueue[i]);
+
         clReleaseMemObject(gmedia[i]);
         clReleaseMemObject(gproperty[i]);
         clReleaseMemObject(gparam[i]);
@@ -1420,7 +1423,11 @@ is more than what your have specified (%d), please use the -H option to specify 
             clReleaseMemObject(gangleinvcdf[i]);
         }
 
-        clReleaseKernel(mcxkernel[i]);
+        if (mcxkernel[i]) {
+            clReleaseKernel(mcxkernel[i]);
+        }
+
+        clReleaseEvent(waittoread[i]);
     }
 
     free(gmedia);
@@ -1452,6 +1459,7 @@ is more than what your have specified (%d), please use the -H option to specify 
     }
 
     free(mcxqueue);
+
     clReleaseProgram(mcxprogram);
     clReleaseContext(mcxcontext);
     clReleaseEvent(kernelevent);
