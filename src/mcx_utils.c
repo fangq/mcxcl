@@ -2839,11 +2839,11 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
         }
 
         if (cfg->session[0] == '\0') {
-            strncpy(cfg->session, FIND_JSON_KEY("ID", "Session.ID", Session, "default", valuestring), MAX_SESSION_LENGTH);
+            strncpy(cfg->session, FIND_JSON_KEY("ID", "Session.ID", Session, "default", valuestring), MAX_SESSION_LENGTH - 1);
         }
 
         if (cfg->rootpath[0] == '\0') {
-            strncpy(cfg->rootpath, FIND_JSON_KEY("RootPath", "Session.RootPath", Session, "", valuestring), MAX_PATH_LENGTH);
+            strncpy(cfg->rootpath, FIND_JSON_KEY("RootPath", "Session.RootPath", Session, "", valuestring), MAX_PATH_LENGTH - 1);
         }
 
         if (!flagset['b']) {
@@ -4929,7 +4929,7 @@ void mcx_printheader(Config* cfg) {
 =Please visit our free scientific data sharing portal at " S_CYAN "https://neurojson.io" S_BLUE "=\n\
 = and consider sharing your public datasets in standardized JSON/JData format=\n\
 ==============================================================================\n\
-$Rev::4fdc45 $ " S_CYAN MCX_VERSION S_BLUE " $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
+$Rev::4fdc45$" S_CYAN MCX_VERSION S_BLUE " $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
 ==============================================================================\n"S_RESET);
 }
 

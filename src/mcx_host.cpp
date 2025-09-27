@@ -362,8 +362,8 @@ cl_platform_id mcx_list_gpu(Config* cfg, unsigned int* activedev, cl_device_id* 
                             }
 
                             MCX_FPRINTF(stdout, " Vendor name    :\t%s\n", VendorList[cuinfo.vendor]);
-                            MCX_FPRINTF(stdout, " Auto-thread    :\t%ld\n", cuinfo.autothread);
-                            MCX_FPRINTF(stdout, " Auto-block     :\t%ld\n", cuinfo.autoblock);
+                            MCX_FPRINTF(stdout, " Auto-thread    :\t%zu\n", cuinfo.autothread);
+                            MCX_FPRINTF(stdout, " Auto-block     :\t%zu\n", cuinfo.autoblock);
                         }
 
                         if (activedevlist != NULL) {
@@ -1315,7 +1315,7 @@ is more than what your have specified (%d), please use the -H option to specify 
 #ifndef MCX_CONTAINER
 
     if (cfg->issave2pt && cfg->parentid == mpStandalone) {
-        MCX_FPRINTF(cfg->flog, "saving data to file ... %ld %d\t", fieldlen, cfg->maxgate);
+        MCX_FPRINTF(cfg->flog, "saving data to file ... %zu %d\t", fieldlen, cfg->maxgate);
         mcx_savedata(cfg->exportfield, fieldlen, cfg);
         MCX_FPRINTF(cfg->flog, "saving data complete : %d ms\n\n", GetTimeMillis() - tic);
         fflush(cfg->flog);
@@ -1345,7 +1345,7 @@ is more than what your have specified (%d), please use the -H option to specify 
 #endif
 
     // total energy here equals total simulated photons+unfinished photons for all threads
-    MCX_FPRINTF(cfg->flog, "simulated %ld photons (%ld) with %d devices (repeat x%d)\nMCX simulation speed: " S_BOLD "" S_BLUE "%.2f photon/ms" S_RESET"\n",
+    MCX_FPRINTF(cfg->flog, "simulated %zu photons (%zu) with %d devices (repeat x%d)\nMCX simulation speed: " S_BOLD "" S_BLUE "%.2f photon/ms" S_RESET"\n",
                 cfg->nphoton, cfg->nphoton, workdev, cfg->respin, ((cfg->issavedet == FILL_MAXDETPHOTON) ? cfg->energytot : ((double)cfg->nphoton * ((cfg->respin > 1) ? (cfg->respin) : 1))) / MAX(1, cfg->runtime));
 
     if (cfg->srctype == MCX_SRC_PATTERN && cfg->srcnum > 1) {

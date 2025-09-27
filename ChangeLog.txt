@@ -1,5 +1,20 @@
 Change Log
 
+== MCX-CL 1.8.0 (Genesis), FangQ <q.fang at neu.edu> ==
+
+ 2025-09-26 [aa2e389] [memory] release event, did not fix memory leak
+ 2025-09-20 [c5cc650] [feat] port Russian Roulette, ring src, hyperboloid src from mcx to mcxcl
+ 2025-09-19 [a9dd9af] [ci] fix upload ci error
+ 2025-09-19 [3a81111] [ci] restore the removed PATH setting
+ 2025-09-19 [817e505] [ci] fix octave windows path
+ 2025-09-19 [db396e8] [bug] fix multi-source bug after porting fangq/mcx#163
+ 2025-09-19 [afc0db9] [feat] initial port of the multi-source support, fangq/mcx#163
+ 2025-08-25 [f931612] [pmcxcl] bump version to 0.3.2 to include expanded mcx utils functions
+ 2025-07-20 [4f1de0e] [ci] use windows-2022 as 2019 has retired
+ 2025-07-20 [a38255b] [pmcxcl] build for apple silicon
+ 2025-04-23 [eb39147] [pmcxcl] fix pmcxcl ci build, bump version to 0.3.1
+ 2025-04-23 [18ea941] [feat] optimize mcxcl for Arm Mali GPU, gain 6x speedup
+
 == MCX-CL 1.6.0 (Harmonic), FangQ <q.fang at neu.edu> ==
 
  2025-01-23 [e22edad] [doc] update README.md for v2025 updates

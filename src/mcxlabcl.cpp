@@ -640,7 +640,7 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
     } else if (strcmp(name, "srcparam1") == 0) {
         arraydim = mxGetDimensions(item);
 
-        if (arraydim[0] == 0 || (arraydim[1] == 0 && arraydim[1] > 4)) {
+        if (arraydim[0] == 0 || (arraydim[1] == 0 || arraydim[1] > 4)) {
             mexErrMsgTxt("the 'srcparam1' field must have 1-4 columns");
         }
 
@@ -675,7 +675,7 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
     } else if (strcmp(name, "srcparam2") == 0) {
         arraydim = mxGetDimensions(item);
 
-        if (arraydim[0] == 0 || (arraydim[1] == 0 && arraydim[1] > 4)) {
+        if (arraydim[0] == 0 || (arraydim[1] == 0 || arraydim[1] > 4)) {
             mexErrMsgTxt("the 'srcparam2' field must have 1-4 columns");
         }
 
@@ -1183,7 +1183,7 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
 
         cfg->invcdf[0] = -1.f;
         cfg->invcdf[cfg->nphase - 1] = 1.f;
-        printf("mcx.invcdf=[%ld];\n", cfg->nphase);
+        printf("mcx.invcdf=[%u];\n", cfg->nphase);
     } else if (strcmp(name, "angleinvcdf") == 0) {
         dimtype nangle = mxGetNumberOfElements(item);
         double* val = mxGetPr(item);
@@ -1203,7 +1203,7 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
             }
         }
 
-        printf("mcx.angleinvcdf=[%ld];\n", cfg->nangle);
+        printf("mcx.angleinvcdf=[%u];\n", cfg->nangle);
     } else if (strcmp(name, "shapes") == 0) {
         int len = mxGetNumberOfElements(item);
 
