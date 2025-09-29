@@ -844,6 +844,10 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         IPARAM_TO_MACRO(opt, param, srcnum);
         IPARAM_TO_MACRO(opt, param, voidtime);
         IPARAM_TO_MACRO(opt, param, w0offset);
+        IPARAM_TO_MACRO(opt, param, nphase);
+        IPARAM_TO_MACRO(opt, param, nangle);
+        IPARAM_TO_MACRO(opt, param, nanglelen);
+        IPARAM_TO_MACRO(opt, param, nphaselen);
         FPARAM_TO_MACRO(opt, param, Rtstep);
     }
 
