@@ -22,8 +22,10 @@
 #include "mcx_tictoc.h"
 #include "mcx_const.h"
 
-#define IPARAM_TO_MACRO(macro,a,b) sprintf(macro+strlen(macro)," -Dgcfg%s=%u ",   #b,(a.b))
-#define FPARAM_TO_MACRO(macro,a,b) sprintf(macro+strlen(macro)," -Dgcfg%s=%.10ef ",#b,(a.b))
+#define MAX_JIT_OPT_LEN  (MAX_PATH_LENGTH << 1)
+
+#define IPARAM_TO_MACRO(macro,a,b) snprintf(macro+strlen(macro), MAX_JIT_OPT_LEN-strlen(macro)-1," -Dgcfg%s=%u ",   #b,(a.b))
+#define FPARAM_TO_MACRO(macro,a,b) snprintf(macro+strlen(macro), MAX_JIT_OPT_LEN-strlen(macro)-1," -Dgcfg%s=%.10ef ",#b,(a.b))
 
 cl_event kernelevent;
 
@@ -453,7 +455,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
     float*  Pdet = NULL;
     float*  srcpw = NULL, *energytot = NULL, *energyabs = NULL; // for multi-srcpattern
-    char opt[MAX_PATH_LENGTH << 1] = {'\0'};
+    char opt[MAX_JIT_OPT_LEN] = {'\0'};
     GPUInfo* gpu = NULL;
     RandType* seeddata = NULL;
     RandType* Pseed = NULL;
@@ -780,40 +782,40 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     OCL_ASSERT(((mcxprogram = clCreateProgramWithSource(mcxcontext, 1, (const char**) & (cfg->clsource), NULL, &status), status)));
 
     if (cfg->optlevel >= 1) {
-        sprintf(opt, "%s ", "-cl-mad-enable -DMCX_USE_NATIVE");
+        snprintf(opt, MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-cl-mad-enable -DMCX_USE_NATIVE");
     }
 
     if (cfg->optlevel >= 2) {
-        sprintf(opt + strlen(opt), "%s ", "-DMCX_SIMPLIFY_BRANCH -DMCX_VECTOR_INDEX");
+        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DMCX_SIMPLIFY_BRANCH -DMCX_VECTOR_INDEX");
     }
 
-    if (cfg->optlevel >= 3) {
-        sprintf(opt + strlen(opt), "%s ", "-DGROUP_LOAD_BALANCE");
+    if (cfg->optlevel >= 3 && cfg->seed != SEED_FROM_FILE) { // optlevel 3 - i.e. defining parameters as macros - fails replay test, need to debug
+        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DUSE_MACRO_CONST");
     }
 
-    if (cfg->optlevel >= 4 && cfg->seed != SEED_FROM_FILE) { // optlevel 2 - i.e. defining parameters as macros - fails replay test, need to debug
-        sprintf(opt + strlen(opt), "%s ", "-DUSE_MACRO_CONST");
+    if (cfg->optlevel >= 4) {
+        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DGROUP_LOAD_BALANCE");
     }
 
     for (i = 0; i < 3; i++)
         if (cfg->debuglevel & (1 << i)) {
-            sprintf(opt + strlen(opt), "%s ", debugopt[i]);
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", debugopt[i]);
         }
 
     if ((uint)cfg->srctype < sizeof(sourceflag) / sizeof(sourceflag[0])) {
-        sprintf(opt + strlen(opt), "%s ", sourceflag[(uint)cfg->srctype]);
+        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", sourceflag[(uint)cfg->srctype]);
     }
 
-    sprintf(opt + strlen(opt), "-DMED_TYPE=%d ", cfg->mediabyte);
+    snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "-DMED_TYPE=%d ", cfg->mediabyte);
 
-    sprintf(opt + strlen(opt), "%s ", cfg->compileropt);
+    snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", cfg->compileropt);
 
     if (cfg->isatomic) {
-        sprintf(opt + strlen(opt), "%s ", "-DUSE_ATOMIC");
+        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DUSE_ATOMIC");
     }
 
     if (cfg->issavedet) {
-        sprintf(opt + strlen(opt), "%s ", "-DMCX_SAVE_DETECTORS");
+        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DMCX_SAVE_DETECTORS");
     }
 
     if (strstr(opt, "USE_MACRO_CONST")) {
@@ -857,21 +859,21 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     char allunknown[] = {0, 0, 0, 0, 0, 0, 0, 0};
 
     if (cfg->isreflect || (strcmp(cfg->bc, allabsorb) && strcmp(cfg->bc, allunknown))) {
-        sprintf(opt + strlen(opt), " -DMCX_DO_REFLECTION");
+        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DMCX_DO_REFLECTION");
     } else {
         /** Enable reflection flag when c or m flags are used in the cfg.bc boundary condition flags */
         for (i = 0; i < 6; i++)
             if (cfg->bc[i] == bcReflect || cfg->bc[i] == bcMirror) {
-                sprintf(opt + strlen(opt), " -DMCX_DO_REFLECTION");
+                snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DMCX_DO_REFLECTION");
             }
     }
 
     if (workdev == 1 && gpu[0].iscpu) {
-        sprintf(opt + strlen(opt), " -DMCX_USE_CPU");
+        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DMCX_USE_CPU");
     }
 
     if (gpu[0].vendor == dvNVIDIA) {
-        sprintf(opt + strlen(opt), " -DUSE_NVIDIA_GPU");
+        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_NVIDIA_GPU");
     }
 
     MCX_FPRINTF(cfg->flog, "building kernel with option: %s\n", opt);
