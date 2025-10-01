@@ -1093,21 +1093,21 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 #elif defined(MCX_SRC_HYPERBOLOID_GAUSSIAN)
         float sphi, cphi;
         float r = TWO_PI * rand_uniform01(t);
-        MCX_SINCOS(r, &sphi, &cphi);
+        MCX_SINCOS(r, sphi, cphi);
 
         r = sqrt(0.5f * rand_next_scatlen(t)) * launchsrc->param1.x;
 
         /** parameter to generate photon path from coordinates at focus (depends on focal distance and rayleigh range) */
-        rv[0].x = -launchsrc->param1.y / launchsrc->param1.z;
-        rv[0].y = rsqrt(r * r + launchsrc->param1.z * launchsrc->param1.z);
+        prop[0].x = -launchsrc->param1.y / launchsrc->param1.z;
+        prop[0].y = rsqrt(r * r + launchsrc->param1.z * launchsrc->param1.z);
 
         /** if beam direction is along +z or -z direction */
-        p[0] = (float4)(r * (cphi - rv[0].x * sphi), r * (sphi + rv[0].x * cphi), 0.f, p[0].w); // position displacement from srcpos
-        *prop = TOFLOAT4((float4)(-r * sphi * rv[0].y, r * cphi * rv[0].y, launchsrc->param1.z * rv[0].y, 0.f); // photon dir. w.r.t the beam dir. v
+        p[0] = (float4)(r * (cphi - prop[0].x * sphi), r * (sphi + prop[0].x * cphi), 0.f, p[0].w); // position displacement from srcpos
+        *prop = TOFLOAT4((float4)(-r * sphi * prop[0].y, r * cphi * prop[0].y, launchsrc->param1.z * prop[0].y, 0.f)); // photon dir. w.r.t the beam dir. v
 
-                         /** if beam dir. is not +z or -z, compute photon position and direction after rotation */
+        /** if beam dir. is not +z or -z, compute photon position and direction after rotation */
         if ( v[0].z > -1.f + EPS && v[0].z < 1.f - EPS ) {
-        r = 1.f - v[0].z * v[0].z;
+            r = 1.f - v[0].z * v[0].z;
             float stheta = sqrt(r);
             r = rsqrt(r);
             cphi = v[0].x * r;
@@ -1117,20 +1117,21 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
             p[0] = (float4)(p[0].x * cphi * v[0].z - p[0].y * sphi, p[0].x * sphi * v[0].z + p[0].y * cphi, -p[0].x * stheta, p[0].w);
 
             /** photon direction after rotation */
-            v[0] = (float4)(rv[0].x * cphi * v[0].z - rv[0].y * sphi + rv[0].z * cphi * stheta,
-                            rv[0].x * sphi * v[0].z + rv[0].y * cphi + rv[0].z * sphi * stheta,
-                            -rv[0].x * stheta + rv[0].z * v[0].z,
-                            v[0].nscat);
+            v[0] = (float4)(prop[0].x * cphi * v[0].z - prop[0].y * sphi + prop[0].z * cphi * stheta,
+                            prop[0].x * sphi * v[0].z + prop[0].y * cphi + prop[0].z * sphi * stheta,
+                            -prop[0].x * stheta + prop[0].z * v[0].z,
+                            v[0].w);
             GPUDEBUG(("new dir: %10.5e %10.5e %10.5e\n", v[0].x, v[0].y, v[0].z));
         } else {
-            *((float4*)v) = float4(rv[0].x, rv[0].y, (v[0].z > 0.f) ? rv[0].z : -rv[0].z, v[0].nscat);
+            *((float4*)v) = (float4)(prop[0].x, prop[0].y, (v[0].z > 0.f) ? prop[0].z : -prop[0].z, v[0].w);
             GPUDEBUG(("new dir-z: %10.5e %10.5e %10.5e\n", v[0].x, v[0].y, v[0].z));
         }
 
         /** compute final launch position and update medium label */
         p[0] = (float4)(p[0].x + launchsrc->pos.x, p[0].y + launchsrc->pos.y, p[0].z + launchsrc->pos.z, p[0].w);
+        *prop = TOFLOAT4((float4)(launchsrc->pos.x, launchsrc->pos.y, launchsrc->pos.z, 0)); ///< reuse as the origin of the src, needed for focusable sources
 
-               *Lmove = 0.f;
+        *Lmove = 0.f;
 #elif defined(MCX_SRC_DISK) || defined(MCX_SRC_GAUSSIAN) || defined(MCX_SRC_RING) // uniform disk distribution or Gaussian-beam
         // Uniform disk point picking
         // http://mathworld.wolfram.com/DiskPointPicking.html
@@ -1230,17 +1231,20 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
             // gaussian broadening factor in the direction of the slit (srcparam1.x/y/z)
             sphi *= launchsrc->param2.y * r;
             sphi *= rsqrt(launchsrc->param1.x * launchsrc->param1.x + launchsrc->param1.y * launchsrc->param1.y + launchsrc->param1.z * launchsrc->param1.z);
-            cphi *= rsqrt(rv[0].x * rv[0].x + rv[0].y * rv[0].y + rv[0].z * rv[0].z);
-            v[0].xyz += cphi * rv[0].xyz + sphi * launchsrc->param1.x;
+            prop[0] = TOFLOAT4((float4)(launchsrc->param1.y * v->z - launchsrc->param1.z * v->y,
+                                        launchsrc->param1.z * v->x - launchsrc->param1.x * v->z,
+                                        launchsrc->param1.x * v->y - launchsrc->param1.y * v->x, 0));
+            cphi *= rsqrt(prop[0].x * prop[0].x + prop[0].y * prop[0].y + prop[0].z * prop[0].z);
+            v[0].xyz += cphi * prop[0].xyz + sphi * launchsrc->param1.x;
             r = rsqrt(v[0].x * v[0].x + v[0].y * v[0].y + v[0].z * v[0].z);
             v[0].xyz *= r;
         }
 
         *Lmove = -1.f;
 #endif
-        *prop = TOFLOAT4((float4)(prop[0].x + (launchsrc->param1.x) * 0.5f,
-                                  prop[0].y + (launchsrc->param1.y) * 0.5f,
-                                  prop[0].z + (launchsrc->param1.z) * 0.5f, 0.f));
+        *prop = TOFLOAT4((float4)(launchsrc->pos.x + (launchsrc->param1.x) * 0.5f,
+                                  launchsrc->pos.y + (launchsrc->param1.y) * 0.5f,
+                                  launchsrc->pos.z + (launchsrc->param1.z) * 0.5f, 0.f));
 #endif
         /**
          * If beam focus is set, determine the incident angle
