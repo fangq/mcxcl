@@ -1135,8 +1135,18 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 #elif defined(MCX_SRC_DISK) || defined(MCX_SRC_GAUSSIAN) || defined(MCX_SRC_RING) // uniform disk distribution or Gaussian-beam
         // Uniform disk point picking
         // http://mathworld.wolfram.com/DiskPointPicking.html
-        float sphi, cphi;
-        float phi = TWO_PI * rand_uniform01(t);
+        float sphi, cphi, phi;
+#if defined(MCX_SRC_DISK) || defined(MCX_SRC_RING)
+
+        if (launchsrc->param1.z > 0.f ||  launchsrc->param1.w > 0.f) {
+            phi = fabs(launchsrc->param1.z - launchsrc->param1.w) * rand_uniform01(t) + fmin(launchsrc->param1.z, launchsrc->param1.w);
+        } else {
+#endif
+            phi = TWO_PI * rand_uniform01(t);
+#if defined(MCX_SRC_DISK) || defined(MCX_SRC_RING)
+        }
+
+#endif
         MCX_SINCOS(phi, sphi, cphi);
         float r;
 #if defined(MCX_SRC_DISK) || defined(MCX_SRC_RING)

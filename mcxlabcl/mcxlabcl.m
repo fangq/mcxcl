@@ -28,7 +28,9 @@ function varargout = mcxlabcl(varargin)
 %    mcxlab and mcxlabcl calls will use mcxcl.mex; by setting option='cuda', one can
 %    force both mcxlab and mcxlabcl to use mcx (cuda version). Similarly, if
 %    USE_MCXCL=0, all mcxlabcl and mcxlab call will use mcx.mex by default, unless
-%    one set option='opencl'.
+%    one sets option='opencl'. When USE_MCXCL is set to a positive integer
+%    or a string, it overwrites cfg.gpuid in mcxlabcl to specify the device
+%    to run the simulation.
 %
 %    cfg may contain the following fields:
 %
@@ -59,13 +61,23 @@ function varargout = mcxlabcl(varargin)
 %     *cfg.tstart:     starting time of the simulation (in seconds)
 %     *cfg.tstep:      time-gate width of the simulation (in seconds)
 %     *cfg.tend:       ending time of the simulation (in second)
-%     *cfg.srcpos:     a 1 by 3 vector, the position of the source in grid unit
+%     *cfg.srcpos:     a 1 by 3 vector, the position of the source in grid unit; if a non-zero
+%                      4th element is given, it specifies the initial weight of each photon packet
+%                      (or a multiplier in the cases of pattern/pattern3d sources); this initial weight
+%                      can be negative - the output fluence is expected to be linearly proportional
+%                      to this initial weight (w0) before normalization.
 %     *cfg.srcdir:     a 1 by 3 vector, specifying the incident vector; if srcdir
 %                      contains a 4th element, it specifies the focal length of
 %                      the source (only valid for focuable src, such as planar, disk,
 %                      fourier, gaussian, pattern, slit, etc); if the focal length
 %                      is nan, all photons will be launched isotropically regardless
-%                      of the srcdir direction.
+%                      of the srcdir direction; if the focal length is -inf, the launch
+%                      angle will be computed based on the Lambertian (cosine) distribution.
+%
+%      Starting v2025.9, cfg.{srcpos,srcdir,srcparam1,srcparam2} accept multiple sources,
+%      with each source corresponding to a single row of the array. For all 4 components,
+%      srcpos/srcdir support 3 or 4 columns, and srcparam1/srcparam2 support 4 columns.
+%      If any of the 4 compnents present, they should have matching row number.
 %
 % == MC simulation settings ==
 %      cfg.seed:       seed for the random number generator (integer) [0]
@@ -163,6 +175,9 @@ function varargout = mcxlabcl(varargin)
 %                      'isotropic' - isotropic source, no param needed
 %                      'cone' - uniform cone beam, srcparam1(1) is the half-angle in radian
 %                      'gaussian' [*] - a collimated gaussian beam, srcparam1(1) specifies the waist radius (in voxels)
+%                      'hyperboloid' [*] - a one-sheeted hyperboloid gaussian beam, srcparam1(1) specifies the waist
+%                                radius (in voxels), srcparam1(2) specifies distance between launch plane and focus,
+%                                srcparam1(3) specifies rayleigh range
 %                      'planar' [*] - a 3D quadrilateral uniform planar source, with three corners specified
 %                                by srcpos, srcpos+srcparam1(1:3) and srcpos+srcparam2(1:3)
 %                      'pattern' [*] - a 3D quadrilateral pattern illumination, same as above, except
@@ -182,7 +197,13 @@ function varargout = mcxlabcl(varargin)
 %                      'arcsine' - similar to isotropic, except the zenith angle is uniform
 %                                distribution, rather than a sine distribution.
 %                      'disk' [*] - a uniform disk source pointing along srcdir; the radius is
-%                               set by srcparam1(1) (in grid unit)
+%                               set by srcparam1(1) (in grid unit); if srcparam1(2) is set to a non-zero
+%                               value, this source defines a ring (annulus) shaped source, with
+%                               srcparam1(2) denoting the inner circle's radius, here srcparam1(1)>=srcparam1(2)
+%                      'ring' [*] - a uniform ring/ring-sector source pointing along srcdir; the outer radius
+%                               of the ring is srcparam1(1) (in grid unit) and the inner radius is srcparam1(2);
+%                               srcparam1(3) and srcparam1(4) can optionally set the lower and upper angular
+%                               bound (in positive rad) of a ring sector if at least one of those is positive.
 %                      'fourierx' [*] - a general Fourier source, the parameters are
 %                               srcparam1: [v1x,v1y,v1z,|v2|], srcparam2: [kx,ky,phi0,M]
 %                               normalized vectors satisfy: srcdir cross v1=v2
@@ -196,7 +217,10 @@ function varargout = mcxlabcl(varargin)
 %                               uniformly in the perpendicular direction
 %                      'slit' [*] - a colimated slit beam emitting from the line segment between
 %                               cfg.srcpos and cfg.srcpos+cfg.srcparam(1:3), with the initial
-%                               dir specified by cfg.srcdir
+%                               dir specified by cfg.srcdir; when user defines positive values for srcparam2.x or .y,
+%                               the slit source is broadened in a Guassian profile controlled by
+%                               srcparam2.x: width of Gaussian broadening in the direction perpendicular to both slit and srcdir
+%                               srcparam2.y: width of Gaussian broadening in the direction of the slit line: cfg.srcparam(1:3)
 %                      'pencilarray' - a rectangular array of pencil beams. The srcparam1 and srcparam2
 %                               are defined similarly to 'fourier', except that srcparam1(4) and srcparam2(4)
 %                               are both integers, denoting the element counts in the x/y dimensions, respectively.
@@ -382,6 +406,11 @@ end
 
 if (isstruct(varargin{1}))
     for i = 1:length(varargin{1})
+        if (ischar(useopencl) || useopencl > 0)
+            varargin{1}(i).gpuid = useopencl;
+        elseif (useopencl < 0)
+            varargin{1}(i).gpuid = -useopencl;
+        end
         castlist = {'srcpattern', 'srcpos', 'detpos', 'prop', 'workload', 'srcdir'};
         for j = 1:length(castlist)
             if (isfield(varargin{1}(i), castlist{j}))
@@ -426,7 +455,7 @@ if (isstruct(varargin{1}))
     end
 end
 
-if (useopencl == 0)
+if (useopencl <= 0)
     [varargout{1:max(1, nargout)}] = mcx(varargin{1});
 else
     [varargout{1:max(1, nargout)}] = mcxcl(varargin{1});

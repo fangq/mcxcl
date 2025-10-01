@@ -7,13 +7,13 @@
 % This demo is identical to the MCX simulation used for Fig.9(a) in
 % TranYan2019(submitted).
 %
-% [Sanchez2012] C.E.Sanchez J.E.Richards and C.R.Almli, “Age-Specific MRI Templates
-% for Pediatric Neuroimaging,” Developmental Neuropsychology 37, 379–399 (2012).
+% [Sanchez2012] C.E.Sanchez J.E.Richards and C.R.Almli, "Age-Specific MRI Templates
+% for Pediatric Neuroimaging," Developmental Neuropsychology 37, 379–399 (2012).
 %
 % [TranYan2019] A.P.Tran, S.Yan and Q.Fang, "Improving model-based fNIRS
 % analysis using mesh-based anatomical and light-transport models".
 %
-% This file is part of Monte Carlo eXtreme (MCX) URL:http://mcx.sf.net
+% This file is part of Monte Carlo eXtreme (MCX) URL:https://mcx.space
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 load('fullhead_atlas.mat');
