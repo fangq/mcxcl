@@ -848,6 +848,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         IPARAM_TO_MACRO(opt, param, nangle);
         IPARAM_TO_MACRO(opt, param, nanglelen);
         IPARAM_TO_MACRO(opt, param, nphaselen);
+        IPARAM_TO_MACRO(opt, param, srcid);
+        IPARAM_TO_MACRO(opt, param, extrasrclen);
         FPARAM_TO_MACRO(opt, param, Rtstep);
     }
 
@@ -1258,7 +1260,7 @@ is more than what your have specified (%d), please use the -H option to specify 
                     scale[0] = 0.f; // the cfg->normalizer and cfg.his.normalizer are inaccurate in this case, but this is ok
 
                     for (size_t i = 0; i < cfg->nphoton; i++)
-                        if (cfg->replay.detid[i] == detid) {
+                        if ((cfg->replay.detid[i] & 0xFFFF) == detid) {
                             scale[0] += cfg->replay.weight[i];
                         }
 

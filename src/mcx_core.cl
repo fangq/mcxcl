@@ -418,7 +418,7 @@ void savedetphoton(__global float* n_det, __global uint* detectedphoton,
             baseaddr *= GPU_PARAM(gcfg, reclen);
 
             if (SAVE_DETID(GPU_PARAM(gcfg, savedetflag))) {
-                if (gcfg->extrasrclen && gcfg->srcid <= 0) {
+                if (GPU_PARAM(gcfg, extrasrclen) && GPU_PARAM(gcfg, srcid) <= 0) {
                     detid |= (((int)ppath[GPU_PARAM(gcfg, w0offset) - 1]) << 16);
                 }
 
@@ -860,7 +860,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
             if (GPU_PARAM(gcfg, issaveref) == 1) {
                 int tshift = MIN((int)GPU_PARAM(gcfg, maxgate) - 1, (int)(floor((f[0].y - gcfg->twin0) * GPU_PARAM(gcfg, Rtstep))));
 
-                if (gcfg->extrasrclen && gcfg->srcid < 0) {
+                if (GPU_PARAM(gcfg, extrasrclen) && GPU_PARAM(gcfg, srcid) < 0) {
                     tshift += ((int)ppath[GPU_PARAM(gcfg, w0offset) - 1] - 1) * (int)GPU_PARAM(gcfg, maxgate);
                 }
 
@@ -941,20 +941,6 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 
 #endif
 
-    if (gcfg->extrasrclen && gcfg->srcid != 1) {
-        if (gcfg->srcid > 1) {
-            launchsrc = (__constant MCXSrc*)(gproperty + gcfg->maxmedia + 1 + ((gcfg->srcid - 2) * 4));
-        } else { // gcfg->srcid = 0 or -1: simulate all sources; = 0 merge all solutions; = -1 separately store each source
-            ppath[GPU_PARAM(gcfg, w0offset) - 1] = (int)(rand_uniform01(t) * JUST_BELOW_ONE * (gcfg->extrasrclen + 1)) + 1; // borrow initial weight section of photon-sharing for storing launch src id
-
-            if ((int)ppath[GPU_PARAM(gcfg, w0offset) - 1] > 1) {
-                launchsrc = (__constant MCXSrc*)(gproperty + gcfg->maxmedia + 1 + ((int)(ppath[GPU_PARAM(gcfg, w0offset) - 1] - 2) * 4));
-            }
-        }
-    }
-
-    ppath += GPU_PARAM(gcfg, partialdata);
-
     /**
      * If this is a replay of a detected photon, initilize the RNG with the stored seed here.
      */
@@ -967,6 +953,28 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
         }
     }
 
+    if (GPU_PARAM(gcfg, issaveseed)) {
+        copystate(t, photonseed);
+    }
+
+    if (GPU_PARAM(gcfg, extrasrclen) && GPU_PARAM(gcfg, srcid) != 1) {
+        if (GPU_PARAM(gcfg, srcid) > 1) {
+            launchsrc = (__constant MCXSrc*)(gproperty + gcfg->maxmedia + 1 + ((GPU_PARAM(gcfg, srcid) - 2) * 4));
+        } else { // GPU_PARAM(gcfg, srcid) = 0 or -1: simulate all sources; = 0 merge all solutions; = -1 separately store each source
+            ppath[GPU_PARAM(gcfg, w0offset) - 1] = (int)(rand_uniform01(t) * JUST_BELOW_ONE * (GPU_PARAM(gcfg, extrasrclen) + 1)) + 1; // borrow initial weight section of photon-sharing for storing launch src id
+
+            if ((int)ppath[GPU_PARAM(gcfg, w0offset) - 1] > 1) {
+                launchsrc = (__constant MCXSrc*)(gproperty + gcfg->maxmedia + 1 + ((int)(ppath[GPU_PARAM(gcfg, w0offset) - 1] - 2) * 4));
+            }
+        }
+    }
+
+    if (GPU_PARAM(gcfg, seed) == SEED_FROM_FILE && GPU_PARAM(gcfg, srcid) >= 1) {
+        rand_uniform01(t);
+    }
+
+    ppath += GPU_PARAM(gcfg, partialdata);
+
     /**
      * Attempt to launch a new photon until success
      */
@@ -977,10 +985,6 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
         *idx1d = as_int(launchsrc->param2.z);      /**< pre-computed 1D index of the photon at launch for pencil/isotropic beams */
         *mediaid = as_int(launchsrc->param2.w);    /**< pre-computed media index of the photon at launch for pencil/isotropic beams */
         *prop = TOFLOAT4((float4)(launchsrc->pos.x, launchsrc->pos.y, launchsrc->pos.z, 0)); ///< reuse as the origin of the src, needed for focusable sources
-
-        if (GPU_PARAM(gcfg, issaveseed)) {
-            copystate(t, photonseed);
-        }
 
         /**
          * Only one branch is taken because of template, this can reduce thread divergence
@@ -1579,10 +1583,10 @@ __kernel void mcx_main_loop(__global const uint* media,
                     int tshift = (idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w);
                     tmp0 = (GPU_PARAM(gcfg, outputtype) == otDCS) ? (1.f - ctheta) : 1.f;
                     tshift = (int)(floor((photontof[tshift] - gcfg->twin0) * GPU_PARAM(gcfg, Rtstep))) +
-                             ( (GPU_PARAM(gcfg, replaydet) == -1) ? ((photondetid[tshift] - 1) * GPU_PARAM(gcfg, maxgate)) : 0);
+                             ( (GPU_PARAM(gcfg, replaydet) == -1) ? (((photondetid[tshift] & 0xFFFF) - 1) * GPU_PARAM(gcfg, maxgate)) : 0);
 
-                    if (gcfg->extrasrclen && gcfg->srcid < 0) {
-                        tshift += ((int)ppath[GPU_PARAM(gcfg, w0offset) - 1] - 1) * GPU_PARAM(gcfg, maxgate);
+                    if (GPU_PARAM(gcfg, extrasrclen) && GPU_PARAM(gcfg, srcid) < 0) {
+                        tshift += ((int)ppath[GPU_PARAM(gcfg, w0offset) - 1] - 1)  * ((GPU_PARAM(gcfg, replaydet) == -1) ? GPU_PARAM(gcfg, detnum) : 1) * GPU_PARAM(gcfg, maxgate);
                     }
 
                     tshift = MIN(GPU_PARAM(gcfg, maxgate) - 1, tshift);
@@ -1689,15 +1693,14 @@ __kernel void mcx_main_loop(__global const uint* media,
                         weight = replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w) - 1] * pathlen;
                         tshift = (idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w - 1);
                         tshift = (int)(floor((photontof[tshift] - gcfg->twin0) * GPU_PARAM(gcfg, Rtstep))) +
-                                 ( (GPU_PARAM(gcfg, replaydet) == -1) ? ((photondetid[tshift] - 1) * GPU_PARAM(gcfg, maxgate)) : 0);
-                        tshift = MIN(GPU_PARAM(gcfg, maxgate) - 1, tshift);
+                                 ( (GPU_PARAM(gcfg, replaydet) == -1) ? (((photondetid[tshift] & 0xFFFF) - 1) * GPU_PARAM(gcfg, maxgate)) : 0);
                     }
                 } else if (GPU_PARAM(gcfg, outputtype) == otL) {
                     weight = w0 * pathlen;
                 }
 
-                if (gcfg->extrasrclen && gcfg->srcid < 0) {
-                    tshift += ((int)ppath[GPU_PARAM(gcfg, w0offset) - 1] - 1) * GPU_PARAM(gcfg, maxgate);
+                if (GPU_PARAM(gcfg, extrasrclen) && GPU_PARAM(gcfg, srcid) < 0) {
+                    tshift += ((int)ppath[GPU_PARAM(gcfg, w0offset) - 1] - 1) * ((GPU_PARAM(gcfg, replaydet) == -1) ? GPU_PARAM(gcfg, detnum) : 1) * GPU_PARAM(gcfg, maxgate);
                 }
 
                 GPUDEBUG(((__constant char*)"deposit to [%d] %e, w=%f\n", idx1dold, weight, p.w));
