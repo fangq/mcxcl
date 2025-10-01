@@ -23,7 +23,7 @@
 #include "mcx_const.h"
 
 #define IPARAM_TO_MACRO(macro,a,b) sprintf(macro+strlen(macro)," -Dgcfg%s=%u ",   #b,(a.b))
-#define FPARAM_TO_MACRO(macro,a,b) sprintf(macro+strlen(macro)," -Dgcfg%s=%.10e ",#b,(a.b))
+#define FPARAM_TO_MACRO(macro,a,b) sprintf(macro+strlen(macro)," -Dgcfg%s=%.10ef ",#b,(a.b))
 
 cl_event kernelevent;
 
