@@ -2,6 +2,14 @@ Change Log
 
 == MCX-CL 1.8.0 (Genesis), FangQ <q.fang at neu.edu> ==
 
+ 2025-10-01 [a4e9f1b] [bug] fix failing multisrc example after fixing -o 4 warnings
+ 2025-10-01 [f967e86] [bug] fix hyperboloid and slit sources, add demo script
+ 2025-10-01 [8e61287] [clang] fix additional clang warnings
+ 2025-10-01 [a396631] [clang] fix all clang warnings on macos
+ 2025-10-01 [06d2d5e] [opencl] fix ocl compilation warnings
+ 2025-09-30 [17c9faa] [bug] fix multi-source replay bug, ported from fangq/mcx#250
+ 2025-09-29 [ff45ab3] [bug] add the missing gcfg constants for -o 4 optimization
+ 2025-09-26 [f4e0f0d] [doc] update documentation for v2025.9
  2025-09-26 [aa2e389] [memory] release event, did not fix memory leak
  2025-09-20 [c5cc650] [feat] port Russian Roulette, ring src, hyperboloid src from mcx to mcxcl
  2025-09-19 [a9dd9af] [ci] fix upload ci error

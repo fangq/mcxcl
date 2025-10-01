@@ -255,7 +255,7 @@ void mcx_initcfg(Config* cfg) {
     cfg->autopilot = 1;
     cfg->shapedata = NULL;
     cfg->extrajson = NULL;
-    cfg->optlevel = 1;
+    cfg->optlevel = 3;
     cfg->srcnum = 1;
 
     memset(cfg->deviceid, 0, MAX_DEVICE);
@@ -5001,10 +5001,11 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -G '1101'     (--gpu)         using multiple devices (1 enable, 0 disable)\n\
  -W '50,30,20' (--workload)    workload for active devices; normalized by sum\n\
  -I            (--printgpu)    print GPU information and run program\n\
- -o [1|int]    (--optlevel)    optimization level 0-no opt;1-4 more optimized\n\
+ -o [3|int]    (--optlevel)    optimization level 0-no opt;1-4 more optimized\n\
  -J '-DMACRO'  (--compileropt) specify additional JIT compiler options\n\
                                A few built-in preprocessors include\n\
               -DMCX_GPU_DEBUG  - print step-by-step debug info\n\
+              -cl-nv-verbose   - print register counts (NVIDIA only)\n\
  -k my_simu.cl (--kernel)      user specified OpenCL kernel source file\n\
 \n"S_BOLD S_CYAN"\
 == Input options ==\n"S_RESET"\

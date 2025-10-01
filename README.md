@@ -49,8 +49,9 @@ MCX-CL v2025.9 ports a number of major features of CUDA-based MCX to OpenCL.
 Notable features ported to MCX-CL include
 
 * multi-source support (introduced to MCX in v2024.2)
-* "hyperboloid" and "ring" source times (introduced in Oct 2021 and Sep 2023, respectively)
+* "hyperboloid" and "ring" source types and demo (introduced in Oct 2021 and Sep 2023, respectively)
 * Russian roulette support (introduced in v2017.3, but never ported to mcxcl)
+* support multi-source replay (fangq/mcx#250)
 
 As of v2025.9, MCX-CL contains nearly all features in MCX except the following
 * SVMC (MCX v2021.2)
@@ -61,6 +62,7 @@ As of v2025.9, MCX-CL contains nearly all features in MCX except the following
 
 In addition, in this release, we also added the following key new features
 
+* enable "--optlevel 3" by default, boosting speed by 30%-100% on various devices
 * pmcxcl now supports Apple silicon
 * pmcxcl is updated to import new pmcx utility functions introduced in v2025.9
 * optimize thread configuration to accelerate Arm Mali GPU, speed-up by 6x
@@ -68,6 +70,14 @@ In addition, in this release, we also added the following key new features
 
 The detailed updates can be found in the below change log
 
+* 2025-10-01 [a4e9f1b] [bug] fix failing multisrc example after fixing -o 4 warnings
+* 2025-10-01 [f967e86] [bug] fix hyperboloid and slit sources, add demo script
+* 2025-10-01 [8e61287] [clang] fix additional clang warnings
+* 2025-10-01 [a396631] [clang] fix all clang warnings on macos
+* 2025-10-01 [06d2d5e] [opencl] fix ocl compilation warnings
+* 2025-09-30 [17c9faa] [bug] fix multi-source replay bug, ported from fangq/mcx#250
+* 2025-09-29 [ff45ab3] [bug] add the missing gcfg constants for -o 4 optimization
+* 2025-09-26 [f4e0f0d] [doc] update documentation for v2025.9
 * 2025-09-26 [aa2e389] [memory] release event, did not fix memory leak
 * 2025-09-20 [c5cc650] [feat] port Russian Roulette, ring src, hyperboloid src from mcx to mcxcl
 * 2025-09-19 [a9dd9af] [ci] fix upload ci error
