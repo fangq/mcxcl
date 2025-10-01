@@ -35,8 +35,8 @@
 extern "C" {
 #endif
 
-unsigned int StartTimer ();
-unsigned int GetTimeMillis ();
+unsigned int StartTimer (void);
+unsigned int GetTimeMillis (void);
 void sleep_ms(int milliseconds);
 
 #if defined(_WIN32) && defined(USE_OS_TIMER)

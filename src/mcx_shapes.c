@@ -855,6 +855,6 @@ int mcx_find_shapeid(char* shapename) {
     \brief return the last error message encountered in the processing
 */
 
-char* mcx_last_shapeerror() {
+char* mcx_last_shapeerror(void) {
     return ErrorMsg;
 }

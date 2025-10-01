@@ -64,7 +64,7 @@ int mcx_raster_layers(cJSON* obj, Grid3D* g);
 int mcx_raster_upperspace(cJSON* obj, Grid3D* g);
 int mcx_raster_grid(cJSON* obj, Grid3D* g);
 int mcx_find_shapeid(char* shapename);
-char* mcx_last_shapeerror();
+char* mcx_last_shapeerror(void);
 
 #ifdef  __cplusplus
 }
