@@ -765,10 +765,10 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     tic = StartTimer();
 
 #if __OPENCL_C_VERSION__
-    MCX_FPRINTF(cfg->flog, "- code name: [Genesis] compiled with OpenCL [%d] on [%s]\n",
+    MCX_FPRINTF(cfg->flog, "- code name: [Infinity] compiled with OpenCL [%d] on [%s]\n",
                 __OPENCL_C_VERSION__, __DATE__);
 #else
-    MCX_FPRINTF(cfg->flog, "- code name: [Genesis] compiled with OpenCL [%d] on [%s]\n",
+    MCX_FPRINTF(cfg->flog, "- code name: [Infinity] compiled with OpenCL [%d] on [%s]\n",
                 CL_VERSION_1_0, __DATE__);
 #endif
 

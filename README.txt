@@ -3,7 +3,7 @@
 
 * '''Author:''' Qianqian Fang (q.fang at neu.edu)
 * '''License:''' GNU General Public License version 3 (GPLv3)
-* '''Version:''' 1.8 (Genesis)
+* '''Version:''' 1.8 (Infinity, v2025.10)
 * '''Website:''' https://mcx.space
 
 ---------------------------------------------------------------------
@@ -15,7 +15,7 @@
 == # What's New ==
 
 
-MCX-CL v2025.9 ports a number of major features from CUDA-based MCX to OpenCL.
+MCX-CL v2025.10 ports a number of major features from CUDA-based MCX to OpenCL.
 Notable features ported to MCX-CL include
 
 * multi-source support (introduced to MCX in v2024.2)
@@ -23,18 +23,18 @@ Notable features ported to MCX-CL include
 * Russian roulette support (introduced in v2017.3, but never ported to mcxcl)
 * support multi-source replay (fangq/mcx#250)
 
-As of v2025.9, MCX-CL contains nearly all features in MCX except the following
+As of v2025.10, MCX-CL contains nearly all features in MCX except the following
 * SVMC (MCX v2021.2)
 * polarized light simulations (MCX v2023)
 * mua/mus/g/n float format (MCX v2024.2)
 * RF replay (MCX v2023)
-* international language support (MCX v2025.9)
+* international language support (MCX v2025.10)
 
 In addition, in this release, we also added the following key new features
 
 * enable "--optlevel 3" by default, boosting speed by 30%-100% on various devices
 * pmcxcl now supports Apple silicon
-* pmcxcl is updated to import new pmcx utility functions introduced in v2025.9
+* pmcxcl is updated to import new pmcx utility functions introduced in v2025.10
 * optimize thread configuration to accelerate Arm Mali GPU, speed-up by 6x
 
 
@@ -47,7 +47,7 @@ The detailed updates can be found in the below change log
 * 2025-10-01 [06d2d5e] [opencl] fix ocl compilation warnings
 * 2025-09-30 [17c9faa] [bug] fix multi-source replay bug, ported from fangq/mcx#250
 * 2025-09-29 [ff45ab3] [bug] add the missing gcfg constants for -o 4 optimization
-* 2025-09-26 [f4e0f0d] [doc] update documentation for v2025.9
+* 2025-09-26 [f4e0f0d] [doc] update documentation for v2025.10
 * 2025-09-26 [aa2e389] [memory] release event objects, did not fix memory leak
 * 2025-09-20 [c5cc650] [feat] port Russian Roulette, ring src, hyperboloid src from mcx to mcxcl
 * 2025-09-19 [a9dd9af] [ci] fix upload ci error

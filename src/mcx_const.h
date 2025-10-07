@@ -24,7 +24,7 @@
 #ifndef _MCEXTREME_CONSTANT_H
 #define _MCEXTREME_CONSTANT_H
 
-#define MCX_VERSION        "v2025.9"
+#define MCX_VERSION        "v2025.10"
 #define MCX_VERSION_MAJOR  1
 #define MCX_VERSION_MINOR  6
 

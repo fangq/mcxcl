@@ -4932,7 +4932,7 @@ void mcx_printheader(Config* cfg) {
 =Please visit our free scientific data sharing portal at " S_CYAN "https://neurojson.io" S_BLUE "=\n\
 = and consider sharing your public datasets in standardized JSON/JData format=\n\
 ==============================================================================\n\
-$Rev::4fdc45$" S_CYAN MCX_VERSION S_BLUE " $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
+$Rev::4fdc45$" S_CYAN MCX_VERSION S_BLUE "$Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
 ==============================================================================\n"S_RESET);
 }
 
