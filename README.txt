@@ -40,6 +40,9 @@ In addition, in this release, we also added the following key new features
 
 The detailed updates can be found in the below change log
 
+* 2025-10-06 [24e41f1] [release] update version to v2025.10, codename Infinity
+* 2025-10-01 [b2a507b] [feat] use USE_MCXCL>0 to set OpenCL device, negative to set CUDA device
+* 2025-10-01 [6e6d5bd] [pmcxcl] make optlevel=3 default, 30-100% speedup, bump pmcxcl 0.4.0
 * 2025-10-01 [a4e9f1b] [bug] fix failing multisrc example after fixing -o 4 warnings
 * 2025-10-01 [f967e86] [bug] fix hyperboloid and slit sources, add demo script
 * 2025-10-01 [8e61287] [clang] fix additional clang warnings
