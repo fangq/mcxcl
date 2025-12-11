@@ -14,7 +14,7 @@ jobs:
     name: Build All
     strategy:
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04, macos-13, macos-14, windows-2022]
+        os: [ubuntu-22.04, ubuntu-24.04, macos-15-intel, macos-14, windows-2022]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -147,7 +147,7 @@ jobs:
             zip -FSr --symlink packages/mcxlabcl-${{ env.RELEASE_TAG }}.zip mcxlabcl
           fi
       - name: Upload mcxlabcl package
-        if: ${{ matrix.os == 'ubuntu-22.04' || matrix.os == 'macos-13' || matrix.os == 'macos-14' || matrix.os == 'windows-2022' }}
+        if: ${{ matrix.os == 'ubuntu-22.04' || matrix.os == 'macos-15-intel' || matrix.os == 'macos-14' || matrix.os == 'windows-2022' }}
         uses: actions/upload-artifact@v4
         with:
           name: all-mcxlabcl-packages-${{ env.RELEASE_TAG }}
@@ -167,7 +167,7 @@ jobs:
             zip -FSr --symlink mcxcl/packages/mcxcl-${{ env.RELEASE_TAG }}.zip mcxcl -x 'mcxcl/packages*'
           fi
       - name: Upload mcxcl package
-        if: ${{ matrix.os == 'ubuntu-22.04' || matrix.os == 'macos-13' || matrix.os == 'macos-14' || matrix.os == 'windows-2022' }}
+        if: ${{ matrix.os == 'ubuntu-22.04' || matrix.os == 'macos-15-intel' || matrix.os == 'macos-14' || matrix.os == 'windows-2022' }}
         uses: actions/upload-artifact@v4
         with:
           name: all-mcxcl-packages-${{ env.RELEASE_TAG }}
