@@ -41,9 +41,10 @@ jobs:
           rm -rf Octave-9.2-Intel.dmg
           echo "/Applications/Octave-9.2.app/Contents/Resources/usr/Cellar/octave-octapp@9.2.0/9.2.0/bin" >> $GITHUB_PATH
       - name: Install dependencies (MacOS only)
-        if: ${{ runner.os == 'macOS' && matrix.os == 'macos-14' }}
+        if: ${{ runner.os == 'macOS' }}
         run: |
           brew install octave
+          brew install gcc@12
           #brew install upx
       - name: Install dependencies (Windows only)
         if: ${{ runner.os == 'Windows' }}
@@ -64,12 +65,12 @@ jobs:
           vcpkg --triplet=x64-windows install opencl
           cp 'c:\vcpkg\packages\opencl_x64-windows\bin\OpenCL.dll' 'c:\Windows\System32'
       - name: Set up MATLAB (non-MacOS14)
-        if: ${{ matrix.os != 'macos-14' }}
+        if: ${{ runner.os != 'macOS' }}
         uses: matlab-actions/setup-matlab@v1
         with:
           release: R2022a
       - name: Set up MATLAB (MacOS-14)
-        if: ${{ matrix.os == 'macos-14' }}
+        if: ${{ runner.os == 'macOS' }}
         uses: matlab-actions/setup-matlab@v2
         with:
           release: R2023b
