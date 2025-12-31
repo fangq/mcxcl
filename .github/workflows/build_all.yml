@@ -142,6 +142,7 @@ jobs:
           mv mcxlabcl/mcxcl.mex mcxlabcl/octave/${{ env.OCTAVE_ARCH }}
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             cp "$PWD/octave/octave-9.2.0-w64/mingw64/bin/libwinpthread-1.dll" mcxlabcl/octave/${{ env.OCTAVE_ARCH }}
+            rm -rf "$PWD/octave/"
             upx -9 mcxlabcl/octave/${{ env.OCTAVE_ARCH }}/* || true
             7z a -tzip packages/mcxlabcl-${{ env.RELEASE_TAG }}.zip mcxlabcl
           else
