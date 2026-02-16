@@ -194,6 +194,9 @@ const char* zipformat[] = {"zlib", "gzip", "base64", "lzip", "lzma", "lz4", "lz4
 
 
 void mcx_initcfg(Config* cfg) {
+    cfg->tstart = 0.f;
+    cfg->tend = 5e-9f;
+    cfg->tstep = 5e-9f;
     cfg->medianum = 0;
     cfg->mediabyte = 1;
     cfg->detnum = 0;
