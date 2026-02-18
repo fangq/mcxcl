@@ -353,6 +353,7 @@ int reflectray_svmc(float n1, float3* c0, MCXsp* nuvox, FLOAT4VEC* prop, __priva
 #endif
 
 
+void rotate_perpendicular_vector(float4* photon_dir, float3 axis, float stheta, float ctheta);
 void rotatevector2d(float4* v, float stheta, float ctheta, int is2d);
 void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant float4* gproperty, __constant MCXParam* gcfg);
 
@@ -554,6 +555,30 @@ float hitgrid(float4* p0, float4* v, short4* id) {
     id->w = (dist == htime.x ? 0 : (dist == htime.y ? 1 : 2));
 
     return dist;
+}
+
+
+/**
+ * @brief Rotate photon direction around an axis (perpendicular case)
+ *
+ * Assumes photon_dir is perpendicular to axis (dot product = 0).
+ * Uses Rodrigues' formula simplified for the perpendicular case:
+ *   v_rot = v * cos(theta) + (axis x v) * sin(theta)
+ *
+ * @param[in,out] photon_dir: the photon direction to rotate (perpendicular to axis)
+ * @param[in] axis: normalized rotation axis
+ * @param[in] stheta: sine of rotation angle
+ * @param[in] ctheta: cosine of rotation angle
+ */
+void rotate_perpendicular_vector(float4* photon_dir, float3 axis, float stheta, float ctheta) {
+    float3 cross;
+    cross.x = axis.y * photon_dir->z - axis.z * photon_dir->y;
+    cross.y = axis.z * photon_dir->x - axis.x * photon_dir->z;
+    cross.z = axis.x * photon_dir->y - axis.y * photon_dir->x;
+
+    photon_dir->x = photon_dir->x * ctheta + cross.x * stheta;
+    photon_dir->y = photon_dir->y * ctheta + cross.y * stheta;
+    photon_dir->z = photon_dir->z * ctheta + cross.z * stheta;
 }
 
 /**
@@ -1452,11 +1477,30 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
                         p[0].z + r * launchsrc->param1.z,
                         p[0].w);
 #if defined(MCX_SRC_LINE)
-        float s, q;
-        r = 1.f - 2.f * rand_uniform01(t);
-        s = 1.f - 2.f * rand_uniform01(t);
-        q = sqrt(1.f - v[0].x * v[0].x - v[0].y * v[0].y) * (rand_uniform01(t) > 0.5f ? 1.f : -1.f);
-        v[0] = (float4)(v[0].y * q - v[0].z * s, v[0].z * r - v[0].x * q, v[0].x * s - v[0].y * r, v[0].w);
+
+        {
+            float sphi, cphi;
+            r = rsqrt(launchsrc->param1.x * launchsrc->param1.x + launchsrc->param1.y * launchsrc->param1.y + launchsrc->param1.z * launchsrc->param1.z);
+
+            if (launchsrc->param2.x > 0.f) {
+                /* Angular spread mode: project v perpendicular to line axis, then rotate within angular range */
+                float3 lineaxis = (float3)(launchsrc->param1.x * r, launchsrc->param1.y * r, launchsrc->param1.z * r);
+                float vdotaxis = v[0].x * lineaxis.x + v[0].y * lineaxis.y + v[0].z * lineaxis.z;
+                v[0] = (float4)(v[0].x - vdotaxis * lineaxis.x, v[0].y - vdotaxis * lineaxis.y, v[0].z - vdotaxis * lineaxis.z, v[0].w);
+                float vnorm = rsqrt(v[0].x * v[0].x + v[0].y * v[0].y + v[0].z * v[0].z);
+                v[0] = (float4)(v[0].x * vnorm, v[0].y * vnorm, v[0].z * vnorm, v[0].w);
+                r = launchsrc->param2.x * (2.f * rand_uniform01(t) - 1.f);
+                MCX_SINCOS(r, sphi, cphi);
+                rotate_perpendicular_vector(v, lineaxis, sphi, cphi);
+            } else {
+                /* Default cylindrical emission: direction along line axis, rotate 360 degrees */
+                v[0] = (float4)(launchsrc->param1.x * r, launchsrc->param1.y * r, launchsrc->param1.z * r, v[0].w);
+                r = TWO_PI * rand_uniform01(t);
+                MCX_SINCOS(r, sphi, cphi);
+                rotatevector(v, 1.f, 0.f, sphi, cphi);
+            }
+        }
+
         *Lmove = 0.f;
 #else
 
@@ -1465,25 +1509,39 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
             r = TWO_PI * rand_uniform01(t);
             MCX_SINCOS(r, sphi, cphi);
             r = sqrt(2.f * rand_next_scatlen(t));
-            // gaussian broadening factor in the direction perpendicular to both slit and v directions
+            /* gaussian broadening factor perpendicular to both slit and v directions */
             cphi *= launchsrc->param2.x * r;
-            // gaussian broadening factor in the direction of the slit (srcparam1.x/y/z)
+            /* gaussian broadening factor in the direction of the slit (srcparam1.x/y/z) */
             sphi *= launchsrc->param2.y * r;
             sphi *= rsqrt(launchsrc->param1.x * launchsrc->param1.x + launchsrc->param1.y * launchsrc->param1.y + launchsrc->param1.z * launchsrc->param1.z);
-            prop[0] = TOFLOAT4((float4)(launchsrc->param1.y * v->z - launchsrc->param1.z * v->y,
-                                        launchsrc->param1.z * v->x - launchsrc->param1.x * v->z,
-                                        launchsrc->param1.x * v->y - launchsrc->param1.y * v->x, 0));
+            *prop = TOFLOAT4((float4)(launchsrc->param1.y * v[0].z - launchsrc->param1.z * v[0].y,
+                                      launchsrc->param1.z * v[0].x - launchsrc->param1.x * v[0].z,
+                                      launchsrc->param1.x * v[0].y - launchsrc->param1.y * v[0].x, 0));
             cphi *= rsqrt(prop[0].x * prop[0].x + prop[0].y * prop[0].y + prop[0].z * prop[0].z);
-            v[0].xyz += cphi * prop[0].xyz + sphi * launchsrc->param1.x;
+            v[0].x += cphi * prop[0].x + sphi * launchsrc->param1.x;
+            v[0].y += cphi * prop[0].y + sphi * launchsrc->param1.y;
+            v[0].z += cphi * prop[0].z + sphi * launchsrc->param1.z;
             r = rsqrt(v[0].x * v[0].x + v[0].y * v[0].y + v[0].z * v[0].z);
-            v[0].xyz *= r;
+            v[0].x *= r;
+            v[0].y *= r;
+            v[0].z *= r;
         }
 
-        *Lmove = -1.f;
+        *Lmove = (launchsrc->param2.x > 0.f || launchsrc->param2.y > 0.f) ? -1.f : -1.f;
 #endif
+
+        *idx1d = ((int)(floor(p[0].z)) * gcfg->dimlen.y + (int)(floor(p[0].y)) * gcfg->dimlen.x + (int)(floor(p[0].x)));
+
+        if (p[0].x < 0.f || p[0].y < 0.f || p[0].z < 0.f || p[0].x >= gcfg->maxidx.x || p[0].y >= gcfg->maxidx.y || p[0].z >= gcfg->maxidx.z) {
+            *mediaid = 0;
+        } else {
+            *mediaid = media[*idx1d];
+        }
+
         *prop = TOFLOAT4((float4)(launchsrc->pos.x + (launchsrc->param1.x) * 0.5f,
                                   launchsrc->pos.y + (launchsrc->param1.y) * 0.5f,
                                   launchsrc->pos.z + (launchsrc->param1.z) * 0.5f, 0.f));
+        *Lmove = -1.f;
 #endif
         /**
          * If beam focus is set, determine the incident angle
