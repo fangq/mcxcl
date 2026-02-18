@@ -307,6 +307,7 @@ void mcx_replayprep(int* detid, float* ppath, History* his, Config* cfg);
 void mcx_loadbenchmark(char* key, Config* cfg);
 void mcx_replayinit(Config* cfg, float* detps, int dimdetps[2], int seedbyte);
 void mcx_validatecfg(Config* cfg, float* detps, int dimdetps[2], int seedbyte);
+int  mcx_float2half2(float input[2]);
 
 #ifdef MCX_CONTAINER
 int  mcx_throw_exception(const int id, const char* msg, const char* filename, const int linenum);

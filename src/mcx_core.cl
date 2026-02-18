@@ -338,6 +338,12 @@ void rotatevector(float4* v, float stheta, float ctheta, float sphi, float cphi)
 void transmit(float4* v, float n1, float n2, short flipdir);
 float reflectcoeff(float4* v, float n1, float n2, short flipdir);
 int skipvoid(float4* p, float4* v, float4* f, short4* flipdir, __global const uint* media, __constant float4* gproperty, __constant MCXParam* gcfg, MCXsp* nuvox);
+#if MED_TYPE == MEDIA_ASGN_F2H
+void updateproperty_asgn(FLOAT4VEC* prop, unsigned int mediaid, uint idx1d,
+                         __global const uint* media, __constant float4* gproperty,
+                         __constant MCXParam* gcfg);
+#endif
+
 #if MED_TYPE == MEDIA_2LABEL_SPLIT
 void updateproperty_svmc(FLOAT4VEC* prop, unsigned int mediaid, uint idx1d,
                          __global const uint* media, float3 p, MCXsp* nuvox, short4* flipdir,
@@ -735,26 +741,32 @@ void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant float4* gp
     prop[0].x = val.h[0] * (1.f / 65535.f) * (gproperty[2].x - gproperty[1].x) + gproperty[1].x;
     prop[0].y = val.h[1] * (1.f / 65535.f) * (gproperty[2].y - gproperty[1].y) + gproperty[1].y;
     prop[0].w = gproperty[(!(mediaid & MED_MASK)) == 0].w;
-#elif MED_TYPE==MEDIA_ASGN_F2H
-
-    if (idx1d == OUTSIDE_VOLUME_MIN || idx1d == OUTSIDE_VOLUME_MAX) {
-        *((FLOAT4VEC*)(prop)) = gproperty[0];
-    } else {
-        union {
-            unsigned int i[2];
-            half h[4];
-        } val;
-        val.i[0] = mediaid & MED_MASK;
-        val.i[1] = media[idx1d + gcfg->dimlen.z];
-        prop[0].x = fabs(convert_float(vload_half(0, (const __global half*)&val.h[0])));
-        prop[0].y = fabs(convert_float(vload_half(1, (const __global half*)&val.h[0])));
-        prop[0].z = fabs(convert_float(vload_half(2, (const __global half*)&val.h[0])));
-        prop[0].w = fabs(convert_float(vload_half(3, (const __global half*)&val.h[0])));
-    }
-
 #endif
 }
 
+#if MED_TYPE == MEDIA_ASGN_F2H
+void updateproperty_asgn(FLOAT4VEC* prop, unsigned int mediaid, uint idx1d,
+                         __global const uint* media, __constant float4* gproperty,
+                         __constant MCXParam* gcfg) {
+    if (idx1d == OUTSIDE_VOLUME_MIN || idx1d == OUTSIDE_VOLUME_MAX) {
+        *((FLOAT4VEC*)(prop)) = gproperty[0];
+        return;
+    }
+
+    union {
+        unsigned int i[2];
+        half h[4];
+    } val;
+
+    val.i[0] = mediaid & MED_MASK;
+    val.i[1] = media[idx1d + gcfg->dimlen.z];
+
+    prop[0].x = fabs(convert_float(vload_half(0, val.h)));
+    prop[0].y = fabs(convert_float(vload_half(1, val.h)));
+    prop[0].z = fabs(convert_float(vload_half(2, val.h)));
+    prop[0].w = fabs(convert_float(vload_half(3, val.h)));
+}
+#endif
 
 #if MED_TYPE == MEDIA_2LABEL_SPLIT
 
@@ -952,14 +964,14 @@ int skipvoid(float4* p, float4* v, float4* f, short4* flipdir, __global const ui
                     }
                 }
 
-#if MED_TYPE == MEDIA_2LABEL_SPLIT
                 FLOAT4VEC htime;
                 f[0].y = (GPU_PARAM(gcfg, voidtime)) ? f[0].y : 0.f;
+#if MED_TYPE == MEDIA_ASGN_F2H
+                updateproperty_asgn(&htime, media[idx1d], idx1d, media, gproperty, gcfg);
+#elif MED_TYPE == MEDIA_2LABEL_SPLIT
                 updateproperty_svmc(&htime, media[idx1d], idx1d, media,
                                     (float3)(p->x, p->y, p->z), nuvox, flipdir, gproperty, gcfg);
 #else
-                FLOAT4VEC htime;
-                f[0].y = (GPU_PARAM(gcfg, voidtime)) ? f[0].y : 0.f;
                 updateproperty(&htime, media[idx1d], gproperty, gcfg);
 #endif
 
@@ -1578,7 +1590,9 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
      */
     f[0].w += 1.f;
     *prop = TOFLOAT4(gproperty[1]);
-#if MED_TYPE == MEDIA_2LABEL_SPLIT
+#if MED_TYPE == MEDIA_ASGN_F2H
+    updateproperty_asgn(prop, *mediaid, *idx1d, media, gproperty, gcfg);
+#elif MED_TYPE == MEDIA_2LABEL_SPLIT
     updateproperty_svmc(prop, *mediaid, *idx1d, media,
                         (float3)(p->x, p->y, p->z), nuvox, flipdir, gproperty, gcfg);
 #else
@@ -1876,7 +1890,9 @@ __kernel void mcx_main_loop(__global const uint* media,
         }
 
         n1 = prop.w;
-#if MED_TYPE == MEDIA_2LABEL_SPLIT
+#if MED_TYPE == MEDIA_ASGN_F2H
+        updateproperty_asgn(&prop, mediaid, idx1d, media, gproperty, gcfg);
+#elif MED_TYPE == MEDIA_2LABEL_SPLIT
 
         if (!SV_ISSPLIT(nuvox.sv)) {
             updateproperty_svmc(&prop, mediaid, idx1d, media,
@@ -2173,9 +2189,12 @@ __kernel void mcx_main_loop(__global const uint* media,
         } else
 #endif
 
-            if (gcfg->mediaformat < 100) {
-                updateproperty(&prop, mediaid, gproperty, gcfg); ///< optical property across the interface
-            }
+#if MED_TYPE == MEDIA_ASGN_F2H
+            updateproperty_asgn(&prop, mediaid, idx1d, media, gproperty, gcfg);
+
+#elif MED_TYPE < 100
+            updateproperty(&prop, mediaid, gproperty, gcfg);
+#endif
 
         //if hit the boundary, exceed the max time window or exit the domain, rebound or launch a new one
         if (((mediaid && GPU_PARAM(gcfg, doreflect)) // if at an internal boundary, check cfg.isreflect flag
@@ -2245,6 +2264,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                 GPUDEBUG(((__constant char*)"ref p_new=[%f %f %f] v_new=[%f %f %f]\n", p.x, p.y, p.z, v.x, v.y, v.z));
                 idx1d = idx1dold;
                 mediaid = (media[idx1d] & MED_MASK);
+
 #if MED_TYPE == MEDIA_2LABEL_SPLIT
                 updateproperty_svmc(&prop, mediaid, idx1d, media,
                                     (float3)(p.x, p.y, p.z), &nuvox, &flipdir, gproperty, gcfg);
@@ -2267,6 +2287,8 @@ __kernel void mcx_main_loop(__global const uint* media,
                     continue;
                 }
 
+#elif MED_TYPE == MEDIA_ASGN_F2H
+                updateproperty_asgn(&prop, mediaid, idx1d, media, gproperty, gcfg);
 #else
                 updateproperty(&prop, mediaid, gproperty, gcfg); ///< optical property across the interface
 #endif

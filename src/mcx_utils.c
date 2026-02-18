@@ -185,8 +185,8 @@ const char* srctypeid[] = {"pencil", "isotropic", "cone", "gaussian", "planar",
  * User can specify the source type using a string
  */
 
-const unsigned int mediaformatid[] = {1, 2, 4, 97, 98, 99, 100, 101, 102, 103, 104, 0};
-const char* mediaformat[] = {"byte", "short", "integer", "svmc", "mixlabel", "labelplus",
+const unsigned int mediaformatid[] = {1, 2, 4, 96, 97, 98, 99, 100, 101, 102, 103, 104, 0};
+const char* mediaformat[] = {"byte", "short", "integer", "asgn_float", "svmc", "mixlabel", "labelplus",
                              "muamus_float", "mua_float", "muamus_half", "asgn_byte", "muamus_short", ""
                             };
 
@@ -4915,6 +4915,78 @@ int mcx_isbinstr(const char* str) {
         }
 
     return 1;
+}
+
+
+/**
+ * @brief Function to parse one subfield of the input structure
+ *
+ * This function reads in all necessary information from the cfg input structure.
+ * it can handle single scalar inputs, short vectors (3-4 elem), strings and arrays.
+ *
+ * @param[in] root: the cfg input data structure
+ * @param[in] item: the current element of the cfg input data structure
+ * @param[in] idx: the index of the current element (starting from 0)
+ * @param[out] cfg: the simulation configuration structure to store all input read from the parameters
+ */
+
+int mcx_float2half2(float input[2]) {
+    union {
+        float f[2];
+        unsigned int i[2];
+        unsigned short h[2];
+    } f2h;
+    unsigned short tmp, m;
+
+    f2h.f[0] = input[0];
+    f2h.f[1] = input[1];
+
+    /**
+     * float to half conversion
+     * https://stackoverflow.com/questions/3026441/float32-to-float16/5587983#5587983
+     * https://gamedev.stackexchange.com/a/17410  (for denorms)
+     */
+    m = ((f2h.i[0] >> 13) & 0x03ff);
+    tmp = (f2h.i[0] >> 23) & 0xff; /*exponent*/
+    tmp = (tmp - 0x70) & ((unsigned int)((int)(0x70 - tmp) >> 4) >> 27);
+
+    if (m < 0x10 && tmp == 0) { /*handle denorms - between 2^-24 and 2^-14*/
+        unsigned short sign = (f2h.i[0] >> 16) & 0x8000;
+        tmp = ((f2h.i[0] >> 23) & 0xff);
+        m = (f2h.i[0] >> 12) & 0x07ff;
+        m |= 0x0800u;
+        f2h.h[0] = sign | ((m >> (114 - tmp)) + ((m >> (113 - tmp)) & 1));
+    } else {
+        f2h.h[0] = (f2h.i[0] >> 31) << 5;
+        f2h.h[0] = (f2h.h[0] | tmp) << 10;
+        f2h.h[0] |= (f2h.i[0] >> 13) & 0x3ff;
+    }
+
+    m = ((f2h.i[1] >> 13) & 0x03ff);
+    tmp = (f2h.i[1] >> 23) & 0xff; /*exponent*/
+    tmp = (tmp - 0x70) & ((unsigned int)((int)(0x70 - tmp) >> 4) >> 27);
+
+    if (m < 0x10 && tmp == 0) { /*handle denorms - between 2^-24 and 2^-14*/
+        unsigned short sign = (f2h.i[1] >> 16) & 0x8000;
+        tmp = ((f2h.i[1] >> 23) & 0xff);
+        m = (f2h.i[1] >> 12) & 0x07ff;
+        m |= 0x0800u;
+        f2h.h[1] = sign | ((m >> (114 - tmp)) + ((m >> (113 - tmp)) & 1));
+    } else {
+        f2h.h[1] = (f2h.i[1] >> 31) << 5;
+        f2h.h[1] = (f2h.h[1] | tmp) << 10;
+        f2h.h[1] |= (f2h.i[1] >> 13) & 0x3ff;
+    }
+
+    if (f2h.i[0] == 0) { /*avoid being detected as a 0-label voxel, setting mus=EPS_fp16, only happens for _AS, not ASGN as n will never be 0*/
+        f2h.i[0] = 0x00010000;
+    }
+
+    if (f2h.i[0] == SIGN_BIT) { /*avoid being detected as a 0-label voxel, setting mus=EPS_fp16, , only happens for _AS, not ASGN as n will never be 0*/
+        f2h.i[0] = 0;
+    }
+
+    return f2h.i[0];
 }
 
 void mcx_printheader(Config* cfg) {

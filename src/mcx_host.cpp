@@ -683,7 +683,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     }
 
     for (i = 0; i < workdev; i++) {
-        if (cfg->mediabyte != MEDIA_2LABEL_SPLIT) {
+        if (cfg->mediabyte != MEDIA_2LABEL_SPLIT && cfg->mediabyte != MEDIA_ASGN_F2H) {
             OCL_ASSERT(((gmedia[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(cl_uint) * (cfg->dim.x * cfg->dim.y * cfg->dim.z), media, &status), status)));
         } else {
             OCL_ASSERT(((gmedia[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(cl_uint) * (2 * cfg->dim.x * cfg->dim.y * cfg->dim.z), media, &status), status)));
