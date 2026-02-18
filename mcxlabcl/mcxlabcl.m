@@ -406,9 +406,7 @@ end
 
 if (isstruct(varargin{1}))
     for i = 1:length(varargin{1})
-        if (ischar(useopencl) || useopencl > 0)
-            varargin{1}(i).gpuid = useopencl;
-        elseif (useopencl < 0)
+        if (useopencl < 0)
             varargin{1}(i).gpuid = -useopencl;
         end
         castlist = {'srcpattern', 'srcpos', 'detpos', 'prop', 'workload', 'srcdir'};
