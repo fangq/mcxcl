@@ -2844,12 +2844,24 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
             cfg->nphoton = FIND_JSON_KEY("Photons", "Session.Photons", Session, 0, valuedouble);
         }
 
+        if (!flagset['H']) {
+            cfg->maxdetphoton = FIND_JSON_KEY("MaxDetPhoton", "Session.MaxDetPhoton", Session, cfg->maxdetphoton, valuedouble);
+        }
+
         if (cfg->session[0] == '\0') {
             strncpy(cfg->session, FIND_JSON_KEY("ID", "Session.ID", Session, "default", valuestring), MAX_SESSION_LENGTH - 1);
         }
 
         if (cfg->rootpath[0] == '\0') {
             strncpy(cfg->rootpath, FIND_JSON_KEY("RootPath", "Session.RootPath", Session, "", valuestring), MAX_PATH_LENGTH - 1);
+        }
+
+        if (!flagset['B']) {
+            char* bc = FIND_JSON_KEY("BCFlags", "Session.BCFlags", Session, NULL, valuestring);
+
+            if (bc) {
+                strncpy(cfg->bc, bc, 12);
+            }
         }
 
         if (!flagset['b']) {
@@ -2924,6 +2936,10 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
 
         if (!flagset['O']) {
             cfg->outputtype = val[0];
+        }
+
+        if (!flagset['e']) {
+            cfg->minenergy = FIND_JSON_KEY("MinEnergy", "Session.MinEnergy", Session, cfg->minenergy, valuedouble);
         }
     }
 
