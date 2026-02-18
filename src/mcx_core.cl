@@ -54,6 +54,8 @@
 #define C0                 299792458000.f          //speed of light in mm/s
 #define R_C0               3.335640951981520e-12f  //1/C0 in s/mm
 
+#define SIGN_BIT              0x80000000U
+
 #define EPS                FLT_EPSILON             //round-off limit
 #define VERY_BIG           (1.f/FLT_EPSILON)       //a big number
 #define JUST_ABOVE_ONE     1.0001f                 //test for boundary
@@ -77,6 +79,7 @@
 
 #define MCX_DEBUG_REC_LEN   6  /**<  number of floating points per position saved when -D M is used for trajectory */
 
+#define MEDIA_ASGN_F2H        96   /**<  asgn_float media format: 4x half-float per voxel */
 #define MIN(a,b)           ((a)<(b)?(a):(b))
 
 #define MEDIA_2LABEL_SPLIT    97   /**<  svmc media format (not supported): 64bit:{[byte: lower label][byte: upper label][byte*3: reference point][byte*3: normal vector]} */
@@ -111,6 +114,35 @@
 #define UNSET_SAVE_PEXIT(a)     ((a) & ~(0x1<<4))   /**<  save exit positions */
 #define UNSET_SAVE_VEXIT(a)     ((a) & ~(0x1<<5))   /**<  save exit vector/directions */
 #define UNSET_SAVE_W0(a)        ((a) & ~(0x1<<6))   /**<  save initial weight */
+
+
+/**
+ * Packed split-voxel flags stored as a single unsigned int for efficient GPU register use.
+ * bits [0-7]: lower label, [8-15]: upper label, [16]: issplit, [17]: isupper
+ */
+#define SV_LOWER(sv)    ((unsigned char)((sv) & 0xFF))
+#define SV_UPPER(sv)    ((unsigned char)(((sv) >> 8) & 0xFF))
+#define SV_ISSPLIT(sv)  (((sv) >> 16) & 1u)
+#define SV_ISUPPER(sv)  (((sv) >> 17) & 1u)
+#define SV_SET_LOWER(sv, v)    ((sv) = ((sv) & ~0xFFu) | ((unsigned int)(v) & 0xFF))
+#define SV_SET_UPPER(sv, v)    ((sv) = ((sv) & ~0xFF00u) | (((unsigned int)(v) & 0xFF) << 8))
+#define SV_SET_ISSPLIT(sv, v)  ((sv) = ((sv) & ~0x10000u) | (((unsigned int)(!!(v))) << 16))
+#define SV_SET_ISUPPER(sv, v)  ((sv) = ((sv) & ~0x20000u) | (((unsigned int)(!!(v))) << 17))
+#define SV_FLIP_ISUPPER(sv)    ((sv) ^= 0x20000u)
+#define SV_CLEAR(sv)           ((sv) = 0u)
+#define SV_CURLABEL(sv) (SV_ISUPPER(sv) ? SV_UPPER(sv) : SV_LOWER(sv))
+
+/**
+ * @brief Data structure for SVMC intra-voxel interface
+ */
+typedef struct MCXSplit {
+    float3 nv;           /**< normal vector of the intra-voxel interface (lower->upper) */
+    float  pd;           /**< plane constant: dot(reference_point, nv) */
+    unsigned int sv;     /**< packed split-voxel flags */
+} MCXsp;
+
+#define UPPER_MASK         0x00FF0000              /**< mask for upper label byte in SVMC raw volume */
+#define LOWER_MASK         0xFF000000              /**< mask for lower label byte in SVMC raw volume */
 
 typedef struct MCXSource {
     float4 pos;      /**< initial position vector, for pencil beam */
@@ -296,13 +328,25 @@ float rand_next_scatlen(__private RandType t[RAND_BUF_LEN]) {
 
 /* function prototypes */
 
+
+float dot3(float3 a, float3 b);
+
 void clearpath(__local float* p, uint maxmediatype);
 float mcx_nextafterf(float a, int dir);
 float hitgrid(float4* p0, float4* v, short4* id);
 void rotatevector(float4* v, float stheta, float ctheta, float sphi, float cphi);
 void transmit(float4* v, float n1, float n2, short flipdir);
 float reflectcoeff(float4* v, float n1, float n2, short flipdir);
-int skipvoid(float4* p, float4* v, float4* f, short4* flipdir, __global const uint* media, __constant float4* gproperty, __constant MCXParam* gcfg);
+int skipvoid(float4* p, float4* v, float4* f, short4* flipdir, __global const uint* media, __constant float4* gproperty, __constant MCXParam* gcfg, MCXsp* nuvox);
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+void updateproperty_svmc(FLOAT4VEC* prop, unsigned int mediaid, uint idx1d,
+                         __global const uint* media, float3 p, MCXsp* nuvox, short4* flipdir,
+                         __constant float4* gproperty, __constant MCXParam* gcfg);
+int ray_plane_intersect(float3 p0, float4* v, FLOAT4VEC* prop, float* len, float* slen, MCXsp* nuvox, __constant MCXParam* gcfg);
+int reflectray_svmc(float n1, float3* c0, MCXsp* nuvox, FLOAT4VEC* prop, __private RandType t[RAND_BUF_LEN], __constant float4* gproperty);
+#endif
+
+
 void rotatevector2d(float4* v, float stheta, float ctheta, int is2d);
 void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant float4* gproperty, __constant MCXParam* gcfg);
 
@@ -322,7 +366,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
                     __constant float4* gdetpos, __constant MCXParam* gcfg, int threadid,
                     __local int* blockphoton, volatile __global uint* gprogress,
                     __local RandType* photonseed, __global RandType* gseeddata,
-                    __global uint* gjumpdebug, __global float* gdebugdata, __local RandType* sharedmem);
+                    __global uint* gjumpdebug, __global float* gdebugdata, __local RandType* sharedmem, MCXsp* nuvox);
 
 #if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
     void savedebugdata(float4* p, uint id, __global uint* gjumpdebug, __global float* gdebugdata, __constant MCXParam* gcfg, int srcid);
@@ -475,6 +519,11 @@ void savedebugdata(float4* p, uint id, __global uint* gjumpdebug, __global float
     }
 }
 #endif
+
+
+float dot3(float3 a, float3 b) {
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}
 
 float mcx_nextafterf(float a, int dir) {
     union {
@@ -686,8 +735,159 @@ void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant float4* gp
     prop[0].x = val.h[0] * (1.f / 65535.f) * (gproperty[2].x - gproperty[1].x) + gproperty[1].x;
     prop[0].y = val.h[1] * (1.f / 65535.f) * (gproperty[2].y - gproperty[1].y) + gproperty[1].y;
     prop[0].w = gproperty[(!(mediaid & MED_MASK)) == 0].w;
+#elif MED_TYPE==MEDIA_ASGN_F2H
+
+    if (idx1d == OUTSIDE_VOLUME_MIN || idx1d == OUTSIDE_VOLUME_MAX) {
+        *((FLOAT4VEC*)(prop)) = gproperty[0];
+    } else {
+        union {
+            unsigned int i[2];
+            half h[4];
+        } val;
+        val.i[0] = mediaid & MED_MASK;
+        val.i[1] = media[idx1d + gcfg->dimlen.z];
+        prop[0].x = fabs(convert_float(vload_half(0, (const __global half*)&val.h[0])));
+        prop[0].y = fabs(convert_float(vload_half(1, (const __global half*)&val.h[0])));
+        prop[0].z = fabs(convert_float(vload_half(2, (const __global half*)&val.h[0])));
+        prop[0].w = fabs(convert_float(vload_half(3, (const __global half*)&val.h[0])));
+    }
+
 #endif
 }
+
+
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+
+/**
+ * @brief Loading optical properties for SVMC split-voxel mode
+ */
+void updateproperty_svmc(FLOAT4VEC* prop, unsigned int mediaid, uint idx1d,
+                         __global const uint* media, float3 p, MCXsp* nuvox,
+                         short4* flipdir, __constant float4* gproperty,
+                         __constant MCXParam* gcfg) {
+
+    if (idx1d == OUTSIDE_VOLUME_MIN || idx1d == OUTSIDE_VOLUME_MAX) {
+        *((FLOAT4VEC*)(prop)) = gproperty[0];
+        return;
+    }
+
+    union {
+        unsigned char c[8];
+        unsigned int  i[2];
+    } val;
+
+    val.i[0] = media[idx1d + gcfg->dimlen.z];
+    val.i[1] = mediaid & MED_MASK;
+    unsigned int svpacked = (unsigned int)val.c[7] | ((unsigned int)val.c[6] << 8);
+
+    if (val.c[6]) {
+        float3 rp = (float3)(val.c[5] * (1.f / 255.f) + (float)flipdir->x,
+                             val.c[4] * (1.f / 255.f) + (float)flipdir->y,
+                             val.c[3] * (1.f / 255.f) + (float)flipdir->z);
+
+        nuvox->nv = (float3)(val.c[2] * (2.f / 255.f) - 1.f,
+                             val.c[1] * (2.f / 255.f) - 1.f,
+                             val.c[0] * (2.f / 255.f) - 1.f);
+        nuvox->nv = nuvox->nv * rsqrt(dot3(nuvox->nv, nuvox->nv));
+
+        nuvox->pd = dot3(rp, nuvox->nv);
+
+        if (dot3(p, nuvox->nv) > nuvox->pd) {
+            *((FLOAT4VEC*)(prop)) = gproperty[SV_UPPER(svpacked)];
+            SV_SET_ISUPPER(svpacked, 1);
+            nuvox->nv = -nuvox->nv;
+            nuvox->pd = -nuvox->pd;
+        } else {
+            *((FLOAT4VEC*)(prop)) = gproperty[SV_LOWER(svpacked)];
+            SV_SET_ISUPPER(svpacked, 0);
+        }
+
+        SV_SET_ISSPLIT(svpacked, 1);
+    } else {
+        *((FLOAT4VEC*)(prop)) = gproperty[val.c[7]];
+        svpacked &= 0xFFFF;
+    }
+
+    nuvox->sv = svpacked;
+}
+
+/**
+ * @brief Compute intersection between photon path and intra-voxel planar interface
+ */
+int ray_plane_intersect(float3 p0, float4* v, FLOAT4VEC* prop, float* len,
+                        float* slen, MCXsp* nuvox, __constant MCXParam* gcfg) {
+    float3 vdir = (float3)(v->x, v->y, v->z);
+    float vdotn = dot3(vdir, nuvox->nv);
+
+    if (vdotn <= 0.f) {
+        return 0;
+    } else {
+        float d0 = dot3(p0, nuvox->nv) - nuvox->pd;
+        float d1 = d0 + (*len) * vdotn;
+
+        if (d0 * d1 > 0.f) {
+            return 0;
+        } else {
+            float len0 = native_divide((*len) * d0, d0 - d1);
+            *len = (len0 > 0.f) ? len0 : *len;
+            *slen = (*len) * prop->y * (v->w + 1.f > GPU_PARAM(gcfg, gscatter) ? (1.f - prop->z) : 1.f);
+            return 1;
+        }
+    }
+}
+
+/**
+ * @brief Perform reflection/refraction at intra-voxel interface (SVMC)
+ */
+int reflectray_svmc(float n1, float3* c0, MCXsp* nuvox, FLOAT4VEC* prop,
+                    __private RandType t[RAND_BUF_LEN],
+                    __constant float4* gproperty) {
+    float Icos, Re, Im, Rtotal, tmp0, tmp1, tmp2, n2;
+
+    Icos = fabs(dot3(*c0, nuvox->nv));
+
+    n2 = SV_ISUPPER(nuvox->sv)
+         ? gproperty[SV_UPPER(nuvox->sv)].w
+         : gproperty[SV_LOWER(nuvox->sv)].w;
+
+    tmp0 = n1 * n1;
+    tmp1 = n2 * n2;
+    tmp2 = 1.f - tmp0 / tmp1 * (1.f - Icos * Icos);
+
+    if (tmp2 > 0.f) {
+        Re = tmp0 * Icos * Icos + tmp1 * tmp2;
+        tmp2 = sqrt(tmp2);
+        Im = 2.f * n1 * n2 * Icos * tmp2;
+        Rtotal = (Re - Im) / (Re + Im);
+        Re = tmp1 * Icos * Icos + tmp0 * tmp2 * tmp2;
+        Rtotal = (Rtotal + (Re - Im) / (Re + Im)) * 0.5f;
+
+        if (rand_next_reflect(t) <= Rtotal) {
+            *c0 += (float3)(-2.f * Icos) * nuvox->nv;
+            SV_FLIP_ISUPPER(nuvox->sv);
+        } else {
+            *c0 += (float3)(-Icos) * nuvox->nv;
+            *c0 = (float3)(tmp2) * nuvox->nv + (float3)(n1 / n2) * (*c0);
+            nuvox->nv = -nuvox->nv;
+            nuvox->pd = -nuvox->pd;
+
+            if (SV_CURLABEL(nuvox->sv) == 0) {
+                return 1;
+            }
+
+            *((FLOAT4VEC*)prop) = gproperty[SV_CURLABEL(nuvox->sv)];
+        }
+    } else {
+        *c0 += (float3)(-2.f * Icos) * nuvox->nv;
+        SV_FLIP_ISUPPER(nuvox->sv);
+    }
+
+    tmp0 = rsqrt(dot3(*c0, *c0));
+    *c0 = (*c0) * (float3)(tmp0);
+    return 0;
+}
+
+#endif
 
 #ifndef INTERNAL_SOURCE
 
@@ -706,7 +906,7 @@ void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant float4* gp
  * @return the reflection coefficient R=(Rs+Rp)/2, Rs: R of the perpendicularly polarized light, Rp: parallelly polarized light
  */
 
-int skipvoid(float4* p, float4* v, float4* f, short4* flipdir, __global const uint* media, __constant float4* gproperty, __constant MCXParam* gcfg) {
+int skipvoid(float4* p, float4* v, float4* f, short4* flipdir, __global const uint* media, __constant float4* gproperty, __constant MCXParam* gcfg, MCXsp* nuvox) {
     int count = 1, idx1d;
 
     flipdir->xyz = convert_short3_rtn(p->xyz);
@@ -752,9 +952,16 @@ int skipvoid(float4* p, float4* v, float4* f, short4* flipdir, __global const ui
                     }
                 }
 
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+                FLOAT4VEC htime;
+                f[0].y = (GPU_PARAM(gcfg, voidtime)) ? f[0].y : 0.f;
+                updateproperty_svmc(&htime, media[idx1d], idx1d, media,
+                                    (float3)(p->x, p->y, p->z), nuvox, flipdir, gproperty, gcfg);
+#else
                 FLOAT4VEC htime;
                 f[0].y = (GPU_PARAM(gcfg, voidtime)) ? f[0].y : 0.f;
                 updateproperty(&htime, media[idx1d], gproperty, gcfg);
+#endif
 
                 if (GPU_PARAM(gcfg, isspecular) &&  htime.w != gproperty[0].w) {
                     p[0].w *= 1.f - reflectcoeff(v, gproperty[0].w, gproperty[media[idx1d] & MED_MASK].w, flipdir->w);
@@ -829,7 +1036,8 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
                     __constant float4* gdetpos, __constant MCXParam* gcfg, int threadid,
                     __local int* blockphoton, volatile __global uint* gprogress,
                     __local RandType* photonseed, __global RandType* gseeddata,
-                    __global uint* gjumpdebug, __global float* gdebugdata, __local RandType* sharedmem) {
+                    __global uint* gjumpdebug, __global float* gdebugdata, __local RandType* sharedmem,
+                    MCXsp* nuvox) {
 
     *w0 = 1.f;   ///< reuse to count for launchattempt
     *Lmove = -1.f; ///< reuse as "canfocus" flag for each source: non-zero: focusable, zero: not focusable
@@ -908,9 +1116,13 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 #ifdef MCX_SAVE_DETECTORS
 
         // let's handle detectors here
-        if ((isdet & DET_MASK) == DET_MASK && *mediaid == 0 && (bool)(GPU_PARAM(gcfg, issaveref) < 2)) {
-            savedetphoton(n_det, dpnum, ppath, p, v, photonseed, gseeddata, gdetpos, gcfg, isdet);
-        }
+        if ((isdet & DET_MASK) == DET_MASK && (*mediaid == 0
+                                               + #if MED_TYPE == MEDIA_2LABEL_SPLIT
+                                                   +            || SV_CURLABEL(nuvox->sv) == 0
+                                                   + #endif
+                                                   +            ) && (bool)(GPU_PARAM(gcfg, issaveref) < 2)) {
+                savedetphoton(n_det, dpnum, ppath, p, v, photonseed, gseeddata, gdetpos, gcfg, isdet);
+            }
 
 #endif
     }
@@ -984,6 +1196,11 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
         f[0] = (float4)(0.f, 0.f, GPU_PARAM(gcfg, minaccumtime), f[0].w);
         *idx1d = as_int(launchsrc->param2.z);      /**< pre-computed 1D index of the photon at launch for pencil/isotropic beams */
         *mediaid = as_int(launchsrc->param2.w);    /**< pre-computed media index of the photon at launch for pencil/isotropic beams */
+
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+        SV_CLEAR(nuvox->sv);
+#endif
+
         *prop = TOFLOAT4((float4)(launchsrc->pos.x, launchsrc->pos.y, launchsrc->pos.z, 0)); ///< reuse as the origin of the src, needed for focusable sources
 
         /**
@@ -1335,7 +1552,7 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
          * If a photon is launched outside of the box, or inside a zero-voxel, move it until it hits a non-zero voxel
          */
         if ((*mediaid & MED_MASK) == 0) {
-            int idx = skipvoid(p, v, f, flipdir, media, gproperty, gcfg); /** specular reflection of the bbx is taken care of here*/
+            int idx = skipvoid(p, v, f, flipdir, media, gproperty, gcfg, nuvox); /** specular reflection of the bbx is taken care of here*/
 
             if (idx >= 0) {
                 *idx1d = idx;
@@ -1361,7 +1578,12 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
      */
     f[0].w += 1.f;
     *prop = TOFLOAT4(gproperty[1]);
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+    updateproperty_svmc(prop, *mediaid, *idx1d, media,
+                        (float3)(p->x, p->y, p->z), nuvox, flipdir, gproperty, gcfg);
+#else
     updateproperty(prop, *mediaid, gproperty, gcfg);
+#endif
 
 #if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
     savedebugdata(p, (uint)f[0].w + threadid * gcfg->threadphoton + min(threadid, (threadid < gcfg->oddphoton)*threadid), gjumpdebug, gdebugdata, gcfg, (int)ppath[3]);
@@ -1421,6 +1643,10 @@ __kernel void mcx_main_loop(__global const uint* media,
     uint   mediaidold = 0;
     uint   isdet = 0;
     float  w0, Lmove, pathlen = 0.f;
+    MCXsp nuvox;
+    nuvox.sv = 0;
+    unsigned char testint = 0;
+    unsigned char hitintf = 0;
     float  n1;   //reflection var
     short4 flipdir = {0, 0, 0, -1};
 
@@ -1503,7 +1729,7 @@ __kernel void mcx_main_loop(__global const uint* media,
     if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove, 0, ppath,
                         n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton,
                         gprogress, (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) + get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)),
-                        gseeddata, gjumpdebug, gdebugdata, sharedmem)) {
+                        gseeddata, gjumpdebug, gdebugdata, sharedmem, &nuvox)) {
         n_seed[idx] = NO_LAUNCH;
         return;
     }
@@ -1573,12 +1799,28 @@ __kernel void mcx_main_loop(__global const uint* media,
 #ifdef MCX_SAVE_DETECTORS
 
                 if (SAVE_NSCAT(GPU_PARAM(gcfg, savedetflag))) {
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+
+                    if (SV_CURLABEL(nuvox.sv) > 0) {
+                        ppath[SV_CURLABEL(nuvox.sv) - 1]++;
+                    }
+
+#else
                     ppath[(mediaid & MED_MASK) - 1]++;
+#endif
                 }
 
                 /** accummulate momentum transfer */
                 if (SAVE_MOM(GPU_PARAM(gcfg, savedetflag))) {
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+
+                    if (SV_CURLABEL(nuvox.sv) > 0)
+                        ppath[GPU_PARAM(gcfg, maxmedia) * (SAVE_NSCAT(GPU_PARAM(gcfg, savedetflag)) + SAVE_PPATH(GPU_PARAM(gcfg, savedetflag))) +
+                                              SV_CURLABEL(nuvox.sv) - 1] += 1.f - ctheta;
+
+#else
                     ppath[GPU_PARAM(gcfg, maxmedia) * (SAVE_NSCAT(GPU_PARAM(gcfg, savedetflag)) + SAVE_PPATH(GPU_PARAM(gcfg, savedetflag))) + (mediaid & MED_MASK) - 1] += 1.f - ctheta;
+#endif
                 }
 
 #endif
@@ -1628,31 +1870,68 @@ __kernel void mcx_main_loop(__global const uint* media,
             }
 
             v.w = (int)v.w;
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+            testint = 1;
+#endif
         }
 
         n1 = prop.w;
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+
+        if (!SV_ISSPLIT(nuvox.sv)) {
+            updateproperty_svmc(&prop, mediaid, idx1d, media,
+                                (float3)(p.x, p.y, p.z), &nuvox, &flipdir, gproperty, gcfg);
+        }
+
+#else
         updateproperty(&prop, mediaid, gproperty, gcfg);
+#endif
 
         f.z = hitgrid(&p, &v, &flipdir);
         float slen = f.z * prop.y * (v.w + 1.f > GPU_PARAM(gcfg, gscatter) ? (1.f - prop.z) : 1.f); //unitless (minstep=grid, mus=1/grid)
         slen = fmin(slen, f.x);
         f.z = native_divide(slen, prop.y * (v.w + 1.f > GPU_PARAM(gcfg, gscatter) ? (1.f - prop.z) : 1.f ));
-        pathlen += f.z;
 
         GPUDEBUG(((__constant char*)"p=[%f %f %f] -> <%f %f %f>*%f -> flip=%d\n", p.x, p.y, p.z, v.x, v.y, v.z, f.z, flipdir.w));
+
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+
+        if (SV_ISSPLIT(nuvox.sv) && testint) {
+            float tmplen = f.z;
+            hitintf = ray_plane_intersect((float3)(p.x, p.y, p.z), &v, &prop, &tmplen, &slen, &nuvox, gcfg);
+            f.z = tmplen;
+        } else {
+            hitintf = 0;
+        }
+
+#endif
+
+        pathlen += f.z;
 
         p.xyz = p.xyz + (float3)(f.z) * v.xyz;
 
         if (flipdir.w == 0) {
-            flipdir.x += (slen == f.x) ? 0 : (v.x > 0.f ? 1 : -1);
+            flipdir.x += (slen == f.x
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+                          || hitintf
+#endif
+                         ) ? 0 : (v.x > 0.f ? 1 : -1);
         }
 
         if (flipdir.w == 1) {
-            flipdir.y += (slen == f.x) ? 0 : (v.y > 0.f ? 1 : -1);
+            flipdir.y += (slen == f.x
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+                          || hitintf
+#endif
+                         ) ? 0 : (v.y > 0.f ? 1 : -1);
         }
 
         if (flipdir.w == 2) {
-            flipdir.z += (slen == f.x) ? 0 : (v.z > 0.f ? 1 : -1);
+            flipdir.z += (slen == f.x
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+                          || hitintf
+#endif
+                         ) ? 0 : (v.z > 0.f ? 1 : -1);
         }
 
         p.w *= MCX_MATHFUN(exp)(-prop.x * f.z);
@@ -1664,7 +1943,15 @@ __kernel void mcx_main_loop(__global const uint* media,
 #ifdef MCX_SAVE_DETECTORS
 
         if (GPU_PARAM(gcfg, savedet) && SAVE_PPATH(GPU_PARAM(gcfg, savedetflag))) {
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+
+            if (SV_CURLABEL(nuvox.sv) > 0) {
+                ppath[GPU_PARAM(gcfg, maxmedia) * (SAVE_NSCAT(GPU_PARAM(gcfg, savedetflag))) + SV_CURLABEL(nuvox.sv) - 1] += f.z;
+            }
+
+#else
             ppath[GPU_PARAM(gcfg, maxmedia) * (SAVE_NSCAT(GPU_PARAM(gcfg, savedetflag))) + (mediaid & MED_MASK) - 1] += f.z;    //(unit=grid)
+#endif
         }
 
 #endif
@@ -1689,7 +1976,11 @@ __kernel void mcx_main_loop(__global const uint* media,
 
         GPUDEBUG(((__constant char*)"medium [%d]->[%d]\n", mediaidold, mediaid));
 
-        if (idx1d != idx1dold && idx1dold < gcfg->dimlen.z && mediaidold) {
+        if ((idx1d != idx1dold
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+                || hitintf
+#endif
+            ) && idx1dold < gcfg->dimlen.z && mediaidold) {
             GPUDEBUG(((__constant char*)"field add to %d->%f(%d)\n", idx1dold, w0 - p.w, (int)f.w));
 
             // if t is within the time window, which spans cfg->maxgate*cfg->tstep wide
@@ -1752,10 +2043,33 @@ __kernel void mcx_main_loop(__global const uint* media,
 
             w0 = p.w;
             pathlen = 0.f;
+        } else {
+            mediaid = mediaidold;
         }
 
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+
+        /** in SVMC mode, update tissue type when photons cross voxel or intra-voxel boundary */
+        if (idx1d != idx1dold) {
+            updateproperty_svmc(&prop, mediaid, idx1d, media,
+                                (float3)(p.x, p.y, p.z), &nuvox, &flipdir, gproperty, gcfg);
+            testint = 1;
+        } else if (hitintf) {
+            nuvox.nv = -nuvox.nv;
+            nuvox.pd = -nuvox.pd;
+            SV_FLIP_ISUPPER(nuvox.sv);
+            testint = 0;
+        }
+
+#endif
+
         /** launch new photon when exceed time window or moving from non-zero voxel to zero voxel without reflection */
-        if ((mediaid == 0 && ((isdet & 0xF) == bcAbsorb || (isdet & 0xF) == bcCyclic || ((isdet & 0xF) == bcReflect && n1 == gproperty[0].w))) ||  f.y > gcfg->twin1) {
+        if ((mediaid == 0 && ((isdet & 0xF) == bcAbsorb || (isdet & 0xF) == bcCyclic || ((isdet & 0xF) == bcReflect && n1 == gproperty[0].w)))
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+                || ((idx1d != idx1dold || hitintf) && !SV_ISUPPER(nuvox.sv) && !SV_LOWER(nuvox.sv)
+                    && (!GPU_PARAM(gcfg, doreflect) || n1 == gproperty[0].w))
+#endif
+                || f.y > gcfg->twin1) {
             if (isdet == bcCyclic) {
                 if (flipdir.w == 0) {
                     p.x = mcx_nextafterf(convert_float_rte(((idx1d == OUTSIDE_VOLUME_MIN) ? gcfg->maxidx.x : 0)), (v.x > 0.f) - (v.x < 0.f));
@@ -1790,12 +2104,15 @@ __kernel void mcx_main_loop(__global const uint* media,
                                 (((idx1d == OUTSIDE_VOLUME_MAX && gcfg->bc[9 + flipdir.w]) || (idx1d == OUTSIDE_VOLUME_MIN && gcfg->bc[6 + flipdir.w])) ? OUTSIDE_VOLUME_MIN : (mediaidold & DET_MASK)),
                                 ppath, n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
                                 (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) +
-                                                    get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)), gseeddata, gjumpdebug, gdebugdata, sharedmem)) {
+                                                    get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)), gseeddata, gjumpdebug, gdebugdata, sharedmem, &nuvox)) {
                 break;
             }
 
             isdet = mediaid & DET_MASK;
             mediaid &= MED_MASK;
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+            testint = 1;
+#endif
             continue;
         }
 
@@ -1809,7 +2126,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                 if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
                                     (mediaidold & DET_MASK), ppath, n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
                                     (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) +
-                                                        get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)), gseeddata, gjumpdebug, gdebugdata, sharedmem)) {
+                                                        get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)), gseeddata, gjumpdebug, gdebugdata, sharedmem, &nuvox)) {
                     break;
                 }
 
@@ -1822,9 +2139,43 @@ __kernel void mcx_main_loop(__global const uint* media,
 
 #ifdef MCX_DO_REFLECTION
 
-        if (gcfg->mediaformat < 100) {
-            updateproperty(&prop, mediaid, gproperty, gcfg); ///< optical property across the interface
-        }
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+
+        /** SVMC intra-voxel reflection/refraction */
+        if (hitintf) {
+            if (gproperty[SV_LOWER(nuvox.sv)].w != gproperty[SV_UPPER(nuvox.sv)].w) {
+                nuvox.nv = -nuvox.nv;
+                nuvox.pd = -nuvox.pd;
+                float3 c0 = (float3)(v.x, v.y, v.z);
+
+                if (reflectray_svmc(n1, &c0, &nuvox, &prop, t, gproperty)) {
+                    if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
+                                        (mediaidold & DET_MASK), ppath, n_det, detectedphoton, t, (__global RandType*)n_seed,
+                                        gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
+                                        (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) +
+                                                            get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)),
+                                        gseeddata, gjumpdebug, gdebugdata, sharedmem, &nuvox)) {
+                        break;
+                    }
+
+                    isdet = mediaid & DET_MASK;
+                    mediaid &= MED_MASK;
+                    testint = 1;
+                    continue;
+                }
+
+                v.x = c0.x;
+                v.y = c0.y;
+                v.z = c0.z;
+            } else {
+                *((FLOAT4VEC*)(&prop)) = gproperty[SV_CURLABEL(nuvox.sv)];
+            }
+        } else
+#endif
+
+            if (gcfg->mediaformat < 100) {
+                updateproperty(&prop, mediaid, gproperty, gcfg); ///< optical property across the interface
+            }
 
         //if hit the boundary, exceed the max time window or exit the domain, rebound or launch a new one
         if (((mediaid && GPU_PARAM(gcfg, doreflect)) // if at an internal boundary, check cfg.isreflect flag
@@ -1871,7 +2222,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                                         (((idx1d == OUTSIDE_VOLUME_MAX && gcfg->bc[9 + flipdir.w]) || (idx1d == OUTSIDE_VOLUME_MIN && gcfg->bc[6 + flipdir.w])) ? OUTSIDE_VOLUME_MIN : (mediaidold & DET_MASK)),
                                         ppath, n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
                                         (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen))
-                                                            + get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)), gseeddata, gjumpdebug, gdebugdata, sharedmem)) {
+                                                            + get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)), gseeddata, gjumpdebug, gdebugdata, sharedmem, &nuvox)) {
                         break;
                     }
 
@@ -1894,7 +2245,31 @@ __kernel void mcx_main_loop(__global const uint* media,
                 GPUDEBUG(((__constant char*)"ref p_new=[%f %f %f] v_new=[%f %f %f]\n", p.x, p.y, p.z, v.x, v.y, v.z));
                 idx1d = idx1dold;
                 mediaid = (media[idx1d] & MED_MASK);
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+                updateproperty_svmc(&prop, mediaid, idx1d, media,
+                                    (float3)(p.x, p.y, p.z), &nuvox, &flipdir, gproperty, gcfg);
+
+                if (SV_CURLABEL(nuvox.sv) == 0) {
+                    if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
+                                        (mediaidold & DET_MASK), ppath, n_det, detectedphoton, t, (__global RandType*)n_seed,
+                                        gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
+                                        (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) +
+                                                            get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)),
+                                        gseeddata, gjumpdebug, gdebugdata, sharedmem, &nuvox)) {
+                        break;
+                    }
+
+                    isdet = mediaid & DET_MASK;
+                    mediaid &= MED_MASK;
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+                    testint = 1;
+#endif
+                    continue;
+                }
+
+#else
                 updateproperty(&prop, mediaid, gproperty, gcfg); ///< optical property across the interface
+#endif
                 n1 = prop.w;
             }
         }

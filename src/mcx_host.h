@@ -159,6 +159,7 @@ typedef struct KernelParams {
     cl_uint   nangle;               /**< number of samples for launch angle inverse-cdf, will be added by 2 to include 0 and 1 on the two ends */
     cl_uint   nanglelen;            /**< even-rounded nangle so that shared memory buffer won't give an error */
     cl_char   bc[8];                /**< boundary conditions */
+    cl_uint   issvmc;               /**< flag indicating SVMC mode (mediabyte==97) */
 } MCXParam POST_ALIGN(16);
 
 void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy);

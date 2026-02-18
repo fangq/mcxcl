@@ -490,6 +490,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         cfg->nphase + (cfg->nphase & 0x1), cfg->nangle, cfg->nangle + (cfg->nangle & 0x1)
     };
 
+    param.issvmc = (cfg->mediabyte == MEDIA_2LABEL_SPLIT) ? 1 : 0;
+
     platform = mcx_list_gpu(cfg, &workdev, devices, &gpu);
 
     if (workdev > MAX_DEVICE) {

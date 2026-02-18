@@ -185,8 +185,8 @@ const char* srctypeid[] = {"pencil", "isotropic", "cone", "gaussian", "planar",
  * User can specify the source type using a string
  */
 
-const unsigned int mediaformatid[] = {1, 2, 4, 98, 99, 100, 101, 102, 103, 104, 0};
-const char* mediaformat[] = {"byte", "short", "integer", "mixlabel", "labelplus",
+const unsigned int mediaformatid[] = {1, 2, 4, 97, 98, 99, 100, 101, 102, 103, 104, 0};
+const char* mediaformat[] = {"byte", "short", "integer", "svmc", "mixlabel", "labelplus",
                              "muamus_float", "mua_float", "muamus_half", "asgn_byte", "muamus_short", ""
                             };
 
