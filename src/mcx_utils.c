@@ -136,7 +136,7 @@ const char saveflag[] = {'D', 'S', 'P', 'M', 'X', 'V', 'W', 'I', '\0'};
  * p: scattering counts for computing Jacobians for mus
  */
 
-const char outputtype[] = {'x', 'f', 'e', 'j', 'p', 'm', 'l', '\0'};
+const char outputtype[] = {'x', 'f', 'e', 'j', 'p', 'm', 'r', 'l', 's', 't', 'b', '\0'};
 
 
 /**
@@ -858,7 +858,7 @@ void mcx_savedata(float* dat, size_t len, Config* cfg) {
     }
 
     if (cfg->outputformat == ofNifti || cfg->outputformat == ofAnalyze) {
-        mcx_savenii(dat, len, name, NIFTI_TYPE_FLOAT32, cfg->outputformat, cfg);
+        mcx_savenii(dat, len * (1 + (cfg->outputtype == otRF || cfg->outputtype == otRFmus)), name, NIFTI_TYPE_FLOAT32, cfg->outputformat, cfg);
         return;
     } else if (cfg->outputformat == ofJNifti || cfg->outputformat == ofBJNifti) {
         uint dims[6] = {cfg->dim.x, cfg->dim.y, cfg->dim.z, cfg->maxgate, cfg->srcnum, 1};
@@ -870,6 +870,10 @@ void mcx_savedata(float* dat, size_t len, Config* cfg) {
 
         if (cfg->seed == SEED_FROM_FILE && (cfg->replaydet == -1 && cfg->detnum > 1)) {
             dims[5] *= cfg->detnum;
+        }
+
+        if (cfg->seed == SEED_FROM_FILE && (cfg->outputtype == otRF || cfg->outputtype == otRFmus)) {
+            dims[5] *= 2;
         }
 
         if (cfg->outputformat == ofJNifti) {
@@ -893,7 +897,7 @@ void mcx_savedata(float* dat, size_t len, Config* cfg) {
         fwrite(&(cfg->dim.x), sizeof(int), 3, fp);
     }
 
-    fwrite(dat, sizeof(float), len, fp);
+    fwrite(dat, sizeof(float), len * (1 + (cfg->outputtype == otRF || cfg->outputtype == otRFmus)), fp);
     fclose(fp);
 }
 
@@ -1835,7 +1839,7 @@ void mcx_validatecfg(Config* cfg, float* detps, int dimdetps[2], int seedbyte) {
         }
     }
 
-    if ((cfg->outputtype == otJacobian || cfg->outputtype == otWP || cfg->outputtype == otDCS)
+    if ((cfg->outputtype == otJacobian || cfg->outputtype == otWP || cfg->outputtype == otDCS || cfg->outputtype == otRF || cfg->outputtype == otRFmus || cfg->outputtype == otWLTOF || cfg->outputtype == otWPTOF)
             && cfg->seed != SEED_FROM_FILE) {
         MCX_ERROR(-6, "Jacobian output is only valid in the reply mode. Please define cfg.seed");
     }
@@ -3736,7 +3740,7 @@ void mcx_loadseedfile(Config* cfg) {
     cfg->seed = SEED_FROM_FILE;
     cfg->nphoton = his.savedphoton;
 
-    if (cfg->outputtype == otJacobian || cfg->outputtype == otWP || cfg->outputtype == otDCS ) { //cfg->replaydet>0
+    if (cfg->outputtype == otJacobian || cfg->outputtype == otWP || cfg->outputtype == otDCS  || cfg->outputtype == otRF || cfg->outputtype == otRFmus || cfg->outputtype == otWLTOF || cfg->outputtype == otWPTOF) { //cfg->replaydet>0
         int i, j, hasdetid = 0, offset;
         float plen, *ppath;
         hasdetid = SAVE_DETID(his.savedetflag);
@@ -4967,7 +4971,7 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
         exit(0);
     }
 
-    if ((cfg->outputtype == otJacobian || cfg->outputtype == otWP || cfg->outputtype == otDCS) && cfg->seed != SEED_FROM_FILE) {
+    if ((cfg->outputtype == otJacobian || cfg->outputtype == otWP || cfg->outputtype == otDCS || cfg->outputtype == otRF || cfg->outputtype == otRFmus || cfg->outputtype == otWLTOF || cfg->outputtype == otWPTOF) && cfg->seed != SEED_FROM_FILE) {
         MCX_ERROR(-1, "Jacobian output is only valid in the reply mode. Please give an mch file after '-E'.");
     }
 
@@ -5296,10 +5300,12 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 \n"S_BOLD S_CYAN"\
 == Output options ==\n"S_RESET"\
  -s sessionid  (--session)     a string to label all output file names\n\
- -O [X|XFEJPML](--outputtype)  X - output flux, F - fluence, E - energy density\n\
+ -O [X|XFEJPMRLSTB](--outputtype)  X - output flux, F - fluence, E - energy density\n\
                                J - Jacobian (replay mode),   P - scattering\n\
                                event counts at each voxel (replay mode only)\n\
-                               M - momentum transfer; L - total pathlength\n\
+                               M - momentum transfer; R - RF/FD mua Jacobian\n\
+                               L - total pathlength; S - RF/FD mus Jacobian\n\
+                               T - time-of-flight*nscat; B - time-of-flight*path\n\
  -d [1|0-3]    (--savedet)     1 to save photon info at detectors; 0 not save\n\
                                2 reserved, 3 terminate simulation when detected\n\
                                photon buffer is filled\n\

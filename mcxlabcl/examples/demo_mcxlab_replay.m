@@ -8,11 +8,11 @@
 
 % only clear cfg to avoid accidentally clearing other useful data
 clear cfg cfgs;
-cfg.nphoton = 1e8;
+cfg.nphoton = 1e7;
 cfg.vol = uint8(ones(60, 60, 60));
 cfg.srcpos = [30 30 0];
 cfg.srcdir = [0 0 1];
-cfg.gpuid = 1;
+cfg.gpuid = 2;
 % cfg.gpuid='11'; % use two GPUs together
 cfg.autopilot = 1;
 cfg.issrcfrom0 = 1;
@@ -31,4 +31,12 @@ newcfg.outputtype = 'jacobian';
 newcfg.detphotons = detp.data;
 [flux2, detp2, vol2, seeds2] = mcxlabcl(newcfg);
 jac = sum(flux2.data, 4);
+imagesc(log10(abs(squeeze(jac(:, 30, :)))));
+
+newcfg.outputtype = 'rf';
+newcfg.omega = 2 * pi * 100e6; % 100 MHz RF modulation
+newcfg.detphotons = detp.data;
+rfjac = mcxlabcl(newcfg);
+jac = sum(rfjac.data, 4);
+figure;
 imagesc(log10(abs(squeeze(jac(:, 30, :)))));

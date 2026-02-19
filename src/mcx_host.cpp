@@ -498,6 +498,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     };
 
     param.issvmc = (cfg->mediabyte == MEDIA_2LABEL_SPLIT) ? 1 : 0;
+    param.omega = cfg->omega;
 
     platform = mcx_list_gpu(cfg, &workdev, devices, &gpu);
 
@@ -871,6 +872,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         IPARAM_TO_MACRO(opt, param, extrasrclen);
         FPARAM_TO_MACRO(opt, param, Rtstep);
         IPARAM_TO_MACRO(opt, param, maxpolmedia);
+        FPARAM_TO_MACRO(opt, param, omega);
     }
 
     char allabsorb[] = {bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, 0};
@@ -931,7 +933,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
         threadphoton = (int)(cfg->nphoton * cfg->workload[i] / (fullload * gpu[i].autothread * cfg->respin));
         oddphoton = (int)(cfg->nphoton * cfg->workload[i] / (fullload * cfg->respin) - threadphoton * gpu[i].autothread);
-        sharedbuf = (param.nphaselen + param.nanglelen) * sizeof(float) + gpu[i].autoblock * (cfg->issaveseed * (RAND_BUF_LEN * sizeof(RandType)) + sizeof(float) * (param.w0offset + cfg->srcnum));
+        sharedbuf = (param.nphaselen + param.nanglelen) * sizeof(float) + gpu[i].autoblock * (cfg->issaveseed * (RAND_BUF_LEN * sizeof(RandType)) + sizeof(float) * (param.w0offset + cfg->srcnum + 2 * (cfg->outputtype == otRF || cfg->outputtype == otRFmus)));
 
         MCX_FPRINTF(cfg->flog, "- [device %d(%d): %s] threadph=%d extra=%d np=%.0f nthread=%d nblock=%d sharedbuf=%d\n", i, gpu[i].id, gpu[i].name, threadphoton, oddphoton,
                     cfg->nphoton * cfg->workload[i] / fullload, (int)gpu[i].autothread, (int)gpu[i].autoblock, sharedbuf);
@@ -964,9 +966,9 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
     if (cfg->exportfield == NULL) {
         if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
-            cfg->exportfield = (float*)calloc(sizeof(float) * dimxyz, cfg->maxgate * 2 * cfg->detnum);
+            cfg->exportfield = (float*)calloc(sizeof(float) * dimxyz, cfg->maxgate * 2 * (1 + (cfg->outputtype == otRF || cfg->outputtype == otRFmus)) * cfg->detnum);
         } else {
-            cfg->exportfield = (float*)calloc(sizeof(float) * dimxyz, cfg->maxgate * 2);
+            cfg->exportfield = (float*)calloc(sizeof(float) * dimxyz, cfg->maxgate * 2 * (1 + (cfg->outputtype == otRF || cfg->outputtype == otRFmus)));
         }
     }
 
@@ -1150,10 +1152,30 @@ is more than what your have specified (%d), please use the -H option to specify 
 
                     if (!(param.debuglevel & MCX_DEBUG_RNG)) {
                         for (i = 0; i < fieldlen; i++) { //accumulate field, can be done in the GPU
-                            field[i] = rawfield[i] + rawfield[i + fieldlen];
+                            field[i] = rawfield[i];
+
+                            if (cfg->outputtype != otRF && cfg->outputtype != otRFmus) {
+                                field[i] += rawfield[i + fieldlen];
+                            }
                         }
                     } else {
                         memcpy(field, rawfield, sizeof(cl_float)*fieldlen);
+                    }
+
+                    if ((cfg->outputtype == otRF || cfg->outputtype == otRFmus) && cfg->omega > 0.f) {
+                        if (cfg->exportfield) {
+                            for (i = 0; i < fieldlen; i++) {
+                                cfg->exportfield[i + fieldlen] += rawfield[i + fieldlen];
+                            }
+                        }
+                    }
+
+                    if ((cfg->outputtype == otRF || cfg->outputtype == otRFmus) && cfg->omega > 0.f) {
+                        if (cfg->exportfield) {
+                            for (i = 0; i < fieldlen; i++) {
+                                cfg->exportfield[i + fieldlen] += rawfield[i + fieldlen];
+                            }
+                        }
                     }
 
                     free(rawfield);
@@ -1273,7 +1295,7 @@ is more than what your have specified (%d), please use the -H option to specify 
             }
         } else if (cfg->outputtype == otEnergy || cfg->outputtype == otL) {
             scale[0] = 1.f / cfg->energytot;
-        } else if (cfg->outputtype == otJacobian || cfg->outputtype == otWP || cfg->outputtype == otDCS) {
+        } else if (cfg->outputtype == otJacobian || cfg->outputtype == otWP || cfg->outputtype == otDCS || cfg->outputtype == otRF || cfg->outputtype == otRFmus || cfg->outputtype == otWLTOF || cfg->outputtype == otWPTOF) {
             if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
                 int detid;
 

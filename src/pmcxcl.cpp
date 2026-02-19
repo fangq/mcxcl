@@ -817,7 +817,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
 
     if (user_cfg.contains("outputtype")) {
         std::string output_type_str = py::str(user_cfg["outputtype"]);
-        const char* outputtype[] = {"flux", "fluence", "energy", "jacobian", "nscat", "wl", "wp", "wm", "rf", ""};
+        const char* outputtype[] = {"flux", "fluence", "energy", "jacobian", "nscat", "wl", "wp", "wm", "rf", "length", "rfmus", "wltof", "wptof", ""};
         char outputstr[MAX_SESSION_LENGTH] = {'\0'};
 
         if (output_type_str.empty()) {
@@ -1279,11 +1279,9 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
                 field_dim[4] = mcx_config.detnum;
             }
 
-            /*
-                        if (mcx_config.replay.seed != nullptr && mcx_config.outputtype == otRF) {
-                            field_dim[5] = 2;
-                        }
-            */
+            if (mcx_config.replay.seed != nullptr && (mcx_config.outputtype == otRF || mcx_config.outputtype == otRFmus)) {
+                field_dim[5] = 2;
+            }
 
             if (mcx_config.extrasrclen && mcx_config.srcid == -1) {
                 field_dim[5] *= (mcx_config.extrasrclen + 1);

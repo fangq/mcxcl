@@ -163,6 +163,7 @@ typedef struct KernelParams {
     cl_float4 s0;                   /**< initial stokes parameters */                /**< number of additional sources */
     cl_char   bc[8];                /**< boundary conditions */
     cl_uint   issvmc;               /**< flag indicating SVMC mode (mediabyte==97) */
+    cl_float  omega;                   /**< modulation angular frequency (2*pi*f), for FD/RF replay */
 } MCXParam POST_ALIGN(16);
 
 void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy);

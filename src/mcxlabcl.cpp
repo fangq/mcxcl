@@ -270,6 +270,12 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                     fieldlen *= cfg.detnum;
                 }
 
+
+
+                if (cfg.replay.seed != NULL && (cfg.outputtype == otRF || cfg.outputtype == otRFmus)) {
+                    fieldlen *= 2;
+                }
+
                 if (cfg.extrasrclen && cfg.srcid == -1) {
                     fieldlen *= (cfg.extrasrclen + 1);
                 }
@@ -400,6 +406,11 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                 if (cfg.replay.seed != NULL && cfg.replaydet == -1) {
                     fielddim[4] = cfg.detnum;
                 }
+
+                if (cfg.replay.seed != NULL && (cfg.outputtype == otRF || cfg.outputtype == otRFmus)) {
+                    fielddim[5] = 2;
+                }
+
 
                 if (cfg.extrasrclen && cfg.srcid == -1) {
                     fielddim[5] *= (cfg.extrasrclen + 1);
@@ -1074,7 +1085,7 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
         printf("mcx.srctype='%s';\n", strtypestr);
     } else if (strcmp(name, "outputtype") == 0) {
         int len = mxGetNumberOfElements(item);
-        const char* outputtype[] = {"flux", "fluence", "energy", "jacobian", "nscat", "wl", "wp", "wm", "length", ""};
+        const char* outputtype[] = {"flux", "fluence", "energy", "jacobian", "nscat", "wl", "wp", "wm", "length", "rf", "rfmus", "wltof", "wptof", ""};
         char outputstr[MAX_SESSION_LENGTH] = {'\0'};
 
         if (!mxIsChar(item) || len == 0) {
@@ -1093,7 +1104,7 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
 
         cfg->outputtype = mcx_keylookup(outputstr, outputtype);
 
-        if (cfg->outputtype == 5 || cfg->outputtype == 6) { // map wl to jacobian, wp to nscat
+        if (cfg->outputtype >= 5) { // map wl/wp/wm/length/rf/rfmus/wltof/wptof to enum values
             cfg->outputtype -= 2;
         }
 
