@@ -76,7 +76,7 @@ MKDIR      := mkdir
 
 MEXLINKLIBS=-L"\$$MATLABROOT/extern/lib/\$$ARCH" -L"\$$MATLABROOT/bin/\$$ARCH" -lmx -lmex
 
-FILES=mcx_host mcx_utils mcx_tictoc mcxcl mcx_shapes mcx_neurojson cjson/cJSON ubj/ubjw
+FILES=mcx_host mcx_utils mcx_tictoc mcxcl mcx_shapes mcx_neurojson mcx_mie cjson/cJSON ubj/ubjw
 CLPROGRAM=mcx_core
 
 ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
@@ -130,13 +130,13 @@ ifeq ($(findstring x86_64,$(ARCH)), x86_64)
 endif
 
 ifeq ($(MAKECMDGOALS),mex)
-  FILES=mcx_host mcx_utils mcx_tictoc mcx_shapes cjson/cJSON
+  FILES=mcx_host mcx_utils mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
   ZMATLIB=
   USERLINKOPT=
 endif
 
 ifeq ($(MAKECMDGOALS),oct)
-  FILES=mcx_host mcx_utils mcx_tictoc mcx_shapes cjson/cJSON
+  FILES=mcx_host mcx_utils mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
   ZMATLIB=
   USERLINKOPT=
 endif

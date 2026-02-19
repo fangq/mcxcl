@@ -77,7 +77,8 @@
 #endif
 #define MAX_ACCUM          1000.f
 
-#define MCX_DEBUG_REC_LEN   6  /**<  number of floating points per position saved when -D M is used for trajectory */
+#define MCX_DEBUG_REC_LEN   6
+#define NANGLES            181   /**< number of discrete angles for Mueller matrix */  /**<  number of floating points per position saved when -D M is used for trajectory */
 
 #define MEDIA_ASGN_F2H        96   /**<  asgn_float media format: 4x half-float per voxel */
 #define MIN(a,b)           ((a)<(b)?(a):(b))
@@ -98,6 +99,7 @@
 #define SAVE_PEXIT(a)         ((a)>>4 & 0x1)   /**<  save exit positions */
 #define SAVE_VEXIT(a)         ((a)>>5 & 0x1)   /**<  save exit vector/directions */
 #define SAVE_W0(a)            ((a)>>6 & 0x1)   /**<  save initial weight */
+#define SAVE_IQUV(a)          ((a)>>7 & 0x1)   /**<  save Stokes IQUV */
 
 #define SET_SAVE_DETID(a)     ((a) | 0x1   )   /**<  mask to save detector ID*/
 #define SET_SAVE_NSCAT(a)     ((a) | 0x1<<1)   /**<  output partial scattering counts */
@@ -106,6 +108,7 @@
 #define SET_SAVE_PEXIT(a)     ((a) | 0x1<<4)   /**<  save exit positions */
 #define SET_SAVE_VEXIT(a)     ((a) | 0x1<<5)   /**<  save exit vector/directions */
 #define SET_SAVE_W0(a)        ((a) | 0x1<<6)   /**<  save initial weight */
+#define SET_SAVE_IQUV(a)      ((a) | 0x1<<7)   /**<  save Stokes IQUV */
 
 #define UNSET_SAVE_DETID(a)     ((a) & ~(0x1)   )   /**<  mask to save detector ID*/
 #define UNSET_SAVE_NSCAT(a)     ((a) & ~(0x1<<1))   /**<  output partial scattering counts */
@@ -114,6 +117,7 @@
 #define UNSET_SAVE_PEXIT(a)     ((a) & ~(0x1<<4))   /**<  save exit positions */
 #define UNSET_SAVE_VEXIT(a)     ((a) & ~(0x1<<5))   /**<  save exit vector/directions */
 #define UNSET_SAVE_W0(a)        ((a) & ~(0x1<<6))   /**<  save initial weight */
+#define UNSET_SAVE_IQUV(a)      ((a) & ~(0x1<<7))   /**<  unset save Stokes IQUV */
 
 
 /**
@@ -144,6 +148,18 @@ typedef struct MCXSplit {
 #define UPPER_MASK         0x00FF0000              /**< mask for upper label byte in SVMC raw volume */
 #define LOWER_MASK         0xFF000000              /**< mask for lower label byte in SVMC raw volume */
 
+
+
+/**
+ * @brief Stokes vector for polarized light simulation
+ */
+typedef struct StokesVector {
+    float i; /**< total light intensity: IH + IV */
+    float q; /**< IH - IV */
+    float u; /**< I(+pi/4) - I(-pi/4) */
+    float v; /**< IR - IL */
+} Stokes;
+
 typedef struct MCXSource {
     float4 pos;      /**< initial position vector, for pencil beam */
     float4 dir;      /**< initial directon vector, for pencil beam */
@@ -154,7 +170,7 @@ typedef struct MCXSource {
 typedef struct KernelParams {
     MCXSrc src;                  /**< additional source data, including pos, dir, param1, param2 */
     uint   extrasrclen;          /**< number of additional sources */
-    int srcid;                         /**< 0: simulate all sources combined, -1: simulate all sources separately; >0: only simulate a single source */
+    int srcid;                   /**< 0: simulate all sources combined, -1: simulate all sources separately; >0: only simulate a single source */
     float4 maxidx;
     uint4  dimlen, cp0, cp1;
     uint2  cachebox;
@@ -198,6 +214,9 @@ typedef struct KernelParams {
     unsigned int nphaselen;            /**< even-rounded nphase so that shared memory buffer won't give an error */
     unsigned int nangle;               /**< number of samples for launch angle inverse-cdf, will be added by 2 to include 0 and 1 on the two ends */
     unsigned int nanglelen;            /**< even-rounded nangle so that shared memory buffer won't give an error */
+    uint   maxpolmedia;          /**< max number of media labels for polarized light */
+    uint   istrajstokes;         /**< 1 to save Stokes vector for trajectory data only */
+    float4 s0;                   /**< initial stokes parameters */
     unsigned char bc[12];               /**< boundary conditions */
 } MCXParam __attribute__ ((aligned (32)));
 
@@ -360,12 +379,12 @@ void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant float4* gp
 #ifdef MCX_SAVE_DETECTORS
 uint finddetector(float4* p0, __constant float4* gdetpos, __constant MCXParam* gcfg);
 void savedetphoton(__global float* n_det, __global uint* detectedphoton,
-                   __local float* ppath, float4* p0, float4* v,
+                   __local float* ppath, float4* p0, float4* v, Stokes* s,
                    __local RandType* t, __global RandType* seeddata,
                    __constant float4* gdetpos, __constant MCXParam* gcfg, uint isdet);
 void saveexitppath(__global float* n_det, __local float* ppath, float4* p0, uint* idx1d, __constant MCXParam* gcfg);
 #endif
-int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC* prop, uint* idx1d,
+int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short4* flipdir, FLOAT4VEC* prop, uint* idx1d,
                     __global float* field, uint* mediaid, float* w0, float* Lmove, uint isdet,
                     __local float* ppath, __global float* n_det, __global uint* dpnum,
                     __private RandType t[RAND_BUF_LEN], __global RandType* rngseed,
@@ -419,6 +438,58 @@ void clearpath(__local float* p, uint maxmediatype) {
     }
 }
 
+
+/**
+ * @brief Rotate Stokes vector s by phi
+ */
+void rotsphi(Stokes* s, float phi, Stokes* s2) {
+    float sin2phi, cos2phi;
+    MCX_SINCOS(2.f * phi, sin2phi, cos2phi);
+    s2->i = s->i;
+    s2->q = s->q * cos2phi + s->u * sin2phi;
+    s2->u = -s->q * sin2phi + s->u * cos2phi;
+    s2->v = s->v;
+}
+
+/**
+ * @brief Update Stokes vector after a scattering event
+ */
+void updatestokes(Stokes* s, float theta, float phi, float3* u, float3* u2, uint* mediaid, __global float4* gsmatrix) {
+    float costheta = MCX_MATHFUN(cos)(theta);
+    Stokes s2;
+    rotsphi(s, phi, &s2);
+
+    uint imedia = NANGLES * ((*mediaid & MED_MASK) - 1);
+    uint ithedeg = (uint)(theta * NANGLES * (R_PI - EPS));
+
+    s->i = gsmatrix[imedia + ithedeg].x * s2.i + gsmatrix[imedia + ithedeg].y * s2.q;
+    s->q = gsmatrix[imedia + ithedeg].y * s2.i + gsmatrix[imedia + ithedeg].x * s2.q;
+    s->u = gsmatrix[imedia + ithedeg].z * s2.u + gsmatrix[imedia + ithedeg].w * s2.v;
+    s->v = -gsmatrix[imedia + ithedeg].w * s2.u + gsmatrix[imedia + ithedeg].z * s2.v;
+
+    float temp, sini, cosi, sin22, cos22;
+
+    temp = (u2->z > -1.f && u2->z < 1.f) ? rsqrt((1.f - costheta * costheta) * (1.f - u2->z * u2->z)) : 0.f;
+
+    cosi = (temp == 0.f) ? 0.f : (((phi > ONE_PI && phi < TWO_PI) ? 1.f : -1.f) * (u2->z * costheta - u->z) * temp);
+    cosi = fmax(-1.f, fmin(cosi, 1.f));
+
+    sini = sqrt(1.f - cosi * cosi);
+    cos22 = 2.f * cosi * cosi - 1.f;
+    sin22 = 2.f * sini * cosi;
+
+    s2.i = s->i;
+    s2.q = s->q * cos22 - s->u * sin22;
+    s2.u = s->q * sin22 + s->u * cos22;
+    s2.v = s->v;
+
+    temp = native_divide(1.f, s2.i);
+    s->q = s2.q * temp;
+    s->u = s2.u * temp;
+    s->v = s2.v * temp;
+    s->i = 1.f;
+}
+
 #ifdef MCX_SAVE_DETECTORS
 uint finddetector(float4* p0, __constant float4* gdetpos, __constant MCXParam* gcfg) {
     uint i;
@@ -450,7 +521,7 @@ void saveexitppath(__global float* n_det, __local float* ppath, float4* p0, uint
 }
 
 void savedetphoton(__global float* n_det, __global uint* detectedphoton,
-                   __local float* ppath, float4* p0, float4* v,
+                   __local float* ppath, float4* p0, float4* v, Stokes* s,
                    __local RandType* t, __global RandType* seeddata,
                    __constant float4* gdetpos, __constant MCXParam* gcfg, uint isdet) {
     int detid;
@@ -497,6 +568,13 @@ void savedetphoton(__global float* n_det, __global uint* detectedphoton,
             if (SAVE_W0(GPU_PARAM(gcfg, savedetflag))) {
                 n_det[baseaddr++] = ppath[GPU_PARAM(gcfg, w0offset) - 2];
             }
+
+            if (SAVE_IQUV(GPU_PARAM(gcfg, savedetflag))) {
+                n_det[baseaddr++] = s->i;
+                n_det[baseaddr++] = s->q;
+                n_det[baseaddr++] = s->u;
+                n_det[baseaddr++] = s->v;
+            }
         } else if (GPU_PARAM(gcfg, savedet) == FILL_MAXDETPHOTON) {
             atomic_dec(detectedphoton);
         }
@@ -512,17 +590,35 @@ void savedetphoton(__global float* n_det, __global uint* detectedphoton,
  * @param[in] gdebugdata: pointer to the global-memory buffer to store the trajectory info
  */
 
-void savedebugdata(float4* p, uint id, __global uint* gjumpdebug, __global float* gdebugdata, __constant MCXParam* gcfg, int srcid) {
+uint savedebugdata2(float4* p, uint id, __global uint* gjumpdebug, __global float* gdebugdata, __constant MCXParam* gcfg, int srcid) {
     uint pos = atomic_inc(gjumpdebug);
 
     if (pos < GPU_PARAM(gcfg, maxjumpdebug)) {
-        pos *= MCX_DEBUG_REC_LEN;
+        pos *= MCX_DEBUG_REC_LEN + (GPU_PARAM(gcfg, istrajstokes) << 2);
         ((__global uint*)gdebugdata)[pos++] = id;
         gdebugdata[pos++] = p[0].x;
         gdebugdata[pos++] = p[0].y;
         gdebugdata[pos++] = p[0].z;
         gdebugdata[pos++] = p[0].w;
         gdebugdata[pos++] = srcid;
+        return pos;
+    }
+
+    return 0;
+}
+
+void savedebugdata(float4* p, uint id, __global uint* gjumpdebug, __global float* gdebugdata, __constant MCXParam* gcfg, int srcid) {
+    savedebugdata2(p, id, gjumpdebug, gdebugdata, gcfg, srcid);
+}
+
+void savedebugstokes(float4* p, Stokes* s, uint id, __global uint* gjumpdebug, __global float* gdebugdata, __constant MCXParam* gcfg, int srcid) {
+    uint pos = savedebugdata2(p, id, gjumpdebug, gdebugdata, gcfg, srcid);
+
+    if (pos > 0 && GPU_PARAM(gcfg, istrajstokes)) {
+        gdebugdata[pos++] = s->i;
+        gdebugdata[pos++] = s->q;
+        gdebugdata[pos++] = s->u;
+        gdebugdata[pos++] = s->v;
     }
 }
 #endif
@@ -1065,7 +1161,7 @@ int skipvoid(float4* p, float4* v, float4* f, short4* flipdir, __global const ui
  * @param[in,out] gprogress: pointer to the host variable to update progress bar
  */
 
-int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC* prop, uint* idx1d,
+int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short4* flipdir, FLOAT4VEC* prop, uint* idx1d,
                     __global float* field, uint* mediaid, float* w0, float* Lmove, uint isdet,
                     __local float* ppath, __global float* n_det, __global uint* dpnum,
                     __private RandType t[RAND_BUF_LEN], __global RandType* rngseed,
@@ -1098,7 +1194,13 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
         ppath[GPU_PARAM(gcfg, partialdata)] += p[0].w; ///< sum all the remaining energy
 
 #if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
-        savedebugdata(p, (uint)f[0].w + threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton), gjumpdebug, gdebugdata, gcfg, (int)ppath[GPU_PARAM(gcfg, w0offset) - 1]);
+
+        if (GPU_PARAM(gcfg, maxpolmedia) > 0 && GPU_PARAM(gcfg, istrajstokes)) {
+            savedebugstokes(p, s, (uint)f[0].w + threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton), gjumpdebug, gdebugdata, gcfg, (int)ppath[GPU_PARAM(gcfg, w0offset) - 1]);
+        } else {
+            savedebugdata(p, (uint)f[0].w + threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton), gjumpdebug, gdebugdata, gcfg, (int)ppath[GPU_PARAM(gcfg, w0offset) - 1]);
+        }
+
 #endif
 
         if (*mediaid == 0 && *idx1d != OUTSIDE_VOLUME_MIN && *idx1d != OUTSIDE_VOLUME_MAX && GPU_PARAM(gcfg, issaveref) && p[0].w > 0.f) {
@@ -1154,12 +1256,12 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 
         // let's handle detectors here
         if ((isdet & DET_MASK) == DET_MASK && (*mediaid == 0
-                                               + #if MED_TYPE == MEDIA_2LABEL_SPLIT
-                                                   +            || SV_CURLABEL(nuvox->sv) == 0
-                                                   + #endif
-                                                   +            ) && (bool)(GPU_PARAM(gcfg, issaveref) < 2)) {
-                savedetphoton(n_det, dpnum, ppath, p, v, photonseed, gseeddata, gdetpos, gcfg, isdet);
-            }
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+                                               || SV_CURLABEL(nuvox->sv) == 0
+#endif
+                                              ) && (bool)(GPU_PARAM(gcfg, issaveref) < 2)) {
+            savedetphoton(n_det, dpnum, ppath, p, v, s, photonseed, gseeddata, gdetpos, gcfg, isdet);
+        }
 
 #endif
     }
@@ -1233,6 +1335,13 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
         f[0] = (float4)(0.f, 0.f, GPU_PARAM(gcfg, minaccumtime), f[0].w);
         *idx1d = as_int(launchsrc->param2.z);      /**< pre-computed 1D index of the photon at launch for pencil/isotropic beams */
         *mediaid = as_int(launchsrc->param2.w);    /**< pre-computed media index of the photon at launch for pencil/isotropic beams */
+
+        if (gcfg->maxpolmedia > 0) {
+            s->i = gcfg->s0.x;
+            s->q = gcfg->s0.y;
+            s->u = gcfg->s0.z;
+            s->v = gcfg->s0.w;
+        }
 
 #if MED_TYPE == MEDIA_2LABEL_SPLIT
         SV_CLEAR(nuvox->sv);
@@ -1658,7 +1767,13 @@ int launchnewphoton(float4* p, float4* v, float4* f, short4* flipdir, FLOAT4VEC*
 #endif
 
 #if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
-    savedebugdata(p, (uint)f[0].w + threadid * gcfg->threadphoton + min(threadid, (threadid < gcfg->oddphoton)*threadid), gjumpdebug, gdebugdata, gcfg, (int)ppath[3]);
+
+    if (GPU_PARAM(gcfg, maxpolmedia) > 0 && GPU_PARAM(gcfg, istrajstokes)) {
+        savedebugstokes(p, s, (uint)f[0].w + threadid * gcfg->threadphoton + min(threadid, (threadid < gcfg->oddphoton)*threadid), gjumpdebug, gdebugdata, gcfg, (int)ppath[3]);
+    } else {
+        savedebugdata(p, (uint)f[0].w + threadid * gcfg->threadphoton + min(threadid, (threadid < gcfg->oddphoton)*threadid), gjumpdebug, gdebugdata, gcfg, (int)ppath[3]);
+    }
+
 #endif
 
     /**
@@ -1701,7 +1816,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                             __constant float4* gdetpos, volatile __global uint* gprogress, __global uint* detectedphoton,
                             __global float* replayweight, __global float* photontof, __global int* photondetid,
                             __global RandType* gseeddata, __global uint* gjumpdebug, __global float* gdebugdata,
-                            __global float* ginvcdf, __global float* gangleinvcdf, __local RandType* sharedmem, __constant MCXParam* gcfg) {
+                            __global float* ginvcdf, __global float* gangleinvcdf, __local RandType* sharedmem, __global float4* gsmatrix, __constant MCXParam* gcfg) {
 
     int idx = get_global_id(0);
 
@@ -1717,6 +1832,7 @@ __kernel void mcx_main_loop(__global const uint* media,
     float  w0, Lmove, pathlen = 0.f;
     MCXsp nuvox;
     nuvox.sv = 0;
+    Stokes s = {1.f, 0.f, 0.f, 0.f};
     unsigned char testint = 0;
     unsigned char hitintf = 0;
     float  n1;   //reflection var
@@ -1798,7 +1914,7 @@ __kernel void mcx_main_loop(__global const uint* media,
     return;
 #endif
 
-    if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove, 0, ppath,
+    if (launchnewphoton(&p, &v, &s, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove, 0, ppath,
                         n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton,
                         gprogress, (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) + get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)),
                         gseeddata, gjumpdebug, gdebugdata, sharedmem, &nuvox)) {
@@ -1829,44 +1945,64 @@ __kernel void mcx_main_loop(__global const uint* media,
                 float cphi = 1.f, sphi = 0.f, theta, stheta, ctheta;
                 float tmp0 = 0.f;
 
-                if (!GPU_PARAM(gcfg, is2d)) {
-                    tmp0 = TWO_PI * rand_next_aangle(t); //next arimuth angle
+                if (GPU_PARAM(gcfg, maxpolmedia) > 0 && !GPU_PARAM(gcfg, is2d)) {
+                    /** Polarized rejection method: jointly sample theta and phi using Mueller matrix */
+                    uint ipol = (uint)NANGLES * ((mediaid & MED_MASK) - 1);
+                    float I0, I, sin2phi, cos2phi;
+
+                    do {
+                        theta = acos(2.f * rand_next_zangle(t) - 1.f);
+                        tmp0 = TWO_PI * rand_next_aangle(t);
+                        MCX_SINCOS(2.f * tmp0, sin2phi, cos2phi);
+                        I0 = gsmatrix[ipol].x * s.i + gsmatrix[ipol].y * (s.q * cos2phi + s.u * sin2phi);
+                        uint ithedeg = (uint)(theta * NANGLES * (R_PI - EPS));
+                        I = gsmatrix[ipol + ithedeg].x * s.i + gsmatrix[ipol + ithedeg].y * (s.q * cos2phi + s.u * sin2phi);
+                    } while (rand_uniform01(t) * I0 >= I);
+
                     MCX_SINCOS(tmp0, sphi, cphi);
-                }
+                    MCX_SINCOS(theta, stheta, ctheta);
 
-                GPUDEBUG(("scat phi=%f\n", tmp0));
-
-                if (GPU_PARAM(gcfg, nphase) > 2) { // after padding the left/right ends, nphase must be 3 or more
-                    tmp0 = rand_uniform01(t) * (GPU_PARAM(gcfg, nphase) - 1);
-                    theta = tmp0 - ((int)tmp0);
-                    tmp0 = (1.f - theta) * ((__local float*)(sharedmem))[(uint)tmp0   >= GPU_PARAM(gcfg, nphase) ? GPU_PARAM(gcfg, nphase) - 1 : (int)(tmp0)  ] +
-                           theta * ((__local float*)(sharedmem))[(uint)tmp0 + 1 >= GPU_PARAM(gcfg, nphase) ? GPU_PARAM(gcfg, nphase) - 1 : (int)(tmp0) + 1];
-                    theta = acos(tmp0);
-                    stheta = MCX_MATHFUN(sin)(theta);
-                    ctheta = tmp0;
+                    GPUDEBUG(((__constant char*)"pol scat phi=%f theta=%f\n", tmp0, theta));
                 } else {
-                    tmp0 = (v.w > GPU_PARAM(gcfg, gscatter)) ? 0.f : prop.z;
+                    if (!GPU_PARAM(gcfg, is2d)) {
+                        tmp0 = TWO_PI * rand_next_aangle(t); //next arimuth angle
+                        MCX_SINCOS(tmp0, sphi, cphi);
+                    }
 
-                    /** Here we use Henyey-Greenstein Phase Function, "Handbook of Optical Biomedical Diagnostics",2002,Chap3,p234, also see Boas2002 */
-                    if (fabs(tmp0) > EPS) { //< if prop.g is too small, the distribution of theta is bad
-                        tmp0 = (1.f - prop.z * prop.z) / (1.f - prop.z + 2.f * prop.z * rand_next_zangle(t));
-                        tmp0 *= tmp0;
-                        tmp0 = (1.f + prop.z * prop.z - tmp0) / (2.f * prop.z);
+                    GPUDEBUG(((__constant char*)"scat phi=%f\n", tmp0));
 
-                        // in early CUDA, when ran=1, CUDA gives 1.000002 for tmp0 which produces nan later
-                        // detected by Ocelot,thanks to Greg Diamos,see http://bit.ly/cR2NMP
-                        tmp0 = fmax(-1.f, fmin(1.f, tmp0));
-
+                    if (GPU_PARAM(gcfg, nphase) > 2) { // after padding the left/right ends, nphase must be 3 or more
+                        tmp0 = rand_uniform01(t) * (GPU_PARAM(gcfg, nphase) - 1);
+                        theta = tmp0 - ((int)tmp0);
+                        tmp0 = (1.f - theta) * ((__local float*)(sharedmem))[(uint)tmp0   >= GPU_PARAM(gcfg, nphase) ? GPU_PARAM(gcfg, nphase) - 1 : (int)(tmp0)  ] +
+                               theta * ((__local float*)(sharedmem))[(uint)tmp0 + 1 >= GPU_PARAM(gcfg, nphase) ? GPU_PARAM(gcfg, nphase) - 1 : (int)(tmp0) + 1];
                         theta = acos(tmp0);
                         stheta = MCX_MATHFUN(sin)(theta);
                         ctheta = tmp0;
                     } else {
-                        theta = acos(2.f * rand_next_zangle(t) - 1.f);
-                        MCX_SINCOS(theta, stheta, ctheta);
-                    }
-                }
+                        tmp0 = (v.w > GPU_PARAM(gcfg, gscatter)) ? 0.f : prop.z;
 
-                GPUDEBUG(((__constant char*)"scat theta=%f\n", theta));
+                        /** Here we use Henyey-Greenstein Phase Function, "Handbook of Optical Biomedical Diagnostics",2002,Chap3,p234, also see Boas2002 */
+                        if (fabs(tmp0) > EPS) { //< if prop.g is too small, the distribution of theta is bad
+                            tmp0 = (1.f - prop.z * prop.z) / (1.f - prop.z + 2.f * prop.z * rand_next_zangle(t));
+                            tmp0 *= tmp0;
+                            tmp0 = (1.f + prop.z * prop.z - tmp0) / (2.f * prop.z);
+
+                            // in early CUDA, when ran=1, CUDA gives 1.000002 for tmp0 which produces nan later
+                            // detected by Ocelot,thanks to Greg Diamos,see http://bit.ly/cR2NMP
+                            tmp0 = fmax(-1.f, fmin(1.f, tmp0));
+
+                            theta = acos(tmp0);
+                            stheta = MCX_MATHFUN(sin)(theta);
+                            ctheta = tmp0;
+                        } else {
+                            theta = acos(2.f * rand_next_zangle(t) - 1.f);
+                            MCX_SINCOS(theta, stheta, ctheta);
+                        }
+                    }
+
+                    GPUDEBUG(((__constant char*)"scat theta=%f\n", theta));
+                }
 
 #ifdef MCX_SAVE_DETECTORS
 
@@ -1897,6 +2033,13 @@ __kernel void mcx_main_loop(__global const uint* media,
 
 #endif
 
+                /** Save old direction for polarized Stokes update */
+                float3 olddir;
+
+                if (GPU_PARAM(gcfg, maxpolmedia) > 0) {
+                    olddir = (float3)(v.x, v.y, v.z);
+                }
+
                 /** Update direction vector with the two random angles */
                 if (GPU_PARAM(gcfg, is2d)) {
                     rotatevector2d(&v, (rand_next_aangle(t) > 0.5f ? stheta : -stheta), ctheta, GPU_PARAM(gcfg, is2d));
@@ -1905,6 +2048,12 @@ __kernel void mcx_main_loop(__global const uint* media,
                 }
 
                 v.w += 1.f;
+
+                /** Update Stokes parameters after scattering */
+                if (GPU_PARAM(gcfg, maxpolmedia) > 0) {
+                    float3 newdir = (float3)(v.x, v.y, v.z);
+                    updatestokes(&s, theta, tmp0, &olddir, &newdir, &mediaid, gsmatrix);
+                }
 
                 if ((bool)(GPU_PARAM(gcfg, outputtype) == otWP) || (bool)(GPU_PARAM(gcfg, outputtype) == otDCS)) {
                     ///< photontof[] and replayweight[] should be cached using local mem to avoid global read
@@ -1937,7 +2086,13 @@ __kernel void mcx_main_loop(__global const uint* media,
                 }
 
 #if defined(MCX_DEBUG_MOVE) || defined(MCX_DEBUG_MOVE_ONLY)
-                savedebugdata(&p, (uint)f.w + idx * gcfg->threadphoton + min(idx, (idx < gcfg->oddphoton)*idx), gjumpdebug, gdebugdata, gcfg, (int)ppath[GPU_PARAM(gcfg, w0offset) - 1]);
+
+                if (GPU_PARAM(gcfg, maxpolmedia) > 0 && GPU_PARAM(gcfg, istrajstokes)) {
+                    savedebugstokes(&p, &s, (uint)f.w + idx * gcfg->threadphoton + min(idx, (idx < gcfg->oddphoton)*idx), gjumpdebug, gdebugdata, gcfg, (int)ppath[GPU_PARAM(gcfg, w0offset) - 1]);
+                } else {
+                    savedebugdata(&p, (uint)f.w + idx * gcfg->threadphoton + min(idx, (idx < gcfg->oddphoton)*idx), gjumpdebug, gdebugdata, gcfg, (int)ppath[GPU_PARAM(gcfg, w0offset) - 1]);
+                }
+
 #endif
             }
 
@@ -2174,7 +2329,7 @@ __kernel void mcx_main_loop(__global const uint* media,
 
             GPUDEBUG(((__constant char*)"direct relaunch at idx=[%d] mediaid=[%d] bc=[%d] ref=[%d]\n", idx1d, mediaid, isdet, GPU_PARAM(gcfg, doreflect)));
 
-            if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
+            if (launchnewphoton(&p, &v, &s, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
                                 (((idx1d == OUTSIDE_VOLUME_MAX && gcfg->bc[9 + flipdir.w]) || (idx1d == OUTSIDE_VOLUME_MIN && gcfg->bc[6 + flipdir.w])) ? OUTSIDE_VOLUME_MIN : (mediaidold & DET_MASK)),
                                 ppath, n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
                                 (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) +
@@ -2197,7 +2352,7 @@ __kernel void mcx_main_loop(__global const uint* media,
             } else {
                 GPUDEBUG(("relaunch after Russian roulette at idx=[%d] mediaid=[%d], ref=[%d]\n", idx1d, mediaid, GPU_PARAM(gcfg, doreflect)));
 
-                if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
+                if (launchnewphoton(&p, &v, &s, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
                                     (mediaidold & DET_MASK), ppath, n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
                                     (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) +
                                                         get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)), gseeddata, gjumpdebug, gdebugdata, sharedmem, &nuvox)) {
@@ -2223,7 +2378,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                 float3 c0 = (float3)(v.x, v.y, v.z);
 
                 if (reflectray_svmc(n1, &c0, &nuvox, &prop, t, gproperty)) {
-                    if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
+                    if (launchnewphoton(&p, &v, &s, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
                                         (mediaidold & DET_MASK), ppath, n_det, detectedphoton, t, (__global RandType*)n_seed,
                                         gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
                                         (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) +
@@ -2295,7 +2450,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                 if (mediaid == 0) { // transmission to external boundary
                     GPUDEBUG(((__constant char*)"transmit to air, relaunch, idx=[%d] mediaid=[%d] bc=[%d] ref=[%d]\n", idx1d, mediaid, isdet, GPU_PARAM(gcfg, doreflect)));
 
-                    if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
+                    if (launchnewphoton(&p, &v, &s, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
                                         (((idx1d == OUTSIDE_VOLUME_MAX && gcfg->bc[9 + flipdir.w]) || (idx1d == OUTSIDE_VOLUME_MIN && gcfg->bc[6 + flipdir.w])) ? OUTSIDE_VOLUME_MIN : (mediaidold & DET_MASK)),
                                         ppath, n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
                                         (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen))
@@ -2328,7 +2483,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                                     (float3)(p.x, p.y, p.z), &nuvox, &flipdir, gproperty, gcfg);
 
                 if (SV_CURLABEL(nuvox.sv) == 0) {
-                    if (launchnewphoton(&p, &v, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
+                    if (launchnewphoton(&p, &v, &s, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
                                         (mediaidold & DET_MASK), ppath, n_det, detectedphoton, t, (__global RandType*)n_seed,
                                         gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton, gprogress,
                                         (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) +

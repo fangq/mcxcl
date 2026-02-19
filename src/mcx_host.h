@@ -106,7 +106,7 @@ typedef struct MCXSource {
 typedef struct KernelParams {
     MCXSrc    src;                  /**< additional source data, including pos, dir, param1, param2 */
     cl_uint   extrasrclen;          /**< number of additional sources */
-    cl_int    srcid;                /**< number of additional sources */
+    cl_int    srcid;
     cl_float4 maxidx;               /**< maximum index in x/y/z directions for out-of-bound tests */
     cl_uint4  dimlen;               /**< maximum index used to convert x/y/z to 1D array index */
     cl_uint4  cp0;                  /**< 3D coordinates of one diagonal of the cached region  (obsolete) */
@@ -158,6 +158,9 @@ typedef struct KernelParams {
     cl_uint   nphaselen;            /**< even-rounded nphase so that shared memory buffer won't give an error */
     cl_uint   nangle;               /**< number of samples for launch angle inverse-cdf, will be added by 2 to include 0 and 1 on the two ends */
     cl_uint   nanglelen;            /**< even-rounded nangle so that shared memory buffer won't give an error */
+    cl_uint   maxpolmedia;          /**< max number of media labels for polarized light */
+    cl_uint   istrajstokes;         /**< 1 to save Stokes IQUV in trajectory data */
+    cl_float4 s0;                   /**< initial stokes parameters */                /**< number of additional sources */
     cl_char   bc[8];                /**< boundary conditions */
     cl_uint   issvmc;               /**< flag indicating SVMC mode (mediabyte==97) */
 } MCXParam POST_ALIGN(16);

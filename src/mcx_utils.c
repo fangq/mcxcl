@@ -35,6 +35,7 @@
 #include "mcx_utils.h"
 #include "mcx_shapes.h"
 #include "mcx_const.h"
+#include "mcx_mie.h"
 #include "mcx_bench.h"
 #include "mcx_tictoc.h"
 #include "mcx_neurojson.h"
@@ -124,7 +125,7 @@ char flagset[256] = {'\0'};
     char pathsep = '/';
 #endif
 
-const char saveflag[] = {'D', 'S', 'P', 'M', 'X', 'V', 'W', '\0'};
+const char saveflag[] = {'D', 'S', 'P', 'M', 'X', 'V', 'W', 'I', '\0'};
 
 /**
  * Output data types
@@ -198,6 +199,7 @@ void mcx_initcfg(Config* cfg) {
     cfg->tend = 5e-9f;
     cfg->tstep = 5e-9f;
     cfg->medianum = 0;
+    cfg->polmedianum = 0;
     cfg->mediabyte = 1;
     cfg->detnum = 0;
     cfg->dim.x = 0;
@@ -220,8 +222,12 @@ void mcx_initcfg(Config* cfg) {
     cfg->issave2pt = 1;
     cfg->isgpuinfo = 0;
     cfg->unitinmm = 1.f;
+    cfg->omega = 0.f;
+    cfg->lambda = 0.f;
     cfg->isrefint = 0;
     cfg->prop = NULL;
+    cfg->polprop = NULL;
+    cfg->smatrix = NULL;
     cfg->detpos = NULL;
     cfg->vol = NULL;
     cfg->srcpattern = NULL;
@@ -276,6 +282,7 @@ void mcx_initcfg(Config* cfg) {
 
     cfg->seeddata = NULL;
     cfg->issaveseed = 0;
+    cfg->istrajstokes = 0;
     cfg->issaveexit = 0;
     cfg->issaveref = 0;
     cfg->isatomic = 1;
@@ -320,6 +327,8 @@ void mcx_initcfg(Config* cfg) {
     cfg->outputtype = otFlux;
     cfg->outputformat = ofJNifti;
     cfg->srcdir.w = 0.f;
+    memset(&(cfg->srciquv), 0, sizeof(float4));
+    cfg->srciquv.x = 1.f;
     cfg->nphase = 0;
     cfg->invcdf = NULL;
     cfg->nangle = 0;
@@ -336,6 +345,15 @@ void mcx_clearcfg(Config* cfg) {
     if (cfg->medianum) {
         free(cfg->prop);
     }
+
+    if (cfg->polmedianum) {
+        free(cfg->polprop);
+    }
+
+    if (cfg->smatrix) {
+        free(cfg->smatrix);
+    }
+
 
     if (cfg->detnum) {
         free(cfg->detpos);
@@ -1404,6 +1422,49 @@ void mcx_replayprep(int* detid, float* ppath, History* his, Config* cfg) {
  * @param[in] cfg: simulation configuration
  */
 
+
+
+/**
+ * @brief Preprocess media to prepare polarized photon simulation
+ */
+void mcx_prep_polarized(Config* cfg) {
+    double* mu = (double*)malloc(NANGLES * sizeof(double));
+
+    for (int i = 0; i < NANGLES; i++) {
+        mu[i] = cos(ONE_PI * i / (NANGLES - 1));
+    }
+
+    cfg->smatrix = (float4*)malloc(cfg->polmedianum * NANGLES * sizeof(float4));
+    Medium* prop = cfg->prop;
+    POLMedium* polprop = cfg->polprop;
+
+    for (int i = 0; i < cfg->polmedianum; i++) {
+        prop[i + 1].mua = polprop[i].mua;
+        prop[i + 1].n = polprop[i].nmed;
+
+        double x, A, qsca, g;
+        x = TWO_PI * polprop[i].r * polprop[i].nmed / (cfg->lambda * 1e-3);
+        A = ONE_PI * polprop[i].r * polprop[i].r;
+        Mie(x, polprop[i].nsph / polprop[i].nmed, mu, cfg->smatrix + i * NANGLES, &qsca, &g);
+
+        if (prop[i + 1].mus > EPS) {
+            float target_mus = prop[i + 1].mus;
+
+            if (prop[i + 1].g < 1.f - EPS) {
+                float target_musp = prop[i + 1].mus * (1.0f - prop[i + 1].g);
+                target_mus = target_musp / (1.0 - g);
+            }
+
+            polprop[i].rho = target_mus / qsca / A * 1e-3;
+        }
+
+        prop[i + 1].mus = qsca * A * polprop[i].rho * 1e3;
+        prop[i + 1].g = g;
+    }
+
+    free(mu);
+}
+
 void mcx_preprocess(Config* cfg) {
     int isbcdet = 0;
 
@@ -1417,6 +1478,23 @@ void mcx_preprocess(Config* cfg) {
     cfg->srcdir.x *= tmp;
     cfg->srcdir.y *= tmp;
     cfg->srcdir.z *= tmp;
+
+    if (cfg->vol && cfg->polprop) {
+        if (!(cfg->mediabyte <= 4)) {
+            MCX_ERROR(-1, "Unsupported media format for polarized simulation");
+        }
+
+        if (cfg->medianum != cfg->polmedianum + 1) {
+            MCX_ERROR(-6, "number of particle types does not match number of media");
+        }
+
+        if (cfg->lambda == 0.f) {
+            MCX_ERROR(-1, "you must specify light wavelength lambda to run polarized photon simulation");
+        }
+
+        mcx_prep_polarized(cfg);
+    }
+
 
     if (cfg->debuglevel & MCX_DEBUG_MOVE_ONLY) {
         cfg->issave2pt = 0;
@@ -1515,7 +1593,7 @@ void mcx_preprocess(Config* cfg) {
 
     if (cfg->medianum) {
         for (int i = 0; i < cfg->medianum; i++) {
-            if (cfg->prop[i].mus == 0.f) {
+            if (cfg->prop[i].mus == 0.f && !cfg->polmedianum) {
                 cfg->prop[i].mus = EPS;
                 cfg->prop[i].g = 1.f;
             }
@@ -1644,6 +1722,16 @@ void mcx_preprocess(Config* cfg) {
         cfg->savedetflag = SET_SAVE_VEXIT(cfg->savedetflag);
     }
 
+    if (cfg->polmedianum) {
+        cfg->savedetflag = SET_SAVE_PPATH(cfg->savedetflag);
+        cfg->savedetflag = SET_SAVE_VEXIT(cfg->savedetflag);
+        cfg->savedetflag = SET_SAVE_W0(cfg->savedetflag);
+        cfg->savedetflag = SET_SAVE_IQUV(cfg->savedetflag);
+    } else {
+        cfg->savedetflag = UNSET_SAVE_IQUV(cfg->savedetflag);
+    }
+
+
     if (cfg->issavedet && cfg->savedetflag == 0) {
         cfg->savedetflag = 0x5;
     }
@@ -1685,7 +1773,7 @@ void mcx_validatecfg(Config* cfg, float* detps, int dimdetps[2], int seedbyte) {
         (cfg->medianum - 1) * (SAVE_NSCAT(cfg->savedetflag) + SAVE_PPATH(cfg->savedetflag) + SAVE_MOM(cfg->savedetflag));
     unsigned int hostdetreclen =
         partialdata + SAVE_DETID(cfg->savedetflag) + 3 * (SAVE_PEXIT(cfg->savedetflag) + SAVE_VEXIT(cfg->savedetflag))
-        + SAVE_W0(cfg->savedetflag);
+        + SAVE_W0(cfg->savedetflag) + 4 * SAVE_IQUV(cfg->savedetflag);
 
     if (!cfg->issrcfrom0) {
         cfg->srcpos.x--;
@@ -2331,6 +2419,69 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
             }
         }
 
+
+        meds = FIND_JSON_OBJ("MieScatter", "Domain.MieScatter", Domain);
+
+        if (meds) {
+            cJSON* med = meds->child;
+
+            if (med) {
+                cfg->polmedianum = cJSON_GetArraySize(meds);
+
+                if (cfg->polprop) {
+                    free(cfg->polprop);
+                }
+
+                cfg->polprop = (POLMedium*)malloc(cfg->polmedianum * sizeof(POLMedium));
+
+                for (i = 0; i < cfg->polmedianum; i++) {
+                    if (cJSON_IsObject(med)) {
+                        cJSON* val = FIND_JSON_OBJ("mua", "", med);
+
+                        if (val) {
+                            cfg->polprop[i].mua = val->valuedouble;
+                        }
+
+                        val = FIND_JSON_OBJ("radius", "", med);
+
+                        if (val) {
+                            cfg->polprop[i].r = val->valuedouble;
+                        }
+
+                        val = FIND_JSON_OBJ("rho", "", med);
+
+                        if (val) {
+                            cfg->polprop[i].rho = val->valuedouble;
+                        }
+
+                        val = FIND_JSON_OBJ("nsph", "", med);
+
+                        if (val) {
+                            cfg->polprop[i].nsph = val->valuedouble;
+                        }
+
+                        val = FIND_JSON_OBJ("nmed", "", med);
+
+                        if (val) {
+                            cfg->polprop[i].nmed = val->valuedouble;
+                        }
+                    } else if (cJSON_IsArray(med)) {
+                        cfg->polprop[i].mua = med->child->valuedouble;
+                        cfg->polprop[i].r = med->child->next->valuedouble;
+                        cfg->polprop[i].rho = med->child->next->next->valuedouble;
+                        cfg->polprop[i].nsph = med->child->next->next->next->valuedouble;
+                        cfg->polprop[i].nmed = med->child->next->next->next->next->valuedouble;
+                    }
+
+                    med = med->next;
+
+                    if (med == NULL) {
+                        break;
+                    }
+                }
+            }
+        }
+
         val = FIND_JSON_OBJ("Dim", "Domain.Dim", Domain);
 
         if (val && cJSON_GetArraySize(val) >= 3) {
@@ -2699,6 +2850,16 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
                         count++;
                     }
                 }
+            }
+
+
+            if (FIND_JSON_OBJ("Frequency", "Optode.Source.Frequency", src)) {
+                cfg->omega = FIND_JSON_KEY("Frequency", "Optode.Source.Frequency", src, 0.f, valuedouble);
+                cfg->omega *= TWO_PI;
+            }
+
+            if (FIND_JSON_OBJ("WaveLength", "Optode.Source.WaveLength", src)) {
+                cfg->lambda = FIND_JSON_KEY("WaveLength", "Optode.Source.WaveLength", src, 0.f, valuedouble);
             }
 
             if (FIND_JSON_OBJ("SrcNum", "Optode.Source.SrcNum", src)) {

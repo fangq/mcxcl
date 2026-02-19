@@ -22,6 +22,10 @@
 #include "mcx_tictoc.h"
 #include "mcx_const.h"
 
+#ifndef NANGLES
+    #define NANGLES 181
+#endif
+
 #define MAX_JIT_OPT_LEN  (MAX_PATH_LENGTH << 1)
 
 #define IPARAM_TO_MACRO(macro,a,b) snprintf(macro+strlen(macro), MAX_JIT_OPT_LEN-strlen(macro)-1," -Dgcfg%s=%u ",   #b,(a.b))
@@ -425,7 +429,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     cl_uint* progress = NULL;
     cl_uint detected = 0, workdev;
 
-    cl_uint tic, tic0, tic1, toc = 0, debuglen = MCX_DEBUG_REC_LEN;
+    cl_uint tic, tic0, tic1, toc = 0, debuglen = MCX_DEBUG_REC_LEN + (cfg->istrajstokes << 2);
     size_t fieldlen;
     cl_uint4 cp0 = {{cfg->crop0.x, cfg->crop0.y, cfg->crop0.z, cfg->crop0.w}};
     cl_uint4 cp1 = {{cfg->crop1.x, cfg->crop1.y, cfg->crop1.z, cfg->crop1.w}};
@@ -444,6 +448,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     cl_uint  totalcucore;
     cl_uint  devid = 0;
     cl_mem* gmedia = NULL, *gproperty = NULL, *gparam = NULL;
+    cl_mem* gsmatrix = NULL;
     cl_mem greplaydetid = NULL, greplayw = NULL, greplaytof = NULL, *gsrcpattern = NULL;
     cl_mem* gfield = NULL, *gdetphoton, *gseed = NULL, *genergy = NULL, *gseeddata = NULL;
     cl_mem* gprogress = NULL, *gdetected = NULL, *gdetpos = NULL, *gjumpdebug = NULL, *gdebugdata = NULL, *ginvcdf = NULL, *gangleinvcdf = NULL;
@@ -470,7 +475,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
     unsigned int partialdata = (cfg->medianum - 1) * (SAVE_NSCAT(cfg->savedetflag) + SAVE_PPATH(cfg->savedetflag) + SAVE_MOM(cfg->savedetflag)); // buf len for media-specific data, copy from gpu to host
     unsigned int w0offset = partialdata + 4;  //< the extra 4 numbers are total-escaped-energy, total-launched-energy, initial-weight, source_id
-    unsigned int hostdetreclen = partialdata + SAVE_DETID(cfg->savedetflag) + 3 * (SAVE_PEXIT(cfg->savedetflag) + SAVE_VEXIT(cfg->savedetflag)) + SAVE_W0(cfg->savedetflag); // host-side det photon data buffer length
+    unsigned int hostdetreclen = partialdata + SAVE_DETID(cfg->savedetflag) + 3 * (SAVE_PEXIT(cfg->savedetflag) + SAVE_VEXIT(cfg->savedetflag)) + SAVE_W0(cfg->savedetflag) + 4 * SAVE_IQUV(cfg->savedetflag); // host-side det photon data buffer length
     unsigned int is2d = (cfg->dim.x == 1 ? 1 : (cfg->dim.y == 1 ? 2 : (cfg->dim.z == 1 ? 3 : 0)));
 
     MCXParam param = {{{cfg->srcpos.x, cfg->srcpos.y, cfg->srcpos.z, cfg->srcpos.w},
@@ -487,7 +492,9 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         cfg->isspecular > 0, cfg->maxgate, cfg->seed, (uint)cfg->outputtype, 0, 0,
         (uint)cfg->debuglevel, cfg->savedetflag, hostdetreclen, partialdata, w0offset, (uint)cfg->mediabyte,
         (uint)cfg->maxjumpdebug, cfg->gscatter, is2d, cfg->replaydet, cfg->srcnum, cfg->nphase,
-        cfg->nphase + (cfg->nphase & 0x1), cfg->nangle, cfg->nangle + (cfg->nangle & 0x1)
+        cfg->nphase + (cfg->nphase & 0x1), cfg->nangle, cfg->nangle + (cfg->nangle & 0x1),
+        cfg->polmedianum, (uint)cfg->istrajstokes,
+        {{cfg->srciquv.x, cfg->srciquv.y, cfg->srciquv.z, cfg->srciquv.w}}
     };
 
     param.issvmc = (cfg->mediabyte == MEDIA_2LABEL_SPLIT) ? 1 : 0;
@@ -531,6 +538,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     gsrcpattern = (cl_mem*)malloc(workdev * sizeof(cl_mem));
     ginvcdf = (cl_mem*)malloc(workdev * sizeof(cl_mem));
     gangleinvcdf = (cl_mem*)malloc(workdev * sizeof(cl_mem));
+    gsmatrix = (cl_mem*)malloc(workdev * sizeof(cl_mem));
 
     /* The block is to move the declaration of prop closer to its use */
     cl_command_queue_properties prop = CL_QUEUE_PROFILING_ENABLE;
@@ -760,6 +768,13 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             gsrcpattern[i] = NULL;
         }
 
+        if (cfg->polmedianum && cfg->smatrix) {
+            OCL_ASSERT(((gsmatrix[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->polmedianum * NANGLES * sizeof(float4), cfg->smatrix, &status), status)));
+        } else {
+            gsmatrix[i] = NULL;
+        }
+
+
     }
 
     mcx_printheader(cfg);
@@ -855,6 +870,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         IPARAM_TO_MACRO(opt, param, srcid);
         IPARAM_TO_MACRO(opt, param, extrasrclen);
         FPARAM_TO_MACRO(opt, param, Rtstep);
+        IPARAM_TO_MACRO(opt, param, maxpolmedia);
     }
 
     char allabsorb[] = {bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, 0};
@@ -940,6 +956,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         OCL_ASSERT((clSetKernelArg(mcxkernel[i], 16, sizeof(cl_mem), ((cfg->nphase) ? (void*)(ginvcdf + i) : NULL) )));
         OCL_ASSERT((clSetKernelArg(mcxkernel[i], 17, sizeof(cl_mem), ((cfg->nangle) ? (void*)(gangleinvcdf + i) : NULL) )));
         OCL_ASSERT((clSetKernelArg(mcxkernel[i], 18, sharedbuf, NULL)));
+        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 19, sizeof(cl_mem), (void*)(gsmatrix + i))));
     }
 
     MCX_FPRINTF(cfg->flog, "set kernel arguments complete : %d ms\n", GetTimeMillis() - tic);
@@ -1003,7 +1020,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                 param.blockphoton = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * nblock * cfg->respin));
                 param.blockextra  = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * cfg->respin) - param.blockphoton * nblock);
                 OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid], gparam[devid], CL_TRUE, 0, sizeof(MCXParam), &param, 0, NULL, NULL)));
-                OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 19, sizeof(cl_mem), (void*)(gparam + devid))));
+                OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 20, sizeof(cl_mem), (void*)(gparam + devid))));
 
                 // launch mcxkernel
                 OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid], mcxkernel[devid], 1, NULL, &gpu[devid].autothread, &gpu[devid].autoblock, 0, NULL, &waittoread[devid])));
@@ -1433,6 +1450,10 @@ is more than what your have specified (%d), please use the -H option to specify 
             clReleaseMemObject(gangleinvcdf[i]);
         }
 
+        if (cfg->polmedianum && gsmatrix && gsmatrix[i]) {
+            clReleaseMemObject(gsmatrix[i]);
+        }
+
         if (mcxkernel[i]) {
             clReleaseKernel(mcxkernel[i]);
         }
@@ -1456,6 +1477,7 @@ is more than what your have specified (%d), please use the -H option to specify 
     free(gseeddata);
     free(ginvcdf);
     free(gangleinvcdf);
+    free(gsmatrix);
     free(mcxkernel);
     free(waittoread);
     free(Pdet);

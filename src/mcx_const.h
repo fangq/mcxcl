@@ -64,6 +64,7 @@
 #define MEDIA_AS_SHORT        104  /**<  media format: 32bit:{[short: mua],[short: mus]} */
 
 #define MCX_DEBUG_REC_LEN  6  /**<  number of floating points per position saved when -D M is used for trajectory */
+#define NANGLES            181   /**< number of discrete angles for Mueller matrix */
 
 #define MCX_DEBUG_RNG          1   /**< debug flags: 1 - run RNG testing kernel and return RNG numbers */
 #define MCX_DEBUG_MOVE         2   /**< debug flags: 2 - save and output photon trajectory data */
@@ -105,6 +106,7 @@
 #define SET_SAVE_PEXIT(a)     ((a) | 0x1<<4)   /**<  save exit positions */
 #define SET_SAVE_VEXIT(a)     ((a) | 0x1<<5)   /**<  save exit vector/directions */
 #define SET_SAVE_W0(a)        ((a) | 0x1<<6)   /**<  save initial weight */
+#define SET_SAVE_IQUV(a)      ((a) | 0x1<<7)
 
 #define UNSET_SAVE_DETID(a)     ((a) & ~(0x1)   )   /**<  mask to save detector ID*/
 #define UNSET_SAVE_NSCAT(a)     ((a) & ~(0x1<<1))   /**<  output partial scattering counts */
@@ -113,6 +115,7 @@
 #define UNSET_SAVE_PEXIT(a)     ((a) & ~(0x1<<4))   /**<  save exit positions */
 #define UNSET_SAVE_VEXIT(a)     ((a) & ~(0x1<<5))   /**<  save exit vector/directions */
 #define UNSET_SAVE_W0(a)        ((a) & ~(0x1<<6))   /**<  save initial weight */
+#define UNSET_SAVE_IQUV(a)    ((a) & ~(0x1<<7))
 
 #ifndef MCX_CONTAINER
     #define S_RED     "\x1b[31m"

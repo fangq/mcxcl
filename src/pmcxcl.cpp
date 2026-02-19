@@ -454,6 +454,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
     GET_SCALAR_FIELD(user_cfg, mcx_config, issaveexit, py::bool_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, ismomentum, py::bool_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, isspecular, py::bool_);
+    GET_SCALAR_FIELD(user_cfg, mcx_config, istrajstokes, py::bool_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, replaydet, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, faststep, py::bool_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, maxvoidstep, py::int_);
@@ -464,12 +465,12 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
     GET_SCALAR_FIELD(user_cfg, mcx_config, srcid, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, optlevel, py::int_);
     GET_SCALAR_FIELD(user_cfg, mcx_config, isatomic, py::int_);
-    //GET_SCALAR_FIELD(user_cfg, mcx_config, omega, py::float_);
-    //GET_SCALAR_FIELD(user_cfg, mcx_config, lambda, py::float_);
+    GET_SCALAR_FIELD(user_cfg, mcx_config, omega, py::float_);
+    GET_SCALAR_FIELD(user_cfg, mcx_config, lambda, py::float_);
     GET_VEC3_FIELD(user_cfg, mcx_config, steps, float);
     GET_VEC3_FIELD(user_cfg, mcx_config, crop0, uint);
     GET_VEC3_FIELD(user_cfg, mcx_config, crop1, uint);
-    //GET_VEC4_FIELD(user_cfg, mcx_config, srciquv, float);
+    GET_VEC4_FIELD(user_cfg, mcx_config, srciquv, float);
     parseVolume(user_cfg, mcx_config);
 
     if (user_cfg.contains("srcpos")) {
@@ -716,39 +717,37 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
             }
     }
 
-    /*
-        if (user_cfg.contains("polprop")) {
-            auto f_style_volume = py::array_t < float, py::array::f_style | py::array::forcecast >::ensure(user_cfg["polprop"]);
+    if (user_cfg.contains("polprop")) {
+        auto f_style_volume = py::array_t < float, py::array::f_style | py::array::forcecast >::ensure(user_cfg["polprop"]);
 
-            if (!f_style_volume) {
-                throw py::value_error("Invalid polprop field value");
-            }
-
-            auto buffer_info = f_style_volume.request();
-
-            if (buffer_info.shape.size() != 2) {
-                throw py::value_error("the 'polprop' field must a 2D array");
-            }
-
-            if ((buffer_info.shape.size() > 1 && buffer_info.shape.at(0) > 0 && buffer_info.shape.at(1) != 5) || buffer_info.shape.size() == 1 && buffer_info.shape.at(0) != 5) {
-                throw py::value_error("the 'polprop' field must have 5 columns (mua, radius, rho, n_sph,n_bkg)");
-            }
-
-            mcx_config.polmedianum = (buffer_info.shape.size() == 1) ? 1 : buffer_info.shape.at(0);
-
-            if (mcx_config.polprop) {
-                free(mcx_config.polprop);
-            }
-
-            mcx_config.polprop = (POLMedium*) malloc(mcx_config.polmedianum * sizeof(POLMedium));
-            auto val = static_cast<float*>(buffer_info.ptr);
-
-            for (int j = 0; j < 5; j++)
-                for (int i = 0; i < mcx_config.polmedianum; i++) {
-                    ((float*) (&mcx_config.polprop[i]))[j] = val[j * mcx_config.polmedianum + i];
-                }
+        if (!f_style_volume) {
+            throw py::value_error("Invalid polprop field value");
         }
-    */
+
+        auto buffer_info = f_style_volume.request();
+
+        if (buffer_info.shape.size() != 2) {
+            throw py::value_error("the 'polprop' field must a 2D array");
+        }
+
+        if ((buffer_info.shape.size() > 1 && buffer_info.shape.at(0) > 0 && buffer_info.shape.at(1) != 5) || buffer_info.shape.size() == 1 && buffer_info.shape.at(0) != 5) {
+            throw py::value_error("the 'polprop' field must have 5 columns (mua, radius, rho, n_sph,n_bkg)");
+        }
+
+        mcx_config.polmedianum = (buffer_info.shape.size() == 1) ? 1 : buffer_info.shape.at(0);
+
+        if (mcx_config.polprop) {
+            free(mcx_config.polprop);
+        }
+
+        mcx_config.polprop = (POLMedium*) malloc(mcx_config.polmedianum * sizeof(POLMedium));
+        auto val = static_cast<float*>(buffer_info.ptr);
+
+        for (int j = 0; j < 5; j++)
+            for (int i = 0; i < mcx_config.polmedianum; i++) {
+                ((float*) (&mcx_config.polprop[i]))[j] = val[j * mcx_config.polmedianum + i];
+            }
+    }
 
     if (user_cfg.contains("compileropt")) {
         std::string compileropt = py::str(user_cfg["compileropt"]);
@@ -1090,7 +1089,8 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
     unsigned int partial_data, hostdetreclen;
     Config mcx_config;  /* mcx_config: structure to store all simulation parameters */
     GPUInfo* gpu_info = nullptr;        /** gpuInfo: structure to store GPU information */
-    unsigned int active_dev = 0;     /** activeDev: count of total active GPUs to be used */
+    unsigned int active_dev = 0;
+    unsigned int debuglen = MCX_DEBUG_REC_LEN;     /** activeDev: count of total active GPUs to be used */
     std::vector<std::string> exception_msgs;
     int thread_id = 0;
     size_t field_dim[6];
@@ -1150,11 +1150,9 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
                 field_len *= mcx_config.detnum;
             }
 
-            /*
-                        if (mcx_config.replay.seed != nullptr && mcx_config.outputtype == otRF) {
-                            field_len *= 2;
-                        }
-            */
+            if (mcx_config.replay.seed != nullptr && mcx_config.outputtype == otRF) {
+                field_len *= 2;
+            }
 
             if (mcx_config.extrasrclen && mcx_config.srcid == -1) {
                 field_len *= (mcx_config.extrasrclen + 1);
@@ -1350,19 +1348,17 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
             output["stat"] = stat_dict;
 
             /** return the final optical properties for polarized MCX simulation */
-            /*
-                        if (mcx_config.polprop) {
-                            for (int i = 0; i < mcx_config.polmedianum; i++) {
-                                // restore mua and mus values
-                                mcx_config.prop[i + 1].mua /= mcx_config.unitinmm;
-                                mcx_config.prop[i + 1].mus /= mcx_config.unitinmm;
-                            }
+            if (mcx_config.polprop) {
+                for (int i = 0; i < mcx_config.polmedianum; i++) {
+                    // restore mua and mus values
+                    mcx_config.prop[i + 1].mua /= mcx_config.unitinmm;
+                    mcx_config.prop[i + 1].mus /= mcx_config.unitinmm;
+                }
 
-                            auto opt_properties = py::array_t<float, py::array::f_style>({4, int(mcx_config.medianum)});
-                            memcpy(opt_properties.mutable_data(), mcx_config.prop, mcx_config.medianum * 4 * sizeof(float));
-                            output["prop"] = opt_properties;
-                        }
-            */
+                auto opt_properties = py::array_t<float, py::array::f_style>({4, int(mcx_config.medianum)});
+                memcpy(opt_properties.mutable_data(), mcx_config.prop, mcx_config.medianum * 4 * sizeof(float));
+                output["prop"] = opt_properties;
+            }
         }
     } catch (const char* err) {
         cleanup_configs(mcx_config, fluence);

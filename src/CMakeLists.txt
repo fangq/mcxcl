@@ -83,6 +83,8 @@ add_library(mcxcl STATIC
     mcx_tictoc.h
     mcx_neurojson.cpp
     mcx_neurojson.h
+    mcx_mie.cpp
+    mcx_mie.h
     cjson/cJSON.c
     cjson/cJSON.h
     ubj/ubj.h
@@ -120,6 +122,8 @@ if (BUILD_PYTHON)
             mcx_bench.h
             mcx_tictoc.c
             mcx_tictoc.h
+            mcx_mie.cpp
+            mcx_mie.h
             cjson/cJSON.c
             cjson/cJSON.h
             pmcxcl.cpp
@@ -148,6 +152,8 @@ if(BUILD_MEX AND Matlab_FOUND)
             mcx_bench.h
             mcx_tictoc.c
             mcx_tictoc.h
+            mcx_mie.cpp
+            mcx_mie.h
             cjson/cJSON.c
             cjson/cJSON.h
             )

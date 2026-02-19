@@ -55,7 +55,7 @@
 #define NII_HEADER_SIZE 352
 #define GL_RGBA32F 0x8814
 
-enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS, otL};   /**< types of output */
+enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS, otRF, otL};   /**< types of output */
 enum TMCXParent  {mpStandalone, mpMATLAB, mpPython};                   /**< whether MCX is run in binary or mex mode */
 enum TOutputFormat {ofMC2, ofNifti, ofAnalyze, ofUBJSON, ofTX3, ofJNifti, ofBJNifti};           /**< output data format */
 enum TDeviceVendor {dvUnknown, dvNVIDIA, dvAMD, dvIntel, dvIntelGPU, dvAppleCPU, dvAppleGPU, dvArmGPU};
@@ -76,6 +76,19 @@ typedef struct MCXMedium {
     float g;                       /**< anisotropy factor g: -1 to 1 */
     float n;                       /**< refractive index */
 } Medium POST_ALIGN(16);  /*this order shall match prop.{xyzw} in mcx_main_loop*/
+
+/**
+ * The structure to store medium parameters for
+ * polarized photon simulations.
+ */
+typedef struct MCXPolarizeMedium {
+    float mua;                     /**< background medium absorption coefficient (in 1/mm) */
+    float r;                       /**< spherical particle radius (in micron) */
+    float rho;                     /**< particle volume density (in 1/micron^3) */
+    float nsph;                    /**< particle refractive index */
+    float nmed;                    /**< background medium refrative index */
+} POLMedium;
+
 
 /**
  * Multi-source data structure
@@ -154,6 +167,7 @@ typedef struct MCXConfig {
 
     float4 srcpos;                /**<src position in mm*/
     float4 srcdir;                /**<src normal direction*/
+    float4 srciquv;               /**<initial stokes parameter*/
     float tstart;                 /**<start time in second*/
     float tstep;                  /**<time step in second*/
     float tend;                   /**<end time in second*/
@@ -163,13 +177,16 @@ typedef struct MCXConfig {
     uint4 crop0;                  /**<sub-volume for cache*/
     uint4 crop1;                  /**<the other end of the caching box*/
     unsigned int medianum;        /**<total types of media*/
+    unsigned int polmedianum;     /**<total types of media for polarized photon simulation*/
     unsigned int detnum;          /**<total detector numbers*/
     unsigned int maxdetphoton;    /**<anticipated maximum detected photons*/
     float detradius;              /**<default detector radius*/
     float sradius;                /**<source region radius, if set to non-zero, accumulation will not perform for dist<sradius*/
 
     Medium* prop;                 /**<optical property mapping table*/
+    POLMedium* polprop;           /**<absorption and scatterer mapping table for polarized photon simulation*/
     float4* detpos;               /**<detector positions and radius, overwrite detradius*/
+    float4* smatrix;              /**<scattering Mueller matrix */
 
     unsigned int maxgate;         /**<simultaneous recording gates*/
     int respin;                   /**<number of repeatitions (if positive), or number of divisions (if negative)*/
@@ -193,6 +210,7 @@ typedef struct MCXConfig {
     char internalsrc;            /**<1 all photons launch positions are inside non-zero voxels, 0 let mcx search entry point*/
     char isdumpmask;             /**<1 dump detector mask; 0 not*/
     char issaveseed;             /**<1 save the seed for a detected photon, 0 do not save*/
+    char istrajstokes;           /**<1 to save Stokes vector for trajectory data only */
     char issaveexit;             /**<1 save the exit position and dir of a detected photon, 0 do not save*/
     char isatomic;               /**<1 use atomic operations, 0 no atomic*/
     char issaveref;              /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
@@ -205,6 +223,8 @@ typedef struct MCXConfig {
     char outputformat;           /**<'mc2' output is text, 'nii': binary, 'img': regular json, 'ubj': universal binary json*/
     float minenergy;             /**<minimum energy to propagate photon*/
     float unitinmm;              /**<defines the length unit in mm for grid*/
+    float omega;                 /**<modulation angular frequency (2*pi*f), in rad/s, for FD/RF replay*/
+    float lambda;                /**<light wavelength (in nm), for polarized light simulation*/
     FILE* flog;                  /**<stream handle to print log information*/
     History his;                 /**<header info of the history file*/
     double energytot;            /**<total launched photon packet weights*/
@@ -309,10 +329,15 @@ void mcx_replayinit(Config* cfg, float* detps, int dimdetps[2], int seedbyte);
 void mcx_validatecfg(Config* cfg, float* detps, int dimdetps[2], int seedbyte);
 int  mcx_float2half2(float input[2]);
 
+void mcx_prep_polarized(Config* cfg);
 #ifdef MCX_CONTAINER
 int  mcx_throw_exception(const int id, const char* msg, const char* filename, const int linenum);
 void mcx_matlab_flush(void);
 void mcx_python_flush(void);
+
+#define SAVE_IQUV(a)          ((a)>>7 & 0x1)   /**<  save Stokes IQUV */
+#define SET_SAVE_IQUV(a)      ((a) | 0x1<<7)   /**<  set save Stokes IQUV */
+#define UNSET_SAVE_IQUV(a)    ((a) & ~(0x1<<7))/**<  unset save Stokes IQUV */
 #endif
 
 #if defined(MCX_CONTAINER) && (defined(MATLAB_MEX_FILE) || defined(OCTAVE_API_VERSION_NUMBER))
