@@ -494,11 +494,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         (uint)cfg->maxjumpdebug, cfg->gscatter, is2d, cfg->replaydet, cfg->srcnum, cfg->nphase,
         cfg->nphase + (cfg->nphase & 0x1), cfg->nangle, cfg->nangle + (cfg->nangle & 0x1),
         cfg->polmedianum, (uint)cfg->istrajstokes,
-        {{cfg->srciquv.x, cfg->srciquv.y, cfg->srciquv.z, cfg->srciquv.w}}
+        {{cfg->srciquv.x, cfg->srciquv.y, cfg->srciquv.z, cfg->srciquv.w}}, cfg->omega
     };
-
-    param.issvmc = (cfg->mediabyte == MEDIA_2LABEL_SPLIT) ? 1 : 0;
-    param.omega = cfg->omega;
 
     platform = mcx_list_gpu(cfg, &workdev, devices, &gpu);
 
@@ -873,6 +870,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         FPARAM_TO_MACRO(opt, param, Rtstep);
         IPARAM_TO_MACRO(opt, param, maxpolmedia);
         FPARAM_TO_MACRO(opt, param, omega);
+        IPARAM_TO_MACRO(opt, param, istrajstokes);
     }
 
     char allabsorb[] = {bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, 0};

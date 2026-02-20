@@ -467,6 +467,8 @@ if (isstruct(varargin{1}))
     for i = 1:length(varargin{1})
         if (useopencl < 0)
             varargin{1}(i).gpuid = -useopencl;
+        elseif (useopencl > 1)
+            varargin{1}(i).gpuid = useopencl;
         end
         castlist = {'srcpattern', 'srcpos', 'detpos', 'prop', 'workload', 'srcdir', 'srciquv', 'isnormalized', ...
                     'isreflect', 'nphoton', 'nblocksize', 'nthread', 'tstart', 'tend', 'maxdetphoton', 'maxgate', ...

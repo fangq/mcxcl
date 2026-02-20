@@ -161,9 +161,8 @@ typedef struct KernelParams {
     cl_uint   maxpolmedia;          /**< max number of media labels for polarized light */
     cl_uint   istrajstokes;         /**< 1 to save Stokes IQUV in trajectory data */
     cl_float4 s0;                   /**< initial stokes parameters */                /**< number of additional sources */
-    cl_char   bc[8];                /**< boundary conditions */
-    cl_uint   issvmc;               /**< flag indicating SVMC mode (mediabyte==97) */
-    cl_float  omega;                   /**< modulation angular frequency (2*pi*f), for FD/RF replay */
+    cl_float  omega;                /**< modulation angular frequency (2*pi*f), for FD/RF replay */
+    cl_char   bc[12];                /**< boundary conditions */
 } MCXParam POST_ALIGN(16);
 
 void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy);

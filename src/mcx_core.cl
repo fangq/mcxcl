@@ -1498,15 +1498,6 @@ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short4* flipdir,
 
         *Lmove = 0.f;
 
-        /** RF replay: precompute sin/cos of omega*TOF for this photon */
-        if (GPU_PARAM(gcfg, outputtype) == otRF || GPU_PARAM(gcfg, outputtype) == otRFmus) {
-            float rf_tof = photontof[(threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton - 1) + (int)f[0].w)];
-            float rf_sin, rf_cos;
-            MCX_SINCOS(GPU_PARAM(gcfg, omega) * rf_tof, rf_sin, rf_cos);
-            ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum)] = rf_cos;
-            ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + 1] = rf_sin;
-        }
-
 #elif defined(MCX_SRC_DISK) || defined(MCX_SRC_GAUSSIAN) || defined(MCX_SRC_RING) // uniform disk distribution or Gaussian-beam
         // Uniform disk point picking
         // http://mathworld.wolfram.com/DiskPointPicking.html
@@ -1584,15 +1575,6 @@ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short4* flipdir,
         rotatevector(v, stheta, ctheta, sphi, cphi);
         *Lmove = 0.f;
 
-        /** RF replay: precompute sin/cos of omega*TOF for this photon */
-        if (GPU_PARAM(gcfg, outputtype) == otRF || GPU_PARAM(gcfg, outputtype) == otRFmus) {
-            float rf_tof = photontof[(threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton - 1) + (int)f[0].w)];
-            float rf_sin, rf_cos;
-            MCX_SINCOS(GPU_PARAM(gcfg, omega) * rf_tof, rf_sin, rf_cos);
-            ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum)] = rf_cos;
-            ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + 1] = rf_sin;
-        }
-
 #elif defined(MCX_SRC_ZGAUSSIAN)
         float ang, stheta, ctheta, sphi, cphi;
         ang = TWO_PI * rand_uniform01(t); //next arimuth angle
@@ -1601,15 +1583,6 @@ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short4* flipdir,
         MCX_SINCOS(ang, stheta, ctheta);
         rotatevector(v, stheta, ctheta, sphi, cphi);
         *Lmove = 0.f;
-
-        /** RF replay: precompute sin/cos of omega*TOF for this photon */
-        if (GPU_PARAM(gcfg, outputtype) == otRF || GPU_PARAM(gcfg, outputtype) == otRFmus) {
-            float rf_tof = photontof[(threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton - 1) + (int)f[0].w)];
-            float rf_sin, rf_cos;
-            MCX_SINCOS(GPU_PARAM(gcfg, omega) * rf_tof, rf_sin, rf_cos);
-            ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum)] = rf_cos;
-            ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + 1] = rf_sin;
-        }
 
 #elif defined(MCX_SRC_LINE) || defined(MCX_SRC_SLIT)
         float r = rand_uniform01(t);
@@ -1643,15 +1616,6 @@ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short4* flipdir,
         }
 
         *Lmove = 0.f;
-
-        /** RF replay: precompute sin/cos of omega*TOF for this photon */
-        if (GPU_PARAM(gcfg, outputtype) == otRF || GPU_PARAM(gcfg, outputtype) == otRFmus) {
-            float rf_tof = photontof[(threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton - 1) + (int)f[0].w)];
-            float rf_sin, rf_cos;
-            MCX_SINCOS(GPU_PARAM(gcfg, omega) * rf_tof, rf_sin, rf_cos);
-            ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum)] = rf_cos;
-            ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + 1] = rf_sin;
-        }
 
 #else
 
@@ -1831,7 +1795,7 @@ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short4* flipdir,
     *Lmove = 0.f;
 
     /** RF replay: precompute sin/cos of omega*TOF for this photon */
-    if (GPU_PARAM(gcfg, outputtype) == otRF || GPU_PARAM(gcfg, outputtype) == otRFmus) {
+    if ((GPU_PARAM(gcfg, outputtype) == otRF) | (GPU_PARAM(gcfg, outputtype) == otRFmus)) {
         float rf_tof = photontof[(threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton - 1) + (int)f[0].w)];
         float rf_sin, rf_cos;
         MCX_SINCOS(GPU_PARAM(gcfg, omega) * rf_tof, rf_sin, rf_cos);
@@ -1950,8 +1914,8 @@ __kernel void mcx_main_loop(__global const uint* media,
     GPUDEBUG(("set block load to %d\n", blockphoton[0]));
 #endif
 
-    ppath += get_local_id(0) * (GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + ((GPU_PARAM(gcfg, outputtype) == otRF || GPU_PARAM(gcfg, outputtype) == otRFmus) << 1)); // block#2: maxmedia*thread number to store the partial
-    clearpath(ppath, GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + ((GPU_PARAM(gcfg, outputtype) == otRF || GPU_PARAM(gcfg, outputtype) == otRFmus) << 1));
+    ppath += get_local_id(0) * (GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + (((GPU_PARAM(gcfg, outputtype) == otRF) | (GPU_PARAM(gcfg, outputtype) == otRFmus)) << 1)); // block#2: maxmedia*thread number to store the partial
+    clearpath(ppath, GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + (((GPU_PARAM(gcfg, outputtype) == otRF) | (GPU_PARAM(gcfg, outputtype) == otRFmus)) << 1));
     ppath[GPU_PARAM(gcfg, partialdata)]  = genergy[idx << 1];
     ppath[GPU_PARAM(gcfg, partialdata) + 1] = genergy[(idx << 1) + 1];
 
@@ -1997,7 +1961,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                 float cphi = 1.f, sphi = 0.f, theta, stheta, ctheta;
                 float tmp0 = 0.f;
 
-                if (GPU_PARAM(gcfg, maxpolmedia) > 0 && !GPU_PARAM(gcfg, is2d)) {
+                if ((GPU_PARAM(gcfg, maxpolmedia) > 0) & (!GPU_PARAM(gcfg, is2d))) {
                     /** Polarized rejection method: jointly sample theta and phi using Mueller matrix */
                     uint ipol = (uint)NANGLES * ((mediaid & MED_MASK) - 1);
                     float I0, I, sin2phi, cos2phi;
@@ -2107,7 +2071,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                     updatestokes(&s, theta, tmp0, &olddir, &newdir, &mediaid, gsmatrix);
                 }
 
-                if ((bool)(GPU_PARAM(gcfg, outputtype) == otWP) || (bool)(GPU_PARAM(gcfg, outputtype) == otDCS) || (bool)(GPU_PARAM(gcfg, outputtype) == otWPTOF) || (GPU_PARAM(gcfg, seed) == SEED_FROM_FILE && GPU_PARAM(gcfg, outputtype) == otRFmus)) {
+                if ((bool)(GPU_PARAM(gcfg, outputtype) == otWP) | (bool)(GPU_PARAM(gcfg, outputtype) == otDCS) | (bool)(GPU_PARAM(gcfg, outputtype) == otWPTOF) | ((GPU_PARAM(gcfg, seed) == SEED_FROM_FILE) & (GPU_PARAM(gcfg, outputtype) == otRFmus))) {
                     ///< photontof[] and replayweight[] should be cached using local mem to avoid global read
                     int tshift = (idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w);
                     tmp0 = (GPU_PARAM(gcfg, outputtype) == otDCS) ? (1.f - ctheta) : 1.f;
@@ -2289,8 +2253,9 @@ __kernel void mcx_main_loop(__global const uint* media,
                 } else if ((bool)(GPU_PARAM(gcfg, outputtype) == otFluence) || (bool)(GPU_PARAM(gcfg, outputtype) == otFlux)) {
                     weight = (prop.x < EPS) ? (w0 * pathlen) : ((w0 - p.w) / (prop.x));
                 } else if (GPU_PARAM(gcfg, seed) == SEED_FROM_FILE) {
-                    if (GPU_PARAM(gcfg, outputtype) == otJacobian || GPU_PARAM(gcfg, outputtype) == otRF || GPU_PARAM(gcfg, outputtype) == otWLTOF) {
+                    if (GPU_PARAM(gcfg, outputtype) == otJacobian | GPU_PARAM(gcfg, outputtype) == otRF | GPU_PARAM(gcfg, outputtype) == otWLTOF) {
                         weight = replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w) - 1] * pathlen;
+
                         tshift = (idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w - 1);
                         tshift = (int)(floor((photontof[tshift] - gcfg->twin0) * GPU_PARAM(gcfg, Rtstep))) +
                                  ( (GPU_PARAM(gcfg, replaydet) == -1) ? (((photondetid[tshift] & 0xFFFF) - 1) * GPU_PARAM(gcfg, maxgate)) : 0);
@@ -2323,7 +2288,7 @@ __kernel void mcx_main_loop(__global const uint* media,
                         atomicadd(& field[idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w], ((oldval > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
                     }
 
-                    if (GPU_PARAM(gcfg, outputtype) == otRF && GPU_PARAM(gcfg, omega) > 0.f) {
+                    if ((GPU_PARAM(gcfg, outputtype) == otRF) & (GPU_PARAM(gcfg, omega) > 0.f)) {
                         float rf_imag = -replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w - 1)] * pathlen * ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + 1];
                         atomicadd(& field[idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w], rf_imag);
                     }
