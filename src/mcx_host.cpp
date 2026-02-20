@@ -890,8 +890,15 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DMCX_USE_CPU");
     }
 
+    char extensions[8192] = {'\0'};
+    clGetDeviceInfo(devices[0], CL_DEVICE_EXTENSIONS, sizeof(extensions), extensions, NULL);
+
     if (gpu[0].vendor == dvNVIDIA) {
         snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_NVIDIA_GPU");
+    } else if (strstr(extensions, "cl_intel_global_float_atomics")) {
+        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_INTEL_FLOAT_ATOMIC");
+    } else if (strstr(extensions, "cl_ext_float_atomics")) {
+        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_OPENCL_FLOAT_ATOMIC");
     }
 
     MCX_FPRINTF(cfg->flog, "building kernel with option: %s\n", opt);
