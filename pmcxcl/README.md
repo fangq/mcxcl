@@ -3,9 +3,9 @@
 # PMCX-CL - Python bindings for Monte Carlo eXtreme (OpenCL) photon transport simulator
 
 - Copyright: (C) Matin Raayai Ardakani (2022-2023) <raayaiardakani.m at northeastern.edu> 
-  and Qianqian Fang (2019-2025) <q.fang at neu.edu>
+  and Qianqian Fang (2019-2026) <q.fang at neu.edu>
 - License: GNU Public License V3 or later
-- Version: 0.4.0
+- Version: 0.6.0
 - URL: https://pypi.org/project/pmcxcl/
 - Github: https://github.com/fangq/mcxcl
 
