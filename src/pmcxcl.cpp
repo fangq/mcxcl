@@ -498,7 +498,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
 
         auto val = static_cast<float*>(buffer_info.ptr);
 
-        for (int i = 0; i < arraydim[1]; i++) {
+        for (unsigned int i = 0; i < arraydim[1]; i++) {
             ((float*)(&mcx_config.srcpos.x))[i] = val[i * arraydim[0]];
         }
 
@@ -513,8 +513,8 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
                 mcx_config.srcdata = (ExtraSrc*)calloc(sizeof(ExtraSrc), mcx_config.extrasrclen);
             }
 
-            for (int j = 0; j < arraydim[1]; j++)
-                for (int i = 0; i < mcx_config.extrasrclen; i++) {
+            for (unsigned int j = 0; j < arraydim[1]; j++)
+                for (unsigned int i = 0; i < mcx_config.extrasrclen; i++) {
                     ((float*)(&mcx_config.srcdata[i].srcpos.x))[j] = val[j * arraydim[0] + i + 1];
                 }
         }
@@ -545,7 +545,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
 
         auto val = static_cast<float*>(buffer_info.ptr);
 
-        for (int i = 0; i < arraydim[1]; i++) {
+        for (unsigned int i = 0; i < arraydim[1]; i++) {
             ((float*)(&mcx_config.srcdir.x))[i] = val[i * arraydim[0]];
         }
 
@@ -560,8 +560,8 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
                 mcx_config.srcdata = (ExtraSrc*)calloc(sizeof(ExtraSrc), mcx_config.extrasrclen);
             }
 
-            for (int j = 0; j < arraydim[1]; j++)
-                for (int i = 0; i < mcx_config.extrasrclen; i++) {
+            for (unsigned int j = 0; j < arraydim[1]; j++)
+                for (unsigned int i = 0; i < mcx_config.extrasrclen; i++) {
                     ((float*)(&mcx_config.srcdata[i].srcdir.x))[j] = val[j * arraydim[0] + i + 1];
                 }
         }
@@ -592,7 +592,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
 
         auto val = static_cast<float*>(buffer_info.ptr);
 
-        for (int i = 0; i < arraydim[1]; i++) {
+        for (unsigned int i = 0; i < arraydim[1]; i++) {
             ((float*)(&mcx_config.srcparam1.x))[i] = val[i * arraydim[0]];
         }
 
@@ -607,8 +607,8 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
                 mcx_config.srcdata = (ExtraSrc*)calloc(sizeof(ExtraSrc), mcx_config.extrasrclen);
             }
 
-            for (int j = 0; j < arraydim[1]; j++)
-                for (int i = 0; i < mcx_config.extrasrclen; i++) {
+            for (unsigned int j = 0; j < arraydim[1]; j++)
+                for (unsigned int i = 0; i < mcx_config.extrasrclen; i++) {
                     ((float*)(&mcx_config.srcdata[i].srcparam1.x))[j] = val[j * arraydim[0] + i + 1];
                 }
         }
@@ -639,7 +639,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
 
         auto val = static_cast<float*>(buffer_info.ptr);
 
-        for (int i = 0; i < arraydim[1]; i++) {
+        for (unsigned int i = 0; i < arraydim[1]; i++) {
             ((float*)(&mcx_config.srcparam2.x))[i] = val[i * arraydim[0]];
         }
 
@@ -654,8 +654,8 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
                 mcx_config.srcdata = (ExtraSrc*)calloc(sizeof(ExtraSrc), mcx_config.extrasrclen);
             }
 
-            for (int j = 0; j < arraydim[1]; j++)
-                for (int i = 0; i < mcx_config.extrasrclen; i++) {
+            for (unsigned int j = 0; j < arraydim[1]; j++)
+                for (unsigned int i = 0; i < mcx_config.extrasrclen; i++) {
                     ((float*)(&mcx_config.srcdata[i].srcparam2.x))[j] = val[j * arraydim[0] + i + 1];
                 }
         }
@@ -730,7 +730,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
             throw py::value_error("the 'polprop' field must a 2D array");
         }
 
-        if ((buffer_info.shape.size() > 1 && buffer_info.shape.at(0) > 0 && buffer_info.shape.at(1) != 5) || buffer_info.shape.size() == 1 && buffer_info.shape.at(0) != 5) {
+        if ((buffer_info.shape.size() > 1 && buffer_info.shape.at(0) > 0 && buffer_info.shape.at(1) != 5) || (buffer_info.shape.size() == 1 && buffer_info.shape.at(0) != 5)) {
             throw py::value_error("the 'polprop' field must have 5 columns (mua, radius, rho, n_sph,n_bkg)");
         }
 
@@ -744,7 +744,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
         auto val = static_cast<float*>(buffer_info.ptr);
 
         for (int j = 0; j < 5; j++)
-            for (int i = 0; i < mcx_config.polmedianum; i++) {
+            for (unsigned int i = 0; i < mcx_config.polmedianum; i++) {
                 ((float*) (&mcx_config.polprop[i]))[j] = val[j * mcx_config.polmedianum + i];
             }
     }
@@ -912,7 +912,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
         mcx_config.nphase = nphase + 2;
         mcx_config.invcdf = (float*) calloc(mcx_config.nphase, sizeof(float));
 
-        for (int i = 0; i < nphase; i++) {
+        for (unsigned int i = 0; i < nphase; i++) {
             mcx_config.invcdf[i + 1] = val[i];
 
             if ((i > 0 && val[i] < val[i - 1]) || val[i] > 1.f || val[i] < -1.f)
@@ -937,7 +937,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
         mcx_config.nangle = nangle;
         mcx_config.angleinvcdf = (float*) calloc(mcx_config.nangle, sizeof(float));
 
-        for (int i = 0; i < nangle; i++) {
+        for (unsigned int i = 0; i < nangle; i++) {
             mcx_config.angleinvcdf[i] = val[i];
 
             if ((i > 0 && val[i] < val[i - 1]) || val[i] > 1.f || val[i] < 0.f)
@@ -1090,7 +1090,6 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
     Config mcx_config;  /* mcx_config: structure to store all simulation parameters */
     GPUInfo* gpu_info = nullptr;        /** gpuInfo: structure to store GPU information */
     unsigned int active_dev = 0;
-    unsigned int debuglen = MCX_DEBUG_REC_LEN;     /** activeDev: count of total active GPUs to be used */
     std::vector<std::string> exception_msgs;
     int thread_id = 0;
     size_t field_dim[6];
@@ -1347,7 +1346,7 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
 
             /** return the final optical properties for polarized MCX simulation */
             if (mcx_config.polprop) {
-                for (int i = 0; i < mcx_config.polmedianum; i++) {
+                for (unsigned int i = 0; i < mcx_config.polmedianum; i++) {
                     // restore mua and mus values
                     mcx_config.prop[i + 1].mua /= mcx_config.unitinmm;
                     mcx_config.prop[i + 1].mus /= mcx_config.unitinmm;

@@ -28,7 +28,8 @@
 
 #define MAX_JIT_OPT_LEN  (MAX_PATH_LENGTH << 1)
 
-#define IPARAM_TO_MACRO(macro,a,b) snprintf(macro+strlen(macro), MAX_JIT_OPT_LEN-strlen(macro)-1," -Dgcfg%s=%u ",   #b,(a.b))
+#define UPARAM_TO_MACRO(macro,a,b) snprintf(macro+strlen(macro), MAX_JIT_OPT_LEN-strlen(macro)-1," -Dgcfg%s=%u ",    #b,(a.b))
+#define IPARAM_TO_MACRO(macro,a,b) snprintf(macro+strlen(macro), MAX_JIT_OPT_LEN-strlen(macro)-1," -Dgcfg%s=%d ",    #b,(a.b))
 #define FPARAM_TO_MACRO(macro,a,b) snprintf(macro+strlen(macro), MAX_JIT_OPT_LEN-strlen(macro)-1," -Dgcfg%s=%.10ef ",#b,(a.b))
 
 cl_event kernelevent;
@@ -834,43 +835,45 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     }
 
     if (strstr(opt, "USE_MACRO_CONST")) {
-        IPARAM_TO_MACRO(opt, param, detnum);
-        IPARAM_TO_MACRO(opt, param, doreflect);
-        IPARAM_TO_MACRO(opt, param, gscatter);
-        IPARAM_TO_MACRO(opt, param, is2d);
-        IPARAM_TO_MACRO(opt, param, issaveref);
-        IPARAM_TO_MACRO(opt, param, issaveseed);
-        IPARAM_TO_MACRO(opt, param, isspecular);
-        IPARAM_TO_MACRO(opt, param, maxdetphoton);
-        IPARAM_TO_MACRO(opt, param, maxgate);
-        IPARAM_TO_MACRO(opt, param, maxjumpdebug);
-        IPARAM_TO_MACRO(opt, param, maxmedia);
-        IPARAM_TO_MACRO(opt, param, maxvoidstep);
-        IPARAM_TO_MACRO(opt, param, mediaformat);
+        UPARAM_TO_MACRO(opt, param, detnum);
+        UPARAM_TO_MACRO(opt, param, doreflect);
+        UPARAM_TO_MACRO(opt, param, gscatter);
+        UPARAM_TO_MACRO(opt, param, is2d);
+        UPARAM_TO_MACRO(opt, param, issaveref);
+        UPARAM_TO_MACRO(opt, param, issaveseed);
+        UPARAM_TO_MACRO(opt, param, isspecular);
+        UPARAM_TO_MACRO(opt, param, maxdetphoton);
+        UPARAM_TO_MACRO(opt, param, maxgate);
+        UPARAM_TO_MACRO(opt, param, maxjumpdebug);
+        UPARAM_TO_MACRO(opt, param, maxmedia);
+        UPARAM_TO_MACRO(opt, param, maxvoidstep);
+        UPARAM_TO_MACRO(opt, param, mediaformat);
         FPARAM_TO_MACRO(opt, param, minaccumtime);
         FPARAM_TO_MACRO(opt, param, minenergy);
         FPARAM_TO_MACRO(opt, param, oneoverc0);
-        IPARAM_TO_MACRO(opt, param, outputtype);
-        IPARAM_TO_MACRO(opt, param, partialdata);
-        IPARAM_TO_MACRO(opt, param, reclen);
-        IPARAM_TO_MACRO(opt, param, replaydet);
-        IPARAM_TO_MACRO(opt, param, save2pt);
-        IPARAM_TO_MACRO(opt, param, savedet);
-        IPARAM_TO_MACRO(opt, param, savedetflag);
-        IPARAM_TO_MACRO(opt, param, seed);
-        IPARAM_TO_MACRO(opt, param, srcnum);
-        IPARAM_TO_MACRO(opt, param, voidtime);
-        IPARAM_TO_MACRO(opt, param, w0offset);
-        IPARAM_TO_MACRO(opt, param, nphase);
-        IPARAM_TO_MACRO(opt, param, nangle);
-        IPARAM_TO_MACRO(opt, param, nanglelen);
-        IPARAM_TO_MACRO(opt, param, nphaselen);
-        IPARAM_TO_MACRO(opt, param, srcid);
-        IPARAM_TO_MACRO(opt, param, extrasrclen);
+        UPARAM_TO_MACRO(opt, param, outputtype);
+        UPARAM_TO_MACRO(opt, param, partialdata);
+        UPARAM_TO_MACRO(opt, param, reclen);
+        UPARAM_TO_MACRO(opt, param, save2pt);
+        UPARAM_TO_MACRO(opt, param, savedet);
+        UPARAM_TO_MACRO(opt, param, savedetflag);
+        UPARAM_TO_MACRO(opt, param, seed);
+        UPARAM_TO_MACRO(opt, param, srcnum);
+        UPARAM_TO_MACRO(opt, param, voidtime);
+        UPARAM_TO_MACRO(opt, param, w0offset);
+        UPARAM_TO_MACRO(opt, param, nphase);
+        UPARAM_TO_MACRO(opt, param, nangle);
+        UPARAM_TO_MACRO(opt, param, nanglelen);
+        UPARAM_TO_MACRO(opt, param, nphaselen);
+        UPARAM_TO_MACRO(opt, param, extrasrclen);
         FPARAM_TO_MACRO(opt, param, Rtstep);
-        IPARAM_TO_MACRO(opt, param, maxpolmedia);
+        UPARAM_TO_MACRO(opt, param, maxpolmedia);
         FPARAM_TO_MACRO(opt, param, omega);
-        IPARAM_TO_MACRO(opt, param, istrajstokes);
+        UPARAM_TO_MACRO(opt, param, istrajstokes);
+
+        /* below parameters are signed integers */
+        IPARAM_TO_MACRO(opt, param, replaydet);
+        IPARAM_TO_MACRO(opt, param, srcid);
     }
 
     char allabsorb[] = {bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, 0};
