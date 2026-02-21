@@ -76,10 +76,10 @@
  * Short command line options
  * If a short command line option is '-' that means it only has long/verbose option.
  * Array terminates with '\0'.
- * Currently un-used options: cCdNQy0-9
+ * Currently un-used options: Cy0-9
  */
 
-char shortopt[] = {'h', 'i', 'f', 'n', 'm', 't', 'T', 's', 'a', 'g', 'b', 'B', 'D', '-', 'G', 'W', 'z',
+char shortopt[] = {'h', 'i', 'f', 'n', 'm', 't', 'T', 's', 'a', 'g', 'c', 'b', 'B', 'D', '-', 'G', 'W', 'z',
                    'd', 'r', 'S', 'p', 'e', 'U', 'R', 'l', 'L', 'M', 'I', '-', 'o', 'k', 'v', 'J',
                    'A', 'P', 'E', 'F', 'H', 'K', 'u', '-', 'x', 'X', '-', 'w', '-', 'q', 'V', 'm',
                    'Y', 'O', '-', '-', 'Q', '-', 'Z', 'j', '-', 'N', '-', '\0'
@@ -91,7 +91,7 @@ char shortopt[] = {'h', 'i', 'f', 'n', 'm', 't', 'T', 's', 'a', 'g', 'b', 'B', '
  */
 
 const char* fullopt[] = {"--help", "--interactive", "--input", "--photon", "--move",
-                         "--thread", "--blocksize", "--session", "--array", "--gategroup",
+                         "--thread", "--blocksize", "--session", "--array", "--gategroup", "--compute",
                          "--reflect", "--bc", "--debug", "--devicelist", "--gpu", "--workload", "--srcfrom0",
                          "--savedet", "--repeat", "--save2pt", "--printlen", "--minenergy",
                          "--normalize", "--skipradius", "--log", "--listgpu", "--dumpmask",
@@ -126,6 +126,12 @@ char flagset[256] = {'\0'};
 #endif
 
 const char saveflag[] = {'D', 'S', 'P', 'M', 'X', 'V', 'W', 'I', '\0'};
+
+/**
+ * Flag to decide which platform to run mmc
+ */
+
+const char* computebackend[] = {"opencl", "cuda", ""};
 
 /**
  * Output data types
@@ -266,6 +272,7 @@ void mcx_initcfg(Config* cfg) {
     cfg->extrajson = NULL;
     cfg->optlevel = 3;
     cfg->srcnum = 1;
+    cfg->compute = cbOpenCL;
 
     memset(cfg->deviceid, 0, MAX_DEVICE);
     memset(cfg->compileropt, 0, MAX_PATH_LENGTH);
@@ -367,7 +374,7 @@ void mcx_clearcfg(Config* cfg) {
         free(cfg->srcpattern);
     }
 
-#ifndef MCX_EMBED_CL
+#ifdef MCX_EMBED_CL
 
     if (cfg->clsource && cfg->clsource != (char*)mcx_core_cl) {
         free(cfg->clsource);
@@ -4600,6 +4607,15 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
                     i = mcx_readarg(argc, argv, i, &(cfg->autopilot), "char");
                     break;
 
+                case 'c':
+                    if (i + 1 < argc && isalpha((int)argv[i + 1][0]) ) {
+                        cfg->compute = mcx_keylookup(argv[++i], computebackend);
+                    } else {
+                        i = mcx_readarg(argc, argv, i, &(cfg->compute), "int");
+                    }
+
+                    break;
+
                 case 'l':
                     i = mcx_readarg(argc, argv, i, &issavelog, "int");
                     break;
@@ -4955,9 +4971,13 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
         fseek(fp, 0, SEEK_END);
         srclen = ftell(fp);
 
+#ifdef MCX_EMBED_CL
+
         if (cfg->clsource != (char*)mcx_core_cl) {
             free(cfg->clsource);
         }
+
+#endif
 
         cfg->clsource = (char*)malloc(srclen + 1);
         fseek(fp, 0, SEEK_SET);
@@ -5252,6 +5272,8 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -t [16384|int](--thread)      total thread number\n\
  -T [64|int]   (--blocksize)   thread number per block\n\
  -A [1|int]    (--autopilot)   auto thread config:1 enable;0 disable\n\
+ -c [opencl,cuda](--compute) select compute backend (default to opencl)\n\
+                               can also use 0: sse, 1: opencl, 2: cuda\n\
  -G [0|int]    (--gpu)         specify which GPU to use, list GPU by -L; 0 auto\n\
       or\n\
  -G '1101'     (--gpu)         using multiple devices (1 enable, 0 disable)\n\

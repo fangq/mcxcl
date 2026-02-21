@@ -1,6 +1,6 @@
 /***************************************************************************//**
 **  \mainpage Monte Carlo eXtreme - GPU accelerated Monte Carlo Photon Migration \
-**      -- OpenCL edition
+**      -- OpenCL/CUDA dual-backend edition
 **  \author Qianqian Fang <q.fang at neu.edu>
 **  \copyright Qianqian Fang, 2009-2025
 **
@@ -17,10 +17,16 @@
 #include <stdio.h>
 #include "mcx_tictoc.h"
 #include "mcx_utils.h"
-#include "mcx_host.h"
 
+#ifdef USE_OPENCL
+    #include "mcx_host.h"
+#endif
 
-int main (int argc, char* argv[]) {
+#ifdef USE_CUDA
+    #include "mcx_cu_host.h"
+#endif
+
+int main(int argc, char* argv[]) {
     Config mcxconfig;
     float* fluence = NULL, totalenergy = 0.f;
 
@@ -31,8 +37,30 @@ int main (int argc, char* argv[]) {
 
     mcx_createfluence(&fluence, &mcxconfig);
 
-    // this launches the MC simulation
+    /*
+     * Backend dispatch:
+     * - If both backends are compiled (trinity), use mcxconfig.compute to select
+     * - If only one backend is compiled, always use that one
+     */
+
+#if defined(USE_CUDA) && defined(USE_OPENCL)
+
+    /* Trinity mode: dispatch based on user selection (-K flag) */
+    if (mcxconfig.compute == cbCUDA) {
+        mcx_run_cuda(&mcxconfig, fluence, &totalenergy);
+    } else {
+        mcx_run_simulation(&mcxconfig, fluence, &totalenergy);
+    }
+
+#elif defined(USE_CUDA)
+    /* CUDA-only build */
+    mcx_run_cuda(&mcxconfig, fluence, &totalenergy);
+#elif defined(USE_OPENCL)
+    /* OpenCL-only build */
     mcx_run_simulation(&mcxconfig, fluence, &totalenergy);
+#else
+#error "At least one of USE_OPENCL or USE_CUDA must be defined"
+#endif
 
     // clean up the allocated memory in the config
     mcx_clearfluence(&fluence);

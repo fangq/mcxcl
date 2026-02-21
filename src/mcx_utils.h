@@ -65,6 +65,7 @@ enum TBJData {JDB_mixed, JDB_nulltype, JDB_noop, JDB_true, JDB_false,
               JDB_int64, JDB_single, JDB_double, JDB_array, JDB_object, JDB_numtypes,
               JDB_uint16 = 10, JDB_uint32, JDB_uint64
              };
+enum TComputeBackend {cbOpenCL, cbCUDA};
 
 /**
  * The structure to store optical properties
@@ -218,6 +219,7 @@ typedef struct MCXConfig {
     int  zipid;                  /**<data zip method "zlib","gzip","base64","lzip","lzma","lz4","lz4hc"*/
     char srctype;                /**<0:pencil,1:isotropic,2:cone,3:gaussian,4:planar,5:pattern,\
                                          6:fourier,7:arcsine,8:disk,9:fourierx,10:fourierx2d,11:zgaussian,12:line,13:slit*/
+    int compute;                 /**< 0: OpenCL (default), 1: CUDA */
     char autopilot;              /**<1 optimal setting for dedicated card, 2, for non dedicated card*/
     char outputtype;             /**<'X' output is flux, 'F' output is fluence, 'E' energy deposit*/
     char outputformat;           /**<'mc2' output is text, 'nii': binary, 'img': regular json, 'ubj': universal binary json*/

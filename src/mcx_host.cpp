@@ -434,8 +434,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     size_t fieldlen;
     cl_uint4 cp0 = {{cfg->crop0.x, cfg->crop0.y, cfg->crop0.z, cfg->crop0.w}};
     cl_uint4 cp1 = {{cfg->crop1.x, cfg->crop1.y, cfg->crop1.z, cfg->crop1.w}};
-    cl_uint2 cachebox = {{0, 0}};
-    cl_uint4 dimlen = {{0, 0, 0, 0}};
+    uint2 cachebox = {0, 0};
+    uint4 dimlen = {0, 0, 0, 0};
 
     cl_context mcxcontext;                 // compute mcxcontext
     cl_command_queue* mcxqueue;          // compute command queue
@@ -479,24 +479,79 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     unsigned int hostdetreclen = partialdata + SAVE_DETID(cfg->savedetflag) + 3 * (SAVE_PEXIT(cfg->savedetflag) + SAVE_VEXIT(cfg->savedetflag)) + SAVE_W0(cfg->savedetflag) + 4 * SAVE_IQUV(cfg->savedetflag); // host-side det photon data buffer length
     unsigned int is2d = (cfg->dim.x == 1 ? 1 : (cfg->dim.y == 1 ? 2 : (cfg->dim.z == 1 ? 3 : 0)));
 
-    MCXParam param = {{{cfg->srcpos.x, cfg->srcpos.y, cfg->srcpos.z, cfg->srcpos.w},
-            {cfg->srcdir.x, cfg->srcdir.y, cfg->srcdir.z, cfg->srcdir.w}, {cfg->srcparam1.x, cfg->srcparam1.y, cfg->srcparam1.z, cfg->srcparam1.w},
-            {cfg->srcparam2.x, cfg->srcparam2.y, cfg->srcparam2.z, cfg->srcparam2.w}
-        }, cfg->extrasrclen, cfg->srcid,
-        {{(float)cfg->dim.x, (float)cfg->dim.y, (float)cfg->dim.z, 0}}, dimlen, cp0, cp1, cachebox,
-        minstep, 0.f, 0.f, cfg->tend, R_C0* cfg->unitinmm, (uint)cfg->isrowmajor,
-        (uint)cfg->issave2pt, (uint)cfg->isreflect, (uint)cfg->isrefint,
-        (uint)cfg->issavedet, 1.f / cfg->tstep, cfg->minenergy,
-        cfg->sradius* cfg->sradius, minstep* R_C0* cfg->unitinmm, cfg->maxdetphoton,
-        cfg->medianum - 1, cfg->detnum, 0, 0, (uint)cfg->voidtime, (uint)cfg->srctype,
-        (uint)cfg->maxvoidstep, cfg->issaveexit > 0, cfg->issaveseed > 0, (uint)cfg->issaveref,
-        cfg->isspecular > 0, cfg->maxgate, cfg->seed, (uint)cfg->outputtype, 0, 0,
-        (uint)cfg->debuglevel, cfg->savedetflag, hostdetreclen, partialdata, w0offset, (uint)cfg->mediabyte,
-        (uint)cfg->maxjumpdebug, cfg->gscatter, is2d, cfg->replaydet, cfg->srcnum, cfg->nphase,
-        cfg->nphase + (cfg->nphase & 0x1), cfg->nangle, cfg->nangle + (cfg->nangle & 0x1),
-        cfg->polmedianum, (uint)cfg->istrajstokes,
-        {{cfg->srciquv.x, cfg->srciquv.y, cfg->srciquv.z, cfg->srciquv.w}}, cfg->omega
-    };
+    MCXParam param;
+    memset(&param, 0, sizeof(MCXParam));
+
+    param.src.pos.x = cfg->srcpos.x;
+    param.src.pos.y = cfg->srcpos.y;
+    param.src.pos.z = cfg->srcpos.z;
+    param.src.pos.w = cfg->srcpos.w;
+    param.src.dir.x = cfg->srcdir.x;
+    param.src.dir.y = cfg->srcdir.y;
+    param.src.dir.z = cfg->srcdir.z;
+    param.src.dir.w = cfg->srcdir.w;
+    param.src.param1.x = cfg->srcparam1.x;
+    param.src.param1.y = cfg->srcparam1.y;
+    param.src.param1.z = cfg->srcparam1.z;
+    param.src.param1.w = cfg->srcparam1.w;
+    param.src.param2.x = cfg->srcparam2.x;
+    param.src.param2.y = cfg->srcparam2.y;
+    param.src.param2.z = cfg->srcparam2.z;
+    param.src.param2.w = cfg->srcparam2.w;
+    param.extrasrclen = cfg->extrasrclen;
+    param.srcid    = cfg->srcid;
+    param.maxidx.x = (float)cfg->dim.x;
+    param.maxidx.y = (float)cfg->dim.y;
+    param.maxidx.z = (float)cfg->dim.z;
+    param.maxidx.w = 0;
+    param.minstep  = minstep;
+    param.tmax     = cfg->tend;
+    param.oneoverc0 = R_C0 * cfg->unitinmm;
+    param.isrowmajor = (uint)cfg->isrowmajor;
+    param.save2pt  = (uint)cfg->issave2pt;
+    param.doreflect = (uint)cfg->isreflect;
+    param.dorefint = (uint)cfg->isrefint;
+    param.savedet  = (uint)cfg->issavedet;
+    param.Rtstep   = 1.f / cfg->tstep;
+    param.minenergy = cfg->minenergy;
+    param.skipradius2 = cfg->sradius * cfg->sradius;
+    param.minaccumtime = minstep * R_C0 * cfg->unitinmm;
+    param.maxdetphoton = cfg->maxdetphoton;
+    param.maxmedia = cfg->medianum - 1;
+    param.detnum   = cfg->detnum;
+    param.voidtime = (uint)cfg->voidtime;
+    param.srctype  = (uint)cfg->srctype;
+    param.maxvoidstep = (uint)cfg->maxvoidstep;
+    param.issaveexit = cfg->issaveexit > 0;
+    param.issaveseed = cfg->issaveseed > 0;
+    param.issaveref = (uint)cfg->issaveref;
+    param.isspecular = cfg->isspecular > 0;
+    param.maxgate  = cfg->maxgate;
+    param.seed     = cfg->seed;
+    param.outputtype = (uint)cfg->outputtype;
+    param.debuglevel = (uint)cfg->debuglevel;
+    param.savedetflag = cfg->savedetflag;
+    param.reclen   = hostdetreclen;
+    param.partialdata = partialdata;
+    param.w0offset = w0offset;
+    param.mediaformat = (uint)cfg->mediabyte;
+    param.maxjumpdebug = (uint)cfg->maxjumpdebug;
+    param.gscatter = cfg->gscatter;
+    param.is2d     = is2d;
+    param.replaydet = cfg->replaydet;
+    param.srcnum   = cfg->srcnum;
+    param.nphase   = cfg->nphase;
+    param.nphaselen = cfg->nphase + (cfg->nphase & 0x1);
+    param.nangle   = cfg->nangle;
+    param.nanglelen = cfg->nangle + (cfg->nangle & 0x1);
+    param.maxpolmedia = cfg->polmedianum;
+    param.istrajstokes = (uint)cfg->istrajstokes;
+    param.s0.x = cfg->srciquv.x;
+    param.s0.y = cfg->srciquv.y;
+    param.s0.z = cfg->srciquv.z;
+    param.s0.w = cfg->srciquv.w;
+    param.omega = cfg->omega;
+    memcpy(param.bc, cfg->bc, 12);
 
     platform = mcx_list_gpu(cfg, &workdev, devices, &gpu);
 
@@ -870,6 +925,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         UPARAM_TO_MACRO(opt, param, maxpolmedia);
         FPARAM_TO_MACRO(opt, param, omega);
         UPARAM_TO_MACRO(opt, param, istrajstokes);
+        UPARAM_TO_MACRO(opt, param, debuglevel);
 
         /* below parameters are signed integers */
         IPARAM_TO_MACRO(opt, param, replaydet);
