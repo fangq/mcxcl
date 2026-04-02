@@ -782,17 +782,17 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     tic = StartTimer();
 
 #if __OPENCL_C_VERSION__
-    MCX_FPRINTF(cfg->flog, "- code name: [Infinity] compiled with OpenCL [%d] on [%s]\n",
-                __OPENCL_C_VERSION__, __DATE__);
+    MCX_FPRINTF(cfg->flog, "- %s: [Infinity] %s OpenCL [%d] on [%s]\n",
+                T_("code name"), T_("compiled with"), __OPENCL_C_VERSION__, __DATE__);
 #else
-    MCX_FPRINTF(cfg->flog, "- code name: [Infinity] compiled with OpenCL [%d] on [%s]\n",
-                CL_VERSION_1_0, __DATE__);
+    MCX_FPRINTF(cfg->flog, "- %s: [Infinity] %s OpenCL [%d] on [%s]\n",
+                T_("code name"), T_("compiled with"), CL_VERSION_1_0, __DATE__);
 #endif
 
-    MCX_FPRINTF(cfg->flog, "- compiled with: [RNG] %s [Seed Length] %d\n", MCX_RNG_NAME, RAND_SEED_LEN);
-    MCX_FPRINTF(cfg->flog, "initializing streams ...\t");
+    MCX_FPRINTF(cfg->flog, "- %s: [RNG] %s [%s] %d\n", T_("compiled with"), MCX_RNG_NAME, T_("seed length"), RAND_SEED_LEN);
+    MCX_FPRINTF(cfg->flog, "%s ...\t", T_("initializing streams"));
 
-    MCX_FPRINTF(cfg->flog, "init complete : %d ms\n", GetTimeMillis() - tic);
+    MCX_FPRINTF(cfg->flog, "%s : %d ms\n", T_("init complete"), GetTimeMillis() - tic);
     fflush(cfg->flog);
     mcx_flush(cfg);
 
@@ -1017,13 +1017,13 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         twindow0 = t;
         twindow1 = t + cfg->tstep * cfg->maxgate;
 
-        MCX_FPRINTF(cfg->flog, "lauching mcx_main_loop for time window [%.1fns %.1fns] ...\n"
-                    , twindow0 * 1e9, twindow1 * 1e9);
+        MCX_FPRINTF(cfg->flog, S_CYAN "%s [%.1fns %.1fns] ...\n" S_RESET
+                    , T_("launching MCX simulation for time window"), twindow0 * 1e9, twindow1 * 1e9);
         fflush(cfg->flog);
 
         //total number of repetition for the simulations, results will be accumulated to field
         for (iter = 0; iter < cfg->respin; iter++) {
-            MCX_FPRINTF(cfg->flog, "simulation run#%2d ... \n", iter + 1);
+            MCX_FPRINTF(cfg->flog, "%s%2d ... \n", T_("simulation run#"), iter + 1);
             fflush(cfg->flog);
             fflush(cfg->flog);
             mcx_flush(cfg);
@@ -1086,7 +1086,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
             tic1 = GetTimeMillis();
             toc += tic1 - tic0;
-            MCX_FPRINTF(cfg->flog, "kernel complete:  \t%d ms\nretrieving flux ... \t", tic1 - tic);
+            MCX_FPRINTF(cfg->flog, "%s:  \t%d ms\n%s ... \t", T_("kernel complete"), tic1 - tic, T_("retrieving fields"));
             fflush(cfg->flog);
 
             for (devid = 0; devid < workdev; devid++) {
@@ -1097,11 +1097,11 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
                     if (debugrec > 0) {
                         if (debugrec > cfg->maxjumpdebug) {
-                            MCX_FPRINTF(cfg->flog, S_RED "WARNING: the saved trajectory positions (%u) \
-  are more than what your have specified (%d), please use the --maxjumpdebug option to specify a greater number\n" S_RESET
-                                        , debugrec, cfg->maxjumpdebug);
+                            MCX_FPRINTF(cfg->flog, S_RED "%s (%u > %d), %s\n" S_RESET,
+                                        T_("WARNING: the saved trajectory positions are more than what your have specified"), debugrec, cfg->maxjumpdebug,
+                                        T_("please use the --maxjumpdebug option to specify a greater number"));
                         } else {
-                            MCX_FPRINTF(cfg->flog, "saved %u trajectory positions, total: %d\t", debugrec, cfg->debugdatalen + debugrec);
+                            MCX_FPRINTF(cfg->flog, "%s: %u, total: %d\t", T_("saved trajectory positions"), debugrec, cfg->debugdatalen + debugrec);
                         }
 
                         debugrec = MIN(debugrec, cfg->maxjumpdebug);
@@ -1125,11 +1125,11 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                     }
 
                     if (detected > cfg->maxdetphoton) {
-                        MCX_FPRINTF(cfg->flog, S_RED "WARNING: the detected photon (%u) \
-is more than what your have specified (%d), please use the -H option to specify a greater number\t" S_RESET
-                                    , detected, cfg->maxdetphoton);
+                        MCX_FPRINTF(cfg->flog, S_RED "%s (%u > %d), %s\t" S_RESET,
+                                    T_("WARNING: the detected photon number is more than what your have specified"), detected, cfg->maxdetphoton,
+                                    T_("please use the -H option to specify a greater number"));
                     } else {
-                        MCX_FPRINTF(cfg->flog, "detected " S_BOLD "" S_BLUE "%d photons" S_RESET", total: " S_BOLD "" S_BLUE "%d" S_RESET"\t", detected, cfg->detectedcount + detected);
+                        MCX_FPRINTF(cfg->flog, "%s " S_BOLD S_BLUE "%d %s" S_RESET ", total: " S_BOLD S_BLUE "%d" S_RESET "\t", T_("detected"), detected, T_("photons"), cfg->detectedcount + detected);
                     }
 
                     cfg->his.detected += detected;
@@ -1165,7 +1165,7 @@ is more than what your have specified (%d), please use the -H option to specify 
 
                     OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gfield[devid], CL_TRUE, 0, sizeof(cl_float) * fieldlen * rawfieldmul,
                                                     rawfield, 0, NULL, NULL)));
-                    MCX_FPRINTF(cfg->flog, "transfer complete:        %d ms\n", GetTimeMillis() - tic);
+                    MCX_FPRINTF(cfg->flog, "%s:\t%d ms\n", T_("transfer complete"), GetTimeMillis() - tic);
                     fflush(cfg->flog);
 
                     if (!(param.debuglevel & MCX_DEBUG_RNG)) {
@@ -1301,7 +1301,7 @@ is more than what your have specified (%d), please use the -H option to specify 
         float* scale = (float*)calloc(cfg->srcnum, sizeof(float));
         scale[0] = 1.f;
         int isnormalized = 0;
-        MCX_FPRINTF(cfg->flog, "normalizing raw data ...\t");
+        MCX_FPRINTF(cfg->flog, "%s\t", T_("normalizing raw data ..."));
         cfg->energyabs += cfg->energytot - cfg->energyesc;
 
         if (cfg->outputtype == otFlux || cfg->outputtype == otFluence) {
@@ -1331,7 +1331,7 @@ is more than what your have specified (%d), please use the -H option to specify 
                         scale[0] = cfg->unitinmm / scale[0];
                     }
 
-                    MCX_FPRINTF(cfg->flog, "normalization factor for detector %d alpha=%f\n", detid, scale[0]);
+                    MCX_FPRINTF(cfg->flog, "%s %d alpha=%f\n", T_("normalization factor for detector"), detid, scale[0]);
                     fflush(cfg->flog);
                     mcx_normalize(cfg->exportfield + (detid - 1)*dimxyz * param.maxgate, scale[0], dimxyz * param.maxgate, cfg->isnormalized, 0, 1);
                 }
@@ -1372,7 +1372,7 @@ is more than what your have specified (%d), please use the -H option to specify 
 
         if (!isnormalized) {
             for (i = 0; i < cfg->srcnum; i++) {
-                MCX_FPRINTF(cfg->flog, "source %d, normalization factor alpha=%f\n", (i + 1), scale[i]);
+                MCX_FPRINTF(cfg->flog, "%s %d, %s alpha=%f\n", T_("source"), (i + 1), T_("normalization factor"), scale[i]);
                 fflush(cfg->flog);
                 mcx_normalize(cfg->exportfield, scale[i], fieldlen / cfg->srcnum, cfg->isnormalized, i, cfg->srcnum);
             }
@@ -1559,9 +1559,9 @@ is more than what your have specified (%d), please use the -H option to specify 
 #ifndef MCX_CONTAINER
 
     if (cfg->issave2pt && cfg->parentid == mpStandalone) {
-        MCX_FPRINTF(cfg->flog, "saving data to file ... %zu %d\t", fieldlen, cfg->maxgate);
+        MCX_FPRINTF(cfg->flog, "%s ... %zu %d\t", T_("saving data to file"), fieldlen, cfg->maxgate);
         mcx_savedata(cfg->exportfield, fieldlen, cfg);
-        MCX_FPRINTF(cfg->flog, "saving data complete : %d ms\n\n", GetTimeMillis() - tic);
+        MCX_FPRINTF(cfg->flog, "%s : %d ms\n\n", T_("saving data complete"), GetTimeMillis() - tic);
         fflush(cfg->flog);
     }
 
@@ -1589,18 +1589,21 @@ is more than what your have specified (%d), please use the -H option to specify 
 #endif
 
     // total energy here equals total simulated photons+unfinished photons for all threads
-    MCX_FPRINTF(cfg->flog, "simulated %zu photons (%zu) with %d devices (repeat x%d)\nMCX simulation speed: " S_BOLD "" S_BLUE "%.2f photon/ms" S_RESET"\n",
-                cfg->nphoton, cfg->nphoton, workdev, cfg->respin, ((cfg->issavedet == FILL_MAXDETPHOTON) ? cfg->energytot : ((double)cfg->nphoton * ((cfg->respin > 1) ? (cfg->respin) : 1))) / MAX(1, cfg->runtime));
+    MCX_FPRINTF(cfg->flog, "%s %zu %s (%zu) with %d devices (repeat x%d)\n%s: " S_BOLD S_BLUE "%.2f photon/ms" S_RESET "\n",
+                T_("simulated"), cfg->nphoton, T_("photons"), cfg->nphoton, workdev, cfg->respin, T_("MCX simulation speed"),
+                ((cfg->issavedet == FILL_MAXDETPHOTON) ? cfg->energytot : ((double)cfg->nphoton * ((cfg->respin > 1) ? (cfg->respin) : 1))) / MAX(1, cfg->runtime));
 
     if (cfg->srctype == MCX_SRC_PATTERN && cfg->srcnum > 1) {
         for (i = 0; i < cfg->srcnum; i++) {
-            MCX_FPRINTF(cfg->flog, "source #%d total simulated energy: %.2f\tabsorbed: " S_BOLD "" S_BLUE "%5.5f%%" S_RESET"\n(loss due to initial specular reflection is excluded in the total)\n",
-                        i + 1, energytot[i], energyabs[i] / energytot[i] * 100.f);
+            MCX_FPRINTF(cfg->flog, "%s #%d %s: %.2f\t%s: " S_BOLD S_BLUE "%5.5f%%" S_RESET "\n(%s)\n",
+                        T_("source"), i + 1, T_("total simulated energy"), energytot[i], T_("absorbed"), energyabs[i] / energytot[i] * 100.f,
+                        T_("loss due to initial specular reflection is excluded in the total"));
             fflush(cfg->flog);
         }
     } else {
-        MCX_FPRINTF(cfg->flog, "total simulated energy: %.2f\tabsorbed: " S_BOLD "" S_BLUE "%5.5f%%" S_RESET"\n(loss due to initial specular reflection is excluded in the total)\n",
-                    cfg->energytot, (cfg->energytot - cfg->energyesc) / cfg->energytot * 100.f);
+        MCX_FPRINTF(cfg->flog, "%s: %.2f\t%s: " S_BOLD S_BLUE "%5.5f%%" S_RESET "\n(%s)\n",
+                    T_("total simulated energy"), cfg->energytot, T_("absorbed"), (cfg->energytot - cfg->energyesc) / cfg->energytot * 100.f,
+                    T_("loss due to initial specular reflection is excluded in the total"));
         fflush(cfg->flog);
     }
 

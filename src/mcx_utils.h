@@ -311,6 +311,8 @@ void mcx_convertcol2row4d(unsigned int** vol, uint4* dim);
 void mcx_savedetphoton(float* ppath, void* seeds, int count, int seedbyte, Config* cfg);
 int  mcx_loadjson(cJSON* root, Config* cfg);
 int  mcx_keylookup(char* key, const char* table[]);
+int  mcx_keystartwith(char* key, const char* table[]);
+char* T_(const char* key);
 int  mcx_lookupindex(char* key, const char* index);
 int  mcx_parsedebugopt(char* debugopt, const char* debugflag);
 void mcx_printheader(Config* cfg);
@@ -361,6 +363,8 @@ int mexPrintf(const char* format, ... );
 int mexPrintf(const char* format, ... );
 #endif
 int mexEvalString(const char* command);
+
+extern cJSON* mcx_lang;       /**< JSON object holding the translations of the specified language */
 
 #ifdef  __cplusplus
 }
