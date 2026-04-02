@@ -289,13 +289,13 @@ endif
 #################################################################
 
 mex trinitymex:        AR=$(MEX)
-mex trinitymex:        LINKOPT=CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER -DMATLAB_MEX_FILE $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LINKLIBS="$(MEXLINKLIBS) $(MEXLINKOPT)" COMPFLAGS='' DEFINES='' CXXLIBS='$$CXXLIBS $(MEXLINKOPT) -L$(LIBOPENCLDIR) $(LIBOPENCL)'
+mex trinitymex:        LINKOPT=CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER -DMATLAB_MEX_FILE $(CPPOPT) $(MEXCCOPT) $(USERCCFLAGS)' LINKLIBS="$(MEXLINKLIBS) $(MEXLINKOPT)" COMPFLAGS='' DEFINES='' CXXLIBS='$$CXXLIBS $(MEXLINKOPT) -L$(LIBOPENCLDIR) $(LIBOPENCL)'
 mex oct trinitymex trinityoct:    OUTPUT_DIR=../mcxlabcl
 mex trinitymex:        OUTPUTFLAG:=-output
 mex trinitymex:        BINARY=mcxcl
 mex oct trinitymex trinityoct:    CCOPT+=$(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
 mex oct trinitymex trinityoct:    CPPOPT+=$(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
-mex oct trinitymex trinityoct:    CUCCOPT+=$(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
+mex oct trinitymex trinityoct:    CUCCOPT+=-Xcompiler $(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
 mex trinitymex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
 
 cudamex:        AR=$(MEX)
@@ -303,8 +303,8 @@ cudamex:        OUTPUT_DIR=../mcxlabcl
 cudamex:        OUTPUTFLAG:=-output
 cudamex:        BINARY=mcxcl
 cudamex:        CCOPT+=$(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
-cudamex:        CUCCOPT+=$(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
-cudamex:        LINKOPT=CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER -DMATLAB_MEX_FILE $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LINKLIBS="$(MEXLINKLIBS) $(MEXLINKOPT)" COMPFLAGS='' DEFINES='' CXXLIBS='$$CXXLIBS $(MEXLINKOPT) -L$(CUDA_LIB)/lib64 -lcudart'
+cudamex:        CUCCOPT+=-Xcompiler $(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
+cudamex:        LINKOPT=CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER -DMATLAB_MEX_FILE $(CPPOPT) $(MEXCCOPT) $(USERCCFLAGS)' LINKLIBS="$(MEXLINKLIBS) $(MEXLINKOPT)" COMPFLAGS='' DEFINES='' CXXLIBS='$$CXXLIBS $(MEXLINKOPT) -L$(CUDA_LIB)/lib64 -lcudart'
 cudamex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
 
 trinitymex:     LINKOPT+=CXXLIBS='$$CXXLIBS $(MEXLINKOPT) -L$(LIBOPENCLDIR) $(LIBOPENCL) -L$(CUDA_LIB)/lib64 -lcudart'
@@ -312,16 +312,16 @@ trinitymex:     LINKOPT+=CXXLIBS='$$CXXLIBS $(MEXLINKOPT) -L$(LIBOPENCLDIR) $(LI
 OCT_LDFLAGS := $(shell mkoctfile -p LDFLAGS 2>/dev/null)
 
 oct:            BINARY=mcxcl.mex
-oct:            AR=XTRA_CFLAGS=' ' XTRA_CXXFLAGS=' ' CXXFLAGS='-std=c++11 $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LFLAGS='$(LIBOPENCL)' LDFLAGS='$(OCT_LDFLAGS) -g -L$(LIBOPENCLDIR) $(LIBOPENCL)' mkoctfile -v
+oct:            AR=XTRA_CFLAGS=' ' XTRA_CXXFLAGS=' ' CXXFLAGS='-std=c++11 $(CPPOPT) $(MEXCCOPT) $(USERCCFLAGS)' LFLAGS='$(LIBOPENCL)' LDFLAGS='$(OCT_LDFLAGS) -g -L$(LIBOPENCLDIR) $(LIBOPENCL)' mkoctfile -v
 oct:            LINKOPT=--mex -DMATLAB_MEX_FILE mcxlabcl.cpp $(INCLUDEDIRS) $(MEXLINKOPT)
 
 cudaoct:        BINARY=mcxcl.mex
 cudaoct:        OUTPUT_DIR=../mcxlabcl
-cudaoct:        AR=XTRA_CFLAGS=' ' XTRA_CXXFLAGS=' ' CXXFLAGS='-std=c++11 $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LFLAGS='-L$(CUDA_LIB)/lib64 -lcudart' LDFLAGS='$(OCT_LDFLAGS) -g -L$(CUDA_LIB)/lib64 -lcudart' mkoctfile -v
+cudaoct:        AR=XTRA_CFLAGS=' ' XTRA_CXXFLAGS=' ' CXXFLAGS='-std=c++11 $(CPPOPT) $(MEXCCOPT) $(USERCCFLAGS)' LFLAGS='-L$(CUDA_LIB)/lib64 -lcudart' LDFLAGS='$(OCT_LDFLAGS) -g -L$(CUDA_LIB)/lib64 -lcudart' mkoctfile -v
 cudaoct:        LINKOPT=--mex -DMATLAB_MEX_FILE mcxlabcl.cpp $(INCLUDEDIRS) $(MEXLINKOPT)
 
 trinityoct:     BINARY=mcxcl.mex
-trinityoct:     AR=XTRA_CFLAGS=' ' XTRA_CXXFLAGS=' ' CXXFLAGS='-std=c++11 $(CPPOPT) $(MEXCCOPT) $(USERCCOPT)' LFLAGS='$(LIBOPENCL) -L$(CUDA_LIB)/lib64 -lcudart' LDFLAGS='$(OCT_LDFLAGS) -g -L$(LIBOPENCLDIR) $(LIBOPENCL) -L$(CUDA_LIB)/lib64 -lcudart' mkoctfile -v
+trinityoct:     AR=XTRA_CFLAGS=' ' XTRA_CXXFLAGS=' ' CXXFLAGS='-std=c++11 $(CPPOPT) $(MEXCCOPT) $(USERCCFLAGS)' LFLAGS='$(LIBOPENCL) -L$(CUDA_LIB)/lib64 -lcudart' LDFLAGS='$(OCT_LDFLAGS) -g -L$(LIBOPENCLDIR) $(LIBOPENCL) -L$(CUDA_LIB)/lib64 -lcudart' mkoctfile -v
 trinityoct:     LINKOPT=--mex -DMATLAB_MEX_FILE mcxlabcl.cpp $(INCLUDEDIRS) $(MEXLINKOPT)
 
 #################################################################
@@ -369,6 +369,9 @@ $(CLPROGRAM)$(CLHEADER): $(CLPROGRAM).cl
 #################################################################
 # Compile rules
 #################################################################
+
+## mcx_host.cpp embeds the OpenCL kernel; recompile whenever mcx_core.cl changes ##
+mcx_host$(OBJSUFFIX): $(CLSOURCE)
 
 ##  Compile .c files  ##
 %$(OBJSUFFIX): %.c

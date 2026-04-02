@@ -142,7 +142,8 @@ const char* computebackend[] = {"opencl", "cuda", ""};
  * p: scattering counts for computing Jacobians for mus
  */
 
-const char outputtype[] = {'x', 'f', 'e', 'j', 'p', 'm', 'r', 'l', 's', 't', 'b', '\0'};
+const char outputtype[] = {'x', 'f', 'e', 'j', 'p', 'm', 'r', 'l', 's', 't', 'b', 'a', 'd', 'u', 'v', 'w', 'q', '\0'};
+/*                          flux flnc enrg jcbn wp  dcs  rf  plen rfms wltof wptof adj  D   mus  musp muad mamp */
 
 
 /**
@@ -235,6 +236,7 @@ void mcx_initcfg(Config* cfg) {
     cfg->polprop = NULL;
     cfg->smatrix = NULL;
     cfg->detpos = NULL;
+    cfg->detdir = NULL;
     cfg->vol = NULL;
     cfg->srcpattern = NULL;
     cfg->session[0] = '\0';
@@ -364,6 +366,10 @@ void mcx_clearcfg(Config* cfg) {
 
     if (cfg->detnum) {
         free(cfg->detpos);
+
+        if (cfg->detdir) {
+            free(cfg->detdir);
+        }
     }
 
     if (cfg->dim.x && cfg->dim.y && cfg->dim.z) {
@@ -871,7 +877,7 @@ void mcx_savedata(float* dat, size_t len, Config* cfg) {
         uint dims[6] = {cfg->dim.x, cfg->dim.y, cfg->dim.z, cfg->maxgate, cfg->srcnum, 1};
         float voxelsize[6] = {cfg->steps.x, cfg->steps.y, cfg->steps.z, cfg->tstep, 1, 1};
 
-        if (cfg->extrasrclen && cfg->srcid == -1) {
+        if (cfg->extrasrclen && cfg->srcid < 0) {
             dims[5] = cfg->extrasrclen + 1;
         }
 
@@ -881,6 +887,17 @@ void mcx_savedata(float* dat, size_t len, Config* cfg) {
 
         if (cfg->seed == SEED_FROM_FILE && (cfg->outputtype == otRF || cfg->outputtype == otRFmus)) {
             dims[5] *= 2;
+        }
+
+        if (MCX_IS_ADJOINT_TYPE(cfg->outputtype) && cfg->seed != SEED_FROM_FILE && cfg->detdir != NULL) {
+            unsigned int Ns = cfg->extrasrclen + 1 - cfg->detnum;
+            unsigned int Nd = cfg->detnum;
+            dims[0] = cfg->dim.x;
+            dims[1] = cfg->dim.y;
+            dims[2] = cfg->dim.z;
+            dims[3] = Ns * Nd;
+            dims[4] = MCX_IS_DUAL_ADJOINT_TYPE(cfg->outputtype) ? 2 : 1;
+            dims[5] = 1;
         }
 
         if (cfg->outputformat == ofJNifti) {
@@ -1850,6 +1867,40 @@ void mcx_validatecfg(Config* cfg, float* detps, int dimdetps[2], int seedbyte) {
             && cfg->seed != SEED_FROM_FILE) {
         MCX_ERROR(-6, "Jacobian output is only valid in the reply mode. Please define cfg.seed");
     }
+
+    /**
+     * Append detectors as reversed sources for adjoint/srcid=-2 mode.
+     * In the mex container (mcxlabcl/pmcxcl), this is handled in the host wrapper
+     * before mcx_validatecfg is called, so we skip it here to avoid double-appending.
+     */
+#ifndef MCX_CONTAINER
+
+    if ((MCX_IS_ADJOINT_TYPE(cfg->outputtype) || cfg->srcid == -2) && cfg->seed != SEED_FROM_FILE && cfg->detnum > 0 && cfg->detdir != NULL) {
+        unsigned int origextrasrclen = cfg->extrasrclen;
+
+        cfg->srcdata = (ExtraSrc*)realloc(cfg->srcdata, (cfg->extrasrclen + cfg->detnum) * sizeof(ExtraSrc));
+        memset(cfg->srcdata + cfg->extrasrclen, 0, cfg->detnum * sizeof(ExtraSrc));
+
+        for (unsigned int adi = 0; adi < cfg->detnum; adi++) {
+            cfg->srcdata[origextrasrclen + adi].srcpos.x = cfg->detpos[adi].x;
+            cfg->srcdata[origextrasrclen + adi].srcpos.y = cfg->detpos[adi].y;
+            cfg->srcdata[origextrasrclen + adi].srcpos.z = cfg->detpos[adi].z;
+            cfg->srcdata[origextrasrclen + adi].srcpos.w = 1.f;
+            cfg->srcdata[origextrasrclen + adi].srcdir   = cfg->detdir[adi];
+            cfg->srcdata[origextrasrclen + adi].srcparam1.x = cfg->detpos[adi].w;
+            cfg->srcdata[origextrasrclen + adi].srcparam1.y = 0.f;
+            cfg->srcdata[origextrasrclen + adi].srcparam1.z = 0.f;
+            cfg->srcdata[origextrasrclen + adi].srcparam1.w = 0.f;
+        }
+
+        cfg->extrasrclen += cfg->detnum;
+
+        if (MCX_IS_ADJOINT_TYPE(cfg->outputtype)) {
+            cfg->srcid = -1;
+        }
+    }
+
+#endif
 
     for (i = 0; i < cfg->detnum; i++) {
         if (!cfg->issrcfrom0) {
@@ -2968,8 +3019,9 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
                 }
 
                 for (i = 0; i < cfg->detnum; i++) {
-                    cJSON* pos = dets, *rad = NULL;
+                    cJSON* pos = dets, *rad = NULL, *dir = NULL;
                     rad = FIND_JSON_OBJ("R", "Optode.Detector.R", det);
+                    dir = FIND_JSON_OBJ("Dir", "Optode.Detector.Dir", det);
 
                     if (cJSON_GetArraySize(det) == 2) {
                         pos = FIND_JSON_OBJ("Pos", "Optode.Detector.Pos", det);
@@ -2983,6 +3035,17 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
 
                     if (rad) {
                         cfg->detpos[i].w = rad->valuedouble;
+                    }
+
+                    if (dir && cJSON_IsArray(dir)) {
+                        if (cfg->detdir == NULL) {
+                            cfg->detdir = (float4*)calloc(cfg->detnum, sizeof(float4));
+                        }
+
+                        cfg->detdir[i].x = dir->child->valuedouble;
+                        cfg->detdir[i].y = dir->child->next->valuedouble;
+                        cfg->detdir[i].z = dir->child->next->next->valuedouble;
+                        cfg->detdir[i].w = (dir->child->next->next->next) ? dir->child->next->next->next->valuedouble : 0.f;
                     }
 
                     if (!cfg->issrcfrom0) {
@@ -3182,12 +3245,15 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
         MCX_ERROR(-1, "You can not specify both Domain.VolumeFile and Shapes sections");
     }
 
-    mcx_prepdomain(filename, cfg);
-    cfg->his.maxmedia = cfg->medianum - 1; /*skip media 0*/
-    cfg->his.detnum = cfg->detnum;
-    cfg->his.srcnum = cfg->srcnum;
-    cfg->his.savedetflag = cfg->savedetflag;
-    cfg->his.totalsource = ((cfg->srcid <= 0) ? cfg->extrasrclen + 1 : 1);
+    if (!(cfg->extrajson && cfg->extrajson[0] == '_')) {
+        mcx_prepdomain(filename, cfg);
+        cfg->his.maxmedia = cfg->medianum - 1; /*skip media 0*/
+        cfg->his.detnum = cfg->detnum;
+        cfg->his.srcnum = cfg->srcnum;
+        cfg->his.savedetflag = cfg->savedetflag;
+        cfg->his.totalsource = ((cfg->srcid <= 0) ? cfg->extrasrclen + 1 : 1);
+    }
+
     //cfg->his.colcount=cfg->medianum+1+(cfg->issaveexit)*6; /*column count=maxmedia+2*/
     return 0;
 }
@@ -5322,12 +5388,18 @@ where possible parameters include (the first value in [*|*] is the default)\n\
 \n"S_BOLD S_CYAN"\
 == Output options ==\n"S_RESET"\
  -s sessionid  (--session)     a string to label all output file names\n\
- -O [X|XFEJPMRLSTB](--outputtype)  X - output flux, F - fluence, E - energy density\n\
+ -O [X|XFEJPMRLSTBADCUVWQ](--outputtype) X - output flux, F - fluence, E - energy density\n\
                                J - Jacobian (replay mode),   P - scattering\n\
                                event counts at each voxel (replay mode only)\n\
                                M - momentum transfer; R - RF/FD mua Jacobian\n\
                                L - total pathlength; S - RF/FD mus Jacobian\n\
                                T - time-of-flight*nscat; B - time-of-flight*path\n\
+                               A - adjoint mua Jacobian (needs detpos+detdir)\n\
+                               D - adjoint D-coeff Jacobian (needs detpos+dir)\n\
+                               U - adjoint mus Jacobian (grad*grad*3*D^2*(1-g))\n\
+                               V - adjoint mus' Jacobian (grad*grad*3*D^2)\n\
+                               W - dual adjoint [J_mua,J_D] pair in 1 session\n\
+                               Q - dual adjoint [J_mua,J_mus'] pair in 1 session\n\
  -d [1|0-3]    (--savedet)     1 to save photon info at detectors; 0 not save\n\
                                2 reserved, 3 terminate simulation when detected\n\
                                photon buffer is filled\n\

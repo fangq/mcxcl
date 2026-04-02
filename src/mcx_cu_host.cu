@@ -38,6 +38,7 @@ __constant__ MCXParam gcfg_const[1];
 
 /*=== Include the shared kernel ===*/
 
+#define MCX_ADJOINT_MODE  /**< always compile adjoint kernels for CUDA (static compilation, no JIT overhead) */
 #include "mcx_core.cl"
 
 /*=== CUDA error checking ===*/
@@ -253,29 +254,20 @@ static void mcx_launch_kernel(
 
 void mcx_run_cuda(Config* cfg, float* fluence, float* totalenergy) {
 
-    uint i, j;
-    int iter;
+    uint i;
     float minstep = MIN(MIN(cfg->steps.x, cfg->steps.y), cfg->steps.z);
-    float t, twindow0, twindow1;
     float fullload = 0.f;
-    float* energy;
-    uint detected = 0;
-    uint tic, tic0, tic1, toc = 0;
+    uint tic;
     uint debuglen = MCX_DEBUG_REC_LEN + (cfg->istrajstokes << 2);
     size_t fieldlen;
-
-    dim3 mcgrid, mcblock;
-    uint sharedbuf;
+    int totalgates;
+    int isrfforward = (cfg->omega > 0.f && cfg->seed != SEED_FROM_FILE);
 
     size_t dimxyz = cfg->dim.x * cfg->dim.y * cfg->dim.z *
                     ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D)
-                     ? cfg->srcnum : (cfg->srcid == -1) ? (cfg->extrasrclen + 1) : 1);
+                     ? cfg->srcnum : (cfg->srcid < 0) ? (cfg->extrasrclen + 1) : 1);
 
     uint* media = (uint*)(cfg->vol);
-    float* field;
-    float* Pdet;
-    uint* Pseed;
-    RandType* seeddata = NULL;
     GPUInfo* gpu = NULL;
     int activedev = 0;
 
@@ -346,7 +338,22 @@ void mcx_run_cuda(Config* cfg, float* fluence, float* totalenergy) {
     param.mediaformat = (uint)cfg->mediabyte;
     param.maxjumpdebug = (uint)cfg->maxjumpdebug;
     param.gscatter    = cfg->gscatter;
+
+    /* 2D mode: only valid when exactly 2 dimensions have length > 1 */
+    if (is2d) {
+        is2d = is2d * ((cfg->dim.x > 1) + (cfg->dim.y > 1) + (cfg->dim.z > 1) == 2);
+    }
+
     param.is2d        = is2d;
+
+    if (is2d) {
+        float* vec = &(cfg->srcdir.x);
+
+        if (fabsf(vec[is2d - 1]) > EPS) {
+            mcx_error(-1, "2D simulation requires source direction to be zero in the singleton dimension", __FILE__, __LINE__);
+        }
+    }
+
     param.replaydet   = cfg->replaydet;
     param.srcnum      = cfg->srcnum;
     param.nphase      = cfg->nphase;
@@ -369,305 +376,76 @@ void mcx_run_cuda(Config* cfg, float* fluence, float* totalenergy) {
         mcx_error(-99, "No GPU device found", __FILE__, __LINE__);
     }
 
-    int gpuid = cfg->deviceid[0] - 1;
+    totalgates = (int)((cfg->tend - cfg->tstart) / cfg->tstep + 0.5);
 
-    if (gpuid < 0) {
-        mcx_error(-1, "GPU ID must be non-zero", __FILE__, __LINE__);
-    }
+    /*=== Compute per-GPU autopilot parameters for all active devices ===*/
+    for (i = 0; (int)cfg->deviceid[i] > 0; i++) {
+        int gid = (int)cfg->deviceid[i] - 1;
 
-    CUDA_ASSERT(cudaSetDevice(gpuid));
-
-    /*=== Compute thread/block sizes ===*/
-    if (!cfg->autopilot) {
-        uint gates = (uint)((cfg->tend - cfg->tstart) / cfg->tstep + 0.5);
-        gpu[gpuid].autothread = cfg->nthread;
-        gpu[gpuid].autoblock = cfg->nblocksize;
-
-        if (cfg->maxgate == 0) {
-            cfg->maxgate = gates;
-        } else if (cfg->maxgate > gates) {
-            cfg->maxgate = gates;
+        if (!cfg->autopilot) {
+            gpu[gid].autothread = cfg->nthread;
+            gpu[gid].autoblock  = cfg->nblocksize;
+            gpu[gid].maxgate    = (cfg->maxgate > 0) ? MIN((size_t)cfg->maxgate, (size_t)totalgates) : (size_t)totalgates;
         }
 
-        gpu[gpuid].maxgate = cfg->maxgate;
+        if (gpu[gid].autothread % gpu[gid].autoblock) {
+            gpu[gid].autothread = (gpu[gid].autothread / gpu[gid].autoblock) * gpu[gid].autoblock;
+        }
+
+        if (gpu[gid].maxgate == 0 && dimxyz > 0) {
+            size_t needmem = dimxyz + gpu[gid].autothread * sizeof(float4) * 4
+                             + sizeof(float) * cfg->maxdetphoton * hostdetreclen + 10 * 1024 * 1024;
+            gpu[gid].maxgate = (gpu[gid].globalmem - needmem) / dimxyz;
+            gpu[gid].maxgate = MIN((size_t)totalgates, gpu[gid].maxgate);
+        }
     }
 
-    if (gpu[gpuid].autothread % gpu[gpuid].autoblock) {
-        gpu[gpuid].autothread = (gpu[gpuid].autothread / gpu[gpuid].autoblock) * gpu[gpuid].autoblock;
-    }
-
-    if (gpu[gpuid].maxgate == 0 && dimxyz > 0) {
-        size_t needmem = dimxyz + gpu[gpuid].autothread * sizeof(float4) * 4 + sizeof(float) * cfg->maxdetphoton * hostdetreclen + 10 * 1024 * 1024;
-        gpu[gpuid].maxgate = (gpu[gpuid].globalmem - needmem) / dimxyz;
-        gpu[gpuid].maxgate = MIN(((cfg->tend - cfg->tstart) / cfg->tstep + 0.5), gpu[gpuid].maxgate);
-    }
-
-    cfg->maxgate = (int)((cfg->tend - cfg->tstart) / cfg->tstep + 0.5);
-    param.maxgate = cfg->maxgate;
-
-    mcgrid.x = gpu[gpuid].autothread / gpu[gpuid].autoblock;
-    mcblock.x = gpu[gpuid].autoblock;
-
-    /*=== Compute workload ===*/
+    /*=== Compute workload distribution across all active GPUs ===*/
     fullload = 0.f;
 
-    for (i = 0; cfg->deviceid[i]; i++) {
+    for (i = 0; (int)cfg->deviceid[i] > 0; i++) {
         fullload += cfg->workload[i];
     }
 
     if (fullload < EPS) {
-        for (i = 0; cfg->deviceid[i]; i++) {
-            cfg->workload[i] = gpu[cfg->deviceid[i] - 1].core;
+        for (i = 0; (int)cfg->deviceid[i] > 0; i++) {
+            cfg->workload[i] = gpu[(int)cfg->deviceid[i] - 1].core;
         }
 
         fullload = 0.f;
 
-        for (i = 0; cfg->deviceid[i]; i++) {
+        for (i = 0; (int)cfg->deviceid[i] > 0; i++) {
             fullload += cfg->workload[i];
         }
     }
 
-    param.threadphoton = (int)(cfg->nphoton * cfg->workload[0] / (fullload * gpu[gpuid].autothread * cfg->respin));
-    param.oddphoton = (int)(cfg->nphoton * cfg->workload[0] / (fullload * cfg->respin) - param.threadphoton * gpu[gpuid].autothread);
-
-    /*=== Compute dimlen and fieldlen ===*/
+    /*=== Compute dimlen and fieldlen for the shared export buffers ===*/
+    /* Use totalgates (not per-GPU maxgate) so the export buffer covers the full time range */
+    int gpuid0 = (int)cfg->deviceid[0] - 1;
+    cfg->maxgate = totalgates;
     uint4 dimlen;
     dimlen.x = cfg->dim.x;
     dimlen.y = cfg->dim.x * cfg->dim.y;
     dimlen.z = cfg->dim.x * cfg->dim.y * cfg->dim.z;
-    dimlen.w = cfg->maxgate * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D)
-                               ? cfg->srcnum : (cfg->srcid == -1) ? (cfg->extrasrclen + 1) : 1);
+    dimlen.w = (uint)totalgates * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D)
+                                   ? cfg->srcnum : (cfg->srcid < 0) ? (cfg->extrasrclen + 1) : 1);
 
     if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
         dimlen.w *= cfg->detnum;
     }
 
-    fieldlen = dimlen.z * dimlen.w;
-    dimlen.w = fieldlen;
+    fieldlen = (size_t)dimlen.z * dimlen.w;  /* total export buffer size: pure_dimxyz * totalgates * srcmul [* detnum] */
+    size_t fieldpergate = fieldlen / totalgates; /* per-time-gate export slice size */
+    dimlen.w = (uint)fieldlen;
     param.dimlen = dimlen;
+    param.maxgate = (uint)gpu[gpuid0].maxgate; /* kernel sees per-GPU maxgate; updated per-thread below */
 
-    /*=== Allocate host buffers ===*/
-    if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
-        field = (float*)calloc(sizeof(float) * dimxyz, cfg->maxgate * 2 * cfg->detnum);
-    } else {
-        field = (float*)calloc(sizeof(float) * dimxyz, cfg->maxgate * 2);
-    }
-
-    Pdet = (float*)calloc(cfg->maxdetphoton, sizeof(float) * hostdetreclen);
-    energy = (float*)calloc(gpu[gpuid].autothread << 1, sizeof(float));
-
-    if (cfg->seed != SEED_FROM_FILE) {
-        Pseed = (uint*)malloc(sizeof(RandType) * gpu[gpuid].autothread * RAND_BUF_LEN);
-    } else {
-        Pseed = (uint*)malloc(sizeof(RandType) * cfg->nphoton * RAND_BUF_LEN);
-    }
-
-    if (cfg->seed > 0) {
-        srand(cfg->seed);
-    } else {
-        srand(time(0));
-    }
-
-    for (j = 0; j < gpu[gpuid].autothread * RAND_SEED_LEN; j++) {
-        Pseed[j] = rand();
-    }
-
-    if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY) && cfg->exportdebugdata == NULL) {
-        cfg->exportdebugdata = (float*)calloc(sizeof(float), debuglen * cfg->maxjumpdebug);
-    }
-
-    /*=== Allocate ALL GPU buffers ===*/
-    uint*  gmedia    = NULL;
-    float* gfield    = NULL;
-    float* genergy   = NULL;
-    uint*  gPseed    = NULL;
-    float* gPdet     = NULL;
-    uint*  gdetected = NULL;
-    float4* gproperty = NULL;
-    float4* gdetpos  = NULL;
-    float* gsrcpattern = NULL;
-    float* ginvcdf   = NULL;
-    float* gangleinvcdf = NULL;
-    float4* gsmatrix = NULL;
-    RandType* gseeddata = NULL;
-    float* gdebugdata = NULL;
-    uint*  gjumpdebug = NULL;
-    float* greplayw  = NULL;
-    float* greplaytof = NULL;
-    int*   greplaydetid = NULL;
-    RandType* greplayseed = NULL;
-    volatile uint* gprogress = NULL;
-
-    /* Progress bar (pinned memory) */
-    volatile uint* progress;
-    CUDA_ASSERT(cudaHostAlloc((void**)&progress, sizeof(uint), cudaHostAllocMapped));
-    CUDA_ASSERT(cudaHostGetDevicePointer((uint**)&gprogress, (uint*)progress, 0));
-    *progress = 0;
-
-    /* Media volume */
-    if (cfg->mediabyte != MEDIA_2LABEL_SPLIT && cfg->mediabyte != MEDIA_ASGN_F2H) {
-        CUDA_ASSERT(cudaMalloc((void**)&gmedia, sizeof(uint) * cfg->dim.x * cfg->dim.y * cfg->dim.z));
-        CUDA_ASSERT(cudaMemcpy(gmedia, media, sizeof(uint) * cfg->dim.x * cfg->dim.y * cfg->dim.z, cudaMemcpyHostToDevice));
-    } else {
-        CUDA_ASSERT(cudaMalloc((void**)&gmedia, sizeof(uint) * 2 * cfg->dim.x * cfg->dim.y * cfg->dim.z));
-        CUDA_ASSERT(cudaMemcpy(gmedia, media, sizeof(uint) * 2 * cfg->dim.x * cfg->dim.y * cfg->dim.z, cudaMemcpyHostToDevice));
-    }
-
-    /* Optical properties + extra source data + detector positions */
-    {
-        size_t propsize = cfg->medianum * sizeof(Medium);
-        size_t srcsize  = cfg->srcdata ? cfg->extrasrclen * 4 * sizeof(float4) : 0;
-        size_t detsize  = (cfg->detpos && cfg->detnum) ? cfg->detnum * sizeof(float4) : 0;
-        size_t totalsize = propsize + srcsize + detsize;
-        char* propbuf = (char*)malloc(totalsize);
-        memcpy(propbuf, cfg->prop, propsize);
-
-        if (cfg->srcdata) {
-            memcpy(propbuf + propsize, cfg->srcdata, srcsize);
-        }
-
-        if (cfg->detpos && cfg->detnum) {
-            memcpy(propbuf + propsize + srcsize, cfg->detpos, detsize);
-        }
-
-        CUDA_ASSERT(cudaMalloc((void**)&gproperty, totalsize));
-        CUDA_ASSERT(cudaMemcpy(gproperty, propbuf, totalsize, cudaMemcpyHostToDevice));
-        free(propbuf);
-    }
-
-    /* Detector positions (separate buffer for kernel arg) */
-    if (cfg->detpos && cfg->detnum) {
-        CUDA_ASSERT(cudaMalloc((void**)&gdetpos, cfg->detnum * sizeof(float4)));
-        CUDA_ASSERT(cudaMemcpy(gdetpos, cfg->detpos, cfg->detnum * sizeof(float4), cudaMemcpyHostToDevice));
-    }
-
-    /* Output field (with shadow buffer for double-precision accumulation) */
-    CUDA_ASSERT(cudaMalloc((void**)&gfield, sizeof(float) * fieldlen * 2));
-    CUDA_ASSERT(cudaMemset(gfield, 0, sizeof(float) * fieldlen * 2));
-
-    /* RNG seeds */
-    if (cfg->seed != SEED_FROM_FILE) {
-        CUDA_ASSERT(cudaMalloc((void**)&gPseed, sizeof(RandType) * gpu[gpuid].autothread * RAND_BUF_LEN));
-        CUDA_ASSERT(cudaMemcpy(gPseed, Pseed, sizeof(RandType) * gpu[gpuid].autothread * RAND_BUF_LEN, cudaMemcpyHostToDevice));
-    } else {
-        CUDA_ASSERT(cudaMalloc((void**)&gPseed, sizeof(RandType) * cfg->nphoton * RAND_BUF_LEN));
-        CUDA_ASSERT(cudaMemcpy(gPseed, cfg->replay.seed, sizeof(RandType) * cfg->nphoton * RAND_BUF_LEN, cudaMemcpyHostToDevice));
-    }
-
-    /* Detected photon buffer */
-    if (cfg->issavedet) {
-        CUDA_ASSERT(cudaMalloc((void**)&gPdet, sizeof(float) * cfg->maxdetphoton * hostdetreclen));
-        CUDA_ASSERT(cudaMemset(gPdet, 0, sizeof(float) * cfg->maxdetphoton * hostdetreclen));
-    }
-
-    /* Energy */
-    CUDA_ASSERT(cudaMalloc((void**)&genergy, sizeof(float) * (gpu[gpuid].autothread << 1)));
-    CUDA_ASSERT(cudaMemcpy(genergy, energy, sizeof(float) * (gpu[gpuid].autothread << 1), cudaMemcpyHostToDevice));
-
-    /* Detected count */
-    CUDA_ASSERT(cudaMalloc((void**)&gdetected, sizeof(uint)));
-    CUDA_ASSERT(cudaMemset(gdetected, 0, sizeof(uint)));
-
-    /* Source pattern */
-    if (cfg->srctype == MCX_SRC_PATTERN && cfg->srcpattern) {
-        size_t patsize = sizeof(float) * (int)(cfg->srcparam1.w * cfg->srcparam2.w) * cfg->srcnum;
-        CUDA_ASSERT(cudaMalloc((void**)&gsrcpattern, patsize));
-        CUDA_ASSERT(cudaMemcpy(gsrcpattern, cfg->srcpattern, patsize, cudaMemcpyHostToDevice));
-    } else if (cfg->srctype == MCX_SRC_PATTERN3D && cfg->srcpattern) {
-        size_t patsize = sizeof(float) * (int)(cfg->srcparam1.x * cfg->srcparam1.y * cfg->srcparam1.z) * cfg->srcnum;
-        CUDA_ASSERT(cudaMalloc((void**)&gsrcpattern, patsize));
-        CUDA_ASSERT(cudaMemcpy(gsrcpattern, cfg->srcpattern, patsize, cudaMemcpyHostToDevice));
-    }
-
-    /* Phase function inverse CDF */
-    if (cfg->nphase) {
-        CUDA_ASSERT(cudaMalloc((void**)&ginvcdf, sizeof(float) * cfg->nphase));
-        CUDA_ASSERT(cudaMemcpy(ginvcdf, cfg->invcdf, sizeof(float) * cfg->nphase, cudaMemcpyHostToDevice));
-    }
-
-    /* Launch angle inverse CDF */
-    if (cfg->nangle) {
-        CUDA_ASSERT(cudaMalloc((void**)&gangleinvcdf, sizeof(float) * cfg->nangle));
-        CUDA_ASSERT(cudaMemcpy(gangleinvcdf, cfg->angleinvcdf, sizeof(float) * cfg->nangle, cudaMemcpyHostToDevice));
-    }
-
-    /* Polarization scattering matrix */
-    if (cfg->polmedianum && cfg->smatrix) {
-        CUDA_ASSERT(cudaMalloc((void**)&gsmatrix, cfg->polmedianum * NANGLES * sizeof(float4)));
-        CUDA_ASSERT(cudaMemcpy(gsmatrix, cfg->smatrix, cfg->polmedianum * NANGLES * sizeof(float4), cudaMemcpyHostToDevice));
-    }
-
-    /* Detected photon seed data (for replay) */
-    if (cfg->issaveseed) {
-        seeddata = (RandType*)calloc(cfg->maxdetphoton, sizeof(RandType) * RAND_BUF_LEN);
-        CUDA_ASSERT(cudaMalloc((void**)&gseeddata, sizeof(RandType) * cfg->maxdetphoton * RAND_BUF_LEN));
-        CUDA_ASSERT(cudaMemset(gseeddata, 0, sizeof(RandType) * cfg->maxdetphoton * RAND_BUF_LEN));
-    }
-
-    /* Debug trajectory data */
-    if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
-        uint jumpcount = 0;
-        CUDA_ASSERT(cudaMalloc((void**)&gjumpdebug, sizeof(uint)));
-        CUDA_ASSERT(cudaMemcpy(gjumpdebug, &jumpcount, sizeof(uint), cudaMemcpyHostToDevice));
-        CUDA_ASSERT(cudaMalloc((void**)&gdebugdata, sizeof(float) * debuglen * cfg->maxjumpdebug));
-    }
-
-    /* Replay buffers */
-    if (cfg->seed == SEED_FROM_FILE) {
-        if (cfg->replay.weight) {
-            CUDA_ASSERT(cudaMalloc((void**)&greplayw, sizeof(float) * cfg->nphoton));
-            CUDA_ASSERT(cudaMemcpy(greplayw, cfg->replay.weight, sizeof(float) * cfg->nphoton, cudaMemcpyHostToDevice));
-        }
-
-        if (cfg->replay.tof) {
-            CUDA_ASSERT(cudaMalloc((void**)&greplaytof, sizeof(float) * cfg->nphoton));
-            CUDA_ASSERT(cudaMemcpy(greplaytof, cfg->replay.tof, sizeof(float) * cfg->nphoton, cudaMemcpyHostToDevice));
-        }
-
-        if (cfg->replay.detid) {
-            CUDA_ASSERT(cudaMalloc((void**)&greplaydetid, sizeof(int) * cfg->nphoton));
-            CUDA_ASSERT(cudaMemcpy(greplaydetid, cfg->replay.detid, sizeof(int) * cfg->nphoton, cudaMemcpyHostToDevice));
-        }
-    }
-
-    /* Shared memory size */
-    sharedbuf = (param.nphaselen + param.nanglelen) * sizeof(float)
-                + gpu[gpuid].autoblock * (cfg->issaveseed * (RAND_BUF_LEN * sizeof(RandType))
-                                          + sizeof(float) * (param.w0offset + cfg->srcnum
-                                                  + 2 * (cfg->outputtype == otRF || cfg->outputtype == otRFmus)));
-
-    /* Copy param to constant memory */
-    CUDA_ASSERT(cudaMemcpyToSymbol(gcfg_const, &param, sizeof(MCXParam), 0, cudaMemcpyHostToDevice));
-
-    /*=== Determine kernel specialization flags ===*/
-    int ispencil = (cfg->srctype == MCX_SRC_PENCIL && cfg->nangle == 0);
-    int isref = cfg->isreflect;
-    int issvmc = (cfg->mediabyte == MEDIA_2LABEL_SPLIT);
-    int ispolarized = (cfg->mediabyte <= 4) && (cfg->polmedianum > 0);
-
-    for (i = 0; i < 6; i++)
-        if (cfg->bc[i] == bcReflect || cfg->bc[i] == bcMirror) {
-            isref = 1;
-        }
-
-    /*=== Print launch info ===*/
-    mcx_printheader(cfg);
-    MCX_FPRINTF(cfg->flog, "- code name: [Infinity-CUDA] compiled by nvcc [%d.%d]\n",
-                __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__);
-    MCX_FPRINTF(cfg->flog, "- compiled with: [RNG] %s [Seed Length] %d\n", MCX_RNG_NAME, RAND_SEED_LEN);
-
-    MCX_FPRINTF(cfg->flog, "GPU=%d (%s) threadph=%d extra=%d np=%.0f nthread=%d sharedbuf=%d\n",
-                gpuid + 1, gpu[gpuid].name, param.threadphoton, param.oddphoton,
-                (double)cfg->nphoton * cfg->workload[0] / fullload,
-                (int)gpu[gpuid].autothread, sharedbuf);
-
-    tic = StartTimer();
-
+    /*=== Shared output buffer initialization (before parallel section) ===*/
     if (cfg->exportfield == NULL) {
         if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
-            cfg->exportfield = (float*)calloc(sizeof(float) * dimxyz, cfg->maxgate * 2 * cfg->detnum);
+            cfg->exportfield = (float*)calloc(sizeof(float) * dimxyz, cfg->maxgate * 2 * (1 + (cfg->outputtype == otRF || cfg->outputtype == otRFmus)) * cfg->detnum);
         } else {
-            cfg->exportfield = (float*)calloc(sizeof(float) * dimxyz, cfg->maxgate * 2);
+            cfg->exportfield = (float*)calloc(sizeof(float) * fieldlen, 2 * (isrfforward ? 2 : 1));
         }
     }
 
@@ -687,201 +465,618 @@ void mcx_run_cuda(Config* cfg, float* fluence, float* totalenergy) {
     cfg->energyesc = 0.f;
     cfg->runtime = 0;
 
-    /*=== Time-gate loop ===*/
-    tic0 = GetTimeMillis();
+    tic = StartTimer();
 
-    for (t = cfg->tstart; t < cfg->tend; t += cfg->tstep * cfg->maxgate) {
-        twindow0 = t;
-        twindow1 = t + cfg->tstep * cfg->maxgate;
+    /*=== Print launch header (before parallel section) ===*/
+    mcx_printheader(cfg);
+    MCX_FPRINTF(cfg->flog, "- code name: [Infinity-CUDA] compiled by nvcc [%d.%d]\n",
+                __CUDACC_VER_MAJOR__, __CUDACC_VER_MINOR__);
+    MCX_FPRINTF(cfg->flog, "- compiled with: [RNG] %s [Seed Length] %d\n", MCX_RNG_NAME, RAND_SEED_LEN);
 
-        MCX_FPRINTF(cfg->flog, "launching kernel for time window [%.1fns %.1fns] ...\n",
-                    twindow0 * 1e9, twindow1 * 1e9);
-        fflush(cfg->flog);
+    /*=== Determine kernel specialization flags ===*/
+    int ispencil = (cfg->srctype == MCX_SRC_PENCIL && cfg->nangle == 0);
+    int isref = cfg->isreflect;
+    int issvmc = (cfg->mediabyte == MEDIA_2LABEL_SPLIT);
+    int ispolarized = (cfg->mediabyte <= 4) && (cfg->polmedianum > 0);
 
-        for (iter = 0; iter < cfg->respin; iter++) {
-            MCX_FPRINTF(cfg->flog, "simulation run#%2d ... \n", iter + 1);
-            fflush(cfg->flog);
+    for (i = 0; i < 6; i++)
+        if (cfg->bc[i] == bcReflect || cfg->bc[i] == bcMirror) {
+            isref = 1;
+        }
 
-            param.twin0 = twindow0;
-            param.twin1 = twindow1;
-            CUDA_ASSERT(cudaMemcpyToSymbol(gcfg_const, &param, sizeof(MCXParam), 0, cudaMemcpyHostToDevice));
+    /*=== Multi-GPU parallel simulation ===*/
+#ifdef _OPENMP
+    omp_set_num_threads(activedev);
+    #pragma omp parallel
+    {
+        int threadid = omp_get_thread_num();
+#else
+    {
+        int threadid = 0;
+#endif
+        int gpuid = (int)cfg->deviceid[threadid] - 1;
+        size_t gpuphoton;
 
-            /* Reset per-iteration buffers */
-            CUDA_ASSERT(cudaMemset(gfield, 0, sizeof(float) * fieldlen * 2));
+        /* Compute per-GPU photon count based on workload fraction */
+        {
+            size_t prev_sum = 0;
+            int d;
+
+            for (d = 0; d < threadid; d++) {
+                prev_sum += (size_t)((double)cfg->nphoton * cfg->workload[d] / fullload);
+            }
+
+            if (threadid == activedev - 1) {
+                gpuphoton = cfg->nphoton - prev_sum;
+            } else {
+                gpuphoton = (size_t)((double)cfg->nphoton * cfg->workload[threadid] / fullload);
+            }
+        }
+
+        if (gpuphoton > 0) {
+            uint ltic0, ltic1, ltoc = 0;
+            int liter;
+            uint lj;
+            float* field = NULL;
+            float* Pdet  = NULL;
+            float* energy = NULL;
+            uint*  Pseed  = NULL;
+            RandType* seeddata = NULL;
+            uint   detected = 0;
+            dim3   mcgrid, mcblock;
+            uint   sharedbuf;
+
+            uint*      gmedia       = NULL;
+            float*     gfield       = NULL;
+            float*     genergy      = NULL;
+            uint*      gPseed       = NULL;
+            float*     gPdet        = NULL;
+            uint*      gdetected    = NULL;
+            float4*    gproperty    = NULL;
+            float4*    gdetpos      = NULL;
+            float*     gsrcpattern  = NULL;
+            float*     ginvcdf      = NULL;
+            float*     gangleinvcdf = NULL;
+            float4*    gsmatrix     = NULL;
+            RandType*  gseeddata    = NULL;
+            float*     gdebugdata   = NULL;
+            uint*      gjumpdebug   = NULL;
+            float*     greplayw     = NULL;
+            float*     greplaytof   = NULL;
+            int*       greplaydetid = NULL;
+            RandType*  greplayseed  = NULL;
+            volatile uint* gprogress = NULL;
+
+            CUDA_ASSERT(cudaSetDevice(gpuid));
+
+            /* Per-GPU kernel parameters */
+            MCXParam lparam = param;
+            lparam.threadphoton = (int)(gpuphoton / ((size_t)gpu[gpuid].autothread * cfg->respin));
+            lparam.oddphoton    = (int)(gpuphoton / cfg->respin - (size_t)lparam.threadphoton * gpu[gpuid].autothread);
+            lparam.maxgate      = (uint)gpu[gpuid].maxgate;
+
+            mcblock  = dim3(gpu[gpuid].autoblock, 1, 1);
+            mcgrid   = dim3(gpu[gpuid].autothread / gpu[gpuid].autoblock, 1, 1);
+            sharedbuf = (param.nphaselen + param.nanglelen) * sizeof(float)
+                        + gpu[gpuid].autoblock * (cfg->issaveseed * (RAND_BUF_LEN * sizeof(RandType))
+                                                  + sizeof(float) * (param.w0offset + cfg->srcnum
+                                                          + 2 * (cfg->outputtype == otRF || cfg->outputtype == otRFmus || MCX_IS_ADJOINT_TYPE(cfg->outputtype))));
+
+            /* Per-GPU field buffer length (covers gpu[gpuid].maxgate time gates per pass) */
+            size_t gfieldlen = fieldpergate * (size_t)gpu[gpuid].maxgate;
+
+            MCX_FPRINTF(cfg->flog, "GPU=%d (%s) threadph=%d extra=%d np=%.0f nthread=%d sharedbuf=%d\n",
+                        gpuid + 1, gpu[gpuid].name, lparam.threadphoton, lparam.oddphoton,
+                        (double)gpuphoton, (int)gpu[gpuid].autothread, sharedbuf);
+
+            /* Allocate host buffers */
+            field  = (float*)calloc(sizeof(float) * gfieldlen, 2);
+            Pdet   = (float*)calloc(cfg->maxdetphoton, sizeof(float) * hostdetreclen);
+            energy = (float*)calloc(gpu[gpuid].autothread << 1, sizeof(float));
+
+            if (cfg->seed != SEED_FROM_FILE) {
+                Pseed = (uint*)malloc(sizeof(RandType) * gpu[gpuid].autothread * RAND_BUF_LEN);
+            } else {
+                Pseed = (uint*)malloc(sizeof(RandType) * cfg->nphoton * RAND_BUF_LEN);
+            }
+
+            if (cfg->seed != SEED_FROM_FILE) {
+                #pragma omp critical
+                {
+                    srand(cfg->seed + threadid);
+
+                    for (lj = 0; lj < gpu[gpuid].autothread* RAND_SEED_LEN; lj++) {
+                        Pseed[lj] = rand();
+                    }
+                }
+            }
+
+            if ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) && cfg->exportdebugdata == NULL) {
+                #pragma omp critical
+                {
+                    if (cfg->exportdebugdata == NULL) {
+                        cfg->exportdebugdata = (float*)calloc(sizeof(float), debuglen * cfg->maxjumpdebug);
+                    }
+                }
+            }
+
+            /* Progress bar pinned memory (per-GPU) */
+            volatile uint* progress;
+            CUDA_ASSERT(cudaHostAlloc((void**)&progress, sizeof(uint), cudaHostAllocMapped));
+            CUDA_ASSERT(cudaHostGetDevicePointer((uint**)&gprogress, (uint*)progress, 0));
+            *progress = 0;
+
+            /* Media volume */
+            if (cfg->mediabyte != MEDIA_2LABEL_SPLIT && cfg->mediabyte != MEDIA_ASGN_F2H) {
+                CUDA_ASSERT(cudaMalloc((void**)&gmedia, sizeof(uint) * cfg->dim.x * cfg->dim.y * cfg->dim.z));
+                CUDA_ASSERT(cudaMemcpy(gmedia, media, sizeof(uint) * cfg->dim.x * cfg->dim.y * cfg->dim.z, cudaMemcpyHostToDevice));
+            } else {
+                CUDA_ASSERT(cudaMalloc((void**)&gmedia, sizeof(uint) * 2 * cfg->dim.x * cfg->dim.y * cfg->dim.z));
+                CUDA_ASSERT(cudaMemcpy(gmedia, media, sizeof(uint) * 2 * cfg->dim.x * cfg->dim.y * cfg->dim.z, cudaMemcpyHostToDevice));
+            }
+
+            /* Optical properties + extra source data + detector positions */
+            {
+                size_t propsize  = cfg->medianum * sizeof(Medium);
+                size_t srcsize   = cfg->srcdata ? cfg->extrasrclen * 4 * sizeof(float4) : 0;
+                size_t detsize   = (cfg->detpos && cfg->detnum) ? cfg->detnum * sizeof(float4) : 0;
+                size_t totalsize = propsize + srcsize + detsize;
+                char* propbuf    = (char*)malloc(totalsize);
+                memcpy(propbuf, cfg->prop, propsize);
+
+                if (cfg->srcdata) {
+                    memcpy(propbuf + propsize, cfg->srcdata, srcsize);
+                }
+
+                if (cfg->detpos && cfg->detnum) {
+                    memcpy(propbuf + propsize + srcsize, cfg->detpos, detsize);
+                }
+
+                CUDA_ASSERT(cudaMalloc((void**)&gproperty, totalsize));
+                CUDA_ASSERT(cudaMemcpy(gproperty, propbuf, totalsize, cudaMemcpyHostToDevice));
+                free(propbuf);
+            }
+
+            /* Detector positions */
+            if (cfg->detpos && cfg->detnum) {
+                CUDA_ASSERT(cudaMalloc((void**)&gdetpos, cfg->detnum * sizeof(float4)));
+                CUDA_ASSERT(cudaMemcpy(gdetpos, cfg->detpos, cfg->detnum * sizeof(float4), cudaMemcpyHostToDevice));
+            }
+
+            /* Output field buffer (per-GPU per-pass size: gfieldlen; RF needs 4x for Im) */
+            CUDA_ASSERT(cudaMalloc((void**)&gfield, sizeof(float) * gfieldlen * (isrfforward ? 4 : 2)));
+            CUDA_ASSERT(cudaMemset(gfield, 0, sizeof(float) * gfieldlen * (isrfforward ? 4 : 2)));
+
+            /* RNG seeds */
+            if (cfg->seed != SEED_FROM_FILE) {
+                CUDA_ASSERT(cudaMalloc((void**)&gPseed, sizeof(RandType) * gpu[gpuid].autothread * RAND_BUF_LEN));
+                CUDA_ASSERT(cudaMemcpy(gPseed, Pseed, sizeof(RandType) * gpu[gpuid].autothread * RAND_BUF_LEN, cudaMemcpyHostToDevice));
+            } else {
+                CUDA_ASSERT(cudaMalloc((void**)&gPseed, sizeof(RandType) * cfg->nphoton * RAND_BUF_LEN));
+                CUDA_ASSERT(cudaMemcpy(gPseed, cfg->replay.seed, sizeof(RandType) * cfg->nphoton * RAND_BUF_LEN, cudaMemcpyHostToDevice));
+            }
+
+            /* Detected photon buffer */
+            if (cfg->issavedet) {
+                CUDA_ASSERT(cudaMalloc((void**)&gPdet, sizeof(float) * cfg->maxdetphoton * hostdetreclen));
+                CUDA_ASSERT(cudaMemset(gPdet, 0, sizeof(float) * cfg->maxdetphoton * hostdetreclen));
+            }
+
+            /* Energy */
+            CUDA_ASSERT(cudaMalloc((void**)&genergy, sizeof(float) * (gpu[gpuid].autothread << 1)));
+            CUDA_ASSERT(cudaMemcpy(genergy, energy, sizeof(float) * (gpu[gpuid].autothread << 1), cudaMemcpyHostToDevice));
+
+            /* Detected count */
+            CUDA_ASSERT(cudaMalloc((void**)&gdetected, sizeof(uint)));
             CUDA_ASSERT(cudaMemset(gdetected, 0, sizeof(uint)));
 
-            if (cfg->issaveseed && gseeddata) {
+            /* Source pattern */
+            if (cfg->srctype == MCX_SRC_PATTERN && cfg->srcpattern) {
+                size_t patsize = sizeof(float) * (int)(cfg->srcparam1.w * cfg->srcparam2.w) * cfg->srcnum;
+                CUDA_ASSERT(cudaMalloc((void**)&gsrcpattern, patsize));
+                CUDA_ASSERT(cudaMemcpy(gsrcpattern, cfg->srcpattern, patsize, cudaMemcpyHostToDevice));
+            } else if (cfg->srctype == MCX_SRC_PATTERN3D && cfg->srcpattern) {
+                size_t patsize = sizeof(float) * (int)(cfg->srcparam1.x * cfg->srcparam1.y * cfg->srcparam1.z) * cfg->srcnum;
+                CUDA_ASSERT(cudaMalloc((void**)&gsrcpattern, patsize));
+                CUDA_ASSERT(cudaMemcpy(gsrcpattern, cfg->srcpattern, patsize, cudaMemcpyHostToDevice));
+            }
+
+            /* Phase function inverse CDF */
+            if (cfg->nphase) {
+                CUDA_ASSERT(cudaMalloc((void**)&ginvcdf, sizeof(float) * cfg->nphase));
+                CUDA_ASSERT(cudaMemcpy(ginvcdf, cfg->invcdf, sizeof(float) * cfg->nphase, cudaMemcpyHostToDevice));
+            }
+
+            /* Launch angle inverse CDF */
+            if (cfg->nangle) {
+                CUDA_ASSERT(cudaMalloc((void**)&gangleinvcdf, sizeof(float) * cfg->nangle));
+                CUDA_ASSERT(cudaMemcpy(gangleinvcdf, cfg->angleinvcdf, sizeof(float) * cfg->nangle, cudaMemcpyHostToDevice));
+            }
+
+            /* Polarization scattering matrix */
+            if (cfg->polmedianum && cfg->smatrix) {
+                CUDA_ASSERT(cudaMalloc((void**)&gsmatrix, cfg->polmedianum * NANGLES * sizeof(float4)));
+                CUDA_ASSERT(cudaMemcpy(gsmatrix, cfg->smatrix, cfg->polmedianum * NANGLES * sizeof(float4), cudaMemcpyHostToDevice));
+            }
+
+            /* Detected photon seed data (for replay) */
+            if (cfg->issaveseed) {
+                seeddata = (RandType*)calloc(cfg->maxdetphoton, sizeof(RandType) * RAND_BUF_LEN);
+                CUDA_ASSERT(cudaMalloc((void**)&gseeddata, sizeof(RandType) * cfg->maxdetphoton * RAND_BUF_LEN));
                 CUDA_ASSERT(cudaMemset(gseeddata, 0, sizeof(RandType) * cfg->maxdetphoton * RAND_BUF_LEN));
             }
 
-            if (gjumpdebug) {
-                uint jumpcount = 0;
-                CUDA_ASSERT(cudaMemcpy(gjumpdebug, &jumpcount, sizeof(uint), cudaMemcpyHostToDevice));
-            }
-
-            *progress = 0;
-            tic0 = GetTimeMillis();
-
-            /*=== Launch kernel (template-specialized) ===*/
-            mcx_launch_kernel(
-                ispencil, isref, (cfg->mediabyte <= 4), issvmc, ispolarized,
-                mcgrid, mcblock, sharedbuf,
-                gmedia, gfield, genergy, gPseed,
-                gPdet, gproperty, gsrcpattern,
-                gdetpos, gprogress, gdetected,
-                greplayw, greplaytof, greplaydetid,
-                gseeddata, gjumpdebug, gdebugdata,
-                ginvcdf, gangleinvcdf,
-                gsmatrix);
-
-            /*=== Progress bar ===*/
-            if (param.debuglevel & MCX_DEBUG_PROGRESS) {
-                int p0 = 0, ndone;
-                float maxval = (param.threadphoton >> 1) * 4.5f;
-                mcx_progressbar(-0.f, cfg);
-
-                do {
-                    ndone = *progress;
-
-                    if (ndone > p0) {
-                        mcx_progressbar(ndone / maxval, cfg);
-                        p0 = ndone;
-                    }
-
-                    sleep_ms(100);
-                } while (p0 < (int)maxval);
-
-                mcx_progressbar(1.0f, cfg);
-                MCX_FPRINTF(cfg->flog, "\n");
-            }
-
-            CUDA_ASSERT(cudaDeviceSynchronize());
-            CUDA_ASSERT(cudaGetLastError());
-
-            tic1 = GetTimeMillis();
-            toc += tic1 - tic0;
-            MCX_FPRINTF(cfg->flog, "kernel complete: %d ms\nretrieving flux ...\t", tic1 - tic);
-            fflush(cfg->flog);
-
-            /*=== Retrieve detected photons ===*/
-            if (cfg->issavedet) {
-                CUDA_ASSERT(cudaMemcpy(&detected, gdetected, sizeof(uint), cudaMemcpyDeviceToHost));
-                CUDA_ASSERT(cudaMemcpy(Pdet, gPdet, sizeof(float) * cfg->maxdetphoton * hostdetreclen, cudaMemcpyDeviceToHost));
-
-                if (cfg->issaveseed && seeddata) {
-                    CUDA_ASSERT(cudaMemcpy(seeddata, gseeddata, sizeof(RandType) * cfg->maxdetphoton * RAND_BUF_LEN, cudaMemcpyDeviceToHost));
-                }
-
-                if (detected > cfg->maxdetphoton) {
-                    MCX_FPRINTF(cfg->flog, S_RED "WARNING: detected photons (%u) > maxdetphoton (%d)\n" S_RESET, detected, cfg->maxdetphoton);
-                } else {
-                    MCX_FPRINTF(cfg->flog, "detected " S_BOLD "" S_BLUE "%d photons" S_RESET ", total: " S_BOLD "" S_BLUE "%d" S_RESET "\t", detected, cfg->detectedcount + detected);
-                }
-
-                cfg->his.detected += detected;
-                detected = MIN(detected, cfg->maxdetphoton);
-
-                if (cfg->exportdetected) {
-                    cfg->exportdetected = (float*)realloc(cfg->exportdetected, (cfg->detectedcount + detected) * hostdetreclen * sizeof(float));
-                    memcpy(cfg->exportdetected + cfg->detectedcount * hostdetreclen, Pdet, detected * hostdetreclen * sizeof(float));
-
-                    if (cfg->issaveseed && cfg->seeddata) {
-                        cfg->seeddata = realloc(cfg->seeddata, (cfg->detectedcount + detected) * sizeof(RandType) * RAND_BUF_LEN);
-                        memcpy(((RandType*)cfg->seeddata) + cfg->detectedcount * RAND_BUF_LEN, seeddata, detected * sizeof(RandType) * RAND_BUF_LEN);
-                    }
-
-                    cfg->detectedcount += detected;
-                }
-            }
-
-            /*=== Retrieve debug trajectory data ===*/
+            /* Debug trajectory data */
             if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
-                uint debugrec = 0;
-                CUDA_ASSERT(cudaMemcpy(&debugrec, gjumpdebug, sizeof(uint), cudaMemcpyDeviceToHost));
+                uint jumpcount = 0;
+                CUDA_ASSERT(cudaMalloc((void**)&gjumpdebug, sizeof(uint)));
+                CUDA_ASSERT(cudaMemcpy(gjumpdebug, &jumpcount, sizeof(uint), cudaMemcpyHostToDevice));
+                CUDA_ASSERT(cudaMalloc((void**)&gdebugdata, sizeof(float) * debuglen * cfg->maxjumpdebug));
+            }
 
-                if (debugrec > 0) {
-                    if (debugrec > cfg->maxjumpdebug) {
-                        MCX_FPRINTF(cfg->flog, S_RED "WARNING: saved trajectory (%u) > maxjumpdebug (%d)\n" S_RESET, debugrec, cfg->maxjumpdebug);
-                    } else {
-                        MCX_FPRINTF(cfg->flog, "saved %u trajectory positions, total: %d\t", debugrec, cfg->debugdatalen + debugrec);
-                    }
+            /* Replay buffers */
+            if (cfg->seed == SEED_FROM_FILE) {
+                if (cfg->replay.weight) {
+                    CUDA_ASSERT(cudaMalloc((void**)&greplayw, sizeof(float) * cfg->nphoton));
+                    CUDA_ASSERT(cudaMemcpy(greplayw, cfg->replay.weight, sizeof(float) * cfg->nphoton, cudaMemcpyHostToDevice));
+                }
 
-                    debugrec = MIN(debugrec, cfg->maxjumpdebug);
-                    cfg->exportdebugdata = (float*)realloc(cfg->exportdebugdata, (cfg->debugdatalen + debugrec) * debuglen * sizeof(float));
-                    CUDA_ASSERT(cudaMemcpy(cfg->exportdebugdata + cfg->debugdatalen, gdebugdata, sizeof(float) * debuglen * debugrec, cudaMemcpyDeviceToHost));
-                    cfg->debugdatalen += debugrec;
+                if (cfg->replay.tof) {
+                    CUDA_ASSERT(cudaMalloc((void**)&greplaytof, sizeof(float) * cfg->nphoton));
+                    CUDA_ASSERT(cudaMemcpy(greplaytof, cfg->replay.tof, sizeof(float) * cfg->nphoton, cudaMemcpyHostToDevice));
+                }
+
+                if (cfg->replay.detid) {
+                    CUDA_ASSERT(cudaMalloc((void**)&greplaydetid, sizeof(int) * cfg->nphoton));
+                    CUDA_ASSERT(cudaMemcpy(greplaydetid, cfg->replay.detid, sizeof(int) * cfg->nphoton, cudaMemcpyHostToDevice));
                 }
             }
 
-            mcx_flush(cfg);
+            /* Copy per-GPU param to device constant memory */
+            CUDA_ASSERT(cudaMemcpyToSymbol(gcfg_const, &lparam, sizeof(MCXParam), 0, cudaMemcpyHostToDevice));
 
-            /*=== Retrieve volumetric output ===*/
-            if (cfg->issave2pt) {
-                float* rawfield = (float*)malloc(sizeof(float) * fieldlen * 2);
-                CUDA_ASSERT(cudaMemcpy(rawfield, gfield, sizeof(float) * fieldlen * 2, cudaMemcpyDeviceToHost));
-                MCX_FPRINTF(cfg->flog, "transfer complete: %d ms\n", GetTimeMillis() - tic);
+            ltic0 = GetTimeMillis();
+
+            /*=== Time-gate loop: multi-pass if gpu[gpuid].maxgate < totalgates ===*/
+            for (int timegate = 0; timegate < totalgates; timegate += (int)gpu[gpuid].maxgate) {
+                int curgate = MIN((int)gpu[gpuid].maxgate, totalgates - timegate);
+                size_t tg_offset    = (size_t)timegate * fieldpergate;
+                size_t cur_gfldlen  = fieldpergate * (size_t)curgate;
+                float  twindow0 = cfg->tstart + timegate * cfg->tstep;
+                float  twindow1 = twindow0 + curgate * cfg->tstep;
+
+                MCX_FPRINTF(cfg->flog, "launching kernel for time window [%.1fns %.1fns] ...\n",
+                            twindow0 * 1e9, twindow1 * 1e9);
                 fflush(cfg->flog);
 
-                for (size_t ii = 0; ii < fieldlen; ii++) {
-                    field[ii] = rawfield[ii];
+                for (liter = 0; liter < cfg->respin; liter++) {
+                    MCX_FPRINTF(cfg->flog, "simulation run#%2d ... \n", liter + 1);
+                    fflush(cfg->flog);
 
-                    if (cfg->outputtype != otRF && cfg->outputtype != otRFmus) {
-                        field[ii] += rawfield[ii + fieldlen];
+                    lparam.twin0   = twindow0;
+                    lparam.twin1   = twindow1;
+                    lparam.maxgate = (uint)curgate;
+                    CUDA_ASSERT(cudaMemcpyToSymbol(gcfg_const, &lparam, sizeof(MCXParam), 0, cudaMemcpyHostToDevice));
+
+                    /* Reset per-iteration buffers */
+                    CUDA_ASSERT(cudaMemset(gfield, 0, sizeof(float) * cur_gfldlen * (isrfforward ? 4 : 2)));
+                    CUDA_ASSERT(cudaMemset(gdetected, 0, sizeof(uint)));
+
+                    if (cfg->issaveseed && gseeddata) {
+                        CUDA_ASSERT(cudaMemset(gseeddata, 0, sizeof(RandType) * cfg->maxdetphoton * RAND_BUF_LEN));
                     }
-                }
 
-                free(rawfield);
-
-                if (cfg->respin > 1) {
-                    for (size_t ii = 0; ii < fieldlen; ii++) {
-                        field[fieldlen + ii] += field[ii];
+                    if (gjumpdebug) {
+                        uint jumpcount = 0;
+                        CUDA_ASSERT(cudaMemcpy(gjumpdebug, &jumpcount, sizeof(uint), cudaMemcpyHostToDevice));
                     }
-                }
 
-                if (iter + 1 == cfg->respin) {
-                    if (cfg->respin > 1) {
-                        memcpy(field, field + fieldlen, sizeof(float) * fieldlen);
-                    }
-                }
+                    *progress = 0;
+                    ltic0 = GetTimeMillis();
 
-                if (cfg->exportfield) {
-                    for (size_t ii = 0; ii < fieldlen; ii++) {
-                        cfg->exportfield[ii] += field[ii];
+                    /*=== Launch kernel ===*/
+                    mcx_launch_kernel(
+                        ispencil, isref, (cfg->mediabyte <= 4), issvmc, ispolarized,
+                        mcgrid, mcblock, sharedbuf,
+                        gmedia, gfield, genergy, gPseed,
+                        gPdet, gproperty, gsrcpattern,
+                        gdetpos, gprogress, gdetected,
+                        greplayw, greplaytof, greplaydetid,
+                        gseeddata, gjumpdebug, gdebugdata,
+                        ginvcdf, gangleinvcdf,
+                        gsmatrix);
+
+                    /*=== Progress bar (primary thread only to avoid interleaved output) ===*/
+                    if (threadid == 0 && (param.debuglevel & MCX_DEBUG_PROGRESS)) {
+                        int p0 = 0, ndone;
+                        float maxval = (lparam.threadphoton >> 1) * 4.5f;
+                        mcx_progressbar(-0.f, cfg);
+
+                        do {
+                            ndone = *progress;
+
+                            if (ndone > p0) {
+                                mcx_progressbar(ndone / maxval, cfg);
+                                p0 = ndone;
+                            }
+
+                            sleep_ms(100);
+                        } while (p0 < (int)maxval);
+
+                        mcx_progressbar(1.0f, cfg);
+                        MCX_FPRINTF(cfg->flog, "\n");
                     }
+
+                    CUDA_ASSERT(cudaDeviceSynchronize());
+                    CUDA_ASSERT(cudaGetLastError());
+
+                    ltic1 = GetTimeMillis();
+                    ltoc += ltic1 - ltic0;
+                    MCX_FPRINTF(cfg->flog, "kernel complete: %d ms\nretrieving flux ...\t", ltic1 - tic);
+                    fflush(cfg->flog);
+
+                    /*=== Retrieve detected photons ===*/
+                    if (cfg->issavedet) {
+                        CUDA_ASSERT(cudaMemcpy(&detected, gdetected, sizeof(uint), cudaMemcpyDeviceToHost));
+                        CUDA_ASSERT(cudaMemcpy(Pdet, gPdet, sizeof(float) * cfg->maxdetphoton * hostdetreclen, cudaMemcpyDeviceToHost));
+
+                        if (cfg->issaveseed && seeddata) {
+                            CUDA_ASSERT(cudaMemcpy(seeddata, gseeddata, sizeof(RandType) * cfg->maxdetphoton * RAND_BUF_LEN, cudaMemcpyDeviceToHost));
+                        }
+
+                        if (detected > cfg->maxdetphoton) {
+                            MCX_FPRINTF(cfg->flog, S_RED "WARNING: detected photons (%u) > maxdetphoton (%d)\n" S_RESET, detected, cfg->maxdetphoton);
+                        } else {
+                            MCX_FPRINTF(cfg->flog, "detected " S_BOLD "" S_BLUE "%d photons" S_RESET ", total: " S_BOLD "" S_BLUE "%d" S_RESET "\t", detected, cfg->detectedcount + detected);
+                        }
+
+                        detected = MIN(detected, cfg->maxdetphoton);
+
+                        #pragma omp critical
+                        {
+                            cfg->his.detected += detected;
+
+                            if (cfg->exportdetected) {
+                                cfg->exportdetected = (float*)realloc(cfg->exportdetected, (cfg->detectedcount + detected) * hostdetreclen * sizeof(float));
+                                memcpy(cfg->exportdetected + cfg->detectedcount * hostdetreclen, Pdet, detected * hostdetreclen * sizeof(float));
+
+                                if (cfg->issaveseed && cfg->seeddata) {
+                                    cfg->seeddata = realloc(cfg->seeddata, (cfg->detectedcount + detected) * sizeof(RandType) * RAND_BUF_LEN);
+                                    memcpy(((RandType*)cfg->seeddata) + cfg->detectedcount * RAND_BUF_LEN, seeddata, detected * sizeof(RandType) * RAND_BUF_LEN);
+                                }
+
+                                cfg->detectedcount += detected;
+                            }
+                        }
+                    }
+
+                    /*=== Retrieve debug trajectory data ===*/
+                    if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
+                        uint debugrec = 0;
+                        CUDA_ASSERT(cudaMemcpy(&debugrec, gjumpdebug, sizeof(uint), cudaMemcpyDeviceToHost));
+
+                        if (debugrec > 0) {
+                            if (debugrec > cfg->maxjumpdebug) {
+                                MCX_FPRINTF(cfg->flog, S_RED "WARNING: saved trajectory (%u) > maxjumpdebug (%d)\n" S_RESET, debugrec, cfg->maxjumpdebug);
+                            } else {
+                                MCX_FPRINTF(cfg->flog, "saved %u trajectory positions, total: %d\t", debugrec, cfg->debugdatalen + debugrec);
+                            }
+
+                            debugrec = MIN(debugrec, cfg->maxjumpdebug);
+                            #pragma omp critical
+                            {
+                                cfg->exportdebugdata = (float*)realloc(cfg->exportdebugdata, (cfg->debugdatalen + debugrec) * debuglen * sizeof(float));
+                                CUDA_ASSERT(cudaMemcpy(cfg->exportdebugdata + cfg->debugdatalen, gdebugdata, sizeof(float) * debuglen * debugrec, cudaMemcpyDeviceToHost));
+                                cfg->debugdatalen += debugrec;
+                            }
+                        }
+                    }
+
+                    mcx_flush(cfg);
+
+                    /*=== Retrieve volumetric output and accumulate ===*/
+                    if (cfg->issave2pt) {
+                        int rawfieldmul = isrfforward ? 4 : 2;
+                        float* rawfield = (float*)malloc(sizeof(float) * cur_gfldlen * rawfieldmul);
+                        CUDA_ASSERT(cudaMemcpy(rawfield, gfield, sizeof(float) * cur_gfldlen * rawfieldmul, cudaMemcpyDeviceToHost));
+                        MCX_FPRINTF(cfg->flog, "transfer complete: %d ms\n", GetTimeMillis() - tic);
+                        fflush(cfg->flog);
+
+                        for (size_t ii = 0; ii < cur_gfldlen; ii++) {
+                            field[ii] = rawfield[ii];
+
+                            if (!isrfforward && cfg->outputtype != otRF && cfg->outputtype != otRFmus) {
+                                field[ii] += rawfield[ii + cur_gfldlen];
+                            }
+                        }
+
+                        /* Accumulate Im part for RF forward into exportfield[fieldlen + tg_offset..] */
+                        #pragma omp critical
+                        {
+                            if (cfg->exportfield) {
+                                if (isrfforward) {
+                                    for (size_t ii = 0; ii < cur_gfldlen; ii++) {
+                                        cfg->exportfield[fieldlen + tg_offset + ii] += rawfield[ii + cur_gfldlen * 2] + rawfield[ii + cur_gfldlen * 3];
+                                    }
+                                } else {
+                                    for (size_t ii = 0; ii < cur_gfldlen; ii++) {
+                                        cfg->exportfield[fieldlen + tg_offset + ii] += rawfield[ii + cur_gfldlen];
+                                    }
+                                }
+                            }
+                        }
+
+                        free(rawfield);
+
+                        if (cfg->respin > 1) {
+                            for (size_t ii = 0; ii < cur_gfldlen; ii++) {
+                                field[cur_gfldlen + ii] += field[ii];
+                            }
+                        }
+
+                        if (liter + 1 == cfg->respin) {
+                            if (cfg->respin > 1) {
+                                memcpy(field, field + cur_gfldlen, sizeof(float) * cur_gfldlen);
+                            }
+
+                            /* Accumulate Re part into exportfield[tg_offset..] */
+                            #pragma omp critical
+                            {
+                                if (cfg->exportfield) {
+                                    for (size_t ii = 0; ii < cur_gfldlen; ii++) {
+                                        cfg->exportfield[tg_offset + ii] += field[ii];
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    /*=== Retrieve energy ===*/
+                    {
+                        float* loc_energy = (float*)calloc(gpu[gpuid].autothread << 1, sizeof(float));
+                        CUDA_ASSERT(cudaMemcpy(loc_energy, genergy, sizeof(float) * (gpu[gpuid].autothread << 1), cudaMemcpyDeviceToHost));
+                        #pragma omp critical
+                        {
+                            for (uint ei = 0; ei < (uint)gpu[gpuid].autothread; ei++) {
+                                cfg->energyesc += loc_energy[ei << 1];
+                                cfg->energytot += loc_energy[(ei << 1) + 1];
+                            }
+                        }
+                        free(loc_energy);
+                    }
+
+                    /*=== Re-seed for next respin ===*/
+                    if (cfg->respin > 1 && RAND_SEED_LEN > 1 && cfg->seed != SEED_FROM_FILE) {
+                        uint* new_seeds = (uint*)malloc(sizeof(RandType) * gpu[gpuid].autothread * RAND_BUF_LEN);
+                        #pragma omp critical
+                        {
+                            for (lj = 0; lj < gpu[gpuid].autothread * RAND_SEED_LEN; lj++) {
+                                new_seeds[lj] = rand();
+                            }
+                        }
+                        CUDA_ASSERT(cudaMemcpy(gPseed, new_seeds, sizeof(RandType) * gpu[gpuid].autothread * RAND_BUF_LEN, cudaMemcpyHostToDevice));
+                        free(new_seeds);
+                    }
+                } /* respin */
+            } /* time gates */
+
+            #pragma omp critical
+            {
+                if (cfg->runtime < ltoc) {
+                    cfg->runtime = ltoc;
                 }
             }
 
-            /*=== Retrieve energy ===*/
-            energy = (float*)calloc(gpu[gpuid].autothread << 1, sizeof(float));
-            CUDA_ASSERT(cudaMemcpy(energy, genergy, sizeof(float) * (gpu[gpuid].autothread << 1), cudaMemcpyDeviceToHost));
-
-            for (i = 0; i < gpu[gpuid].autothread; i++) {
-                cfg->energyesc += energy[i << 1];
-                cfg->energytot += energy[(i << 1) + 1];
+            /*=== Cleanup per-GPU GPU buffers ===*/
+            if (gmedia)       {
+                CUDA_ASSERT(cudaFree(gmedia));
             }
 
-            free(energy);
+            if (gfield)       {
+                CUDA_ASSERT(cudaFree(gfield));
+            }
 
-            /*=== Re-seed for respin ===*/
-            if (cfg->respin > 1 && RAND_SEED_LEN > 1 && cfg->seed != SEED_FROM_FILE) {
-                Pseed = (uint*)malloc(sizeof(RandType) * gpu[gpuid].autothread * RAND_BUF_LEN);
+            if (gPseed)       {
+                CUDA_ASSERT(cudaFree(gPseed));
+            }
 
-                for (j = 0; j < gpu[gpuid].autothread * RAND_SEED_LEN; j++) {
-                    Pseed[j] = rand();
-                }
+            if (genergy)      {
+                CUDA_ASSERT(cudaFree(genergy));
+            }
 
-                CUDA_ASSERT(cudaMemcpy(gPseed, Pseed, sizeof(RandType) * gpu[gpuid].autothread * RAND_BUF_LEN, cudaMemcpyHostToDevice));
+            if (gdetected)    {
+                CUDA_ASSERT(cudaFree(gdetected));
+            }
+
+            if (gPdet)        {
+                CUDA_ASSERT(cudaFree(gPdet));
+            }
+
+            if (gproperty)    {
+                CUDA_ASSERT(cudaFree(gproperty));
+            }
+
+            if (gdetpos)      {
+                CUDA_ASSERT(cudaFree(gdetpos));
+            }
+
+            if (gsrcpattern)  {
+                CUDA_ASSERT(cudaFree(gsrcpattern));
+            }
+
+            if (gseeddata)    {
+                CUDA_ASSERT(cudaFree(gseeddata));
+            }
+
+            if (gdebugdata)   {
+                CUDA_ASSERT(cudaFree(gdebugdata));
+            }
+
+            if (gjumpdebug)   {
+                CUDA_ASSERT(cudaFree(gjumpdebug));
+            }
+
+            if (ginvcdf)      {
+                CUDA_ASSERT(cudaFree(ginvcdf));
+            }
+
+            if (gangleinvcdf) {
+                CUDA_ASSERT(cudaFree(gangleinvcdf));
+            }
+
+            if (gsmatrix)     {
+                CUDA_ASSERT(cudaFree(gsmatrix));
+            }
+
+            if (greplayw)     {
+                CUDA_ASSERT(cudaFree(greplayw));
+            }
+
+            if (greplaytof)   {
+                CUDA_ASSERT(cudaFree(greplaytof));
+            }
+
+            if (greplaydetid) {
+                CUDA_ASSERT(cudaFree(greplaydetid));
+            }
+
+            if (greplayseed)  {
+                CUDA_ASSERT(cudaFree(greplayseed));
+            }
+
+            if (gprogress) {
+                cudaFreeHost((void*)progress);
+            }
+
+            /*=== Cleanup per-GPU host buffers ===*/
+            if (field)    {
+                free(field);
+            }
+
+            if (Pdet)     {
+                free(Pdet);
+            }
+
+            if (Pseed)    {
                 free(Pseed);
             }
-        } /* respin */
-    } /* time gates */
 
-    if (cfg->runtime < toc) {
-        cfg->runtime = toc;
+            if (seeddata) {
+                free(seeddata);
+            }
+        } /* if (gpuphoton > 0) */
+    } /* end parallel region */
+
+    /*=== Reset all devices after parallel section ===*/
+#ifndef MCX_DISABLE_CUDA_DEVICE_RESET
+
+    for (i = 0; (int)cfg->deviceid[i] > 0; i++) {
+        CUDA_ASSERT(cudaSetDevice((int)cfg->deviceid[i] - 1));
+        CUDA_ASSERT(cudaDeviceReset());
     }
 
-    /*=== Normalization ===*/
-    /* ... (same normalization logic as mcx_host.cpp — omitted for brevity) ... */
+#endif
+    CUDA_ASSERT(cudaSetDevice(gpuid0));
 
     MCX_FPRINTF(cfg->flog, "simulated %zu photons (%zu) with CUDA (repeat x%d)\nMCX speed: %.2f photon/ms\n",
                 cfg->nphoton, cfg->nphoton, cfg->respin,
@@ -890,82 +1085,263 @@ void mcx_run_cuda(Config* cfg, float* fluence, float* totalenergy) {
                 cfg->energytot, (cfg->energytot - cfg->energyesc) / cfg->energytot * 100.f);
     fflush(cfg->flog);
 
-    /*=== Cleanup GPU ===*/
-    CUDA_ASSERT(cudaFree(gmedia));
-    CUDA_ASSERT(cudaFree(gfield));
-    CUDA_ASSERT(cudaFree(gPseed));
-    CUDA_ASSERT(cudaFree(genergy));
-    CUDA_ASSERT(cudaFree(gdetected));
+    /*=== Normalization ===*/
+    float Vvox = cfg->steps.x * cfg->steps.y * cfg->steps.z;
 
-    if (gPdet) {
-        CUDA_ASSERT(cudaFree(gPdet));
+    if (cfg->issave2pt && cfg->isnormalized) {
+        float* scale = (float*)calloc(cfg->srcnum, sizeof(float));
+        scale[0] = 1.f;
+        int isnormalized = 0;
+        MCX_FPRINTF(cfg->flog, "normalizing raw data ...\t");
+        cfg->energyabs += cfg->energytot - cfg->energyesc;
+
+        if (cfg->outputtype == otFlux || cfg->outputtype == otFluence) {
+            scale[0] = cfg->unitinmm / (cfg->energytot * Vvox * cfg->tstep);
+
+            if (cfg->outputtype == otFluence) {
+                scale[0] *= cfg->tstep;
+            }
+        } else if (cfg->outputtype == otEnergy || cfg->outputtype == otL) {
+            scale[0] = 1.f / cfg->energytot;
+        } else if (MCX_IS_ADJOINT_TYPE(cfg->outputtype) && cfg->seed != SEED_FROM_FILE) {
+            scale[0] = cfg->unitinmm * (cfg->extrasrclen + 1) / cfg->energytot;
+        } else if (cfg->outputtype == otJacobian || cfg->outputtype == otWP || cfg->outputtype == otDCS || cfg->outputtype == otRF || cfg->outputtype == otRFmus || cfg->outputtype == otWLTOF || cfg->outputtype == otWPTOF) {
+            if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
+                int detid;
+
+                for (detid = 1; detid <= (int)cfg->detnum; detid++) {
+                    scale[0] = 0.f;
+
+                    for (size_t ii = 0; ii < cfg->nphoton; ii++)
+                        if ((cfg->replay.detid[ii] & 0xFFFF) == detid) {
+                            scale[0] += cfg->replay.weight[ii];
+                        }
+
+                    if (scale[0] > 0.f) {
+                        scale[0] = cfg->unitinmm / scale[0];
+                    }
+
+                    MCX_FPRINTF(cfg->flog, "normalization factor for detector %d alpha=%f\n", detid, scale[0]);
+                    fflush(cfg->flog);
+                    mcx_normalize(cfg->exportfield + (detid - 1) * dimxyz * param.maxgate, scale[0], dimxyz * param.maxgate, cfg->isnormalized, 0, 1);
+                }
+
+                isnormalized = 1;
+            } else {
+                scale[0] = 0.f;
+
+                for (size_t ii = 0; ii < cfg->nphoton; ii++) {
+                    scale[0] += cfg->replay.weight[ii];
+                }
+
+                if (scale[0] > 0.f) {
+                    scale[0] = cfg->unitinmm / scale[0];
+                }
+            }
+        }
+
+        if (cfg->extrasrclen && cfg->srcid < 0) {
+            scale[0] *= (cfg->extrasrclen + 1);
+        }
+
+        cfg->normalizer = scale[0];
+        cfg->his.normalizer = scale[0];
+
+        if (!isnormalized) {
+            for (i = 0; i < cfg->srcnum; i++) {
+                MCX_FPRINTF(cfg->flog, "source %d, normalization factor alpha=%f\n", (i + 1), scale[i]);
+                fflush(cfg->flog);
+                mcx_normalize(cfg->exportfield, scale[i], fieldlen / cfg->srcnum, cfg->isnormalized, i, cfg->srcnum);
+            }
+        }
+
+        free(scale);
     }
 
-    if (gproperty) {
-        CUDA_ASSERT(cudaFree(gproperty));
+    /* Adjoint post-processing: phi_src * phi_det (or grad.grad) per voxel */
+    if (cfg->issave2pt && MCX_IS_ADJOINT_TYPE(cfg->outputtype) && cfg->seed != SEED_FROM_FILE && cfg->detdir != NULL && cfg->exportfield) {
+        int isrf   = isrfforward;
+        int isdual = MCX_IS_DUAL_ADJOINT_TYPE(cfg->outputtype);
+        unsigned int Ns = cfg->extrasrclen + 1 - cfg->detnum;
+        unsigned int Nd = cfg->detnum;
+        unsigned int pure_voxels = (unsigned int)(cfg->dim.x * cfg->dim.y * cfg->dim.z);
+        size_t adjointlen       = (size_t)pure_voxels * Ns * Nd;
+        size_t single_exportlen = adjointlen * (isrf ? 2 : 1);
+        size_t exportlen_adj    = single_exportlen * (isdual ? 2 : 1);
+
+        /* Upload normalized fluences to GPU */
+        float* gfield_re_cu = NULL, *gfield_im_cu = NULL;
+        float* gadjoint_mua_cu = NULL, *gadjoint_tmp_cu = NULL;
+        CUDA_ASSERT(cudaMalloc((void**)&gfield_re_cu, sizeof(float) * fieldlen));
+        CUDA_ASSERT(cudaMemcpy(gfield_re_cu, cfg->exportfield, sizeof(float) * fieldlen, cudaMemcpyHostToDevice));
+
+        if (isrf) {
+            CUDA_ASSERT(cudaMalloc((void**)&gfield_im_cu, sizeof(float) * fieldlen));
+            CUDA_ASSERT(cudaMemcpy(gfield_im_cu, cfg->exportfield + fieldlen, sizeof(float) * fieldlen, cudaMemcpyHostToDevice));
+        }
+
+        if (isdual) {
+            CUDA_ASSERT(cudaMalloc((void**)&gadjoint_mua_cu, sizeof(float) * single_exportlen));
+            CUDA_ASSERT(cudaMemset(gadjoint_mua_cu, 0, sizeof(float) * single_exportlen));
+        }
+
+        CUDA_ASSERT(cudaMalloc((void**)&gadjoint_tmp_cu, sizeof(float) * single_exportlen));
+        CUDA_ASSERT(cudaMemset(gadjoint_tmp_cu, 0, sizeof(float) * single_exportlen));
+
+        size_t adjblocksize = 256;
+        size_t adjgridsize  = (pure_voxels + (unsigned int)adjblocksize - 1) / adjblocksize;
+
+        if (isdual || cfg->outputtype == otAdjoint) {
+            mcx_adjoint_kernel <<< (unsigned int)adjgridsize, (unsigned int)adjblocksize>>>(
+                gfield_re_cu, gfield_im_cu,
+                isdual ? gadjoint_mua_cu : gadjoint_tmp_cu,
+                pure_voxels, (unsigned int)cfg->maxgate, Ns, Nd);
+            CUDA_ASSERT(cudaDeviceSynchronize());
+        }
+
+        if (isdual || cfg->outputtype != otAdjoint) {
+            unsigned int Nx = (unsigned int)cfg->dim.x;
+            unsigned int Ny = (unsigned int)cfg->dim.y;
+            mcx_adjoint_dcoeff_kernel <<< (unsigned int)adjgridsize, (unsigned int)adjblocksize>>>(
+                gfield_re_cu, gfield_im_cu, gadjoint_tmp_cu,
+                pure_voxels, (unsigned int)cfg->maxgate, Ns, Nd, Nx, Ny);
+            CUDA_ASSERT(cudaDeviceSynchronize());
+        }
+
+        CUDA_ASSERT(cudaFree(gfield_re_cu));
+
+        if (gfield_im_cu) {
+            CUDA_ASSERT(cudaFree(gfield_im_cu));
+        }
+
+        cfg->exportfield = (float*)realloc(cfg->exportfield, sizeof(float) * exportlen_adj);
+
+        if (isdual) {
+            float* hmua    = (float*)malloc(sizeof(float) * single_exportlen);
+            float* hsecond = (float*)malloc(sizeof(float) * single_exportlen);
+            CUDA_ASSERT(cudaMemcpy(hmua,    gadjoint_mua_cu, sizeof(float) * single_exportlen, cudaMemcpyDeviceToHost));
+            CUDA_ASSERT(cudaMemcpy(hsecond, gadjoint_tmp_cu, sizeof(float) * single_exportlen, cudaMemcpyDeviceToHost));
+            CUDA_ASSERT(cudaFree(gadjoint_mua_cu));
+            CUDA_ASSERT(cudaFree(gadjoint_tmp_cu));
+
+            for (size_t k = 0; k < single_exportlen; k++) {
+                hmua[k] *= -Vvox;
+            }
+
+            for (size_t k = 0; k < single_exportlen; k++) {
+                hsecond[k] *= -cfg->unitinmm;
+            }
+
+            if (cfg->outputtype == otAdjointMuaMusp) {
+                for (size_t vox = 0; vox < (size_t)pure_voxels; vox++) {
+                    unsigned int medid = cfg->vol[vox] & 0xFF;
+                    float opscale = 0.f;
+
+                    if (medid < cfg->medianum) {
+                        float mus   = cfg->prop[medid].mus;
+                        float onemg = 1.f - cfg->prop[medid].g;
+
+                        if (mus > 0.f && onemg > 0.f) {
+                            opscale = 1.f / (3.f * onemg * onemg * mus * mus);
+                        }
+                    }
+
+                    for (unsigned int sd = 0; sd < Ns * Nd; sd++) {
+                        hsecond[vox + (size_t)sd * pure_voxels] *= opscale;
+
+                        if (isrf) {
+                            hsecond[vox + (size_t)sd * pure_voxels + adjointlen] *= opscale;
+                        }
+                    }
+                }
+            }
+
+            if (!isrf) {
+                memcpy(cfg->exportfield,              hmua,    adjointlen * sizeof(float));
+                memcpy(cfg->exportfield + adjointlen, hsecond, adjointlen * sizeof(float));
+            } else {
+                memcpy(cfg->exportfield,                   hmua,                 adjointlen * sizeof(float));
+                memcpy(cfg->exportfield + adjointlen,      hsecond,              adjointlen * sizeof(float));
+                memcpy(cfg->exportfield + 2 * adjointlen,  hmua + adjointlen,    adjointlen * sizeof(float));
+                memcpy(cfg->exportfield + 3 * adjointlen,  hsecond + adjointlen, adjointlen * sizeof(float));
+            }
+
+            free(hmua);
+            free(hsecond);
+        } else {
+            CUDA_ASSERT(cudaMemcpy(cfg->exportfield, gadjoint_tmp_cu, sizeof(float) * single_exportlen, cudaMemcpyDeviceToHost));
+            CUDA_ASSERT(cudaFree(gadjoint_tmp_cu));
+
+            float adj_scale = (cfg->outputtype == otAdjoint) ? -Vvox : -cfg->unitinmm;
+
+            for (size_t k = 0; k < single_exportlen; k++) {
+                cfg->exportfield[k] *= adj_scale;
+            }
+
+            if (cfg->outputtype == otAdjointMus || cfg->outputtype == otAdjointMusp) {
+                for (size_t vox = 0; vox < (size_t)pure_voxels; vox++) {
+                    unsigned int medid = cfg->vol[vox] & 0xFF;
+                    float opscale = 0.f;
+
+                    if (medid < cfg->medianum) {
+                        float mus   = cfg->prop[medid].mus;
+                        float onemg = 1.f - cfg->prop[medid].g;
+
+                        if (mus > 0.f && onemg > 0.f) {
+                            opscale = (cfg->outputtype == otAdjointMus)
+                                      ? 1.f / (3.f * onemg * mus * mus)
+                                      : 1.f / (3.f * onemg * onemg * mus * mus);
+                        }
+                    }
+
+                    for (unsigned int sd = 0; sd < Ns * Nd; sd++) {
+                        cfg->exportfield[vox + (size_t)sd * pure_voxels] *= opscale;
+
+                        if (isrf) {
+                            cfg->exportfield[vox + (size_t)sd * pure_voxels + adjointlen] *= opscale;
+                        }
+                    }
+                }
+            }
+
+            exportlen_adj = single_exportlen;
+        }
+
+        fieldlen = exportlen_adj;
+        MCX_FPRINTF(cfg->flog, "adjoint Jacobian computation complete : %d ms\n", GetTimeMillis() - tic);
     }
 
-    if (gdetpos) {
-        CUDA_ASSERT(cudaFree(gdetpos));
+#ifndef MCX_CONTAINER
+
+    if (cfg->issave2pt && cfg->parentid == mpStandalone) {
+        MCX_FPRINTF(cfg->flog, "saving data to file ... %zu %d\t", fieldlen, cfg->maxgate);
+        mcx_savedata(cfg->exportfield, fieldlen, cfg);
+        MCX_FPRINTF(cfg->flog, "saving data complete : %d ms\n\n", GetTimeMillis() - tic);
+        fflush(cfg->flog);
     }
 
-    if (gsrcpattern) {
-        CUDA_ASSERT(cudaFree(gsrcpattern));
+    if (cfg->issavedet && cfg->parentid == mpStandalone && cfg->exportdetected) {
+        cfg->his.unitinmm = cfg->unitinmm;
+        cfg->his.savedphoton = cfg->detectedcount;
+        cfg->his.totalphoton = cfg->nphoton;
+
+        if (cfg->issaveseed) {
+            cfg->his.seedbyte = sizeof(RandType) * RAND_BUF_LEN;
+        }
+
+        cfg->his.detected = cfg->detectedcount;
+        mcx_savedetphoton(cfg->exportdetected, cfg->seeddata, cfg->detectedcount, 0, cfg);
     }
 
-    if (gseeddata) {
-        CUDA_ASSERT(cudaFree(gseeddata));
+    if ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) && cfg->parentid == mpStandalone && cfg->exportdebugdata) {
+        cfg->his.colcount = MCX_DEBUG_REC_LEN;
+        cfg->his.savedphoton = cfg->debugdatalen;
+        cfg->his.totalphoton = cfg->nphoton;
+        cfg->his.detected = 0;
+        mcx_savedetphoton(cfg->exportdebugdata, NULL, cfg->debugdatalen, 0, cfg);
     }
 
-    if (gdebugdata) {
-        CUDA_ASSERT(cudaFree(gdebugdata));
-    }
-
-    if (gjumpdebug) {
-        CUDA_ASSERT(cudaFree(gjumpdebug));
-    }
-
-    if (ginvcdf) {
-        CUDA_ASSERT(cudaFree(ginvcdf));
-    }
-
-    if (gangleinvcdf) {
-        CUDA_ASSERT(cudaFree(gangleinvcdf));
-    }
-
-    if (gsmatrix) {
-        CUDA_ASSERT(cudaFree(gsmatrix));
-    }
-
-    if (greplayw) {
-        CUDA_ASSERT(cudaFree(greplayw));
-    }
-
-    if (greplaytof) {
-        CUDA_ASSERT(cudaFree(greplaytof));
-    }
-
-    if (greplaydetid) {
-        CUDA_ASSERT(cudaFree(greplaydetid));
-    }
-
-    if (greplayseed) {
-        CUDA_ASSERT(cudaFree(greplayseed));
-    }
-
-    cudaFreeHost((void*)progress);
-
-#ifndef MCX_DISABLE_CUDA_DEVICE_RESET
-    CUDA_ASSERT(cudaDeviceReset());
 #endif
-
-    /*=== Cleanup host ===*/
-    free(field);
-    free(Pdet);
-
-    if (seeddata) {
-        free(seeddata);
-    }
 
     if (gpu) {
         free(gpu);

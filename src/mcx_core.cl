@@ -250,7 +250,7 @@ inline float atomicadd(volatile __global float* address, const float value) {
  *==========================================================================*/
 
 #ifndef __NVCC__
-    #ifdef MCX_SAVE_DETECTORS
+    #if defined(MCX_SAVE_DETECTORS) || defined(MCX_SAVE_TRAJECTORY)
         #pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
     #endif
     #if defined(USE_HALF) || MED_TYPE==MEDIA_AS_F2H || MED_TYPE==MEDIA_AS_HALF || MED_TYPE==MEDIA_LABEL_HALF
@@ -663,7 +663,11 @@ typedef struct KernelParams {
 } MCXParam __attribute__ ((aligned (32)));
 
 enum TBoundary {bcUnknown, bcReflect, bcAbsorb, bcMirror, bcCyclic};
-enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS, otRF, otL, otRFmus, otWLTOF, otWPTOF};
+enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS, otRF, otL, otRFmus, otWLTOF, otWPTOF, otAdjoint,
+                  otAdjointDcoeff, otAdjointMus, otAdjointMusp, otAdjointMuaD, otAdjointMuaMusp
+                 };
+#define MCX_IS_ADJOINT_TYPE(t)      ((int)(t) >= (int)otAdjoint)
+#define MCX_IS_DUAL_ADJOINT_TYPE(t) ((int)(t) >= (int)otAdjointMuaD)
 
 #endif /* !__NVCC__ */
 
@@ -976,9 +980,9 @@ __device__ float hitgrid(float4* p0, float4* v, short4* id) {
     float4 fid = FLOAT4((float)id[0].x, (float)id[0].y, (float)id[0].z, (float)id[0].w);
     float4 gt  = FLOAT4(v[0].x > 0.f ? 1.f : 0.f, v[0].y > 0.f ? 1.f : 0.f, v[0].z > 0.f ? 1.f : 0.f, 0.f);
     htime = FLOAT4(
-                FABS((fid.x + gt.x - p0[0].x) * native_divide(1.f, v[0].x + (v[0].x == 0.f) * EPS)),
-                FABS((fid.y + gt.y - p0[0].y) * native_divide(1.f, v[0].y + (v[0].y == 0.f) * EPS)),
-                FABS((fid.z + gt.z - p0[0].z) * native_divide(1.f, v[0].z + (v[0].z == 0.f) * EPS)),
+                v[0].x == 0.f ? VERY_BIG : FABS((fid.x + gt.x - p0[0].x) * native_divide(1.f, v[0].x)),
+                v[0].y == 0.f ? VERY_BIG : FABS((fid.y + gt.y - p0[0].y) * native_divide(1.f, v[0].y)),
+                v[0].z == 0.f ? VERY_BIG : FABS((fid.z + gt.z - p0[0].z) * native_divide(1.f, v[0].z)),
                 0.f);
 #else
     htime = fabs(convert_float4_rtp(id[0]) - convert_float4_rtp(isgreater(v[0], ((float4)(0.f)))) - p0[0]);
@@ -1009,6 +1013,11 @@ __device__ void rotatevector2d(float4* v, float stheta, float ctheta, int is2d) 
     } else if (is2d == 3) {
         *((float4*)v) = FLOAT4(v[0].x * ctheta - v[0].y * stheta, v[0].x * stheta + v[0].y * ctheta, 0.f, v[0].w);
     }
+
+    float tmp0 = rsqrt(v[0].x * v[0].x + v[0].y * v[0].y + v[0].z * v[0].z);
+    v[0].x *= tmp0;
+    v[0].y *= tmp0;
+    v[0].z *= tmp0;
 
     GPUDEBUG(("new dir: %10.5e %10.5e %10.5e\n", v[0].x, v[0].y, v[0].z));
 }
@@ -1606,6 +1615,9 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
         rand_uniform01(t);
     }
 
+    /** save current source ID before ppath pointer is shifted; used for adjoint detector-source identification */
+    int cur_src_id = (GPU_PARAM(gcfg, extrasrclen) & (GPU_PARAM(gcfg, srcid) < 0)) ? (int)ppath[GPU_PARAM(gcfg, w0offset) - 1] : 0;
+
     ppath += GPU_PARAM(gcfg, partialdata);
 
     /**
@@ -2140,6 +2152,37 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
             }
         }
 
+        /**
+         * In adjoint mode, detector sources are launched as disk sources, overriding position.
+         * Condition: current source ID exceeds the count of original (non-detector) sources.
+         */
+        if ((MCX_IS_ADJOINT_TYPE(GPU_PARAM(gcfg, outputtype)) | (GPU_PARAM(gcfg, srcid) == -2)) &&
+                cur_src_id > (int)(GPU_PARAM(gcfg, extrasrclen) + 1 - (int)GPU_PARAM(gcfg, detnum))) {
+            float phi_adj = TWO_PI * rand_uniform01(t);
+            float sphi_adj, cphi_adj;
+            MCX_SINCOS(phi_adj, sphi_adj, cphi_adj);
+            float r_adj = MCX_MATHFUN(sqrt)(rand_uniform01(t)) * launchsrc->param1.x;
+
+            if (v[0].z > -1.f + EPS && v[0].z < 1.f - EPS) {
+                float tmp0_adj = 1.f - v[0].z * v[0].z;
+                float tmp1_adj = r_adj * rsqrt(tmp0_adj);
+                p[0].x += tmp1_adj * (v[0].x * v[0].z * cphi_adj - v[0].y * sphi_adj);
+                p[0].y += tmp1_adj * (v[0].y * v[0].z * cphi_adj + v[0].x * sphi_adj);
+                p[0].z -= tmp1_adj * tmp0_adj * cphi_adj;
+            } else {
+                p[0].x += r_adj * cphi_adj;
+                p[0].y += r_adj * sphi_adj;
+            }
+
+            *idx1d = (int)(FLOOR(p[0].z)) * gcfg->dimlen.y + (int)(FLOOR(p[0].y)) * gcfg->dimlen.x + (int)(FLOOR(p[0].x));
+
+            if (p[0].x < 0.f || p[0].y < 0.f || p[0].z < 0.f || p[0].x >= gcfg->maxidx.x || p[0].y >= gcfg->maxidx.y || p[0].z >= gcfg->maxidx.z) {
+                *mediaid = 0;
+            } else {
+                *mediaid = media[*idx1d];
+            }
+        }
+
 #ifndef INTERNAL_SOURCE
 
         if ((*mediaid & MED_MASK) == 0) {
@@ -2292,6 +2335,7 @@ __kernel void mcx_main_loop(
     uint   mediaidold = 0;
     uint   isdet = 0;
     float  w0, Lmove, pathlen = 0.f;
+    float  w_re = 0.f, w_im = 0.f, w0_re = 0.f, w0_im = 0.f; /**< complex photon weight for RF forward mode */
     MCXsp nuvox;
     nuvox.sv = 0;
     Stokes s = {1.f, 0.f, 0.f, 0.f};
@@ -2380,6 +2424,11 @@ __kernel void mcx_main_loop(
     isdet = mediaid & DET_MASK;
     mediaid &= MED_MASK;
 
+    if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
+        w_re = w0_re = p.w;
+        w_im = w0_im = 0.f;
+    }
+
     /*==========================================================================
      * Main photon propagation loop
      *==========================================================================*/
@@ -2459,17 +2508,17 @@ __kernel void mcx_main_loop(
 #endif
 
                         if (SV_CURLABEL(nuvox.sv) > 0) {
-                            ppath[SV_CURLABEL(nuvox.sv) - 1]++;
+                            ((__local uint*)ppath)[SV_CURLABEL(nuvox.sv) - 1]++;
                         }
 
 #ifdef __NVCC__
                     } else {
-                        ppath[(mediaid & MED_MASK) - 1]++;
+                        ((__local uint*)ppath)[(mediaid & MED_MASK) - 1]++;
                     }
 
 #endif
 #else
-                    ppath[(mediaid & MED_MASK) - 1]++;
+                    ((__local uint*)ppath)[(mediaid & MED_MASK) - 1]++;
 #endif
                 }
 
@@ -2684,7 +2733,20 @@ __kernel void mcx_main_loop(
         }
 
         /*--- Beer-Lambert attenuation ---*/
-        p.w *= MCX_MATHFUN(exp)(-prop.x * f.z);
+        if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
+            /* RF forward: w <- w * exp[-(mua + i*omega*n/c0) * ds] */
+            float rf_atten = MCX_MATHFUN(exp)(-prop.x * f.z);
+            float rf_cos, rf_sin;
+            MCX_SINCOS(GPU_PARAM(gcfg, omega) * prop.w * GPU_PARAM(gcfg, oneoverc0) * f.z, rf_sin, rf_cos);
+            float tmp_re = rf_atten * ( w_re * rf_cos + w_im * rf_sin);
+            float tmp_im = rf_atten * (-w_re * rf_sin + w_im * rf_cos);
+            w_re = tmp_re;
+            w_im = tmp_im;
+            p.w = MCX_MATHFUN(sqrt)(w_re * w_re + w_im * w_im); /**< magnitude for Russian roulette */
+        } else {
+            p.w *= MCX_MATHFUN(exp)(-prop.x * f.z);
+        }
+
         f.x -= slen;
         f.y += f.z * prop.w * GPU_PARAM(gcfg, oneoverc0);
 
@@ -2751,11 +2813,20 @@ __kernel void mcx_main_loop(
 
             if (GPU_PARAM(gcfg, save2pt) && f.y >= gcfg->twin0 && f.y < gcfg->twin1) {
                 float weight = 0.f;
+                float weight_im; /**< imaginary fluence deposit for RF forward mode; only valid when omega > 0 */
                 int tshift = (int)(FLOOR((f.y - gcfg->twin0) * GPU_PARAM(gcfg, Rtstep)));
 
-                if (GPU_PARAM(gcfg, outputtype) == otEnergy) {
+                if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
+                    /* RF forward: deposit = (w0-w) / (mua + i*omega*n/c0), complex division */
+                    float dw_re_rf = w0_re - w_re;
+                    float dw_im_rf = w0_im - w_im;
+                    float a_im_rf = GPU_PARAM(gcfg, omega) * prop.w * GPU_PARAM(gcfg, oneoverc0);
+                    float a_mag2_rf = prop.x * prop.x + a_im_rf * a_im_rf;
+                    weight    = (a_mag2_rf < EPS) ? (w0_re * pathlen) : (dw_re_rf * prop.x + dw_im_rf * a_im_rf) / a_mag2_rf;
+                    weight_im = (a_mag2_rf < EPS) ? (w0_im * pathlen) : (dw_im_rf * prop.x - dw_re_rf * a_im_rf) / a_mag2_rf;
+                } else if (GPU_PARAM(gcfg, outputtype) == otEnergy) {
                     weight = w0 - p.w;
-                } else if ((bool)(GPU_PARAM(gcfg, outputtype) == otFluence) || (bool)(GPU_PARAM(gcfg, outputtype) == otFlux)) {
+                } else if ((bool)(GPU_PARAM(gcfg, outputtype) == otFluence) || (bool)(GPU_PARAM(gcfg, outputtype) == otFlux) || MCX_IS_ADJOINT_TYPE(GPU_PARAM(gcfg, outputtype))) {
                     weight = (prop.x < EPS) ? (w0 * pathlen) : ((w0 - p.w) / (prop.x));
                 } else if (GPU_PARAM(gcfg, seed) == SEED_FROM_FILE) {
                     if (GPU_PARAM(gcfg, outputtype) == otJacobian | GPU_PARAM(gcfg, outputtype) == otRF | GPU_PARAM(gcfg, outputtype) == otWLTOF) {
@@ -2781,9 +2852,17 @@ __kernel void mcx_main_loop(
 
                 GPUDEBUG(("deposit to [%d] %e, w=%f\n", idx1dold, weight, p.w));
 
-                if (FABS(weight) > 0.f) {
+                if ((FABS(weight) > 0.f) | ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE))) {
 #ifndef USE_ATOMIC
                     field[idx1dold + tshift * gcfg->dimlen.z] += weight;
+
+                    if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
+                        field[idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w * 2] += weight_im;
+                    } else if ((GPU_PARAM(gcfg, outputtype) == otRF) & (GPU_PARAM(gcfg, omega) > 0.f)) {
+                        float rf_imag = -replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w - 1)] * pathlen * ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + 1];
+                        field[idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w] += rf_imag;
+                    }
+
 #else
 #if !defined(MCX_SRC_PATTERN) && !defined(MCX_SRC_PATTERN3D)
                     float oldval = atomicadd(field + idx1dold + tshift * gcfg->dimlen.z, weight);
@@ -2791,9 +2870,15 @@ __kernel void mcx_main_loop(
                     if (FABS(oldval) > MAX_ACCUM) {
                         atomicadd(field + idx1dold + tshift * gcfg->dimlen.z, ((oldval > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
                         atomicadd(field + idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w, ((oldval > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
-                    }
+                    } else if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
+                        /* RF forward: deposit Im part to 3rd quarter [2F..3F) using dimlen.w*2 offset */
+                        float oldval_im = atomicadd(field + idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w * 2, weight_im);
 
-                    if ((GPU_PARAM(gcfg, outputtype) == otRF) & (GPU_PARAM(gcfg, omega) > 0.f)) {
+                        if (FABS(oldval_im) > MAX_ACCUM) {
+                            atomicadd(field + idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w * 2, ((oldval_im > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
+                            atomicadd(field + idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w * 3, ((oldval_im > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
+                        }
+                    } else if ((GPU_PARAM(gcfg, outputtype) == otRF) & (GPU_PARAM(gcfg, omega) > 0.f)) {
                         float rf_imag = -replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w - 1)] * pathlen * ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + 1];
                         atomicadd(field + idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w, rf_imag);
                     }
@@ -2818,6 +2903,12 @@ __kernel void mcx_main_loop(
             }
 
             w0 = p.w;
+
+            if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
+                w0_re = w_re;
+                w0_im = w_im;
+            }
+
             pathlen = 0.f;
         } else {
             mediaid = mediaidold;
@@ -2902,6 +2993,12 @@ __kernel void mcx_main_loop(
 
             isdet = mediaid & DET_MASK;
             mediaid &= MED_MASK;
+
+            if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
+                w_re = w0_re = p.w;
+                w_im = w0_im = 0.f;
+            }
+
 #if MED_TYPE == MEDIA_2LABEL_SPLIT || defined(__NVCC__)
 #ifdef __NVCC__
 
@@ -2920,6 +3017,13 @@ __kernel void mcx_main_loop(
         if (FABS(p.w) < gcfg->minenergy) {
             if (rand_do_roulette(t) * ROULETTE_SIZE <= 1.f) {
                 p.w *= ROULETTE_SIZE;
+
+                if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
+                    w_re *= ROULETTE_SIZE;
+                    w_im *= ROULETTE_SIZE;
+                    w0_re *= ROULETTE_SIZE;
+                    w0_im *= ROULETTE_SIZE;
+                }
             } else {
                 GPUDEBUG(("relaunch after Russian roulette at idx=[%d] mediaid=[%d], ref=[%d]\n", idx1d, mediaid, GPU_PARAM(gcfg, doreflect)));
 
@@ -2932,6 +3036,12 @@ __kernel void mcx_main_loop(
 
                 isdet = mediaid & DET_MASK;
                 mediaid &= MED_MASK;
+
+                if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
+                    w_re = w0_re = p.w;
+                    w_im = w0_im = 0.f;
+                }
+
                 continue;
             }
         }
@@ -2969,6 +3079,12 @@ __kernel void mcx_main_loop(
 
                             isdet = mediaid & DET_MASK;
                             mediaid &= MED_MASK;
+
+                            if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
+                                w_re = w0_re = p.w;
+                                w_im = w0_im = 0.f;
+                            }
+
                             testint = 1;
                             continue;
                         }
@@ -3057,6 +3173,12 @@ __kernel void mcx_main_loop(
 
                             isdet = mediaid & DET_MASK;
                             mediaid &= MED_MASK;
+
+                            if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
+                                w_re = w0_re = p.w;
+                                w_im = w0_im = 0.f;
+                            }
+
                             continue;
                         }
 
@@ -3096,6 +3218,12 @@ __kernel void mcx_main_loop(
 
                                 isdet = mediaid & DET_MASK;
                                 mediaid &= MED_MASK;
+
+                                if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
+                                    w_re = w0_re = p.w;
+                                    w_im = w0_im = 0.f;
+                                }
+
 #ifdef __NVCC__
                                 testint = 1;
 #endif
@@ -3163,3 +3291,210 @@ __kernel void mcx_main_loop(
         *detectedphoton = GPU_PARAM(gcfg, maxdetphoton);
     }
 }
+
+/**
+ * Adjoint post-processing helpers and kernels.
+ * Only compiled when adjoint output type is requested (JIT flag -DMCX_ADJOINT_MODE).
+ */
+#ifdef MCX_ADJOINT_MODE
+
+/**
+ * @brief Device helper: sum all time gates for a given source/detector slot.
+ *
+ * Sums field[vox + (t + slot*maxgate)*dimxyz] over t in [0, maxgate).
+ */
+#ifdef __NVCC__
+__device__ static inline float mcx_cw_sum(const float* field, unsigned int vox, unsigned int slot,
+        unsigned int maxgate, unsigned int dimxyz) {
+#else
+static inline float mcx_cw_sum(__global const float* field, unsigned int vox, unsigned int slot,
+                               unsigned int maxgate, unsigned int dimxyz) {
+#endif
+    float sum = 0.f;
+
+    for (unsigned int t = 0; t < maxgate; t++) {
+        sum += field[vox + (size_t)(t + slot * maxgate) * dimxyz];
+    }
+
+    return sum;
+}
+
+/**
+ * @brief Device helper: 2nd-order finite-difference gradient in one direction (in voxel units, no 1/h factor).
+ *
+ * Uses 2nd-order central differences at interior points, and 2nd-order forward/backward
+ * one-sided differences at the domain edges (i==0 or i==N-1).
+ * For N==1 returns 0; for N==2 falls back to 1st-order differences.
+ */
+#ifdef __NVCC__
+__device__ static inline float mcx_fd_grad(const float* field, unsigned int vox, unsigned int slot,
+        unsigned int maxgate, unsigned int dimxyz,
+        unsigned int i, unsigned int N, unsigned int stride) {
+#else
+static inline float mcx_fd_grad(__global const float* field, unsigned int vox, unsigned int slot,
+                                unsigned int maxgate, unsigned int dimxyz,
+                                unsigned int i, unsigned int N, unsigned int stride) {
+#endif
+
+    if (N <= 1) {
+        return 0.f;
+    }
+
+    float f0 = mcx_cw_sum(field, vox, slot, maxgate, dimxyz);
+
+    if (i == 0) {
+        float fp1 = mcx_cw_sum(field, vox + stride, slot, maxgate, dimxyz);
+
+        if (N == 2) {
+            return fp1 - f0;
+        }
+
+        float fp2 = mcx_cw_sum(field, vox + 2 * stride, slot, maxgate, dimxyz);
+        return (-3.f * f0 + 4.f * fp1 - fp2) * 0.5f;
+    } else if (i == N - 1) {
+        float fm1 = mcx_cw_sum(field, vox - stride, slot, maxgate, dimxyz);
+
+        if (N == 2) {
+            return f0 - fm1;
+        }
+
+        float fm2 = mcx_cw_sum(field, vox - 2 * stride, slot, maxgate, dimxyz);
+        return (fm2 - 4.f * fm1 + 3.f * f0) * 0.5f;
+    } else {
+        float fp1 = mcx_cw_sum(field, vox + stride, slot, maxgate, dimxyz);
+        float fm1 = mcx_cw_sum(field, vox - stride, slot, maxgate, dimxyz);
+        return (fp1 - fm1) * 0.5f;
+    }
+}
+
+/**
+ * @brief Adjoint D-coefficient Jacobian kernel: ∇φ_src · ∇φ_det per voxel.
+ *
+ * For each voxel, computes J_D(s,d) = ∇φ_src · ∇φ_det in voxel units.
+ * For RF (complex) mode, gfield_im must be non-NULL and the complex dot product is computed:
+ *   Re(J_D) = ∇Re(φ_src)·∇Re(φ_det) − ∇Im(φ_src)·∇Im(φ_det)
+ *   Im(J_D) = ∇Re(φ_src)·∇Im(φ_det) + ∇Im(φ_src)·∇Re(φ_det)
+ */
+#ifdef __NVCC__
+__global__ void mcx_adjoint_dcoeff_kernel(float* gfield_re, float* gfield_im, float* gadjoint,
+        unsigned int dimxyz, unsigned int maxgate,
+        unsigned int Ns, unsigned int Nd,
+        unsigned int Nx, unsigned int Ny) {
+    unsigned int vox = blockIdx.x * blockDim.x + threadIdx.x;
+#else
+__kernel void mcx_adjoint_dcoeff_kernel(__global float* gfield_re, __global float* gfield_im,
+                                        __global float* gadjoint,
+                                        unsigned int dimxyz, unsigned int maxgate,
+                                        unsigned int Ns, unsigned int Nd,
+                                        unsigned int Nx, unsigned int Ny) {
+    unsigned int vox = get_global_id(0);
+#endif
+
+    if (vox >= dimxyz) {
+        return;
+    }
+
+    unsigned int Nxy = Nx * Ny;
+    unsigned int Nz  = dimxyz / Nxy;
+    unsigned int ix  = vox % Nx;
+    unsigned int iy  = (vox / Nx) % Ny;
+    unsigned int iz  = vox / Nxy;
+
+    size_t adjointlen = (size_t)dimxyz * Ns * Nd;
+
+    for (unsigned int s = 0; s < Ns; s++) {
+        float gsx_re = mcx_fd_grad(gfield_re, vox, s, maxgate, dimxyz, ix, Nx, 1);
+        float gsy_re = mcx_fd_grad(gfield_re, vox, s, maxgate, dimxyz, iy, Ny, Nx);
+        float gsz_re = mcx_fd_grad(gfield_re, vox, s, maxgate, dimxyz, iz, Nz, Nxy);
+        float gsx_im = 0.f, gsy_im = 0.f, gsz_im = 0.f;
+
+        if (gfield_im != 0) {
+            gsx_im = mcx_fd_grad(gfield_im, vox, s, maxgate, dimxyz, ix, Nx, 1);
+            gsy_im = mcx_fd_grad(gfield_im, vox, s, maxgate, dimxyz, iy, Ny, Nx);
+            gsz_im = mcx_fd_grad(gfield_im, vox, s, maxgate, dimxyz, iz, Nz, Nxy);
+        }
+
+        for (unsigned int d = 0; d < Nd; d++) {
+            float gdx_re = mcx_fd_grad(gfield_re, vox, Ns + d, maxgate, dimxyz, ix, Nx, 1);
+            float gdy_re = mcx_fd_grad(gfield_re, vox, Ns + d, maxgate, dimxyz, iy, Ny, Nx);
+            float gdz_re = mcx_fd_grad(gfield_re, vox, Ns + d, maxgate, dimxyz, iz, Nz, Nxy);
+
+            unsigned int out_idx = vox + (unsigned int)((size_t)(s * Nd + d) * dimxyz);
+            gadjoint[out_idx] = gsx_re * gdx_re + gsy_re * gdy_re + gsz_re * gdz_re;
+
+            if (gfield_im != 0) {
+                float gdx_im = mcx_fd_grad(gfield_im, vox, Ns + d, maxgate, dimxyz, ix, Nx, 1);
+                float gdy_im = mcx_fd_grad(gfield_im, vox, Ns + d, maxgate, dimxyz, iy, Ny, Nx);
+                float gdz_im = mcx_fd_grad(gfield_im, vox, Ns + d, maxgate, dimxyz, iz, Nz, Nxy);
+
+                gadjoint[out_idx] -= gsx_im * gdx_im + gsy_im * gdy_im + gsz_im * gdz_im;
+                gadjoint[out_idx + (unsigned int)(adjointlen)] =
+                    gsx_re * gdx_im + gsy_re * gdy_im + gsz_re * gdz_im
+                    + gsx_im * gdx_re + gsy_im * gdy_re + gsz_im * gdz_re;
+            }
+        }
+    }
+}
+
+/**
+ * @brief Adjoint Jacobian kernel: φ_src(r) × φ_det(r) per voxel.
+ *
+ * Integrates all time gates, then for each source-detector pair computes the
+ * (complex) product of CW fluences. For RF mode, gfield_im must be non-NULL.
+ *   Re(J) = Re(φ_src)*Re(φ_det) − Im(φ_src)*Im(φ_det)
+ *   Im(J) = Re(φ_src)*Im(φ_det) + Im(φ_src)*Re(φ_det)
+ */
+#ifdef __NVCC__
+__global__ void mcx_adjoint_kernel(float* gfield_re, float* gfield_im, float* gadjoint,
+                                   unsigned int dimxyz, unsigned int maxgate,
+                                   unsigned int Ns, unsigned int Nd) {
+    unsigned int vox = blockIdx.x * blockDim.x + threadIdx.x;
+#else
+__kernel void mcx_adjoint_kernel(__global float* gfield_re, __global float* gfield_im,
+                                 __global float* gadjoint,
+                                 unsigned int dimxyz, unsigned int maxgate,
+                                 unsigned int Ns, unsigned int Nd) {
+    unsigned int vox = get_global_id(0);
+#endif
+
+    if (vox >= dimxyz) {
+        return;
+    }
+
+    size_t adjointlen = (size_t)dimxyz * Ns * Nd;
+
+    for (unsigned int s = 0; s < Ns; s++) {
+        float cw_src_re = 0.f, cw_src_im = 0.f;
+
+        for (unsigned int t = 0; t < maxgate; t++) {
+            unsigned int idx = vox + (unsigned int)((size_t)(t + s * maxgate) * dimxyz);
+            cw_src_re += gfield_re[idx];
+
+            if (gfield_im != 0) {
+                cw_src_im += gfield_im[idx];
+            }
+        }
+
+        for (unsigned int d = 0; d < Nd; d++) {
+            float cw_det_re = 0.f, cw_det_im = 0.f;
+
+            for (unsigned int t = 0; t < maxgate; t++) {
+                unsigned int idx = vox + (unsigned int)((size_t)(t + (Ns + d) * maxgate) * dimxyz);
+                cw_det_re += gfield_re[idx];
+
+                if (gfield_im != 0) {
+                    cw_det_im += gfield_im[idx];
+                }
+            }
+
+            unsigned int out_idx = vox + (unsigned int)((size_t)(s * Nd + d) * dimxyz);
+            gadjoint[out_idx] = cw_src_re * cw_det_re - cw_src_im * cw_det_im;
+
+            if (gfield_im != 0) {
+                gadjoint[out_idx + (unsigned int)(adjointlen)] = cw_src_re * cw_det_im + cw_src_im * cw_det_re;
+            }
+        }
+    }
+}
+
+#endif /* MCX_ADJOINT_MODE */

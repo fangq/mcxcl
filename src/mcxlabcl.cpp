@@ -33,8 +33,16 @@
 #include "mex.h"
 #include "mcx_const.h"
 #include "mcx_utils.h"
-#include "mcx_host.h"
 #include "mcx_shapes.h"
+
+#if defined(USE_CUDA) && defined(USE_OPENCL)
+    #include "mcx_cu_host.h"
+    #include "mcx_host.h"
+#elif defined(USE_CUDA)
+    #include "mcx_cu_host.h"
+#else
+    #include "mcx_host.h"
+#endif
 
 #ifdef _OPENMP
     #include <omp.h>
@@ -95,8 +103,14 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
     dimtype    fielddim[6] = {0};
     int        errorflag = 0;
     int        threadid = 0;
-    cl_uint    workdev;
+#if defined(USE_CUDA) && !defined(USE_OPENCL)
+    int        workdev = 0;
+#elif defined(USE_OPENCL)
+    cl_uint    workdev = 0;
     cl_device_id devices[MAX_DEVICE];
+#else
+    int        workdev = 0;
+#endif
 
     const char*       outputtag[] = {"data"};
     const char*       datastruct[] = {"data", "stat", "dref", "prop"};
@@ -128,9 +142,15 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
             cfg.isgpuinfo = 3;
 
             try {
+#if defined(USE_CUDA) && defined(USE_OPENCL)
+                workdev = (cl_uint)mcx_list_cuda_gpu(&cfg, &gpuinfo);
+#elif defined(USE_CUDA)
+                workdev = mcx_list_cuda_gpu(&cfg, &gpuinfo);
+#else
                 mcx_list_gpu(&cfg, &workdev, NULL, &gpuinfo);
+#endif
             } catch (...) {
-                mexErrMsgTxt("OpenCL is not supported or not fully installed on your system");
+                mexErrMsgTxt("GPU backend is not supported or not fully installed on your system");
             }
 
             if (!workdev) {
@@ -143,7 +163,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
 
             plhs[0] = mxCreateStructMatrix(gpuinfo[0].devcount, 1, 15, gpuinfotag);
 
-            for (uint i = 0; i < workdev; i++) {
+            for (unsigned int i = 0; i < workdev; i++) {
                 mxSetField(plhs[0], i, "name", mxCreateString(gpuinfo[i].name));
                 SET_GPU_INFO(plhs[0], i, id);
                 SET_GPU_INFO(plhs[0], i, devcount);
@@ -221,6 +241,9 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
 
             /** Initialize cfg with default values first */
             mcx_initcfg(&cfg);
+#if defined(USE_CUDA) && !defined(USE_OPENCL)
+            cfg.compute = cbCUDA; /**< default to CUDA backend in CUDA-only builds */
+#endif
             detps = NULL;
 
             /** Read each struct element from input and set value to the cfg configuration */
@@ -250,7 +273,27 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
             }
 
             /** One must also choose one of the GPUs */
+#if defined(USE_CUDA) && defined(USE_OPENCL)
+
+            if (cfg.compute == cbCUDA) {
+                char saved_deviceid[MAX_DEVICE];
+                memcpy(saved_deviceid, cfg.deviceid, MAX_DEVICE);
+                workdev = (cl_uint)mcx_list_cuda_gpu(&cfg, &gpuinfo);
+                memcpy(cfg.deviceid, saved_deviceid, MAX_DEVICE);
+            } else {
+                mcx_list_gpu(&cfg, &workdev, devices, &gpuinfo);
+            }
+
+#elif defined(USE_CUDA)
+            {
+                char saved_deviceid[MAX_DEVICE];
+                memcpy(saved_deviceid, cfg.deviceid, MAX_DEVICE);
+                workdev = mcx_list_cuda_gpu(&cfg, &gpuinfo);
+                memcpy(cfg.deviceid, saved_deviceid, MAX_DEVICE);
+            }
+#else
             mcx_list_gpu(&cfg, &workdev, devices, &gpuinfo);
+#endif
 
             /** Validate all input fields, and warn incompatible inputs */
             mcx_validatecfg(&cfg, detps, dimdetps, seedbyte);
@@ -262,6 +305,28 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                 mexErrMsgTxt("No active GPU device found");
             }
 
+            /** For adjoint mode: append detectors as disk-shaped extra sources before exportfield allocation */
+            if ((MCX_IS_ADJOINT_TYPE(cfg.outputtype) || cfg.srcid == -2) && cfg.seed != SEED_FROM_FILE && cfg.detnum > 0 && cfg.detdir != NULL) {
+                unsigned int origextrasrclen = cfg.extrasrclen;
+                cfg.srcdata = (ExtraSrc*)realloc(cfg.srcdata, (cfg.extrasrclen + cfg.detnum) * sizeof(ExtraSrc));
+                memset(cfg.srcdata + cfg.extrasrclen, 0, cfg.detnum * sizeof(ExtraSrc));
+
+                for (unsigned int adi = 0; adi < cfg.detnum; adi++) {
+                    cfg.srcdata[origextrasrclen + adi].srcpos.x = cfg.detpos[adi].x;
+                    cfg.srcdata[origextrasrclen + adi].srcpos.y = cfg.detpos[adi].y;
+                    cfg.srcdata[origextrasrclen + adi].srcpos.z = cfg.detpos[adi].z;
+                    cfg.srcdata[origextrasrclen + adi].srcpos.w = 1.f;
+                    cfg.srcdata[origextrasrclen + adi].srcdir   = cfg.detdir[adi];
+                    cfg.srcdata[origextrasrclen + adi].srcparam1.x = cfg.detpos[adi].w;
+                }
+
+                cfg.extrasrclen += cfg.detnum;
+
+                if (MCX_IS_ADJOINT_TYPE(cfg.outputtype)) {
+                    cfg.srcid = -1;
+                }
+            }
+
             /** Initialize all buffers necessary to store the output variables */
             if (nlhs >= 1) {
                 int fieldlen = cfg.dim.x * cfg.dim.y * cfg.dim.z * (int)((cfg.tend - cfg.tstart) / cfg.tstep + 0.5) * cfg.srcnum;
@@ -270,13 +335,11 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                     fieldlen *= cfg.detnum;
                 }
 
-
-
-                if (cfg.replay.seed != NULL && (cfg.outputtype == otRF || cfg.outputtype == otRFmus)) {
+                if (((cfg.replay.seed != NULL && (cfg.outputtype == otRF || cfg.outputtype == otRFmus)) || (cfg.omega > 0.f && cfg.seed != SEED_FROM_FILE))) {
                     fieldlen *= 2;
                 }
 
-                if (cfg.extrasrclen && cfg.srcid == -1) {
+                if (cfg.extrasrclen && cfg.srcid < 0) {
                     fieldlen *= (cfg.extrasrclen + 1);
                 }
 
@@ -307,7 +370,18 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                 /** Enclose all simulation calls inside a try/catch construct for exception handling */
                 try {
                     /** Call the main simulation host function to start the simulation */
+#if defined(USE_CUDA) && defined(USE_OPENCL)
+                    if (cfg.compute == cbCUDA) {
+                        mcx_run_cuda(&cfg, NULL, NULL);
+                    } else {
+                        mcx_run_simulation(&cfg, NULL, NULL);
+                    }
+
+#elif defined(USE_CUDA)
+                    mcx_run_cuda(&cfg, NULL, NULL);
+#else
                     mcx_run_simulation(&cfg, NULL, NULL);
+#endif
 
                 } catch (const char* err) {
                     mexPrintf("Error from thread (%d): %s\n", threadid, err);
@@ -407,13 +481,25 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                     fielddim[4] = cfg.detnum;
                 }
 
-                if (cfg.replay.seed != NULL && (cfg.outputtype == otRF || cfg.outputtype == otRFmus)) {
+                if (((cfg.replay.seed != NULL && (cfg.outputtype == otRF || cfg.outputtype == otRFmus)) || (cfg.omega > 0.f && cfg.seed != SEED_FROM_FILE))) {
                     fielddim[5] = 2;
                 }
 
-
-                if (cfg.extrasrclen && cfg.srcid == -1) {
+                if (cfg.extrasrclen && cfg.srcid < 0) {
                     fielddim[5] *= (cfg.extrasrclen + 1);
+                }
+
+                /** adjoint output: override dims to [Nx, Ny, Nz, Ns*Nd] or [Nx, Ny, Nz, Ns*Nd, 2] for dual */
+                if (MCX_IS_ADJOINT_TYPE(cfg.outputtype) && cfg.seed != SEED_FROM_FILE && cfg.detdir != NULL) {
+                    unsigned int Ns = cfg.extrasrclen + 1 - cfg.detnum;
+                    unsigned int Nd = cfg.detnum;
+                    int isrf = (cfg.omega > 0.f) ? 1 : 0;
+                    fielddim[0] = cfg.dim.x;
+                    fielddim[1] = cfg.dim.y;
+                    fielddim[2] = cfg.dim.z;
+                    fielddim[3] = Ns * Nd;
+                    fielddim[4] = MCX_IS_DUAL_ADJOINT_TYPE(cfg.outputtype) ? 2 : 1;
+                    fielddim[5] = isrf ? 2 : 1;
                 }
 
                 fieldlen = fielddim[0] * fielddim[1] * fielddim[2] * fielddim[3] * fielddim[4] * fielddim[5];
@@ -450,7 +536,39 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                            fieldlen * sizeof(float));
                 }
 
-                free(cfg.exportfield);
+                /** RF forward: convert [Re_vol, Im_vol] (dim5=2) to MATLAB complex */
+                if (cfg.omega > 0.f && cfg.seed != SEED_FROM_FILE && cfg.exportfield && cfg.issave2pt) {
+                    size_t halflen = (size_t)fielddim[0] * fielddim[1] * fielddim[2] * fielddim[3] * fielddim[4];
+                    dimtype cdim[5] = {fielddim[0], fielddim[1], fielddim[2], fielddim[3], fielddim[4]};
+                    int ndim = 4 + (fielddim[4] > 1);
+                    mxArray* carr = mxCreateNumericArray(ndim, cdim, mxSINGLE_CLASS, mxCOMPLEX);
+#if MX_HAS_INTERLEAVED_COMPLEX
+                    mxComplexSingle* cptr = mxGetComplexSingles(carr);
+
+                    if (cptr) {
+                        for (size_t kk = 0; kk < halflen; kk++) {
+                            cptr[kk].real = cfg.exportfield[kk];
+                            cptr[kk].imag = cfg.exportfield[halflen + kk];
+                        }
+                    }
+
+#else
+                    float* pr = (float*)mxGetData(carr);
+                    float* pi = (float*)mxGetImagData(carr);
+
+                    if (pr && pi) {
+                        memcpy(pr, cfg.exportfield, halflen * sizeof(float));
+                        memcpy(pi, cfg.exportfield + halflen, halflen * sizeof(float));
+                    }
+
+#endif
+                    mxSetFieldByNumber(plhs[0], jstruct, 0, carr);
+                }
+
+                if (cfg.exportfield) {
+                    free(cfg.exportfield);
+                }
+
                 cfg.exportfield = NULL;
 
                 /** also return the run-time info in outut.runtime */
@@ -487,7 +605,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                 /** return the relative workload between multiple GPUs */
                 val = mxCreateDoubleMatrix(1, workdev, mxREAL);
 
-                for (uint i = 0; i < workdev; i++) {
+                for (unsigned int i = 0; i < workdev; i++) {
                     *(mxGetPr(val) + i) = cfg.workload[i];
                 }
 
@@ -952,6 +1070,32 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
             }
 
         printf("mcx.detnum=%d;\n", cfg->detnum);
+    } else if (strcmp(name, "detdir") == 0) {
+        arraydim = mxGetDimensions(item);
+
+        if (arraydim[0] > 0 && arraydim[1] != 4) {
+            mexErrMsgTxt("the 'detdir' field must have 4 columns (vx,vy,vz,focallength)");
+        }
+
+        if (cfg->detnum > 0 && arraydim[0] != cfg->detnum) {
+            mexErrMsgTxt("the number of rows in 'detdir' must match 'detpos'");
+        }
+
+        double* val = mxGetPr(item);
+
+        if (cfg->detdir) {
+            free(cfg->detdir);
+        }
+
+        cfg->detdir = (float4*)malloc(arraydim[0] * sizeof(float4));
+        memset(cfg->detdir, 0, arraydim[0] * sizeof(float4));
+
+        for (j = 0; j < 4; j++)
+            for (uint i = 0; i < arraydim[0]; i++) {
+                ((float*)(&cfg->detdir[i]))[j] = val[j * arraydim[0] + i];
+            }
+
+        printf("mcx.detdir set with %d detectors\n", (int)arraydim[0]);
     } else if (strcmp(name, "polprop") == 0) {
         if (mxGetNumberOfDimensions(item) != 2) {
             mexErrMsgTxt("the 'polprop' field must a 2D array");
@@ -1085,7 +1229,9 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
         printf("mcx.srctype='%s';\n", strtypestr);
     } else if (strcmp(name, "outputtype") == 0) {
         int len = mxGetNumberOfElements(item);
-        const char* outputtype[] = {"flux", "fluence", "energy", "jacobian", "nscat", "wl", "wp", "wm", "length", "rf", "rfmus", "wltof", "wptof", ""};
+        const char* outputtype[] = {"flux", "fluence", "energy", "jacobian", "nscat", "wl", "wp", "wm", "rf", "length", "rfmus", "wltof", "wptof", "adjoint",
+                                    "adjoint_dcoeff", "adjoint_mus", "adjoint_musp", "adjoint_mua_d", "adjoint_mua_musp", ""
+                                   };
         char outputstr[MAX_SESSION_LENGTH] = {'\0'};
 
         if (!mxIsChar(item) || len == 0) {
@@ -1311,6 +1457,39 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
             if (cfg->deviceid[i] == '0') {
                 cfg->deviceid[i] = '\0';
             }
+    } else if (strcmp(name, "compute") == 0) {
+        int len = mxGetNumberOfElements(item);
+        const char* computebackend[] = {"opencl", "cuda", ""};
+
+        if (mxIsChar(item)) {
+            char computestr[MAX_SESSION_LENGTH] = {'\0'};
+
+            if (len == 0) {
+                mexErrMsgTxt("the 'compute' field must be a non-empty string");
+            }
+
+            if (len >= MAX_SESSION_LENGTH) {
+                mexErrMsgTxt("the 'compute' field is too long");
+            }
+
+            int status = mxGetString(item, computestr, MAX_SESSION_LENGTH);
+
+            if (status != 0) {
+                mexWarnMsgTxt("not enough space. string is truncated.");
+            }
+
+            cfg->compute = mcx_keylookup(computestr, computebackend);
+
+            if (cfg->compute == -1) {
+                mexErrMsgTxt("the specified compute backend is not supported");
+            }
+
+            printf("mcx.compute='%s';\n", computestr);
+        } else {
+            double* val = mxGetPr(item);
+            cfg->compute = (int)val[0];
+            printf("mcx.compute=%d;\n", cfg->compute);
+        }
     } else if (strcmp(name, "workload") == 0) {
         double* val = mxGetPr(item);
         arraydim = mxGetDimensions(item);
