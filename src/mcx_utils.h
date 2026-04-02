@@ -55,7 +55,11 @@
 #define NII_HEADER_SIZE 352
 #define GL_RGBA32F 0x8814
 
-enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS, otRF, otL, otRFmus, otWLTOF, otWPTOF};   /**< types of output */
+enum TOutputType {otFlux, otFluence, otEnergy, otJacobian, otWP, otDCS, otRF, otL, otRFmus, otWLTOF, otWPTOF, otAdjoint,
+                  otAdjointDcoeff, otAdjointMus, otAdjointMusp, otAdjointMuaD, otAdjointMuaMusp
+                 };   /**< types of output */
+#define MCX_IS_ADJOINT_TYPE(t)      ((int)(t) >= (int)otAdjoint)      /**< true for all adjoint-family output types */
+#define MCX_IS_DUAL_ADJOINT_TYPE(t) ((int)(t) >= (int)otAdjointMuaD)  /**< true for dual-Jacobian output types */
 enum TMCXParent  {mpStandalone, mpMATLAB, mpPython};                   /**< whether MCX is run in binary or mex mode */
 enum TOutputFormat {ofMC2, ofNifti, ofAnalyze, ofUBJSON, ofTX3, ofJNifti, ofBJNifti};           /**< output data format */
 enum TDeviceVendor {dvUnknown, dvNVIDIA, dvAMD, dvIntel, dvIntelGPU, dvAppleCPU, dvAppleGPU, dvArmGPU};
@@ -186,6 +190,7 @@ typedef struct MCXConfig {
     Medium* prop;                 /**<optical property mapping table*/
     POLMedium* polprop;           /**<absorption and scatterer mapping table for polarized photon simulation*/
     float4* detpos;               /**<detector positions and radius, overwrite detradius*/
+    float4* detdir;               /**<detector normal direction and focal length (for adjoint output type)*/
     float4* smatrix;              /**<scattering Mueller matrix */
 
     unsigned int maxgate;         /**<simultaneous recording gates*/
