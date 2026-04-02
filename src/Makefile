@@ -50,7 +50,7 @@ DOXYCFG=mcx_doxygen.cfg
 #################################################################
 
 # Common files (shared by all backends)
-FILES_COMMON=mcx_utils mcx_tictoc mcxcl mcx_shapes mcx_neurojson mcx_mie cjson/cJSON ubj/ubjw
+FILES_COMMON=mcx_utils mcx_lang mcx_tictoc mcxcl mcx_shapes mcx_neurojson mcx_mie cjson/cJSON ubj/ubjw
 
 # OpenCL-specific host code
 FILES_OCL=mcx_host
@@ -237,19 +237,19 @@ ifneq (,$(filter $(MAKECMDGOALS),mex oct cudamex cudaoct trinitymex trinityoct))
 endif
 
 ifeq ($(MAKECMDGOALS),mex)
-  FILES=mcx_host mcx_utils mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
+  FILES=mcx_host mcx_utils mcx_lang mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
   ZMATLIB=
   USERLINKOPT=
 endif
 
 ifeq ($(MAKECMDGOALS),oct)
-  FILES=mcx_host mcx_utils mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
+  FILES=mcx_host mcx_utils mcx_lang mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
   ZMATLIB=
   USERLINKOPT=
 endif
 
 ifeq ($(MAKECMDGOALS),cudamex)
-  FILES=mcx_utils mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
+  FILES=mcx_utils mcx_lang mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
   CUFILES=mcx_cu_host
   CUOBJS=$(addsuffix $(OBJSUFFIX), $(CUFILES))
   ZMATLIB=
@@ -257,7 +257,7 @@ ifeq ($(MAKECMDGOALS),cudamex)
 endif
 
 ifeq ($(MAKECMDGOALS),cudaoct)
-  FILES=mcx_utils mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
+  FILES=mcx_utils mcx_lang mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
   CUFILES=mcx_cu_host
   CUOBJS=$(addsuffix $(OBJSUFFIX), $(CUFILES))
   ZMATLIB=
@@ -265,7 +265,7 @@ ifeq ($(MAKECMDGOALS),cudaoct)
 endif
 
 ifeq ($(MAKECMDGOALS),trinitymex)
-  FILES=mcx_host mcx_utils mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
+  FILES=mcx_host mcx_utils mcx_lang mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
   CUFILES=mcx_cu_host
   CUOBJS=$(addsuffix $(OBJSUFFIX), $(CUFILES))
   ZMATLIB=
@@ -273,7 +273,7 @@ ifeq ($(MAKECMDGOALS),trinitymex)
 endif
 
 ifeq ($(MAKECMDGOALS),trinityoct)
-  FILES=mcx_host mcx_utils mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
+  FILES=mcx_host mcx_utils mcx_lang mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
   CUFILES=mcx_cu_host
   CUOBJS=$(addsuffix $(OBJSUFFIX), $(CUFILES))
   ZMATLIB=
