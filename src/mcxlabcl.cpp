@@ -163,7 +163,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
 
             plhs[0] = mxCreateStructMatrix(gpuinfo[0].devcount, 1, 15, gpuinfotag);
 
-            for (unsigned int i = 0; i < workdev; i++) {
+            for (int i = 0; i < (int)workdev; i++) {
                 mxSetField(plhs[0], i, "name", mxCreateString(gpuinfo[i].name));
                 SET_GPU_INFO(plhs[0], i, id);
                 SET_GPU_INFO(plhs[0], i, devcount);
@@ -472,6 +472,8 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
             /** if the 1st output presents, output the fluence/energy-deposit volume data */
             if (nlhs >= 1) {
                 int fieldlen;
+                int isadjoint = MCX_IS_ADJOINT_TYPE(cfg.outputtype) && cfg.seed != SEED_FROM_FILE && cfg.detdir != NULL;
+
                 fielddim[0] = cfg.srcnum * cfg.dim.x;
                 fielddim[1] = cfg.dim.y;
                 fielddim[2] = cfg.dim.z;
@@ -487,19 +489,6 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
 
                 if (cfg.extrasrclen && cfg.srcid < 0) {
                     fielddim[5] *= (cfg.extrasrclen + 1);
-                }
-
-                /** adjoint output: override dims to [Nx, Ny, Nz, Ns*Nd] or [Nx, Ny, Nz, Ns*Nd, 2] for dual */
-                if (MCX_IS_ADJOINT_TYPE(cfg.outputtype) && cfg.seed != SEED_FROM_FILE && cfg.detdir != NULL) {
-                    unsigned int Ns = cfg.extrasrclen + 1 - cfg.detnum;
-                    unsigned int Nd = cfg.detnum;
-                    int isrf = (cfg.omega > 0.f) ? 1 : 0;
-                    fielddim[0] = cfg.dim.x;
-                    fielddim[1] = cfg.dim.y;
-                    fielddim[2] = cfg.dim.z;
-                    fielddim[3] = Ns * Nd;
-                    fielddim[4] = MCX_IS_DUAL_ADJOINT_TYPE(cfg.outputtype) ? 2 : 1;
-                    fielddim[5] = isrf ? 2 : 1;
                 }
 
                 fieldlen = fielddim[0] * fielddim[1] * fielddim[2] * fielddim[3] * fielddim[4] * fielddim[5];
@@ -571,6 +560,103 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
 
                 cfg.exportfield = NULL;
 
+                /** adjoint Jacobian: return in separate named fields (flux.jmua, flux.jd, etc.) */
+                if (isadjoint && cfg.exportjacob) {
+                    unsigned int Ns = cfg.extrasrclen + 1 - cfg.detnum;
+                    unsigned int Nd = cfg.detnum;
+                    int nsrcpairs   = (int)(Ns * Nd);
+                    int isdual      = MCX_IS_DUAL_ADJOINT_TYPE(cfg.outputtype);
+                    int isrf        = (cfg.omega > 0.f) ? 1 : 0;
+                    size_t adjlen   = (size_t)cfg.dim.x * cfg.dim.y * cfg.dim.z * nsrcpairs;
+                    mxComplexity jcplx = isrf ? mxCOMPLEX : mxREAL;
+
+                    dimtype jdim[4] = {cfg.dim.x, cfg.dim.y, cfg.dim.z, (dimtype)nsrcpairs};
+
+                    const char* jname1 = "jmua";
+                    const char* jname2 = "jd";
+
+                    switch (cfg.outputtype) {
+                        case otAdjoint:
+                            jname1 = "jmua";
+                            break;
+
+                        case otAdjointDcoeff:
+                            jname1 = "jd";
+                            break;
+
+                        case otAdjointMus:
+                            jname1 = "jmus";
+                            break;
+
+                        case otAdjointMusp:
+                            jname1 = "jmusp";
+                            break;
+
+                        case otAdjointMuaD:
+                            jname1 = "jmua";
+                            jname2 = "jd";
+                            break;
+
+                        case otAdjointMuaMusp:
+                            jname1 = "jmua";
+                            jname2 = "jmusp";
+                            break;
+
+                        default:
+                            break;
+                    }
+
+                    auto add_jac_field = [&](const char* fname, float * re_data, float * im_data) {
+                        if (mxGetFieldNumber(plhs[0], fname) < 0) {
+                            mxAddField(plhs[0], fname);
+                        }
+
+                        mxArray* jfield = mxCreateNumericArray(4, jdim, mxSINGLE_CLASS, jcplx);
+
+                        if (!isrf) {
+                            memcpy((float*)mxGetData(jfield), re_data, adjlen * sizeof(float));
+                        } else {
+#if MX_HAS_INTERLEAVED_COMPLEX
+                            mxComplexSingle* cptr = mxGetComplexSingles(jfield);
+
+                            if (cptr) {
+                                for (size_t ii = 0; ii < adjlen; ii++) {
+                                    cptr[ii].real = re_data[ii];
+                                    cptr[ii].imag = im_data[ii];
+                                }
+                            }
+
+#else
+                            memcpy((float*)mxGetData(jfield), re_data, adjlen * sizeof(float));
+                            float* jpi = (float*)mxGetImagData(jfield);
+
+                            if (jpi) {
+                                memcpy(jpi, im_data, adjlen * sizeof(float));
+                            }
+
+#endif
+                        }
+
+                        mxSetField(plhs[0], jstruct, fname, jfield);
+                    };
+
+                    /* exportjacob layout: CW non-dual:[re1]; RF non-dual:[re1,im1];
+                     * CW dual:[re1,re2]; RF dual:[re1,re2,im1,im2] each of size adjlen */
+                    float* re1 = cfg.exportjacob;
+                    float* re2 = isdual               ? cfg.exportjacob + adjlen         : NULL;
+                    float* im1 = isrf                 ? cfg.exportjacob + (isdual ? 2 : 1) * adjlen : NULL;
+                    float* im2 = (isrf && isdual)     ? cfg.exportjacob + 3 * adjlen     : NULL;
+
+                    add_jac_field(jname1, re1, im1);
+
+                    if (isdual) {
+                        add_jac_field(jname2, re2, im2);
+                    }
+
+                    free(cfg.exportjacob);
+                    cfg.exportjacob = NULL;
+                }
+
                 /** also return the run-time info in outut.runtime */
                 mxArray* stat = mxCreateStructMatrix(1, 1, 7, statstruct);
                 mxArray* val = mxCreateDoubleMatrix(1, 1, mxREAL);
@@ -605,7 +691,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                 /** return the relative workload between multiple GPUs */
                 val = mxCreateDoubleMatrix(1, workdev, mxREAL);
 
-                for (unsigned int i = 0; i < workdev; i++) {
+                for (int i = 0; i < (int)workdev; i++) {
                     *(mxGetPr(val) + i) = cfg.workload[i];
                 }
 

@@ -50,11 +50,12 @@
     #include "mcx_core.clh"
 #endif
 
-#ifndef MCX_CONTAINER
-
+/**
+ * Macro to load JSON keys
+ */
 #define FIND_JSON_KEY(id,idfull,parent,fallback,val) \
     ((tmp=cJSON_GetObjectItem(parent,id))==0 ? \
-     ((tmp=cJSON_GetObjectItem(root,idfull))==0 ? fallback : tmp->val) \
+     ((idfull==NULL || (tmp=cJSON_GetObjectItem(root,idfull))==0) ? fallback : tmp->val) \
      : tmp->val)
 
 #define FIND_JSON_OBJ(id,idfull,parent) \
@@ -62,14 +63,16 @@
      ((tmp=cJSON_GetObjectItem(root,idfull))==0 ? NULL : tmp) \
      : tmp)
 
-#define UBJ_WRITE_KEY(ctx, key,  type, val)    {ubjw_write_key( (ctx), (key)); ubjw_write_##type((ctx), (val));}
-#define UBJ_WRITE_ARRAY(ctx, type, nlen, val)  {ubjw_write_buffer( (ctx), (uint8_t*)(val), (UBJ_TYPE)(JDB_##type), (nlen));}
+#ifndef MCX_CONTAINER
 
-#define ubjw_write_single ubjw_write_float32
-#define ubjw_write_double ubjw_write_float64
-#define ubjw_write_uint16 ubjw_write_int16
-#define ubjw_write_uint32 ubjw_write_int32
-#define ubjw_write_uint64 ubjw_write_int64
+    #define UBJ_WRITE_KEY(ctx, key,  type, val)    {ubjw_write_key( (ctx), (key)); ubjw_write_##type((ctx), (val));}
+    #define UBJ_WRITE_ARRAY(ctx, type, nlen, val)  {ubjw_write_buffer( (ctx), (uint8_t*)(val), (UBJ_TYPE)(JDB_##type), (nlen));}
+
+    #define ubjw_write_single ubjw_write_float32
+    #define ubjw_write_double ubjw_write_float64
+    #define ubjw_write_uint16 ubjw_write_int16
+    #define ubjw_write_uint32 ubjw_write_int32
+    #define ubjw_write_uint64 ubjw_write_int64
 
 #endif
 
@@ -286,6 +289,7 @@ void mcx_initcfg(Config* cfg) {
     cfg->issrcfrom0 = 0;
 
     cfg->exportfield = NULL;
+    cfg->exportjacob = NULL;
     cfg->exportdetected = NULL;
     cfg->exportdebugdata = NULL;
     cfg->maxjumpdebug = 10000000;
@@ -424,6 +428,11 @@ void mcx_clearcfg(Config* cfg) {
 
     if (cfg->exportfield) {
         free(cfg->exportfield);
+    }
+
+    if (cfg->exportjacob) {
+        free(cfg->exportjacob);
+        cfg->exportjacob = NULL;
     }
 
     if (cfg->exportdetected) {

@@ -1515,7 +1515,12 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             clReleaseMemObject(gfield_im);
         }
 
-        cfg->exportfield = (float*)realloc(cfg->exportfield, sizeof(float) * exportlen_adj);
+        /* Allocate separate Jacobian buffer; exportfield retains the normalized forward fluence */
+        if (cfg->exportjacob) {
+            free(cfg->exportjacob);
+        }
+
+        cfg->exportjacob = (float*)malloc(sizeof(float) * exportlen_adj);
 
         if (isdual) {
             hmua    = (float*)malloc(sizeof(float) * single_exportlen);
@@ -1558,25 +1563,25 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             }
 
             if (!isrf) {
-                memcpy(cfg->exportfield,              hmua,    adjointlen * sizeof(float));
-                memcpy(cfg->exportfield + adjointlen, hsecond, adjointlen * sizeof(float));
+                memcpy(cfg->exportjacob,              hmua,    adjointlen * sizeof(float));
+                memcpy(cfg->exportjacob + adjointlen, hsecond, adjointlen * sizeof(float));
             } else {
-                memcpy(cfg->exportfield,                   hmua,                 adjointlen * sizeof(float));
-                memcpy(cfg->exportfield + adjointlen,      hsecond,              adjointlen * sizeof(float));
-                memcpy(cfg->exportfield + 2 * adjointlen,  hmua + adjointlen,    adjointlen * sizeof(float));
-                memcpy(cfg->exportfield + 3 * adjointlen,  hsecond + adjointlen, adjointlen * sizeof(float));
+                memcpy(cfg->exportjacob,                   hmua,                 adjointlen * sizeof(float));
+                memcpy(cfg->exportjacob + adjointlen,      hsecond,              adjointlen * sizeof(float));
+                memcpy(cfg->exportjacob + 2 * adjointlen,  hmua + adjointlen,    adjointlen * sizeof(float));
+                memcpy(cfg->exportjacob + 3 * adjointlen,  hsecond + adjointlen, adjointlen * sizeof(float));
             }
 
             free(hmua);
             free(hsecond);
         } else {
-            OCL_ASSERT(clEnqueueReadBuffer(mcxqueue[0], gadjoint_tmp, CL_TRUE, 0, sizeof(float) * single_exportlen, cfg->exportfield, 0, NULL, NULL));
+            OCL_ASSERT(clEnqueueReadBuffer(mcxqueue[0], gadjoint_tmp, CL_TRUE, 0, sizeof(float) * single_exportlen, cfg->exportjacob, 0, NULL, NULL));
             clReleaseMemObject(gadjoint_tmp);
 
             float adj_scale = (cfg->outputtype == otAdjoint) ? -Vvox : -cfg->unitinmm;
 
             for (size_t k = 0; k < single_exportlen; k++) {
-                cfg->exportfield[k] *= adj_scale;
+                cfg->exportjacob[k] *= adj_scale;
             }
 
             if (cfg->outputtype == otAdjointMus || cfg->outputtype == otAdjointMusp) {
@@ -1596,19 +1601,16 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                     }
 
                     for (unsigned int sd = 0; sd < Ns * Nd; sd++) {
-                        cfg->exportfield[vox + (size_t)sd * pure_voxels] *= opscale;
+                        cfg->exportjacob[vox + (size_t)sd * pure_voxels] *= opscale;
 
                         if (isrf) {
-                            cfg->exportfield[vox + (size_t)sd * pure_voxels + adjointlen] *= opscale;
+                            cfg->exportjacob[vox + (size_t)sd * pure_voxels + adjointlen] *= opscale;
                         }
                     }
                 }
             }
-
-            exportlen_adj = single_exportlen;
         }
 
-        fieldlen = exportlen_adj;
         MCX_FPRINTF(cfg->flog, "adjoint Jacobian computation complete : %d ms\n", GetTimeMillis() - tic);
     }
 

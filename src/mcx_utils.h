@@ -252,6 +252,7 @@ typedef struct MCXConfig {
     char deviceid[MAX_DEVICE];
     float workload[MAX_DEVICE];
     float* exportfield;          /**<memory buffer when returning the flux to external programs such as matlab*/
+    float* exportjacob;          /**<memory buffer for adjoint Jacobian output (separate from forward fluence in exportfield)*/
     float* exportdetected;       /**<memory buffer when returning the partial length info to external programs such as matlab*/
     unsigned int debuglevel;     /**<a flag to control the printing of the debug information*/
     char faststep;               /**<1 use tMCimg-like approximated photon stepping (obsolete) */
