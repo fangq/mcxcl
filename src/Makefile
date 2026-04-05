@@ -1,23 +1,16 @@
 #################################################################
-#  Makefile for Monte Carlo eXtreme (MCX) - Dual Backend
+#  Makefile for Monte Carlo eXtreme - OpenCL (MCXCL)
 #  Qianqian Fang <q.fang at neu.edu>
 #  2009/04/02
 #
 #  Build targets:
-#    make           - OpenCL only (default, same as original mcxcl)
-#    make cuda      - CUDA only (via nvcc, no OpenCL dependency)
-#    make trinity   - Both OpenCL + CUDA backends in one binary
+#    make           - OpenCL binary (default)
 #    make mex       - MATLAB mex (OpenCL)
-#    make cudamex   - MATLAB mex (CUDA)
-#    make trinitymex - MATLAB mex (both backends)
 #    make oct       - Octave mex (OpenCL)
-#    make cudaoct   - Octave mex (CUDA)
-#    make trinityoct - Octave mex (both backends)
 #################################################################
 
 #CXX=g++
 AR=g++
-CUDACC=nvcc
 IOCC=ioc64
 MEX=mex
 DOXY=doxygen
@@ -27,7 +20,6 @@ OUTPUT_DIR=../bin
 DOCDIR=../doc
 INCLUDEDIRS=-Izmat -Izmat/easylzma -Iubj
 
-CUCCOPT:=-use_fast_math -Xptxas -O3,-v
 CCOPT=-g -pedantic -Wall -O3 -DUSE_OS_TIMER -DCL_SILENCE_DEPRECATION
 CPPOPT:=$(CCOPT) -Wno-variadic-macros
 CCOPT+=-std=c99
@@ -49,30 +41,21 @@ DOXYCFG=mcx_doxygen.cfg
 # Source file lists
 #################################################################
 
-# Common files (shared by all backends)
+# Common files
 FILES_COMMON=mcx_utils mcx_lang mcx_tictoc mcxcl mcx_shapes mcx_neurojson mcx_mie cjson/cJSON ubj/ubjw
 
 # OpenCL-specific host code
 FILES_OCL=mcx_host
 
-# CUDA-specific host code (compiled by nvcc)
-FILES_CUDA=mcx_cu_host
-
-# The OpenCL kernel to be embedded (mcx_gpu_compat.h is already merged into mcx_core.cl)
+# The OpenCL kernel to be embedded
 CLPROGRAM=mcx_core
 
 #################################################################
 # Backend selection via make targets
-#
-# Default: OpenCL only
-# cuda:    CUDA only
-# trinity: both backends
 #################################################################
 
-# Default: OpenCL only
 USERCCFLAGS ?=
 FILES = $(FILES_COMMON)
-CUOBJS =
 CLSOURCE =
 
 # --- OpenCL backend (default, and when no goal specified) ---
@@ -85,31 +68,6 @@ endif
 ifeq ($(MAKECMDGOALS),)
     USERCCFLAGS += -DUSE_OPENCL -DMCX_OPENCL -DMCX_EMBED_CL
     FILES += $(FILES_OCL)
-    CLSOURCE = $(addsuffix $(CLHEADER), $(CLPROGRAM))
-endif
-
-# --- CUDA backend (no OpenCL, no .clh needed) ---
-ifneq (,$(filter $(MAKECMDGOALS),cuda cudamex cudaoct))
-    USERCCFLAGS += -DUSE_CUDA
-    FILES += $(FILES_COMMON)
-    FILES := $(filter-out mcxcl,$(sort $(FILES)))
-    FILES += mcxcl
-    CUFILES = $(FILES_CUDA)
-    CUOBJS = $(addsuffix $(OBJSUFFIX), $(CUFILES))
-    CUCCOPT += -DUSE_CUDA -DUSE_ATOMIC -DMCX_SAVE_DETECTORS -DMCX_DO_REFLECTION -Xcompiler -fPIC
-    BINARY = mcx
-    EXTRALIB += -lcudart
-endif
-
-# --- Trinity: both backends (.clh needed for OpenCL path) ---
-ifneq (,$(filter $(MAKECMDGOALS),trinity trinitymex trinityoct))
-    USERCCFLAGS += -DUSE_OPENCL -DMCX_OPENCL -DMCX_EMBED_CL -DUSE_CUDA
-    FILES += $(FILES_OCL)
-    CUFILES = $(FILES_CUDA)
-    CUOBJS = $(addsuffix $(OBJSUFFIX), $(CUFILES))
-    CUCCOPT += -DUSE_CUDA -DUSE_OPENCL -DUSE_ATOMIC -DMCX_SAVE_DETECTORS -DMCX_DO_REFLECTION -Xcompiler -fPIC
-    BINARY = mcx
-    EXTRALIB += -lcudart
     CLSOURCE = $(addsuffix $(CLHEADER), $(CLPROGRAM))
 endif
 
@@ -126,23 +84,6 @@ HAS_AMD := $(shell [ -d $(AMDAPPSDKROOT) ] && echo "1" )
 ifeq ($(HAS_AMD), 1)
   LIBOPENCLDIR=$(AMDAPPSDKROOT)/lib/x86_64
   INCLUDEDIRS +=-I$(AMDAPPSDKROOT)/include
-endif
-
-# setup for cuda
-CUDA_PATH ?= /usr/local/cuda
-
-ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
-  CUDA_LIB:="$(shell echo $$CUDA_PATH | sed 's:\\:/:g')"
-else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
-  CUDA_LIB:="$(shell echo $$CUDA_PATH | sed 's:\\:/:g')"
-else
-  CUDA_LIB:="$(shell echo $(CUDA_PATH) | sed 's:\\:/:g')"
-endif
-
-HAS_CUDA := $(shell [ -d $(CUDA_LIB) ] && echo "1" )
-ifeq ($(HAS_CUDA), 1)
-  LIBOPENCLDIR ?= $(CUDA_LIB)/lib64
-  INCLUDEDIRS +=-I$(CUDA_LIB)/include
 endif
 
 LIBOPENCLDIR ?= /usr/lib/x86_64-linux-gnu
@@ -214,25 +155,10 @@ ifeq ($(findstring x86_64,$(ARCH)), x86_64)
 endif
 
 #################################################################
-# CUDA-only targets: remove OpenCL link dependency
-#################################################################
-
-ifneq (,$(filter $(MAKECMDGOALS),cuda cudamex cudaoct))
-  LINKOPT=-g -L$(CUDA_LIB)/lib64 -lcudart
-  LIBOPENCL=
-  EXTRALIB:=$(filter-out -lOpenCL,$(EXTRALIB))
-endif
-
-# Trinity needs both
-ifneq (,$(filter $(MAKECMDGOALS),trinity trinitymex trinityoct))
-  LINKOPT=-g -L$(LIBOPENCLDIR) $(LIBOPENCL) -L$(CUDA_LIB)/lib64 -lcudart
-endif
-
-#################################################################
 # Mex/Oct file list overrides
 #################################################################
 
-ifneq (,$(filter $(MAKECMDGOALS),mex oct cudamex cudaoct trinitymex trinityoct))
+ifneq (,$(filter $(MAKECMDGOALS),mex oct))
   CCOPT+=-fPIC
 endif
 
@@ -248,38 +174,6 @@ ifeq ($(MAKECMDGOALS),oct)
   USERLINKOPT=
 endif
 
-ifeq ($(MAKECMDGOALS),cudamex)
-  FILES=mcx_utils mcx_lang mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
-  CUFILES=mcx_cu_host
-  CUOBJS=$(addsuffix $(OBJSUFFIX), $(CUFILES))
-  ZMATLIB=
-  USERLINKOPT=
-endif
-
-ifeq ($(MAKECMDGOALS),cudaoct)
-  FILES=mcx_utils mcx_lang mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
-  CUFILES=mcx_cu_host
-  CUOBJS=$(addsuffix $(OBJSUFFIX), $(CUFILES))
-  ZMATLIB=
-  USERLINKOPT=
-endif
-
-ifeq ($(MAKECMDGOALS),trinitymex)
-  FILES=mcx_host mcx_utils mcx_lang mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
-  CUFILES=mcx_cu_host
-  CUOBJS=$(addsuffix $(OBJSUFFIX), $(CUFILES))
-  ZMATLIB=
-  USERLINKOPT=
-endif
-
-ifeq ($(MAKECMDGOALS),trinityoct)
-  FILES=mcx_host mcx_utils mcx_lang mcx_tictoc mcx_shapes mcx_mie cjson/cJSON
-  CUFILES=mcx_cu_host
-  CUOBJS=$(addsuffix $(OBJSUFFIX), $(CUFILES))
-  ZMATLIB=
-  USERLINKOPT=
-endif
-
 ifeq ($(MAKECMDGOALS),static)
   LINKOPT:=-static-libgcc -static-libstdc++ $(LINKOPT) -Wl,-Bstatic -lm
 endif
@@ -288,41 +182,20 @@ endif
 # Mex/Oct compiler and flag overrides
 #################################################################
 
-mex trinitymex:        AR=$(MEX)
-mex trinitymex:        LINKOPT=CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER -DMATLAB_MEX_FILE $(CPPOPT) $(MEXCCOPT) $(USERCCFLAGS)' LINKLIBS="$(MEXLINKLIBS) $(MEXLINKOPT)" COMPFLAGS='' DEFINES='' CXXLIBS='$$CXXLIBS $(MEXLINKOPT) -L$(LIBOPENCLDIR) $(LIBOPENCL)'
-mex oct trinitymex trinityoct:    OUTPUT_DIR=../mcxlabcl
-mex trinitymex:        OUTPUTFLAG:=-output
-mex trinitymex:        BINARY=mcxcl
-mex oct trinitymex trinityoct:    CCOPT+=$(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
-mex oct trinitymex trinityoct:    CPPOPT+=$(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
-mex oct trinitymex trinityoct:    CUCCOPT+=-Xcompiler $(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
-mex trinitymex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
-
-cudamex:        AR=$(MEX)
-cudamex:        OUTPUT_DIR=../mcxlabcl
-cudamex:        OUTPUTFLAG:=-output
-cudamex:        BINARY=mcxcl
-cudamex:        CCOPT+=$(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
-cudamex:        CUCCOPT+=-Xcompiler $(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
-cudamex:        LINKOPT=CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER -DMATLAB_MEX_FILE $(CPPOPT) $(MEXCCOPT) $(USERCCFLAGS)' LINKLIBS="$(MEXLINKLIBS) $(MEXLINKOPT)" COMPFLAGS='' DEFINES='' CXXLIBS='$$CXXLIBS $(MEXLINKOPT) -L$(CUDA_LIB)/lib64 -lcudart'
-cudamex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
-
-trinitymex:     LINKOPT+=CXXLIBS='$$CXXLIBS $(MEXLINKOPT) -L$(LIBOPENCLDIR) $(LIBOPENCL) -L$(CUDA_LIB)/lib64 -lcudart'
+mex:        AR=$(MEX)
+mex:        LINKOPT=CXXFLAGS='$$CXXFLAGS -g -DMCX_CONTAINER -DMATLAB_MEX_FILE $(CPPOPT) $(MEXCCOPT) $(USERCCFLAGS)' LINKLIBS="$(MEXLINKLIBS) $(MEXLINKOPT)" COMPFLAGS='' DEFINES='' CXXLIBS='$$CXXLIBS $(MEXLINKOPT) -L$(LIBOPENCLDIR) $(LIBOPENCL)'
+mex oct:    OUTPUT_DIR=../mcxlabcl
+mex:        OUTPUTFLAG:=-output
+mex:        BINARY=mcxcl
+mex oct:    CCOPT+=$(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
+mex oct:    CPPOPT+=$(DLLFLAG) -DMCX_CONTAINER -DMATLAB_MEX_FILE
+mex:        LINKOPT+=mcxlabcl.cpp -outdir $(OUTPUT_DIR) $(INCLUDEDIRS)
 
 OCT_LDFLAGS := $(shell mkoctfile -p LDFLAGS 2>/dev/null)
 
-oct:            BINARY=mcxcl.mex
-oct:            AR=XTRA_CFLAGS=' ' XTRA_CXXFLAGS=' ' CXXFLAGS='-std=c++11 $(CPPOPT) $(MEXCCOPT) $(USERCCFLAGS)' LFLAGS='$(LIBOPENCL)' LDFLAGS='$(OCT_LDFLAGS) -g -L$(LIBOPENCLDIR) $(LIBOPENCL)' mkoctfile -v
-oct:            LINKOPT=--mex -DMATLAB_MEX_FILE mcxlabcl.cpp $(INCLUDEDIRS) $(MEXLINKOPT)
-
-cudaoct:        BINARY=mcxcl.mex
-cudaoct:        OUTPUT_DIR=../mcxlabcl
-cudaoct:        AR=XTRA_CFLAGS=' ' XTRA_CXXFLAGS=' ' CXXFLAGS='-std=c++11 $(CPPOPT) $(MEXCCOPT) $(USERCCFLAGS)' LFLAGS='-L$(CUDA_LIB)/lib64 -lcudart' LDFLAGS='$(OCT_LDFLAGS) -g -L$(CUDA_LIB)/lib64 -lcudart' mkoctfile -v
-cudaoct:        LINKOPT=--mex -DMATLAB_MEX_FILE mcxlabcl.cpp $(INCLUDEDIRS) $(MEXLINKOPT)
-
-trinityoct:     BINARY=mcxcl.mex
-trinityoct:     AR=XTRA_CFLAGS=' ' XTRA_CXXFLAGS=' ' CXXFLAGS='-std=c++11 $(CPPOPT) $(MEXCCOPT) $(USERCCFLAGS)' LFLAGS='$(LIBOPENCL) -L$(CUDA_LIB)/lib64 -lcudart' LDFLAGS='$(OCT_LDFLAGS) -g -L$(LIBOPENCLDIR) $(LIBOPENCL) -L$(CUDA_LIB)/lib64 -lcudart' mkoctfile -v
-trinityoct:     LINKOPT=--mex -DMATLAB_MEX_FILE mcxlabcl.cpp $(INCLUDEDIRS) $(MEXLINKOPT)
+oct:        BINARY=mcxcl.mex
+oct:        AR=XTRA_CFLAGS=' ' XTRA_CXXFLAGS=' ' CXXFLAGS='-std=c++11 $(CPPOPT) $(MEXCCOPT) $(USERCCFLAGS)' LFLAGS='$(LIBOPENCL)' LDFLAGS='$(OCT_LDFLAGS) -g -L$(LIBOPENCLDIR) $(LIBOPENCL)' mkoctfile -v
+oct:        LINKOPT=--mex -DMATLAB_MEX_FILE mcxlabcl.cpp $(INCLUDEDIRS) $(MEXLINKOPT)
 
 #################################################################
 # Object lists
@@ -332,20 +205,10 @@ OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 # CLSOURCE is set conditionally in the backend selection block above
 
 #################################################################
-# CUDA gen-code (override with CUGENCODE=... on command line)
-#################################################################
-
-CUGENCODE ?= -arch=sm_50
-
-#################################################################
 # Build targets
 #################################################################
 
 all mex oct intelcpu static: $(OUTPUT_DIR)/$(BINARY)
-
-cuda cudamex cudaoct: $(OUTPUT_DIR)/$(BINARY)
-
-trinity trinitymex trinityoct: $(OUTPUT_DIR)/$(BINARY)
 
 makedirs:
 	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) -p $(OUTPUT_DIR); fi
@@ -355,11 +218,7 @@ makedocdir:
 #################################################################
 # Embed OpenCL kernel via xxd
 #
-# For OpenCL and trinity targets, mcx_core.cl (which already
-# includes the compat macros inline) is converted to a .clh
-# header via xxd for embedding.
-#
-# For CUDA-only builds, nvcc #includes mcx_core.cl directly.
+# mcx_core.cl is converted to a .clh header via xxd for embedding.
 #################################################################
 
 $(CLPROGRAM)$(CLHEADER): $(CLPROGRAM).cl
@@ -381,17 +240,13 @@ mcx_host$(OBJSUFFIX): $(CLSOURCE)
 %$(OBJSUFFIX): %.cpp
 	$(CXX) $(INCLUDEDIRS) $(CPPOPT) $(USERCCFLAGS) -c -o $@ $<
 
-##  Compile .cu files with nvcc  ##
-%$(OBJSUFFIX): %.cu
-	$(CUDACC) $(CUGENCODE) -c $(CUCCOPT) $(INCLUDEDIRS) -o $@ $<
-
 #################################################################
 # Link
 #################################################################
 
-$(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(ZMATLIB) $(OBJS) $(CUOBJS)
+$(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(ZMATLIB) $(OBJS)
 	@$(ECHO) "Linking $@ ..."
-	$(AR) $(OBJS) $(CUOBJS) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY) $(USERLINKOPT)
+	$(AR) $(OBJS) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY) $(USERLINKOPT)
 
 $(ZMATLIB):
 	-$(MAKE) -C zmat lib AR=ar CPPOPT="-O3 $(DLLFLAG)" CCOPT="-O3 $(DLLFLAG)" USERLINKOPT=
@@ -409,9 +264,8 @@ doc: makedocdir
 
 clean:
 	-$(MAKE) -C zmat clean
-	-rm -f $(OBJS) $(addsuffix $(OBJSUFFIX), $(FILES_CUDA) $(FILES_OCL)) $(CLSOURCE)
+	-rm -f $(OBJS) $(addsuffix $(OBJSUFFIX), $(FILES_OCL)) $(CLSOURCE)
 	-rm -f $(OUTPUT_DIR)/$(BINARY)$(EXESUFFIX)
-	-rm -f $(OUTPUT_DIR)/mcx$(EXESUFFIX)
 	-rm -f $(OUTPUT_DIR)/mcxcl$(EXESUFFIX)
 	-rm -f $(ZMATLIB)
 
@@ -445,5 +299,4 @@ pretty:
 	   "*.c" "*.h" "*.cpp" "*.cu" "*.cl"
 
 .PHONY: all clean doc makedirs makedocdir xxd pretty \
-        cuda trinity static intelcpu \
-        mex oct cudamex cudaoct trinitymex trinityoct
+        static intelcpu mex oct
