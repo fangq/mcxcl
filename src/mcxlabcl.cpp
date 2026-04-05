@@ -1543,6 +1543,8 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
             if (cfg->deviceid[i] == '0') {
                 cfg->deviceid[i] = '\0';
             }
+
+#if defined(USE_CUDA)
     } else if (strcmp(name, "compute") == 0) {
         int len = mxGetNumberOfElements(item);
         const char* computebackend[] = {"opencl", "cuda", ""};
@@ -1576,6 +1578,8 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
             cfg->compute = (int)val[0];
             printf("mcx.compute=%d;\n", cfg->compute);
         }
+
+#endif
     } else if (strcmp(name, "workload") == 0) {
         double* val = mxGetPr(item);
         arraydim = mxGetDimensions(item);
