@@ -491,6 +491,14 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                     fielddim[5] *= (cfg.extrasrclen + 1);
                 }
 
+                /** adjoint forward fluence: reshape to [Nx, Ny, Nz, maxgate, Ns+Nd, (1 or 2)] (5D/6D) */
+                if (isadjoint) {
+                    int nsrcslots = cfg.extrasrclen + 1;  /**< total Ns+Nd source slots */
+                    fielddim[0] = cfg.dim.x;
+                    fielddim[4] = nsrcslots;
+                    fielddim[5] = (cfg.omega > 0.f) ? 2 : 1;
+                }
+
                 fieldlen = fielddim[0] * fielddim[1] * fielddim[2] * fielddim[3] * fielddim[4] * fielddim[5];
 
                 if (cfg.issaveref) {

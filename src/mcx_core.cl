@@ -2254,7 +2254,7 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
     v[0].w = EPS;
     *Lmove = 0.f;
 
-    if ((GPU_PARAM(gcfg, outputtype) == otRF) | (GPU_PARAM(gcfg, outputtype) == otRFmus)) {
+    if (((GPU_PARAM(gcfg, outputtype) == otRF) | (GPU_PARAM(gcfg, outputtype) == otRFmus)) & !((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE))) { /* RF replay only, not RF forward */
         float rf_tof = photontof[(threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton - 1) + (int)f[0].w)];
         float rf_sin, rf_cos;
         MCX_SINCOS(GPU_PARAM(gcfg, omega) * rf_tof, rf_sin, rf_cos);
@@ -2592,9 +2592,14 @@ __kernel void mcx_main_loop(
                     tshift = MIN(GPU_PARAM(gcfg, maxgate) - 1, tshift);
 
 #ifndef USE_ATOMIC
-                    field[idx1d + tshift * gcfg->dimlen.z] += tmp0 * replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w)];
+                    field[idx1d + tshift * gcfg->dimlen.z] += tmp0;
+
+                    if (GPU_PARAM(gcfg, outputtype) == otRFmus) {
+                        field[idx1d + tshift * gcfg->dimlen.z + gcfg->dimlen.w * 2] += sphi;
+                    }
+
 #else
-                    float oldval = atomicadd(field + idx1d + tshift * gcfg->dimlen.z, tmp0 * replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w)]);
+                    float oldval = atomicadd(field + idx1d + tshift * gcfg->dimlen.z, tmp0);
 
                     if (FABS(oldval) > MAX_ACCUM) {
                         if (atomicadd(field + idx1d + tshift * gcfg->dimlen.z, -oldval) < 0.f) {
@@ -2604,7 +2609,16 @@ __kernel void mcx_main_loop(
                         }
                     }
 
-                    GPUDEBUG(("atomic write to [%d] %e, w=%f\n", idx1d, tmp0 * replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w)], p.w));
+                    if (GPU_PARAM(gcfg, outputtype) == otRFmus) {
+                        float oldval_im = atomicadd(field + idx1d + tshift * gcfg->dimlen.z + gcfg->dimlen.w * 2, sphi);
+
+                        if (FABS(oldval_im) > MAX_ACCUM) {
+                            atomicadd(field + idx1d + tshift * gcfg->dimlen.z + gcfg->dimlen.w * 2, ((oldval_im > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
+                            atomicadd(field + idx1d + tshift * gcfg->dimlen.z + gcfg->dimlen.w * 3, ((oldval_im > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
+                        }
+                    }
+
+                    GPUDEBUG(("atomic write to [%d] %e, w=%f\n", idx1d, tmp0, p.w));
 #endif
                 }
 
@@ -2852,7 +2866,7 @@ __kernel void mcx_main_loop(
 
                 GPUDEBUG(("deposit to [%d] %e, w=%f\n", idx1dold, weight, p.w));
 
-                if ((FABS(weight) > 0.f) | ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE))) {
+                if ((FABS(weight) > 0.f) | (GPU_PARAM(gcfg, outputtype) == otRF)) {
 #ifndef USE_ATOMIC
                     field[idx1dold + tshift * gcfg->dimlen.z] += weight;
 
@@ -2867,7 +2881,7 @@ __kernel void mcx_main_loop(
 #if !defined(MCX_SRC_PATTERN) && !defined(MCX_SRC_PATTERN3D)
                     float oldval = atomicadd(field + idx1dold + tshift * gcfg->dimlen.z, weight);
 
-                    if (FABS(oldval) > MAX_ACCUM) {
+                    if (FABS(oldval) > MAX_ACCUM && (GPU_PARAM(gcfg, outputtype) != otRF | ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)))) {
                         atomicadd(field + idx1dold + tshift * gcfg->dimlen.z, ((oldval > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
                         atomicadd(field + idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w, ((oldval > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
                     } else if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {

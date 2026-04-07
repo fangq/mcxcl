@@ -85,13 +85,14 @@ fprintf('J_D_rb   size: %s,  complex: %d\n', mat2str(size(J_D_rb)),   ~isreal(J_
 %%   MCX: single session with outputtype='adjoint_mua_d'
 %%
 %%  One photon run computes both J_mua and J_D simultaneously.
-%%  Output flux.data is complex [Nx, Ny, Nz, Ns*Nd, 2]:
-%%    flux.data(:,:,:,:,1)  ->  J_mua   (point product of fluences)
-%%    flux.data(:,:,:,:,2)  ->  J_D     (dot product of fluence gradients)
+%%  Output flux.jmua and flux.jd are each complex [Nx, Ny, Nz, Ns*Nd]:
+%%    flux.jmua  ->  J_mua   (point product of fluences)
+%%    flux.jd    ->  J_D     (dot product of fluence gradients)
+%%  flux.data contains the forward fluence [Nx, Ny, Nz, maxgate, Ns+Nd]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-if ~exist('mcxlab', 'file')
-    error('mcxlab not found. Add mcxlab to your MATLAB path.');
+if ~exist('mcxlabcl', 'file')
+    error('mcxlabcl not found. Add mcxlabcl to your MATLAB path.');
 end
 
 xcfg.nphoton    = 1e8;
@@ -116,11 +117,14 @@ tic;
 flux = mcxlabcl(xcfg);
 toc;
 
-% flux.data is complex [60, 60, 30, 1, 2]
-fprintf('flux.data size: %s,  complex: %d\n', mat2str(size(flux.data)), ~isreal(flux.data));
+% Jacobians are returned as separate named fields:
+%   flux.jmua: complex [60, 60, 30, 1]  -- J_mua (point product of fluences)
+%   flux.jd:   complex [60, 60, 30, 1]  -- J_D   (dot product of fluence gradients)
+fprintf('flux.jmua size: %s,  complex: %d\n', mat2str(size(flux.jmua)), ~isreal(flux.jmua));
+fprintf('flux.jd   size: %s,  complex: %d\n', mat2str(size(flux.jd)),   ~isreal(flux.jd));
 
-J_mua_mcx = squeeze(flux.data(:, :, :, :, 1));  % [60, 60, 30] complex  -- J_mua
-J_D_mcx   = squeeze(flux.data(:, :, :, :, 2));  % [60, 60, 30] complex  -- J_D
+J_mua_mcx = squeeze(flux.jmua);  % [60, 60, 30] complex  -- J_mua
+J_D_mcx   = squeeze(flux.jd);    % [60, 60, 30] complex  -- J_D
 
 fprintf('J_mua_mcx sum(real) = %.4e\n', sum(real(J_mua_mcx(:))));
 fprintf('J_D_mcx   sum(real) = %.4e\n', sum(real(J_D_mcx(:))));
@@ -357,7 +361,7 @@ fprintf('================================\n');
 fprintf('Note: MCX (transport, RTE) and Redbird (diffusion equation)\n');
 fprintf('agree well in the diffusive regime (far from source/boundary).\n');
 fprintf('Both Jacobians were computed from a SINGLE MCX session using\n');
-fprintf('outputtype=''adjoint_mua_d'' (flux.data size: [Nx,Ny,Nz,Ns*Nd,2]).\n');
+fprintf('outputtype=''adjoint_mua_d'' (flux.jmua and flux.jd each [Nx,Ny,Nz,Ns*Nd]).\n');
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%   Helper function

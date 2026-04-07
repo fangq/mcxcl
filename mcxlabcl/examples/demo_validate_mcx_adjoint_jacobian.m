@@ -79,8 +79,8 @@ fprintf('J_rb size: %s,  complex: %d\n', mat2str(size(J_rb)), ~isreal(J_rb));
 %%    - output data is complex [Nx,Ny,Nz,Ns*Nd] = [60,60,30,1]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-if ~exist('mcxlab', 'file')
-    error('mcxlab not found. Add mcxlab to your MATLAB path.');
+if ~exist('mcxlabcl', 'file')
+    error('mcxlabcl not found. Add mcxlabcl to your MATLAB path.');
 end
 
 xcfg.nphoton    = 1e8;
@@ -96,7 +96,9 @@ xcfg.srctype    = 'pencil';
 xcfg.srcpos     = [20  29.5  0];    % matches Redbird srcpos
 xcfg.srcdir     = [0     0     1  0]; % +z direction, focallength=0
 xcfg.detpos     = [40    30    0  1]; % matches Redbird detpos, radius=1 mm
-xcfg.detdir     = [0     0     1  0]; % +z (reversed photons enter medium)
+xcfg.detdir     = [0     0     1  0]; % +z (reversed photons enter medium), focal-length similar to srcdir(4)
+% xcfg.detdir(4) = -inf    % if setting det focal-length to -inf, det launches photon in a Lambertian profile, more realistic
+% xcfg.detdir(4) = nan     % if setting det focal-length to nan, det launches photon isotropically, simulating a detector receiving from all angles
 xcfg.omega      = omega;              % RF modulation frequency
 xcfg.outputtype = 'adjoint';          % compute J = phi_src * phi_det per voxel
 
@@ -105,10 +107,11 @@ tic;
 flux_adj = mcxlabcl(xcfg);
 toc;
 
-% flux_adj.data is complex [60, 60, 30, 1]:
+% flux_adj.jmua is complex [60, 60, 30, 1] (Ns*Nd=1 source-detector pair):
 %   real part = Re(J) = Re(phi_src)*Re(phi_det) - Im(phi_src)*Im(phi_det)
 %   imag part = Im(J) = Re(phi_src)*Im(phi_det) + Im(phi_src)*Re(phi_det)
-J_mcx = squeeze(flux_adj.data);   % [60, 60, 30] complex
+% flux_adj.data contains the forward fluence [Nx, Ny, Nz, maxgate, Ns+Nd]
+J_mcx = squeeze(flux_adj.jmua);   % [60, 60, 30] complex
 fprintf('J_mcx size: %s,  complex: %d\n', mat2str(size(J_mcx)), ~isreal(J_mcx));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
