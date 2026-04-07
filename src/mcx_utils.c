@@ -395,7 +395,7 @@ void mcx_clearcfg(Config* cfg) {
         free(cfg->srcpattern);
     }
 
-#ifndef MCX_EMBED_CL
+#ifdef MCX_EMBED_CL
 
     if (cfg->clsource && cfg->clsource != (char*)mcx_core_cl) {
         free(cfg->clsource);
@@ -5082,9 +5082,13 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
         fseek(fp, 0, SEEK_END);
         srclen = ftell(fp);
 
+#ifdef MCX_EMBED_CL
+
         if (cfg->clsource != (char*)mcx_core_cl) {
             free(cfg->clsource);
         }
+
+#endif
 
         cfg->clsource = (char*)malloc(srclen + 1);
         fseek(fp, 0, SEEK_SET);

@@ -721,7 +721,11 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             OCL_ASSERT(((gseed[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(RandType) * gpu[i].autothread * RAND_BUF_LEN, Pseed, &status), status)));
         }
 
-        OCL_ASSERT(((gfield[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(cl_float) * fieldlen * (isrfforward ? 4 : 2), field, &status), status)));
+        OCL_ASSERT(((gfield[i] = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, sizeof(cl_float) * fieldlen * (isrfforward ? 4 : 2), NULL, &status), status)));
+        {
+            cl_float zero = 0.f;
+            OCL_ASSERT((clEnqueueFillBuffer(mcxqueue[i], gfield[i], &zero, sizeof(cl_float), 0, sizeof(cl_float) * fieldlen * (isrfforward ? 4 : 2), 0, NULL, NULL)));
+        }
 
         if (cfg->issavedet) {
             OCL_ASSERT(((gdetphoton[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(float) * cfg->maxdetphoton * hostdetreclen, Pdet, &status), status)));
@@ -879,6 +883,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         UPARAM_TO_MACRO(opt, param, maxpolmedia);
         FPARAM_TO_MACRO(opt, param, omega);
         UPARAM_TO_MACRO(opt, param, istrajstokes);
+        UPARAM_TO_MACRO(opt, param, debuglevel);
 
         /* below parameters are signed integers */
         IPARAM_TO_MACRO(opt, param, replaydet);
@@ -1172,8 +1177,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                         for (i = 0; i < fieldlen; i++) { //accumulate field, can be done in the GPU
                             field[i] = rawfield[i];
 
-                            if (!isrfforward && cfg->outputtype != otRF && cfg->outputtype != otRFmus) {
-                                field[i] += rawfield[i + fieldlen];
+                            if (isrfforward || (cfg->outputtype != otRF && cfg->outputtype != otRFmus)) {
+                                field[i] += rawfield[i + fieldlen]; /* for RF forward, add Re double-buffer; for non-RF, always add */
                             }
                         }
                     } else {
@@ -1229,9 +1234,9 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
                 //initialize the next simulation
                 if (twindow1 < cfg->tend && iter < cfg->respin) {
-                    memset(field, 0, sizeof(cl_float)*dimxyz * cfg->maxgate);
-                    OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid], gfield[devid], CL_TRUE, 0, sizeof(cl_float)*dimxyz * cfg->maxgate,
-                                                     field, 0, NULL, NULL)));
+                    cl_float zero = 0.f;
+                    OCL_ASSERT((clEnqueueFillBuffer(mcxqueue[devid], gfield[devid], &zero, sizeof(cl_float), 0,
+                                                    sizeof(cl_float) * fieldlen * (isrfforward ? 4 : 2), 0, NULL, NULL)));
                     OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 1, sizeof(cl_mem), (void*)(gfield + devid))));
                 }
 
@@ -1304,17 +1309,14 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         MCX_FPRINTF(cfg->flog, "%s\t", T_("normalizing raw data ..."));
         cfg->energyabs += cfg->energytot - cfg->energyesc;
 
-        if (cfg->outputtype == otFlux || cfg->outputtype == otFluence) {
+        if (cfg->outputtype == otFlux || cfg->outputtype == otFluence || MCX_IS_ADJOINT_TYPE(cfg->outputtype) || (cfg->omega > 0.f && cfg->seed != SEED_FROM_FILE)) {
             scale[0] = cfg->unitinmm / (cfg->energytot * Vvox * cfg->tstep); /* Vvox (in mm^3 already) * (Tstep) * (Eabsorp/U) */
 
-            if (cfg->outputtype == otFluence) {
+            if (cfg->outputtype == otFluence || MCX_IS_ADJOINT_TYPE(cfg->outputtype)) {
                 scale[0] *= cfg->tstep;
             }
         } else if (cfg->outputtype == otEnergy || cfg->outputtype == otL) {
             scale[0] = 1.f / cfg->energytot;
-        } else if (MCX_IS_ADJOINT_TYPE(cfg->outputtype) && cfg->seed != SEED_FROM_FILE) {
-            /* adjoint forward: normalize by total photon count per source, then post-process */
-            scale[0] = cfg->unitinmm * (cfg->extrasrclen + 1) / cfg->energytot;
         } else if (cfg->outputtype == otJacobian || cfg->outputtype == otWP || cfg->outputtype == otDCS || cfg->outputtype == otRF || cfg->outputtype == otRFmus || cfg->outputtype == otWLTOF || cfg->outputtype == otWPTOF) {
             if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
                 int detid;
@@ -1334,6 +1336,10 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                     MCX_FPRINTF(cfg->flog, "%s %d alpha=%f\n", T_("normalization factor for detector"), detid, scale[0]);
                     fflush(cfg->flog);
                     mcx_normalize(cfg->exportfield + (detid - 1)*dimxyz * param.maxgate, scale[0], dimxyz * param.maxgate, cfg->isnormalized, 0, 1);
+
+                    if (cfg->outputtype == otRF || cfg->outputtype == otRFmus) {
+                        mcx_normalize(cfg->exportfield + fieldlen + (detid - 1)*dimxyz * param.maxgate, scale[0], dimxyz * param.maxgate, cfg->isnormalized, 0, 1);
+                    }
                 }
 
                 isnormalized = 1;
@@ -1374,7 +1380,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             for (i = 0; i < cfg->srcnum; i++) {
                 MCX_FPRINTF(cfg->flog, "%s %d, %s alpha=%f\n", T_("source"), (i + 1), T_("normalization factor"), scale[i]);
                 fflush(cfg->flog);
-                mcx_normalize(cfg->exportfield, scale[i], fieldlen / cfg->srcnum, cfg->isnormalized, i, cfg->srcnum);
+                mcx_normalize(cfg->exportfield, scale[i], fieldlen / cfg->srcnum * ((cfg->outputtype == otRF || cfg->outputtype == otRFmus || (cfg->omega > 0.f && cfg->seed != SEED_FROM_FILE) ? 1 : 0) + 1), cfg->isnormalized, i, cfg->srcnum);
             }
         }
 
@@ -1405,11 +1411,11 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         float* hmua = NULL, *hsecond = NULL;
 
         if (isdual) {
-            gadjoint_mua = clCreateBuffer(mcxcontext, RW_MEM, sizeof(float) * single_exportlen, NULL, &status);
+            gadjoint_mua = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, sizeof(float) * single_exportlen, NULL, &status);
             OCL_ASSERT(status);
         }
 
-        gadjoint_tmp = clCreateBuffer(mcxcontext, RW_MEM, sizeof(float) * single_exportlen, NULL, &status);
+        gadjoint_tmp = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, sizeof(float) * single_exportlen, NULL, &status);
         OCL_ASSERT(status);
 
         size_t adjblocksize = 256;

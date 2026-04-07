@@ -36,7 +36,7 @@ if(BUILD_MEX)
     find_package(Matlab)
 endif()
 
-set(CMAKE_CXX_FLAGS "-DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -D_hypot=hypot")
+set(CMAKE_CXX_FLAGS "-DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OPENCL -DUSE_OS_TIMER -D_hypot=hypot")
 set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS}")
 
 if( ${CMAKE_COMPILER_IS_GNUCXX} )
@@ -81,6 +81,8 @@ add_library(mcxcl STATIC
     mcx_bench.h
     mcx_tictoc.c
     mcx_tictoc.h
+    mcx_lang.c
+    mcx_lang.h
     mcx_neurojson.cpp
     mcx_neurojson.h
     mcx_mie.cpp
@@ -122,6 +124,8 @@ if (BUILD_PYTHON)
             mcx_bench.h
             mcx_tictoc.c
             mcx_tictoc.h
+            mcx_lang.c
+            mcx_lang.h
             mcx_mie.cpp
             mcx_mie.h
             cjson/cJSON.c
@@ -152,13 +156,15 @@ if(BUILD_MEX AND Matlab_FOUND)
             mcx_bench.h
             mcx_tictoc.c
             mcx_tictoc.h
+            mcx_lang.c
+            mcx_lang.h
             mcx_mie.cpp
             mcx_mie.h
             cjson/cJSON.c
             cjson/cJSON.h
             )
 
-    target_compile_definitions(mcxcl-matlab PUBLIC MCX_CONTAINER MATLAB_MEX_FILE)
+    target_compile_definitions(mcxcl-matlab PUBLIC MCX_CONTAINER MATLAB_MEX_FILE USE_OPENCL MCX_OPENCL MCX_EMBED_CL)
 
     if(${CMAKE_VERSION} VERSION_LESS "3.24.0")
             matlab_add_mex(
@@ -175,7 +181,7 @@ if(BUILD_MEX AND Matlab_FOUND)
             )
     endif()
 
-    target_compile_definitions(mcxlabcl PUBLIC MCX_CONTAINER MATLAB_MEX_FILE)
+    target_compile_definitions(mcxlabcl PUBLIC MCX_CONTAINER MATLAB_MEX_FILE USE_OPENCL MCX_OPENCL MCX_EMBED_CL)
 
     set_target_properties(mcxlabcl
             PROPERTIES OUTPUT_NAME ${CMAKE_SOURCE_DIR}/../mcxlabcl/mcxcl)

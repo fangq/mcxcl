@@ -80,8 +80,8 @@ fprintf('J_rb size: %s,  complex: %d\n', mat2str(size(J_rb)), ~isreal(J_rb));
 %%    - output data is complex [Nx,Ny,Nz,Ns*Nd] = [60,60,30,1]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-if ~exist('mcxlab', 'file')
-    error('mcxlab not found. Add mcxlab to your MATLAB path.');
+if ~exist('mcxlabcl', 'file')
+    error('mcxlabcl not found. Add mcxlabcl to your MATLAB path.');
 end
 
 xcfg.nphoton    = 1e8;
@@ -106,10 +106,11 @@ tic;
 flux_adj = mcxlabcl(xcfg);
 toc;
 
-% flux_adj.data is complex [60, 60, 30, 1]:
-%   real part = Re(J) = Re(phi_src)*Re(phi_det) - Im(phi_src)*Im(phi_det)
-%   imag part = Im(J) = Re(phi_src)*Im(phi_det) + Im(phi_src)*Re(phi_det)
-J_mcx = squeeze(flux_adj.data);   % [60, 60, 30] complex
+% flux_adj.jd is complex [60, 60, 30, 1] (Ns*Nd=1 source-detector pair):
+%   real part = Re(J) = grad(Re phi_src).grad(Re phi_det) - grad(Im phi_src).grad(Im phi_det)
+%   imag part = Im(J) = grad(Re phi_src).grad(Im phi_det) + grad(Im phi_src).grad(Re phi_det)
+% flux_adj.data contains the forward fluence [Nx, Ny, Nz, maxgate, Ns+Nd]
+J_mcx = squeeze(flux_adj.jd);   % [60, 60, 30] complex
 fprintf('J_mcx size: %s,  complex: %d\n', mat2str(size(J_mcx)), ~isreal(J_mcx));
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

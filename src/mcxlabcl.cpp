@@ -103,14 +103,8 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
     dimtype    fielddim[6] = {0};
     int        errorflag = 0;
     int        threadid = 0;
-#if defined(USE_CUDA) && !defined(USE_OPENCL)
-    int        workdev = 0;
-#elif defined(USE_OPENCL)
     cl_uint    workdev = 0;
     cl_device_id devices[MAX_DEVICE];
-#else
-    int        workdev = 0;
-#endif
 
     const char*       outputtag[] = {"data"};
     const char*       datastruct[] = {"data", "stat", "dref", "prop"};
@@ -142,13 +136,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
             cfg.isgpuinfo = 3;
 
             try {
-#if defined(USE_CUDA) && defined(USE_OPENCL)
-                workdev = (cl_uint)mcx_list_cuda_gpu(&cfg, &gpuinfo);
-#elif defined(USE_CUDA)
-                workdev = mcx_list_cuda_gpu(&cfg, &gpuinfo);
-#else
                 mcx_list_gpu(&cfg, &workdev, NULL, &gpuinfo);
-#endif
             } catch (...) {
                 mexErrMsgTxt("GPU backend is not supported or not fully installed on your system");
             }
@@ -273,27 +261,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
             }
 
             /** One must also choose one of the GPUs */
-#if defined(USE_CUDA) && defined(USE_OPENCL)
-
-            if (cfg.compute == cbCUDA) {
-                char saved_deviceid[MAX_DEVICE];
-                memcpy(saved_deviceid, cfg.deviceid, MAX_DEVICE);
-                workdev = (cl_uint)mcx_list_cuda_gpu(&cfg, &gpuinfo);
-                memcpy(cfg.deviceid, saved_deviceid, MAX_DEVICE);
-            } else {
-                mcx_list_gpu(&cfg, &workdev, devices, &gpuinfo);
-            }
-
-#elif defined(USE_CUDA)
-            {
-                char saved_deviceid[MAX_DEVICE];
-                memcpy(saved_deviceid, cfg.deviceid, MAX_DEVICE);
-                workdev = mcx_list_cuda_gpu(&cfg, &gpuinfo);
-                memcpy(cfg.deviceid, saved_deviceid, MAX_DEVICE);
-            }
-#else
             mcx_list_gpu(&cfg, &workdev, devices, &gpuinfo);
-#endif
 
             /** Validate all input fields, and warn incompatible inputs */
             mcx_validatecfg(&cfg, detps, dimdetps, seedbyte);
@@ -489,6 +457,14 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
 
                 if (cfg.extrasrclen && cfg.srcid < 0) {
                     fielddim[5] *= (cfg.extrasrclen + 1);
+                }
+
+                /** adjoint forward fluence: reshape to [Nx, Ny, Nz, maxgate, Ns+Nd, (1 or 2)] (5D/6D) */
+                if (isadjoint) {
+                    int nsrcslots = cfg.extrasrclen + 1;  /**< total Ns+Nd source slots */
+                    fielddim[0] = cfg.dim.x;
+                    fielddim[4] = nsrcslots;
+                    fielddim[5] = (cfg.omega > 0.f) ? 2 : 1;
                 }
 
                 fieldlen = fielddim[0] * fielddim[1] * fielddim[2] * fielddim[3] * fielddim[4] * fielddim[5];
