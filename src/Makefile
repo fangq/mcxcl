@@ -18,7 +18,7 @@ DOXY=doxygen
 BINARY=mcxcl
 OUTPUT_DIR=../bin
 DOCDIR=../doc
-INCLUDEDIRS=-Izmat -Izmat/easylzma -Iubj
+INCLUDEDIRS=-Izmat -Izmat/easylzma -Izmat/easylzma/lzma -Iubj
 
 CCOPT=-g -pedantic -Wall -O3 -DUSE_OS_TIMER -DCL_SILENCE_DEPRECATION
 CPPOPT:=$(CCOPT) -Wno-variadic-macros
@@ -116,7 +116,7 @@ ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   MEXCCOPT+=-DMX_COMPAT_32
   MEX        :=cmd /c mex.bat -v -f mexopts_msys2_gcc.xml
   DLLFLAG=
-  ZMATLIB    :=zmat/zmatlib.o zmat/miniz/miniz.o zmat/lz4/lz4.o zmat/lz4/lz4hc.o zmat/easylzma/*.o zmat/easylzma/pavlov/*.o
+  ZMATLIB    :=zmat/zmatlib.o zmat/miniz/miniz.o zmat/lz4/lz4.o zmat/lz4/lz4hc.o zmat/easylzma/*.o zmat/easylzma/lzma/*.o
   USERLINKOPT:=$(ZMATLIB)
   MEXLINKLIBS="\$$LINKLIBS"
 else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)

@@ -65,7 +65,7 @@ add_custom_target(
 )
 
 # Add include directories
-include_directories(cjson ubj zmat zmat/easylzma ${OPENCL_INCLUDE_DIR})
+include_directories(cjson ubj zmat zmat/easylzma zmat/easylzma/lzma ${OPENCL_INCLUDE_DIR})
 
 # Add link directories
 link_directories(zmat)
@@ -134,7 +134,7 @@ if (BUILD_PYTHON)
             )
     target_compile_definitions(_pmcxcl PUBLIC MCX_CONTAINER PYBIND11_VERSION_MAJOR)
 
-    target_link_libraries(_pmcxcl pybind11::module pybind11::lto pybind11::windows_extras OpenCL::OpenCL)
+    target_link_libraries(_pmcxcl pybind11::module pybind11::lto pybind11::windows_extras OpenCL::OpenCL zmat)
 
     pybind11_extension(_pmcxcl)
     pybind11_strip(_pmcxcl)
