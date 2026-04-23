@@ -56,7 +56,9 @@ jobs:
           rm -rf octave_9.2.7z
           echo "$PWD/octave/octave-9.2.0-w64/mingw64/bin" >> $GITHUB_PATH
           choco install upx
-          echo "MW_MINGW64_LOC=$GITHUB_WORKSPACE/octave/octave-9.2.0-w64/mingw64" >> $GITHUB_ENV
+          /c/msys64/usr/bin/pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-opencl-headers
+          echo 'C:\msys64\mingw64\bin' >> $GITHUB_PATH
+          echo "MW_MINGW64_LOC=/c/msys64/mingw64" >> $GITHUB_ENV
       - name: Install OpenCL.dll and static libraries (Windows only)
         if: ${{ runner.os == 'Windows' }}
         run: |
@@ -91,7 +93,6 @@ jobs:
             make oct CC=gcc-12 CXX=g++-12 LDFLAGS='-static-libgcc -static-libstdc++' EXTRALIB='-v'
             otool -L ../mcxlabcl/mcxcl.mex
           else
-            PATH="$PWD/../octave/octave-9.2.0-w64/mingw64/bin":$PATH
             make oct CC=gcc CXX=g++ LIBOPENCL='/c/Windows/System32/OpenCL.dll --verbose' MEXLINKOPT='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lm -Wl,-Bdynamic -v'
             objdump -p ../mcxlabcl/mcxcl.mex | grep "DLL Name:"
             make clean
@@ -102,7 +103,7 @@ jobs:
         run: |
           cd src
           if [[ "$RUNNER_OS" == "Windows" ]]; then
-            make mex CC=gcc CXX=g++ LDFLAGS="-static libzmat.a" EXTRALIB="-L$GITHUB_WORKSPACE/octave/octave-9.2.0-w64/mingw64/x86_64-w64-mingw32/lib -v"
+            make mex CC=gcc CXX=g++ LDFLAGS="-static libzmat.a" EXTRALIB="-L/c/msys64/mingw64/lib -v"
             objdump -p ../mcxlabcl/mcxcl.mexw* | grep "DLL Name:"
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
             which mex
@@ -123,7 +124,7 @@ jobs:
             make CC=gcc-12 CXX=g++-12
             otool -L ../bin/mcxcl
           else
-            make CC=gcc CXX=g++ USERARFLAGS="-L$GITHUB_WORKSPACE/octave/octave-9.2.0-w64/mingw64/x86_64-w64-mingw32/lib libzmat.a"
+            make CC=gcc CXX=g++ USERARFLAGS="-L/c/msys64/mingw64/lib libzmat.a"
             objdump -p ../bin/mcxcl.exe | grep "DLL Name:"
           fi
       - name: Create package folder
