@@ -2156,8 +2156,8 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
          * In adjoint mode, detector sources are launched as disk sources, overriding position.
          * Condition: current source ID exceeds the count of original (non-detector) sources.
          */
-        if ((MCX_IS_ADJOINT_TYPE(GPU_PARAM(gcfg, outputtype)) | (GPU_PARAM(gcfg, srcid) == -2)) &&
-                cur_src_id > (int)(GPU_PARAM(gcfg, extrasrclen) + 1 - (int)GPU_PARAM(gcfg, detnum))) {
+        if ((MCX_IS_ADJOINT_TYPE(GPU_PARAM(gcfg, outputtype)) | (GPU_PARAM(gcfg, srcid) == -2)) &
+                (cur_src_id > (int)(GPU_PARAM(gcfg, extrasrclen) + 1 - (int)GPU_PARAM(gcfg, detnum)))) {
             float phi_adj = TWO_PI * rand_uniform01(t);
             float sphi_adj, cphi_adj;
             MCX_SINCOS(phi_adj, sphi_adj, cphi_adj);
@@ -2881,7 +2881,7 @@ __kernel void mcx_main_loop(
 #if !defined(MCX_SRC_PATTERN) && !defined(MCX_SRC_PATTERN3D)
                     float oldval = atomicadd(field + idx1dold + tshift * gcfg->dimlen.z, weight);
 
-                    if (FABS(oldval) > MAX_ACCUM && (GPU_PARAM(gcfg, outputtype) != otRF | ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)))) {
+                    if ((FABS(oldval) > MAX_ACCUM) & ((GPU_PARAM(gcfg, outputtype) != otRF) | ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)))) {
                         atomicadd(field + idx1dold + tshift * gcfg->dimlen.z, ((oldval > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
                         atomicadd(field + idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w, ((oldval > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
                     } else if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
@@ -3284,7 +3284,7 @@ __kernel void mcx_main_loop(
 #endif
 #endif
 
-            if ((GPU_PARAM(gcfg, debuglevel) & MCX_DEBUG_MOVE_ONLY) &&
+            if ((GPU_PARAM(gcfg, debuglevel) & MCX_DEBUG_MOVE_ONLY) &
                     (mediaid == 0 || idx1d == OUTSIDE_VOLUME_MIN || idx1d == OUTSIDE_VOLUME_MAX)) {
                 GPUDEBUG(("ERROR: should never happen! mediaid=%d idx1d=%X\n", mediaid, idx1d));
                 return;
