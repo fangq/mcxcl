@@ -28,7 +28,7 @@ DOCDIR=../doc
 INCLUDEDIRS=-Izmat -Izmat/easylzma -Iubj
 
 CUCCOPT:=-use_fast_math -Xptxas -O3,-v
-CCOPT=-g -pedantic -Wall -O3 -DUSE_OS_TIMER -DCL_SILENCE_DEPRECATION
+CCOPT=-g -pedantic -Wall -Wno-overlength-strings -O3 -DUSE_OS_TIMER -DCL_SILENCE_DEPRECATION
 CPPOPT:=$(CCOPT) -Wno-variadic-macros
 CCOPT+=-std=c99
 

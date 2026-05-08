@@ -11,7 +11,13 @@ function buildmcxcl(varargin)
 %
 % Input:
 %    options: without any option, this script compiles mcxcl.mex* using
-%    default settings. Supported options include
+%    default settings (OpenCL backend only). Supported options include
+%      'clean': delete all *.o files in the source folder and exit
+%      'cuda':  build the trinity (CUDA + OpenCL) mex; requires nvcc.
+%               The CUDA toolkit path is taken from the CUDA_PATH env
+%               variable, defaulting to /usr/local/cuda on Linux/macOS
+%               and C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.0
+%               on Windows. 'cuda' must be the first positional argument.
 %      'include': a string made of sequences of ' -I"/folder/path" ' that
 %            can be included for compilation (format similar to the -I
 %            option for gcc)
@@ -19,6 +25,8 @@ function buildmcxcl(varargin)
 %           -llibrary' that can be added for linking (format similar to -L
 %           and -l flags for gcc)
 %      'filelist': a user-defined list of source file names
+%      'arch': nvcc -arch flag (default '-arch=sm_50'), only used when
+%           'cuda' is given
 %
 % Dependency (Windows only):
 %  1.If you have MATLAB R2017b or later, you may skip this step.
@@ -58,22 +66,32 @@ if (nargin == 1 && strcmp(varargin{1}, 'clean'))
     end
     return
 end
+iscuda = false;
+if (~isempty(varargin) && ischar(varargin{1}) && strcmp(varargin{1}, 'cuda'))
+    iscuda = true;
+    varargin(1) = [];
+end
 opt = struct(varargin{:});
 pname = 'mcx';
 
-clsource = fileread('mcx_core.cl');
-clsrc = sprintf('0x%02x, ', char(clsource));
+fp = fopen('mcx_core.cl', 'rb');
+clsource = fread(fp, inf, 'uint8=>uint8');
+fclose(fp);
+clsrc = sprintf('0x%02x, ', clsource);
 clhex = ['unsigned char mcx_core_cl[] = {' sprintf('\n') clsrc(1:end - 2) sprintf('\n')  ...
-         sprintf('};\nunsigned int mcx_core_cl_len = %d;\n', length(clsource))];
+         sprintf('};\nunsigned int mcx_core_cl_len = %d;\n', numel(clsource))];
 
 fp = fopen('mcx_core.clh', 'wb');
 fwrite(fp, clhex, 'char');
 fclose(fp);
 
-cflags = ' -g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -std=c99 -DMCX_CONTAINER -c ';
+cflags = ' -g -pedantic -Wall -Wno-overlength-strings -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OPENCL -DUSE_OS_TIMER -std=c99 -DMCX_CONTAINER -c ';
+if (iscuda)
+    cflags = [cflags ' -DUSE_CUDA '];
+end
 
 filelist = {'mcx_utils.c', 'mcx_tictoc.c', 'cjson/cJSON.c', 'mcx_host.cpp', ...
-            'mcx_shapes.c', 'mcxlabcl.cpp'};
+            'mcx_shapes.c', 'mcxlabcl.cpp', 'mcx_mie.cpp', 'mcx_lang.c'};
 if (isfield(opt, 'filelist'))
     filelist = opt.filelist;
 end
@@ -90,6 +108,36 @@ else
     cflags = [cflags ' -fPIC '];
     linkflags = [linkflags ' -lOpenCL '];
     linkvar = 'CLIBS';
+end
+
+if (iscuda)
+    cudapath = getenv('CUDA_PATH');
+    if (isempty(cudapath))
+        if (ispc)
+            cudapath = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.0';
+        else
+            cudapath = '/usr/local/cuda';
+        end
+    end
+    arch = '-arch=sm_50';
+    if (isfield(opt, 'arch'))
+        arch = opt.arch;
+    end
+    nvccflags = sprintf(['%s -DUSE_CUDA -DUSE_OPENCL -DUSE_ATOMIC -DMCX_SAVE_DETECTORS '...
+                         '-DMCX_DO_REFLECTION -DMCX_CONTAINER -DMATLAB_MEX_FILE -Xcompiler -fPIC'], arch);
+    if (ispc)
+        nvcc = sprintf('"%s\\bin\\nvcc.exe"', cudapath);
+        linkflags = [linkflags sprintf(' -L"%s\\lib\\x64" -lcudart ', cudapath)];
+    else
+        nvcc = sprintf('"%s/bin/nvcc"', cudapath);
+        linkflags = [linkflags sprintf(' -L%s/lib64 -lcudart ', cudapath)];
+    end
+    nvcccmd = sprintf('%s %s -c -o mcx_cu_host.o mcx_cu_host.cu', nvcc, nvccflags);
+    fprintf(1, '%s\n', nvcccmd);
+    [status, output] = system(nvcccmd);
+    if (status ~= 0)
+        error('mcxlabcl:cudacompile', 'nvcc failed:\n%s', output);
+    end
 end
 if (~exist('OCTAVE_VERSION', 'builtin'))
     for i = 1:length(filelist)
