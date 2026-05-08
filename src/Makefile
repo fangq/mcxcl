@@ -20,7 +20,7 @@ OUTPUT_DIR=../bin
 DOCDIR=../doc
 INCLUDEDIRS=-Izmat -Izmat/easylzma -Izmat/easylzma/lzma -Iubj
 
-CCOPT=-g -pedantic -Wall -O3 -DUSE_OS_TIMER -DCL_SILENCE_DEPRECATION
+CCOPT=-g -pedantic -Wall -Wno-overlength-strings -O3 -DUSE_OS_TIMER -DCL_SILENCE_DEPRECATION
 CPPOPT:=$(CCOPT) -Wno-variadic-macros
 CCOPT+=-std=c99
 
@@ -264,7 +264,7 @@ doc: makedocdir
 
 clean:
 	-$(MAKE) -C zmat clean
-	-rm -f $(OBJS) $(addsuffix $(OBJSUFFIX), $(FILES_OCL)) $(CLSOURCE)
+	-rm -f $(OBJS) $(addsuffix $(OBJSUFFIX), $(FILES_OCL)) $(CLPROGRAM)$(CLHEADER)
 	-rm -f $(OUTPUT_DIR)/$(BINARY)$(EXESUFFIX)
 	-rm -f $(OUTPUT_DIR)/mcxcl$(EXESUFFIX)
 	-rm -f $(ZMATLIB)
@@ -296,7 +296,7 @@ pretty:
 	    --formatted \
 	    --break-blocks \
 	    --exclude=mcx_bench.h \
-	   "*.c" "*.h" "*.cpp" "*.cu" "*.cl"
+	   "*.c" "*.h" "*.cpp" "*.cl"
 
 .PHONY: all clean doc makedirs makedocdir xxd pretty \
         static intelcpu mex oct

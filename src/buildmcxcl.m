@@ -61,19 +61,21 @@ end
 opt = struct(varargin{:});
 pname = 'mcx';
 
-clsource = fileread('mcx_core.cl');
-clsrc = sprintf('0x%02x, ', char(clsource));
+fp = fopen('mcx_core.cl', 'rb');
+clsource = fread(fp, inf, 'uint8=>uint8');
+fclose(fp);
+clsrc = sprintf('0x%02x, ', clsource);
 clhex = ['unsigned char mcx_core_cl[] = {' sprintf('\n') clsrc(1:end - 2) sprintf('\n')  ...
-         sprintf('};\nunsigned int mcx_core_cl_len = %d;\n', length(clsource))];
+         sprintf('};\nunsigned int mcx_core_cl_len = %d;\n', numel(clsource))];
 
 fp = fopen('mcx_core.clh', 'wb');
 fwrite(fp, clhex, 'char');
 fclose(fp);
 
-cflags = ' -g -pedantic -Wall -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OS_TIMER -std=c99 -DMCX_CONTAINER -c ';
+cflags = ' -g -pedantic -Wall -Wno-overlength-strings -O3 -DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OPENCL -DUSE_OS_TIMER -std=c99 -DMCX_CONTAINER -c ';
 
 filelist = {'mcx_utils.c', 'mcx_tictoc.c', 'cjson/cJSON.c', 'mcx_host.cpp', ...
-            'mcx_shapes.c', 'mcxlabcl.cpp'};
+            'mcx_shapes.c', 'mcxlabcl.cpp', 'mcx_mie.cpp', 'mcx_lang.c'};
 if (isfield(opt, 'filelist'))
     filelist = opt.filelist;
 end
