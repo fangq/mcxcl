@@ -3236,11 +3236,13 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
                 cfg->shapedata = cJSON_Print(Shapes);
             }
 
-            if (FIND_JSON_OBJ("_ArrayZipData_", "Volume._ArrayZipData_", Shapes)) {
+            if (FIND_JSON_OBJ("_ArraySize_", "Volume._ArraySize_", Shapes)) {
                 int ndim;
+                uint dims[4] = {1, 1, 1, 1};
                 char* type = NULL, *buf = NULL;
 
-                if (mcx_jdatadecode((void**)&buf, &ndim, &(cfg->dim.x), 3, &type, Shapes, cfg) == 0) {
+                if (mcx_jdatadecode((void**)&buf, &ndim, dims, 4, &type, Shapes, cfg) == 0) {
+                    memcpy(&(cfg->dim.x), dims, sizeof(uint) * 3);
                     mcx_loadvolume(buf, cfg, 1);
                 }
 
@@ -4081,7 +4083,7 @@ void  mcx_convertcol2row4d(unsigned int** vol, uint4* dim) {
 }
 
 void  mcx_maskdet(Config* cfg) {
-    uint d, dx, dy, dz, idx1d, zi, yi, c, count;
+    uint d, dx, dy, dz, idx1d, zi, yi, c, count, isonecube;
     float x, y, z, ix, iy, iz, rx, ry, rz, d2, mind2, d2max;
     unsigned int* padvol;
     const float corners[8][3] = {{0.f, 0.f, 0.f}, {1.f, 0.f, 0.f}, {0.f, 1.f, 0.f}, {0.f, 0.f, 1.f},
@@ -4091,6 +4093,8 @@ void  mcx_maskdet(Config* cfg) {
     dx = cfg->dim.x + 2;
     dy = cfg->dim.y + 2;
     dz = cfg->dim.z + 2;
+
+    isonecube = (cfg->dim.x == 1) && (cfg->dim.y == 1) && (cfg->dim.z == 1);
 
     /*handling boundaries in a volume search is tedious, I first pad vol by a layer of zeros,
       then I don't need to worry about boundaries any more*/
@@ -4144,7 +4148,7 @@ void  mcx_maskdet(Config* cfg) {
                         }
                     }
 
-                    if (mind2 == VERY_BIG || mind2 >= (cfg->detpos[d].w + 0.5f) * (cfg->detpos[d].w + 0.5f)) {
+                    if (mind2 == VERY_BIG || mind2 >= (cfg->detpos[d].w + 0.5f * (1.f + isonecube)) * (cfg->detpos[d].w + 0.5f * (1.f + isonecube))) {
                         continue;
                     }
 
@@ -4183,6 +4187,14 @@ void  mcx_maskdet(Config* cfg) {
     }
 
     free(padvol);
+
+#ifndef MCX_CONTAINER
+
+    if (cfg->isdumpmask) {
+        mcx_dumpmask(cfg);
+    }
+
+#endif
 }
 
 #ifndef MCX_CONTAINER
@@ -4229,6 +4241,7 @@ void mcx_dumpmask(Config* cfg) {
 
     if (cfg->isdumpmask == 1 && cfg->isdumpjson == 0) { /*if dumpmask>1, simulation will also run*/
         MCX_FPRINTF(cfg->flog, "volume mask is saved in %s\n", fname);
+        mcx_clearcfg(cfg);
         exit(0);
     }
 }
@@ -4279,12 +4292,16 @@ int  mcx_jdatadecode(void** vol, int* ndim, uint* dims, int maxdim, char** type,
     }
 
     if (vdata) {
+        size_t elemnum = 0;
+
         if (vsize) {
             cJSON* tmp = vsize->child;
             *ndim = cJSON_GetArraySize(vsize);
+            elemnum = 1;
 
             for (int i = 0; i < MIN(maxdim, *ndim); i++) {
                 dims[i] = tmp->valueint;
+                elemnum *= dims[i];
                 tmp = tmp->next;
             }
         }
@@ -4309,11 +4326,49 @@ int  mcx_jdatadecode(void** vol, int* ndim, uint* dims, int maxdim, char** type,
             }
 
             cfg->isrowmajor = 1;
+        } else if (cJSON_IsArray(vdata)) {
+            size_t arraylen = cJSON_GetArraySize(vdata);
+            int i;
+            cJSON* tmp = vdata->child;
+
+            if (!cJSON_IsNumber(tmp)) {
+                MCX_ERROR(-1, "JData array constructs are not supported");
+            }
+
+            if (*vol) {
+                free(*vol);
+            }
+
+            *vol = calloc(cfg->mediabyte == MEDIA_2LABEL_SPLIT ? 8 : cfg->mediabyte, elemnum);
+
+            if (cfg->mediabyte == 1) {
+                for (i = 0; i < (int)arraylen; i++) {
+                    ((char*)(*vol))[i] = tmp->valueint;
+                    tmp = tmp->next;
+                }
+            } else if (cfg->mediabyte == 2) {
+                for (i = 0; i < (int)arraylen; i++) {
+                    ((short*)(*vol))[i] = tmp->valueint;
+                    tmp = tmp->next;
+                }
+            } else if (cfg->mediabyte == 4) {
+                for (i = 0; i < (int)arraylen; i++) {
+                    ((int*)(*vol))[i] = tmp->valueint;
+                    tmp = tmp->next;
+                }
+            } else if (cfg->mediabyte == MEDIA_2LABEL_SPLIT) {
+                for (i = 0; i < (int)arraylen; i++) {
+                    ((int64_t*)(*vol))[i] = *((int64_t*)&tmp->valuedouble);
+                    tmp = tmp->next;
+                }
+            }
+
+            cfg->isrowmajor = 1;
         } else {
-            MCX_ERROR(-1, "Only compressed JData array constructs are supported");
+            MCX_ERROR(-1, "JData array constructs are not supported");
         }
     } else {
-        MCX_ERROR(-1, "No _ArrayZipData_ field is found");
+        MCX_ERROR(-1, "No _ArrayZipData_ or _ArrayData_ field is found");
     }
 
     return ret;

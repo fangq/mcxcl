@@ -480,6 +480,14 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     unsigned int hostdetreclen = partialdata + SAVE_DETID(cfg->savedetflag) + 3 * (SAVE_PEXIT(cfg->savedetflag) + SAVE_VEXIT(cfg->savedetflag)) + SAVE_W0(cfg->savedetflag) + 4 * SAVE_IQUV(cfg->savedetflag); // host-side det photon data buffer length
     unsigned int is2d = (cfg->dim.x == 1 ? 1 : (cfg->dim.y == 1 ? 2 : (cfg->dim.z == 1 ? 3 : 0)));
 
+    if (is2d) {
+        /**
+         *  is2d is only kept non-zero when exactly one of the 3 dimensions has a length of 1;
+         *  if 2 or 3 dimensions have a length of 1, treat the domain as a 3D volume (e.g. 1x1x1).
+         */
+        is2d = is2d * (((cfg->dim.x > 1) + (cfg->dim.y > 1) + (cfg->dim.z > 1)) == 2);
+    }
+
     MCXParam param = {{{cfg->srcpos.x, cfg->srcpos.y, cfg->srcpos.z, cfg->srcpos.w},
             {cfg->srcdir.x, cfg->srcdir.y, cfg->srcdir.z, cfg->srcdir.w}, {cfg->srcparam1.x, cfg->srcparam1.y, cfg->srcparam1.z, cfg->srcparam1.w},
             {cfg->srcparam2.x, cfg->srcparam2.y, cfg->srcparam2.z, cfg->srcparam2.w}
