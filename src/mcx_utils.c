@@ -1648,7 +1648,6 @@ void mcx_preprocess(Config* cfg) {
         for (int i = 0; i < cfg->medianum; i++) {
             if (cfg->prop[i].mus == 0.f && !cfg->polmedianum) {
                 cfg->prop[i].mus = EPS;
-                cfg->prop[i].g = 1.f;
             }
         }
     }

@@ -1082,9 +1082,9 @@ __device__ void updateproperty(FLOAT4VEC* prop, unsigned int mediaid, __constant
 
     if (gcfg->mediaformat <= 4) {
 #endif
-#if !defined(__NVCC__) && MED_TYPE <= 4
-#endif
+#if defined(__NVCC__) || MED_TYPE <= 4
         *((FLOAT4VEC*)(prop)) = gproperty[mediaid & MED_MASK];
+#endif
 #ifdef __NVCC__
     } else if (gcfg->mediaformat == MEDIA_MUA_FLOAT) {
 #endif
