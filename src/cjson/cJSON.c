@@ -95,7 +95,7 @@ CJSON_PUBLIC(char *) cJSON_GetStringValue(const cJSON * const item) {
 CJSON_PUBLIC(const char*) cJSON_Version(void)
 {
     static char version[15];
-    sprintf(version, "%i.%i.%i", CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
+    snprintf(version, sizeof(version), "%i.%i.%i", CJSON_VERSION_MAJOR, CJSON_VERSION_MINOR, CJSON_VERSION_PATCH);
 
     return version;
 }
@@ -457,7 +457,7 @@ static unsigned char* ensure(printbuffer * const p, size_t needed)
         }
         if (newbuffer)
         {
-            memcpy(newbuffer, p->buffer, p->offset + 1);
+            memcpy(newbuffer, p->buffer, (p->offset < newsize) ? p->offset + 1 : newsize);
         }
         p->hooks.deallocate(p->buffer);
     }
@@ -505,18 +505,18 @@ static cJSON_bool print_number(const cJSON * const item, printbuffer * const out
     /* This checks for NaN and Infinity */
     if ((d * 0) != 0)
     {
-        length = sprintf((char*)number_buffer, "null");
+        length = snprintf((char*)number_buffer, sizeof(number_buffer), "null");
     }
     else
     {
         /* Try 15 decimal places of precision to avoid nonsignificant nonzero digits */
-        length = sprintf((char*)number_buffer, "%1.15g", d);
+        length = snprintf((char*)number_buffer, sizeof(number_buffer), "%1.15g", d);
 
         /* Check whether the original double can be recovered */
         if ((sscanf((char*)number_buffer, "%lg", &test) != 1) || !compare_double((double)test, d))
         {
             /* If not, print with 17 decimal places of precision */
-            length = sprintf((char*)number_buffer, "%1.17g", d);
+            length = snprintf((char*)number_buffer, sizeof(number_buffer), "%1.17g", d);
         }
     }
 
