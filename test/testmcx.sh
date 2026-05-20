@@ -162,6 +162,11 @@ if [ ! -z "$temp" ]; then
 fi
 
 temp=`which cuda-memcheck 2> /dev/null`
+# in CUDA 12+, cuda-memcheck is a deprecated stub that just prints an error and exits;
+# skip the test in that case since compute-sanitizer can not instrument OpenCL apps
+if [ ! -z "$temp" ] && cuda-memcheck --version 2>&1 | grep -q 'does not support cuda-memcheck'; then
+    temp=""
+fi
 if [ ! -z "$temp" ]; then
     echo "test gpu memory errors using cuda-memcheck ... "
     temp=`cuda-memcheck "$MCX" --bench cube60planar --shapes '{"Shapes":[{"Sphere":{"Tag":2,"O":[30,30,10],"R":"10"}}]}' --json '{"Optode":{"Source":{"Type":"fourier","Param1":[40,0,0,2]}}}' -B 'ararar1' -w dpw $PARAM -n 1e5`
