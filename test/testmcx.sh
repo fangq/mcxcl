@@ -42,7 +42,7 @@ temp=`"$MCX" --bench cube60 --dumpjson - | grep '"Name":\s*"cubic60"'`
 if [ -z "$temp" ]; then echo "fail to dump json input shape from builtin example"; fail=$((fail+1)); else echo "ok"; fi
 
 echo "test exporting json input from builtin examples with volume data ... "
-temp=`"$MCX" --bench colin27 --dumpjson - | grep -o -E '"_ArrayZipData_":\s*"eAHs3YuCo7iSBNC'`
+temp=`"$MCX" --bench colin27 --dumpjson - | grep -o -E '"_ArrayZipData_":\s*"eJzs3YuCo7iSBNC'`
 if [ -z "$temp" ]; then echo "fail to dump json input with volume from builtin example"; fail=$((fail+1)); else echo "ok"; fi
 
 echo "test default options ... "
@@ -149,7 +149,7 @@ if [ -z "$temp" ]; then echo "fail to print progress bar"; fail=$((fail+1)); els
 #if [ -z "$temp" ] || [ ! -f testrng222.jnii ] ; then echo "fail to create random numbers"; fail=$((fail+1)); else echo "ok"; fi
 
 echo "test saving trajectory feature -D M ... "
-temp=`"$MCX" --bench cube60 -D M -S 0 -d 0 $PARAM -n 1e2 | grep -o -E 'saved [6-9][0-9]+ trajectory'`
+temp=`"$MCX" --bench cube60 -D M -S 0 -d 0 $PARAM -n 1e2 | grep -o -E 'saved trajectory positions: [6-9][0-9]+'`
 if [ -z "$temp" ]; then echo "fail to save trajectory data via -D M"; fail=$((fail+1)); else echo "ok"; fi
 
 temp=`which valgrind 2> /dev/null`
