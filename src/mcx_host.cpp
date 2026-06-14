@@ -32,6 +32,22 @@
 #define IPARAM_TO_MACRO(macro,a,b) snprintf(macro+strlen(macro), MAX_JIT_OPT_LEN-strlen(macro)-1," -Dgcfg%s=%d ",    #b,(a.b))
 #define FPARAM_TO_MACRO(macro,a,b) snprintf(macro+strlen(macro), MAX_JIT_OPT_LEN-strlen(macro)-1," -Dgcfg%s=%.10ef ",#b,(a.b))
 
+/* Acquisition-phase error handling. On failure these set 'status' and break out of
+ * the do{...}while(0) guard that wraps the run, so the single NULL-safe teardown that
+ * follows runs for both the success and the error path; the deferred error is then
+ * re-reported at the very end. This matters when MCXCL runs as a library (mcxlabcl/
+ * pmcxcl), where mcx_error throws a C++ exception instead of calling exit(): a
+ * clCreateBuffer/clBuildProgram/clCreateKernel failure (e.g. GPU out-of-memory) would
+ * otherwise leak the context and all partially-allocated device buffers.
+ *
+ * NOTE: these expand to a bare 'if(...) break;' (break cannot live inside a do/while
+ * wrapper here), so only use them as standalone statements or inside braced blocks,
+ * never as the unbraced body of an if/else. 'break' inside one of the acquisition
+ * for-loops exits that loop; an 'if (status != CL_SUCCESS) break;' after the loop then
+ * leaves the guard. */
+#define OCL_TRY(x)           if ((status = (x)) != CL_SUCCESS) { break; }
+#define MCX_ASSERT_ALLOC(p)  if ((p) == NULL) { status = CL_OUT_OF_HOST_MEMORY; break; }
+
 cl_event kernelevent;
 
 const char* VendorList[] = {"Unknown", "NVIDIA", "AMD", "Intel", "IntelGPU", "AppleCPU", "AppleGPU", "ArmGPU"};
@@ -426,7 +442,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     cl_float  minstep = MIN(MIN(cfg->steps.x, cfg->steps.y), cfg->steps.z);
     cl_float t, twindow0, twindow1;
     cl_float fullload = 0.f;
-    cl_float* energy;
+    cl_float* energy = NULL;
     cl_uint* progress = NULL;
     cl_uint detected = 0, workdev;
 
@@ -437,13 +453,13 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     cl_uint2 cachebox = {{0, 0}};
     cl_uint4 dimlen = {{0, 0, 0, 0}};
 
-    cl_context mcxcontext;                 // compute mcxcontext
-    cl_command_queue* mcxqueue;          // compute command queue
-    cl_program mcxprogram;                 // compute mcxprogram
-    cl_kernel* mcxkernel;                   // compute mcxkernel
+    cl_context mcxcontext = NULL;          // compute mcxcontext
+    cl_command_queue* mcxqueue = NULL;   // compute command queue
+    cl_program mcxprogram = NULL;          // compute mcxprogram
+    cl_kernel* mcxkernel = NULL;            // compute mcxkernel
     cl_int status = 0;
     cl_device_id devices[MAX_DEVICE];
-    cl_event* waittoread;
+    cl_event* waittoread = NULL;
     cl_platform_id platform = NULL;
 
     cl_uint  totalcucore;
@@ -451,14 +467,14 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     cl_mem* gmedia = NULL, *gproperty = NULL, *gparam = NULL;
     cl_mem* gsmatrix = NULL;
     cl_mem greplaydetid = NULL, greplayw = NULL, greplaytof = NULL, *gsrcpattern = NULL;
-    cl_mem* gfield = NULL, *gdetphoton, *gseed = NULL, *genergy = NULL, *gseeddata = NULL;
+    cl_mem* gfield = NULL, *gdetphoton = NULL, *gseed = NULL, *genergy = NULL, *gseeddata = NULL;
     cl_mem* gprogress = NULL, *gdetected = NULL, *gdetpos = NULL, *gjumpdebug = NULL, *gdebugdata = NULL, *ginvcdf = NULL, *gangleinvcdf = NULL;
 
     int isrfforward = (cfg->omega > 0.f && cfg->seed != SEED_FROM_FILE);  /**< RF forward: complex photon weights */
     size_t dimxyz = cfg->dim.x * cfg->dim.y * cfg->dim.z * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) ? cfg->srcnum : (cfg->srcid < 0) ? (cfg->extrasrclen + 1) : 1);
 
     cl_uint*  media = (cl_uint*)(cfg->vol);
-    cl_float*  field;
+    cl_float*  field = NULL;
 
     float*  Pdet = NULL;
     float*  srcpw = NULL, *energytot = NULL, *energyabs = NULL; // for multi-srcpattern
@@ -525,1108 +541,1180 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
     /* Use NULL for backward compatibility */
     cl_context_properties* cprops = (platform == NULL) ? NULL : cps;
-    OCL_ASSERT(((mcxcontext = clCreateContext(cprops, workdev, devices, NULL, NULL, &status), status)));
 
-    mcxqueue = (cl_command_queue*)malloc(workdev * sizeof(cl_command_queue));
-    waittoread = (cl_event*)malloc(workdev * sizeof(cl_event));
+    /* Guard the whole resource-acquisition + run region: any acquisition failure
+     * (OCL_TRY/MCX_ASSERT_ALLOC) breaks out to the single NULL-safe teardown below
+     * instead of throwing past it. See the OCL_TRY comment near the top of the file. */
+    do {
+        OCL_TRY(((mcxcontext = clCreateContext(cprops, workdev, devices, NULL, NULL, &status), status)));
 
-    gseed = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    gmedia = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    gproperty = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    gparam = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    gfield = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    gdetphoton = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    genergy = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    gprogress = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    gdetected = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    gdetpos = (cl_mem*)calloc(workdev, sizeof(cl_mem));
-    gjumpdebug = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    gdebugdata = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    gseeddata = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    gsrcpattern = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    ginvcdf = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    gangleinvcdf = (cl_mem*)malloc(workdev * sizeof(cl_mem));
-    gsmatrix = (cl_mem*)malloc(workdev * sizeof(cl_mem));
+        /* calloc (not malloc) so every per-device handle starts NULL: the cleanup path
+         * can then release only what was created, even if acquisition aborted partway. */
+        mcxqueue = (cl_command_queue*)calloc(workdev, sizeof(cl_command_queue));
+        waittoread = (cl_event*)calloc(workdev, sizeof(cl_event));
 
-    /* The block is to move the declaration of prop closer to its use */
-    cl_command_queue_properties prop = CL_QUEUE_PROFILING_ENABLE;
+        gseed = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        gmedia = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        gproperty = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        gparam = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        gfield = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        gdetphoton = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        genergy = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        gprogress = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        gdetected = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        gdetpos = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        gjumpdebug = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        gdebugdata = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        gseeddata = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        gsrcpattern = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        ginvcdf = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        gangleinvcdf = (cl_mem*)calloc(workdev, sizeof(cl_mem));
+        gsmatrix = (cl_mem*)calloc(workdev, sizeof(cl_mem));
 
-    totalcucore = 0;
+        if (!mcxqueue || !waittoread || !gseed || !gmedia || !gproperty || !gparam || !gfield ||
+                !gdetphoton || !genergy || !gprogress || !gdetected || !gdetpos || !gjumpdebug ||
+                !gdebugdata || !gseeddata || !gsrcpattern || !ginvcdf || !gangleinvcdf || !gsmatrix) {
+            status = CL_OUT_OF_HOST_MEMORY;
+            break;
+        }
 
-    for (i = 0; i < workdev; i++) {
-        OCL_ASSERT(((mcxqueue[i] = clCreateCommandQueue(mcxcontext, devices[i], prop, &status), status)));
-        totalcucore += gpu[i].core;
+        /* The block is to move the declaration of prop closer to its use */
+        cl_command_queue_properties prop = CL_QUEUE_PROFILING_ENABLE;
 
-        if (!cfg->autopilot) {
-            uint gates = (uint)((cfg->tend - cfg->tstart) / cfg->tstep + 0.5);
-            gpu[i].autothread = cfg->nthread;
-            gpu[i].autoblock = cfg->nblocksize;
+        totalcucore = 0;
 
-            if (cfg->maxgate == 0) {
-                cfg->maxgate = gates;
-            } else if (cfg->maxgate > gates) {
-                cfg->maxgate = gates;
-            }
+        for (i = 0; i < workdev; i++) {
+            OCL_TRY(((mcxqueue[i] = clCreateCommandQueue(mcxcontext, devices[i], prop, &status), status)));
+            totalcucore += gpu[i].core;
 
-            gpu[i].maxgate = cfg->maxgate;
-        } else {
-            // persistent thread mode
-            if (gpu[i].vendor == dvIntelGPU || gpu[i].vendor == dvIntel) { // Intel HD graphics GPU
-                gpu[i].autoblock  = (gpu[i].vendor == dvIntelGPU) ? 64 : 1;
-                gpu[i].autothread = gpu[i].autoblock * 7 * gpu[i].sm; // 7 thread x SIMD-16 per Exec Unit (EU)
-            } else if (gpu[i].vendor == dvAMD) { // AMD GPU
-                gpu[i].autoblock  = 64;
-                gpu[i].autothread = 2560 * gpu[i].sm; // 40 wavefronts * 64 threads/wavefront
-            } else if (gpu[i].vendor == dvNVIDIA) {
-                if (gpu[i].major == 2 || gpu[i].major == 3) { // fermi 2.x, kepler 3.x : max 7 blks per SM, 8 works better
-                    gpu[i].autoblock  = 128;
-                    gpu[i].autothread = gpu[i].autoblock * 8 * gpu[i].sm;
-                } else if (gpu[i].major == 5) { // maxwell 5.x
+            if (!cfg->autopilot) {
+                uint gates = (uint)((cfg->tend - cfg->tstart) / cfg->tstep + 0.5);
+                gpu[i].autothread = cfg->nthread;
+                gpu[i].autoblock = cfg->nblocksize;
+
+                if (cfg->maxgate == 0) {
+                    cfg->maxgate = gates;
+                } else if (cfg->maxgate > gates) {
+                    cfg->maxgate = gates;
+                }
+
+                gpu[i].maxgate = cfg->maxgate;
+            } else {
+                // persistent thread mode
+                if (gpu[i].vendor == dvIntelGPU || gpu[i].vendor == dvIntel) { // Intel HD graphics GPU
+                    gpu[i].autoblock  = (gpu[i].vendor == dvIntelGPU) ? 64 : 1;
+                    gpu[i].autothread = gpu[i].autoblock * 7 * gpu[i].sm; // 7 thread x SIMD-16 per Exec Unit (EU)
+                } else if (gpu[i].vendor == dvAMD) { // AMD GPU
                     gpu[i].autoblock  = 64;
-                    gpu[i].autothread = gpu[i].autoblock * 16 * gpu[i].sm;
-                } else if (gpu[i].major >= 6) { // pascal 6.x : max 32 blks per SM
-                    gpu[i].autoblock  = 64;
-                    gpu[i].autothread = gpu[i].autoblock * 64 * gpu[i].sm;
+                    gpu[i].autothread = 2560 * gpu[i].sm; // 40 wavefronts * 64 threads/wavefront
+                } else if (gpu[i].vendor == dvNVIDIA) {
+                    if (gpu[i].major == 2 || gpu[i].major == 3) { // fermi 2.x, kepler 3.x : max 7 blks per SM, 8 works better
+                        gpu[i].autoblock  = 128;
+                        gpu[i].autothread = gpu[i].autoblock * 8 * gpu[i].sm;
+                    } else if (gpu[i].major == 5) { // maxwell 5.x
+                        gpu[i].autoblock  = 64;
+                        gpu[i].autothread = gpu[i].autoblock * 16 * gpu[i].sm;
+                    } else if (gpu[i].major >= 6) { // pascal 6.x : max 32 blks per SM
+                        gpu[i].autoblock  = 64;
+                        gpu[i].autothread = gpu[i].autoblock * 64 * gpu[i].sm;
+                    }
                 }
             }
-        }
 
-        if (gpu[i].autothread % gpu[i].autoblock) {
-            gpu[i].autothread = (gpu[i].autothread / gpu[i].autoblock) * gpu[i].autoblock;
-        }
-
-        if (gpu[i].maxgate == 0 && dimxyz > 0) {
-            int needmem = dimxyz + gpu[i].autothread * sizeof(float4) * 4 + sizeof(float) * cfg->maxdetphoton * hostdetreclen + 10 * 1024 * 1024; /*keep 10M for other things*/
-            gpu[i].maxgate = (gpu[i].globalmem - needmem) / dimxyz;
-            gpu[i].maxgate = MIN(((cfg->tend - cfg->tstart) / cfg->tstep + 0.5), gpu[i].maxgate);
-        }
-    }
-
-    if (is2d) {
-        float* vec = &(param.src.dir.x);
-
-        if (ABS(vec[is2d - 1]) > EPS) {
-            mcx_error(-1, "input domain is 2D, the initial direction can not have non-zero value in the singular dimension", __FILE__, __LINE__);
-        }
-    }
-
-    cfg->maxgate = (int)((cfg->tend - cfg->tstart) / cfg->tstep + 0.5);
-    param.maxgate = cfg->maxgate;
-
-    fullload = 0.f;
-
-    for (i = 0; i < workdev; i++) {
-        fullload += cfg->workload[i];
-    }
-
-    if (fullload < EPS) {
-        for (i = 0; i < workdev; i++) {
-            cfg->workload[i] = gpu[i].core;
-        }
-
-        fullload = totalcucore;
-    }
-
-    if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
-        field = (cl_float*)calloc(sizeof(cl_float) * dimxyz, cfg->maxgate * 2 * cfg->detnum);
-    } else {
-        field = (cl_float*)calloc(sizeof(cl_float) * dimxyz, cfg->maxgate * 2);
-    }
-
-    Pdet = (float*)calloc(cfg->maxdetphoton, sizeof(float) * hostdetreclen);
-
-    cachebox.x = (cp1.x - cp0.x + 1);
-    cachebox.y = (cp1.y - cp0.y + 1) * (cp1.x - cp0.x + 1);
-    dimlen.x = cfg->dim.x;
-    dimlen.y = cfg->dim.x * cfg->dim.y;
-    dimlen.z = cfg->dim.x * cfg->dim.y * cfg->dim.z;
-    dimlen.w = cfg->maxgate * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) ? cfg->srcnum : (cfg->srcid < 0) ? (cfg->extrasrclen + 1) : 1);
-
-    /** Here we decide the total output buffer, field's length. it is Nx*Ny*Nz*Nt*Ns */
-    if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
-        dimlen.w *= cfg->detnum;
-        fieldlen = dimlen.z * dimlen.w;
-    } else {
-        fieldlen = dimlen.z * dimlen.w;
-    }
-
-    dimlen.w = fieldlen;
-
-    param.dimlen = dimlen;
-    param.cachebox = cachebox;
-
-    if (cfg->seed > 0) {
-        srand(cfg->seed);
-    } else {
-        srand(time(0));
-    }
-
-    if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY) && cfg->exportdebugdata == NULL) {
-        cfg->exportdebugdata = (float*)calloc(sizeof(float), (debuglen * cfg->maxjumpdebug));
-    }
-
-    cl_mem (*clCreateBufferNV)(cl_context, cl_mem_flags, cl_mem_flags_NV, size_t, void*, cl_int*) = (cl_mem (*)(cl_context, cl_mem_flags, cl_mem_flags_NV, size_t, void*, cl_int*)) clGetExtensionFunctionAddressForPlatform(platform, "clCreateBufferNV");
-
-    if (clCreateBufferNV == NULL) {
-        OCL_ASSERT(((gprogress[0] = clCreateBuffer(mcxcontext, RW_PTR, sizeof(cl_uint), NULL, &status), status)));
-    } else {
-        gprogress[0] = clCreateBufferNV(mcxcontext, CL_MEM_READ_WRITE, NV_PIN, sizeof(cl_uint), NULL, &status);
-
-        if (status == CL_INVALID_VALUE) {
-            MCX_FPRINTF(cfg->flog, "Warning: to use the progress bar feature, you need to upgrade your NVIDIA GPU driver to 399.x or newer. Without the update, your progress bar may appear to be static (despite the simulation is running)\n");
-            OCL_ASSERT(((gprogress[0] = clCreateBuffer(mcxcontext, RW_PTR, sizeof(cl_uint), NULL, &status), status)));
-        }
-    }
-
-    progress = (cl_uint*)clEnqueueMapBuffer(mcxqueue[0], gprogress[0], CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeof(cl_uint), 0, NULL, NULL, NULL);
-    *progress = 0;
-
-    if (cfg->seed == SEED_FROM_FILE) {
-        // replay should only work with a single device
-        OCL_ASSERT(((gseed[0] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(RandType) * cfg->nphoton * RAND_BUF_LEN, cfg->replay.seed, &status), status)));
-
-        if (cfg->replay.weight) {
-            OCL_ASSERT(((greplayw = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * cfg->nphoton, cfg->replay.weight, &status), status)));
-        }
-
-        if (cfg->replay.tof) {
-            OCL_ASSERT(((greplaytof = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * cfg->nphoton, cfg->replay.tof, &status), status)));
-        }
-
-        if (cfg->replay.detid) {
-            OCL_ASSERT(((greplaydetid = clCreateBuffer(mcxcontext, RO_MEM, sizeof(int) * cfg->nphoton, cfg->replay.detid, &status), status)));
-        }
-    }
-
-    for (i = 0; i < workdev; i++) {
-        if (cfg->mediabyte != MEDIA_2LABEL_SPLIT && cfg->mediabyte != MEDIA_ASGN_F2H) {
-            OCL_ASSERT(((gmedia[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(cl_uint) * (cfg->dim.x * cfg->dim.y * cfg->dim.z), media, &status), status)));
-        } else {
-            OCL_ASSERT(((gmedia[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(cl_uint) * (2 * cfg->dim.x * cfg->dim.y * cfg->dim.z), media, &status), status)));
-        }
-
-        if (cfg->srcdata) {
-            float4* medsrc = (float4*)malloc(cfg->extrasrclen * 4 * sizeof(float4) + cfg->medianum * sizeof(Medium) + cfg->detnum * sizeof(float4));
-            memcpy(medsrc, cfg->prop, cfg->medianum * sizeof(Medium));
-            memcpy(medsrc + cfg->medianum, cfg->srcdata, cfg->extrasrclen * 4 * sizeof(float4));
-            OCL_ASSERT(((gproperty[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->extrasrclen * 4 * sizeof(float4) + cfg->medianum * sizeof(Medium), medsrc, &status), status)));
-            free(medsrc);
-        } else {
-            OCL_ASSERT(((gproperty[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->medianum * sizeof(Medium), cfg->prop, &status), status)));
-        }
-
-        OCL_ASSERT(((gparam[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(MCXParam), &param, &status), status)));
-        energy = (cl_float*)calloc(sizeof(cl_float), gpu[i].autothread << 1);
-
-        if (cfg->seed != SEED_FROM_FILE) {
-            Pseed = (RandType*)malloc(sizeof(RandType) * gpu[i].autothread * RAND_BUF_LEN);
-            cl_uint* iseed = (cl_uint*)Pseed;
-
-            for (j = 0; j < gpu[i].autothread * RAND_SEED_LEN; j++) {
-                iseed[j] = rand();
+            if (gpu[i].autothread % gpu[i].autoblock) {
+                gpu[i].autothread = (gpu[i].autothread / gpu[i].autoblock) * gpu[i].autoblock;
             }
 
-            OCL_ASSERT(((gseed[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(RandType) * gpu[i].autothread * RAND_BUF_LEN, Pseed, &status), status)));
+            if (gpu[i].maxgate == 0 && dimxyz > 0) {
+                int needmem = dimxyz + gpu[i].autothread * sizeof(float4) * 4 + sizeof(float) * cfg->maxdetphoton * hostdetreclen + 10 * 1024 * 1024; /*keep 10M for other things*/
+                gpu[i].maxgate = (gpu[i].globalmem - needmem) / dimxyz;
+                gpu[i].maxgate = MIN(((cfg->tend - cfg->tstart) / cfg->tstep + 0.5), gpu[i].maxgate);
+            }
         }
 
-        OCL_ASSERT(((gfield[i] = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, sizeof(cl_float) * fieldlen * (isrfforward ? 4 : 2), NULL, &status), status)));
-        {
-            cl_float zero = 0.f;
-            OCL_ASSERT((clEnqueueFillBuffer(mcxqueue[i], gfield[i], &zero, sizeof(cl_float), 0, sizeof(cl_float) * fieldlen * (isrfforward ? 4 : 2), 0, NULL, NULL)));
+        if (status != CL_SUCCESS) {
+            break;    /* a clCreateCommandQueue above failed; leave the guard */
+        }
+
+        if (is2d) {
+            float* vec = &(param.src.dir.x);
+
+            if (ABS(vec[is2d - 1]) > EPS) {
+                mcx_error(-1, "input domain is 2D, the initial direction can not have non-zero value in the singular dimension", __FILE__, __LINE__);
+            }
+        }
+
+        cfg->maxgate = (int)((cfg->tend - cfg->tstart) / cfg->tstep + 0.5);
+        param.maxgate = cfg->maxgate;
+
+        fullload = 0.f;
+
+        for (i = 0; i < workdev; i++) {
+            fullload += cfg->workload[i];
+        }
+
+        if (fullload < EPS) {
+            for (i = 0; i < workdev; i++) {
+                cfg->workload[i] = gpu[i].core;
+            }
+
+            fullload = totalcucore;
+        }
+
+        if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
+            field = (cl_float*)calloc(sizeof(cl_float) * dimxyz, cfg->maxgate * 2 * cfg->detnum);
+        } else {
+            field = (cl_float*)calloc(sizeof(cl_float) * dimxyz, cfg->maxgate * 2);
+        }
+
+        Pdet = (float*)calloc(cfg->maxdetphoton, sizeof(float) * hostdetreclen);
+        MCX_ASSERT_ALLOC(field);
+        MCX_ASSERT_ALLOC(Pdet);
+
+        cachebox.x = (cp1.x - cp0.x + 1);
+        cachebox.y = (cp1.y - cp0.y + 1) * (cp1.x - cp0.x + 1);
+        dimlen.x = cfg->dim.x;
+        dimlen.y = cfg->dim.x * cfg->dim.y;
+        dimlen.z = cfg->dim.x * cfg->dim.y * cfg->dim.z;
+        dimlen.w = cfg->maxgate * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) ? cfg->srcnum : (cfg->srcid < 0) ? (cfg->extrasrclen + 1) : 1);
+
+        /** Here we decide the total output buffer, field's length. it is Nx*Ny*Nz*Nt*Ns.
+         * dimlen.z and dimlen.w are 32-bit cl_uint, so cast to size_t before multiplying
+         * to avoid a 32-bit overflow that would silently under-allocate the field buffer. */
+        if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
+            dimlen.w *= cfg->detnum;
+            fieldlen = (size_t)dimlen.z * dimlen.w;
+        } else {
+            fieldlen = (size_t)dimlen.z * dimlen.w;
+        }
+
+        dimlen.w = fieldlen;
+
+        param.dimlen = dimlen;
+        param.cachebox = cachebox;
+
+        if (cfg->seed > 0) {
+            srand(cfg->seed);
+        } else {
+            srand(time(0));
+        }
+
+        if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY) && cfg->exportdebugdata == NULL) {
+            cfg->exportdebugdata = (float*)calloc(sizeof(float), (debuglen * cfg->maxjumpdebug));
+        }
+
+        cl_mem (*clCreateBufferNV)(cl_context, cl_mem_flags, cl_mem_flags_NV, size_t, void*, cl_int*) = (cl_mem (*)(cl_context, cl_mem_flags, cl_mem_flags_NV, size_t, void*, cl_int*)) clGetExtensionFunctionAddressForPlatform(platform, "clCreateBufferNV");
+
+        if (clCreateBufferNV == NULL) {
+            OCL_TRY(((gprogress[0] = clCreateBuffer(mcxcontext, RW_PTR, sizeof(cl_uint), NULL, &status), status)));
+        } else {
+            gprogress[0] = clCreateBufferNV(mcxcontext, CL_MEM_READ_WRITE, NV_PIN, sizeof(cl_uint), NULL, &status);
+
+            if (status == CL_INVALID_VALUE) {
+                MCX_FPRINTF(cfg->flog, "Warning: to use the progress bar feature, you need to upgrade your NVIDIA GPU driver to 399.x or newer. Without the update, your progress bar may appear to be static (despite the simulation is running)\n");
+                OCL_TRY(((gprogress[0] = clCreateBuffer(mcxcontext, RW_PTR, sizeof(cl_uint), NULL, &status), status)));
+            }
+        }
+
+        progress = (cl_uint*)clEnqueueMapBuffer(mcxqueue[0], gprogress[0], CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeof(cl_uint), 0, NULL, NULL, NULL);
+        *progress = 0;
+
+        if (cfg->seed == SEED_FROM_FILE) {
+            // replay should only work with a single device
+            OCL_TRY(((gseed[0] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(RandType) * cfg->nphoton * RAND_BUF_LEN, cfg->replay.seed, &status), status)));
+
+            if (cfg->replay.weight) {
+                OCL_TRY(((greplayw = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * cfg->nphoton, cfg->replay.weight, &status), status)));
+            }
+
+            if (cfg->replay.tof) {
+                OCL_TRY(((greplaytof = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * cfg->nphoton, cfg->replay.tof, &status), status)));
+            }
+
+            if (cfg->replay.detid) {
+                OCL_TRY(((greplaydetid = clCreateBuffer(mcxcontext, RO_MEM, sizeof(int) * cfg->nphoton, cfg->replay.detid, &status), status)));
+            }
+        }
+
+        for (i = 0; i < workdev; i++) {
+            if (cfg->mediabyte != MEDIA_2LABEL_SPLIT && cfg->mediabyte != MEDIA_ASGN_F2H) {
+                OCL_TRY(((gmedia[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(cl_uint) * (cfg->dim.x * cfg->dim.y * cfg->dim.z), media, &status), status)));
+            } else {
+                OCL_TRY(((gmedia[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(cl_uint) * (2 * cfg->dim.x * cfg->dim.y * cfg->dim.z), media, &status), status)));
+            }
+
+            if (cfg->srcdata) {
+                float4* medsrc = (float4*)malloc(cfg->extrasrclen * 4 * sizeof(float4) + cfg->medianum * sizeof(Medium) + cfg->detnum * sizeof(float4));
+                memcpy(medsrc, cfg->prop, cfg->medianum * sizeof(Medium));
+                memcpy(medsrc + cfg->medianum, cfg->srcdata, cfg->extrasrclen * 4 * sizeof(float4));
+                OCL_TRY(((gproperty[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->extrasrclen * 4 * sizeof(float4) + cfg->medianum * sizeof(Medium), medsrc, &status), status)));
+                free(medsrc);
+            } else {
+                OCL_TRY(((gproperty[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->medianum * sizeof(Medium), cfg->prop, &status), status)));
+            }
+
+            OCL_TRY(((gparam[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(MCXParam), &param, &status), status)));
+            energy = (cl_float*)calloc(sizeof(cl_float), gpu[i].autothread << 1);
+
+            if (cfg->seed != SEED_FROM_FILE) {
+                Pseed = (RandType*)malloc(sizeof(RandType) * gpu[i].autothread * RAND_BUF_LEN);
+                cl_uint* iseed = (cl_uint*)Pseed;
+
+                for (j = 0; j < gpu[i].autothread * RAND_SEED_LEN; j++) {
+                    iseed[j] = rand();
+                }
+
+                OCL_TRY(((gseed[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(RandType) * gpu[i].autothread * RAND_BUF_LEN, Pseed, &status), status)));
+            }
+
+            OCL_TRY(((gfield[i] = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, sizeof(cl_float) * fieldlen * (isrfforward ? 4 : 2), NULL, &status), status)));
+            {
+                cl_float zero = 0.f;
+                OCL_TRY((clEnqueueFillBuffer(mcxqueue[i], gfield[i], &zero, sizeof(cl_float), 0, sizeof(cl_float) * fieldlen * (isrfforward ? 4 : 2), 0, NULL, NULL)));
+            }
+
+            if (cfg->issavedet) {
+                OCL_TRY(((gdetphoton[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(float) * cfg->maxdetphoton * hostdetreclen, Pdet, &status), status)));
+            }
+
+            OCL_TRY(((genergy[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(float) * (gpu[i].autothread << 1), energy, &status), status)));
+            OCL_TRY(((gdetected[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(cl_uint), &detected, &status), status)));
+
+            if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
+                uint jumpcount = 0;
+                OCL_TRY(((gjumpdebug[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(cl_uint), &jumpcount, &status), status)));
+                OCL_TRY(((gdebugdata[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(float) * (debuglen * cfg->maxjumpdebug), cfg->exportdebugdata, &status), status)));
+            }
+
+            if (cfg->issaveseed) {
+                seeddata = (RandType*)calloc(sizeof(RandType), cfg->maxdetphoton * RAND_BUF_LEN);
+                OCL_TRY(((gseeddata[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(RandType) * cfg->maxdetphoton * RAND_BUF_LEN, seeddata, &status), status)));
+                free(seeddata);
+            }
+
+            if (cfg->nphase) {
+                OCL_TRY(((ginvcdf[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * cfg->nphase, cfg->invcdf, &status), status)));
+            }
+
+            if (cfg->nangle) {
+                OCL_TRY(((gangleinvcdf[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * cfg->nangle, cfg->angleinvcdf, &status), status)));
+            }
+
+            if (cfg->detnum > 0) {
+                OCL_TRY(((gdetpos[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->detnum * sizeof(float4), cfg->detpos, &status), status)));
+            }
+
+            if (cfg->seed != SEED_FROM_FILE) {
+                free(Pseed);
+                Pseed = NULL;
+            }
+
+            free(energy);
+            energy = NULL;
+
+            if (cfg->srctype == MCX_SRC_PATTERN) {
+                OCL_TRY(((gsrcpattern[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * (int)(cfg->srcparam1.w * cfg->srcparam2.w) * cfg->srcnum, cfg->srcpattern, &status), status)));
+            } else if (cfg->srctype == MCX_SRC_PATTERN3D) {
+                OCL_TRY(((gsrcpattern[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * (int)(cfg->srcparam1.x * cfg->srcparam1.y * cfg->srcparam1.z) * cfg->srcnum, cfg->srcpattern, &status), status)));
+            } else {
+                gsrcpattern[i] = NULL;
+            }
+
+            if (cfg->polmedianum && cfg->smatrix) {
+                OCL_TRY(((gsmatrix[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->polmedianum * NANGLES * sizeof(float4), cfg->smatrix, &status), status)));
+            } else {
+                gsmatrix[i] = NULL;
+            }
+
+
+        }
+
+        if (status != CL_SUCCESS) {
+            break;    /* a per-device clCreateBuffer above failed; leave the guard */
+        }
+
+        mcx_printheader(cfg);
+
+        tic = StartTimer();
+
+#if __OPENCL_C_VERSION__
+        MCX_FPRINTF(cfg->flog, "- %s: [Infinity] %s OpenCL [%d] on [%s]\n",
+                    T_("code name"), T_("compiled with"), __OPENCL_C_VERSION__, __DATE__);
+#else
+        MCX_FPRINTF(cfg->flog, "- %s: [Infinity] %s OpenCL [%d] on [%s]\n",
+                    T_("code name"), T_("compiled with"), CL_VERSION_1_0, __DATE__);
+#endif
+
+        MCX_FPRINTF(cfg->flog, "- %s: [RNG] %s [%s] %d\n", T_("compiled with"), MCX_RNG_NAME, T_("seed length"), RAND_SEED_LEN);
+        MCX_FPRINTF(cfg->flog, "%s ...\t", T_("initializing streams"));
+
+        MCX_FPRINTF(cfg->flog, "%s : %d ms\n", T_("init complete"), GetTimeMillis() - tic);
+        fflush(cfg->flog);
+        mcx_flush(cfg);
+
+        OCL_TRY(((mcxprogram = clCreateProgramWithSource(mcxcontext, 1, (const char**) & (cfg->clsource), NULL, &status), status)));
+
+        if (cfg->optlevel >= 1) {
+            snprintf(opt, MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-cl-mad-enable -DMCX_USE_NATIVE");
+        }
+
+        if (cfg->optlevel >= 2) {
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DMCX_SIMPLIFY_BRANCH -DMCX_VECTOR_INDEX");
+        }
+
+        if (cfg->optlevel >= 3 && cfg->seed != SEED_FROM_FILE) { // optlevel 3 - i.e. defining parameters as macros - fails replay test, need to debug
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DUSE_MACRO_CONST");
+        }
+
+        if (cfg->optlevel >= 4) {
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DGROUP_LOAD_BALANCE");
+        }
+
+        for (i = 0; i < 3; i++)
+            if (cfg->debuglevel & (1 << i)) {
+                snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", debugopt[i]);
+            }
+
+        if ((uint)cfg->srctype < sizeof(sourceflag) / sizeof(sourceflag[0])) {
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", sourceflag[(uint)cfg->srctype]);
+        }
+
+        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "-DMED_TYPE=%d ", cfg->mediabyte);
+
+        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", cfg->compileropt);
+
+        if (cfg->isatomic) {
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DUSE_ATOMIC");
         }
 
         if (cfg->issavedet) {
-            OCL_ASSERT(((gdetphoton[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(float) * cfg->maxdetphoton * hostdetreclen, Pdet, &status), status)));
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DMCX_SAVE_DETECTORS");
         }
-
-        OCL_ASSERT(((genergy[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(float) * (gpu[i].autothread << 1), energy, &status), status)));
-        OCL_ASSERT(((gdetected[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(cl_uint), &detected, &status), status)));
 
         if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
-            uint jumpcount = 0;
-            OCL_ASSERT(((gjumpdebug[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(cl_uint), &jumpcount, &status), status)));
-            OCL_ASSERT(((gdebugdata[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(float) * (debuglen * cfg->maxjumpdebug), cfg->exportdebugdata, &status), status)));
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DMCX_SAVE_TRAJECTORY");
         }
 
-        if (cfg->issaveseed) {
-            seeddata = (RandType*)calloc(sizeof(RandType), cfg->maxdetphoton * RAND_BUF_LEN);
-            OCL_ASSERT(((gseeddata[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(RandType) * cfg->maxdetphoton * RAND_BUF_LEN, seeddata, &status), status)));
-            free(seeddata);
+        if (MCX_IS_ADJOINT_TYPE(cfg->outputtype)) {
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DMCX_ADJOINT_MODE");
         }
 
-        if (cfg->nphase) {
-            OCL_ASSERT(((ginvcdf[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * cfg->nphase, cfg->invcdf, &status), status)));
+        if (strstr(opt, "USE_MACRO_CONST")) {
+            UPARAM_TO_MACRO(opt, param, detnum);
+            UPARAM_TO_MACRO(opt, param, doreflect);
+            UPARAM_TO_MACRO(opt, param, gscatter);
+            UPARAM_TO_MACRO(opt, param, is2d);
+            UPARAM_TO_MACRO(opt, param, issaveref);
+            UPARAM_TO_MACRO(opt, param, issaveseed);
+            UPARAM_TO_MACRO(opt, param, isspecular);
+            UPARAM_TO_MACRO(opt, param, maxdetphoton);
+            UPARAM_TO_MACRO(opt, param, maxgate);
+            UPARAM_TO_MACRO(opt, param, maxjumpdebug);
+            UPARAM_TO_MACRO(opt, param, maxmedia);
+            UPARAM_TO_MACRO(opt, param, maxvoidstep);
+            UPARAM_TO_MACRO(opt, param, mediaformat);
+            FPARAM_TO_MACRO(opt, param, minaccumtime);
+            FPARAM_TO_MACRO(opt, param, minenergy);
+            FPARAM_TO_MACRO(opt, param, oneoverc0);
+            UPARAM_TO_MACRO(opt, param, outputtype);
+            UPARAM_TO_MACRO(opt, param, partialdata);
+            UPARAM_TO_MACRO(opt, param, reclen);
+            UPARAM_TO_MACRO(opt, param, save2pt);
+            UPARAM_TO_MACRO(opt, param, savedet);
+            UPARAM_TO_MACRO(opt, param, savedetflag);
+            UPARAM_TO_MACRO(opt, param, seed);
+            UPARAM_TO_MACRO(opt, param, srcnum);
+            UPARAM_TO_MACRO(opt, param, voidtime);
+            UPARAM_TO_MACRO(opt, param, w0offset);
+            UPARAM_TO_MACRO(opt, param, nphase);
+            UPARAM_TO_MACRO(opt, param, nangle);
+            UPARAM_TO_MACRO(opt, param, nanglelen);
+            UPARAM_TO_MACRO(opt, param, nphaselen);
+            UPARAM_TO_MACRO(opt, param, extrasrclen);
+            FPARAM_TO_MACRO(opt, param, Rtstep);
+            UPARAM_TO_MACRO(opt, param, maxpolmedia);
+            FPARAM_TO_MACRO(opt, param, omega);
+            UPARAM_TO_MACRO(opt, param, istrajstokes);
+            UPARAM_TO_MACRO(opt, param, debuglevel);
+
+            /* below parameters are signed integers */
+            IPARAM_TO_MACRO(opt, param, replaydet);
+            IPARAM_TO_MACRO(opt, param, srcid);
         }
 
-        if (cfg->nangle) {
-            OCL_ASSERT(((gangleinvcdf[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * cfg->nangle, cfg->angleinvcdf, &status), status)));
-        }
+        char allabsorb[] = {bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, 0};
+        char allunknown[] = {0, 0, 0, 0, 0, 0, 0, 0};
 
-        if (cfg->detnum > 0) {
-            OCL_ASSERT(((gdetpos[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->detnum * sizeof(float4), cfg->detpos, &status), status)));
-        }
-
-        if (cfg->seed != SEED_FROM_FILE) {
-            free(Pseed);
-        }
-
-        free(energy);
-
-        if (cfg->srctype == MCX_SRC_PATTERN) {
-            OCL_ASSERT(((gsrcpattern[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * (int)(cfg->srcparam1.w * cfg->srcparam2.w) * cfg->srcnum, cfg->srcpattern, &status), status)));
-        } else if (cfg->srctype == MCX_SRC_PATTERN3D) {
-            OCL_ASSERT(((gsrcpattern[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * (int)(cfg->srcparam1.x * cfg->srcparam1.y * cfg->srcparam1.z) * cfg->srcnum, cfg->srcpattern, &status), status)));
+        if (cfg->isreflect || (strcmp(cfg->bc, allabsorb) && strcmp(cfg->bc, allunknown))) {
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DMCX_DO_REFLECTION");
         } else {
-            gsrcpattern[i] = NULL;
+            /** Enable reflection flag when c or m flags are used in the cfg.bc boundary condition flags */
+            for (i = 0; i < 6; i++)
+                if (cfg->bc[i] == bcReflect || cfg->bc[i] == bcMirror) {
+                    snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DMCX_DO_REFLECTION");
+                }
         }
 
-        if (cfg->polmedianum && cfg->smatrix) {
-            OCL_ASSERT(((gsmatrix[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->polmedianum * NANGLES * sizeof(float4), cfg->smatrix, &status), status)));
-        } else {
-            gsmatrix[i] = NULL;
+        if (workdev == 1 && gpu[0].iscpu) {
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DMCX_USE_CPU");
         }
 
+        char extensions[8192] = {'\0'};
+        clGetDeviceInfo(devices[0], CL_DEVICE_EXTENSIONS, sizeof(extensions), extensions, NULL);
 
-    }
-
-    mcx_printheader(cfg);
-
-    tic = StartTimer();
-
-#if __OPENCL_C_VERSION__
-    MCX_FPRINTF(cfg->flog, "- %s: [Infinity] %s OpenCL [%d] on [%s]\n",
-                T_("code name"), T_("compiled with"), __OPENCL_C_VERSION__, __DATE__);
-#else
-    MCX_FPRINTF(cfg->flog, "- %s: [Infinity] %s OpenCL [%d] on [%s]\n",
-                T_("code name"), T_("compiled with"), CL_VERSION_1_0, __DATE__);
-#endif
-
-    MCX_FPRINTF(cfg->flog, "- %s: [RNG] %s [%s] %d\n", T_("compiled with"), MCX_RNG_NAME, T_("seed length"), RAND_SEED_LEN);
-    MCX_FPRINTF(cfg->flog, "%s ...\t", T_("initializing streams"));
-
-    MCX_FPRINTF(cfg->flog, "%s : %d ms\n", T_("init complete"), GetTimeMillis() - tic);
-    fflush(cfg->flog);
-    mcx_flush(cfg);
-
-    OCL_ASSERT(((mcxprogram = clCreateProgramWithSource(mcxcontext, 1, (const char**) & (cfg->clsource), NULL, &status), status)));
-
-    if (cfg->optlevel >= 1) {
-        snprintf(opt, MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-cl-mad-enable -DMCX_USE_NATIVE");
-    }
-
-    if (cfg->optlevel >= 2) {
-        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DMCX_SIMPLIFY_BRANCH -DMCX_VECTOR_INDEX");
-    }
-
-    if (cfg->optlevel >= 3 && cfg->seed != SEED_FROM_FILE) { // optlevel 3 - i.e. defining parameters as macros - fails replay test, need to debug
-        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DUSE_MACRO_CONST");
-    }
-
-    if (cfg->optlevel >= 4) {
-        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DGROUP_LOAD_BALANCE");
-    }
-
-    for (i = 0; i < 3; i++)
-        if (cfg->debuglevel & (1 << i)) {
-            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", debugopt[i]);
+        if (gpu[0].vendor == dvNVIDIA) {
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_NVIDIA_GPU");
+        } else if (strstr(extensions, "cl_intel_global_float_atomics")) {
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_INTEL_FLOAT_ATOMIC");
+        } else if (strstr(extensions, "cl_ext_float_atomics")) {
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_OPENCL_FLOAT_ATOMIC");
         }
 
-    if ((uint)cfg->srctype < sizeof(sourceflag) / sizeof(sourceflag[0])) {
-        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", sourceflag[(uint)cfg->srctype]);
-    }
+        MCX_FPRINTF(cfg->flog, "building kernel with option: %s\n", opt);
+        status = clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);
 
-    snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "-DMED_TYPE=%d ", cfg->mediabyte);
+        mcx_flush(cfg);
 
-    snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", cfg->compileropt);
+        size_t len;
+        // get the details on the error, and store it in buffer
+        clGetProgramBuildInfo(mcxprogram, devices[0], CL_PROGRAM_BUILD_LOG, 0, NULL, &len);
 
-    if (cfg->isatomic) {
-        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DUSE_ATOMIC");
-    }
+        if (len > 0) {
+            char* msg;
+            msg = new char[len];
+            clGetProgramBuildInfo(mcxprogram, devices[0], CL_PROGRAM_BUILD_LOG, len, msg, NULL);
 
-    if (cfg->issavedet) {
-        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DMCX_SAVE_DETECTORS");
-    }
+            for (int i = 0; i < (int)len; i++)
+                if (msg[i] <= 'z' && msg[i] >= 'A') {
+                    MCX_FPRINTF(cfg->flog, "Kernel build log:\n%s\n", msg);
+                    break;
+                }
 
-    if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
-        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DMCX_SAVE_TRAJECTORY");
-    }
-
-    if (MCX_IS_ADJOINT_TYPE(cfg->outputtype)) {
-        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DMCX_ADJOINT_MODE");
-    }
-
-    if (strstr(opt, "USE_MACRO_CONST")) {
-        UPARAM_TO_MACRO(opt, param, detnum);
-        UPARAM_TO_MACRO(opt, param, doreflect);
-        UPARAM_TO_MACRO(opt, param, gscatter);
-        UPARAM_TO_MACRO(opt, param, is2d);
-        UPARAM_TO_MACRO(opt, param, issaveref);
-        UPARAM_TO_MACRO(opt, param, issaveseed);
-        UPARAM_TO_MACRO(opt, param, isspecular);
-        UPARAM_TO_MACRO(opt, param, maxdetphoton);
-        UPARAM_TO_MACRO(opt, param, maxgate);
-        UPARAM_TO_MACRO(opt, param, maxjumpdebug);
-        UPARAM_TO_MACRO(opt, param, maxmedia);
-        UPARAM_TO_MACRO(opt, param, maxvoidstep);
-        UPARAM_TO_MACRO(opt, param, mediaformat);
-        FPARAM_TO_MACRO(opt, param, minaccumtime);
-        FPARAM_TO_MACRO(opt, param, minenergy);
-        FPARAM_TO_MACRO(opt, param, oneoverc0);
-        UPARAM_TO_MACRO(opt, param, outputtype);
-        UPARAM_TO_MACRO(opt, param, partialdata);
-        UPARAM_TO_MACRO(opt, param, reclen);
-        UPARAM_TO_MACRO(opt, param, save2pt);
-        UPARAM_TO_MACRO(opt, param, savedet);
-        UPARAM_TO_MACRO(opt, param, savedetflag);
-        UPARAM_TO_MACRO(opt, param, seed);
-        UPARAM_TO_MACRO(opt, param, srcnum);
-        UPARAM_TO_MACRO(opt, param, voidtime);
-        UPARAM_TO_MACRO(opt, param, w0offset);
-        UPARAM_TO_MACRO(opt, param, nphase);
-        UPARAM_TO_MACRO(opt, param, nangle);
-        UPARAM_TO_MACRO(opt, param, nanglelen);
-        UPARAM_TO_MACRO(opt, param, nphaselen);
-        UPARAM_TO_MACRO(opt, param, extrasrclen);
-        FPARAM_TO_MACRO(opt, param, Rtstep);
-        UPARAM_TO_MACRO(opt, param, maxpolmedia);
-        FPARAM_TO_MACRO(opt, param, omega);
-        UPARAM_TO_MACRO(opt, param, istrajstokes);
-        UPARAM_TO_MACRO(opt, param, debuglevel);
-
-        /* below parameters are signed integers */
-        IPARAM_TO_MACRO(opt, param, replaydet);
-        IPARAM_TO_MACRO(opt, param, srcid);
-    }
-
-    char allabsorb[] = {bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, bcAbsorb, 0};
-    char allunknown[] = {0, 0, 0, 0, 0, 0, 0, 0};
-
-    if (cfg->isreflect || (strcmp(cfg->bc, allabsorb) && strcmp(cfg->bc, allunknown))) {
-        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DMCX_DO_REFLECTION");
-    } else {
-        /** Enable reflection flag when c or m flags are used in the cfg.bc boundary condition flags */
-        for (i = 0; i < 6; i++)
-            if (cfg->bc[i] == bcReflect || cfg->bc[i] == bcMirror) {
-                snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DMCX_DO_REFLECTION");
-            }
-    }
-
-    if (workdev == 1 && gpu[0].iscpu) {
-        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DMCX_USE_CPU");
-    }
-
-    char extensions[8192] = {'\0'};
-    clGetDeviceInfo(devices[0], CL_DEVICE_EXTENSIONS, sizeof(extensions), extensions, NULL);
-
-    if (gpu[0].vendor == dvNVIDIA) {
-        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_NVIDIA_GPU");
-    } else if (strstr(extensions, "cl_intel_global_float_atomics")) {
-        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_INTEL_FLOAT_ATOMIC");
-    } else if (strstr(extensions, "cl_ext_float_atomics")) {
-        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_OPENCL_FLOAT_ATOMIC");
-    }
-
-    MCX_FPRINTF(cfg->flog, "building kernel with option: %s\n", opt);
-    status = clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);
-
-    mcx_flush(cfg);
-
-    size_t len;
-    // get the details on the error, and store it in buffer
-    clGetProgramBuildInfo(mcxprogram, devices[0], CL_PROGRAM_BUILD_LOG, 0, NULL, &len);
-
-    if (len > 0) {
-        char* msg;
-        msg = new char[len];
-        clGetProgramBuildInfo(mcxprogram, devices[0], CL_PROGRAM_BUILD_LOG, len, msg, NULL);
-
-        for (int i = 0; i < (int)len; i++)
-            if (msg[i] <= 'z' && msg[i] >= 'A') {
-                MCX_FPRINTF(cfg->flog, "Kernel build log:\n%s\n", msg);
-                break;
-            }
-
-        delete [] msg;
-    }
-
-    if (status != CL_SUCCESS) {
-        mcx_error(-(int)status, (char*)("Error: Failed to build program executable!"), __FILE__, __LINE__);
-    }
-
-    MCX_FPRINTF(cfg->flog, "build program complete : %d ms\n", GetTimeMillis() - tic);
-    fflush(cfg->flog);
-
-    mcxkernel = (cl_kernel*)malloc(workdev * sizeof(cl_kernel));
-
-    for (i = 0; i < workdev; i++) {
-        cl_int threadphoton, oddphoton, sharedbuf;
-
-        threadphoton = (int)(cfg->nphoton * cfg->workload[i] / (fullload * gpu[i].autothread * cfg->respin));
-        oddphoton = (int)(cfg->nphoton * cfg->workload[i] / (fullload * cfg->respin) - threadphoton * gpu[i].autothread);
-        sharedbuf = (param.nphaselen + param.nanglelen) * sizeof(float) + gpu[i].autoblock * (cfg->issaveseed * (RAND_BUF_LEN * sizeof(RandType)) + sizeof(float) * (param.w0offset + cfg->srcnum + 2 * (cfg->outputtype == otRF || cfg->outputtype == otRFmus || MCX_IS_ADJOINT_TYPE(cfg->outputtype))));
-
-        MCX_FPRINTF(cfg->flog, "- [device %d(%d): %s] threadph=%d extra=%d np=%.0f nthread=%d nblock=%d sharedbuf=%d\n", i, gpu[i].id, gpu[i].name, threadphoton, oddphoton,
-                    cfg->nphoton * cfg->workload[i] / fullload, (int)gpu[i].autothread, (int)gpu[i].autoblock, sharedbuf);
-
-        OCL_ASSERT(((mcxkernel[i] = clCreateKernel(mcxprogram, "mcx_main_loop", &status), status)));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 0, sizeof(cl_mem), (void*)(gmedia + i))));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 1, sizeof(cl_mem), (void*)(gfield + i))));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 2, sizeof(cl_mem), (void*)(genergy + i))));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 3, sizeof(cl_mem), (void*)(gseed + ((cfg->seed != SEED_FROM_FILE) ? i : 0)))));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 4, sizeof(cl_mem), (cfg->issavedet ? (void*)(gdetphoton + i) : NULL))));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 5, sizeof(cl_mem), (void*)(gproperty + i))));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 6, sizeof(cl_mem), (void*)(gsrcpattern + i))));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 7, sizeof(cl_mem), (void*)(gdetpos + i))));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 8, sizeof(cl_mem), (i == 0) ? ((void*)(gprogress)) : NULL)));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 9, sizeof(cl_mem), (void*)(gdetected + i))));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 10, sizeof(cl_mem), ((cfg->seed == SEED_FROM_FILE) ? (void*)(&greplayw) : NULL) )));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 11, sizeof(cl_mem), ((cfg->seed == SEED_FROM_FILE) ? (void*)(&greplaytof) : NULL) )));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 12, sizeof(cl_mem), ((cfg->seed == SEED_FROM_FILE) ? (void*)(&greplaydetid) : NULL) )));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 13, sizeof(cl_mem), ((cfg->issaveseed) ? (void*)(gseeddata + i) : NULL) )));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 14, sizeof(cl_mem), ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) ? (void*)(gjumpdebug + i) : NULL) )));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 15, sizeof(cl_mem), ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) ? (void*)(gdebugdata + i) : NULL) )));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 16, sizeof(cl_mem), ((cfg->nphase) ? (void*)(ginvcdf + i) : NULL) )));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 17, sizeof(cl_mem), ((cfg->nangle) ? (void*)(gangleinvcdf + i) : NULL) )));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 18, sharedbuf, NULL)));
-        OCL_ASSERT((clSetKernelArg(mcxkernel[i], 19, sizeof(cl_mem), (void*)(gsmatrix + i))));
-    }
-
-    MCX_FPRINTF(cfg->flog, "set kernel arguments complete : %d ms\n", GetTimeMillis() - tic);
-    fflush(cfg->flog);
-
-    if (cfg->exportfield == NULL) {
-        if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
-            cfg->exportfield = (float*)calloc(sizeof(float) * dimxyz, cfg->maxgate * 2 * (1 + (cfg->outputtype == otRF || cfg->outputtype == otRFmus)) * cfg->detnum);
-        } else {
-            cfg->exportfield = (float*)calloc(sizeof(float) * fieldlen, 2 * (isrfforward ? 2 : 1));
+            delete [] msg;
         }
-    }
 
-    if (cfg->exportdetected == NULL) {
-        cfg->exportdetected = (float*)malloc(hostdetreclen * cfg->maxdetphoton * sizeof(float));
-    }
+        if (status != CL_SUCCESS) {
+            MCX_FPRINTF(cfg->flog, S_RED "Error: Failed to build program executable!\n" S_RESET);
+            fflush(cfg->flog);
+            break;   /* status holds the build error; reported after the teardown below */
+        }
 
-    if (cfg->issaveseed && cfg->seeddata == NULL) {
-        cfg->seeddata = malloc(cfg->maxdetphoton * sizeof(RandType) * RAND_BUF_LEN);
-    }
-
-    cfg->detectedcount = 0;
-    cfg->his.detected = 0;
-    cfg->his.respin = cfg->respin;
-    cfg->his.colcount = hostdetreclen;
-    cfg->energytot = 0.f;
-    cfg->energyesc = 0.f;
-    cfg->runtime = 0;
-
-    //simulate for all time-gates in maxgate groups per run
-
-    cl_float Vvox;
-    Vvox = cfg->steps.x * cfg->steps.y * cfg->steps.z;
-    memcpy(&(param.bc), cfg->bc, 12);
-
-    tic0 = GetTimeMillis();
-
-    for (t = cfg->tstart; t < cfg->tend; t += cfg->tstep * cfg->maxgate) {
-        twindow0 = t;
-        twindow1 = t + cfg->tstep * cfg->maxgate;
-
-        MCX_FPRINTF(cfg->flog, S_CYAN "%s [%.1fns %.1fns] ...\n" S_RESET
-                    , T_("launching MCX simulation for time window"), twindow0 * 1e9, twindow1 * 1e9);
+        MCX_FPRINTF(cfg->flog, "build program complete : %d ms\n", GetTimeMillis() - tic);
         fflush(cfg->flog);
 
-        //total number of repetition for the simulations, results will be accumulated to field
-        for (iter = 0; iter < cfg->respin; iter++) {
-            MCX_FPRINTF(cfg->flog, "%s%2d ... \n", T_("simulation run#"), iter + 1);
-            fflush(cfg->flog);
-            fflush(cfg->flog);
-            mcx_flush(cfg);
+        mcxkernel = (cl_kernel*)calloc(workdev, sizeof(cl_kernel));
+        MCX_ASSERT_ALLOC(mcxkernel);
 
-            param.twin0 = twindow0;
-            param.twin1 = twindow1;
+        for (i = 0; i < workdev; i++) {
+            cl_int threadphoton, oddphoton, sharedbuf;
 
-            for (devid = 0; devid < workdev; devid++) {
-                int nblock = gpu[devid].autothread / gpu[devid].autoblock;
+            threadphoton = (int)(cfg->nphoton * cfg->workload[i] / (fullload * gpu[i].autothread * cfg->respin));
+            oddphoton = (int)(cfg->nphoton * cfg->workload[i] / (fullload * cfg->respin) - threadphoton * gpu[i].autothread);
+            sharedbuf = (param.nphaselen + param.nanglelen) * sizeof(float) + gpu[i].autoblock * (cfg->issaveseed * (RAND_BUF_LEN * sizeof(RandType)) + sizeof(float) * (param.w0offset + cfg->srcnum + 2 * (cfg->outputtype == otRF || cfg->outputtype == otRFmus || MCX_IS_ADJOINT_TYPE(cfg->outputtype))));
 
-                param.threadphoton = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * gpu[devid].autothread * cfg->respin));
-                param.oddphoton   = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * cfg->respin) - param.threadphoton * gpu[devid].autothread);
-                param.blockphoton = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * nblock * cfg->respin));
-                param.blockextra  = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * cfg->respin) - param.blockphoton * nblock);
-                OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid], gparam[devid], CL_TRUE, 0, sizeof(MCXParam), &param, 0, NULL, NULL)));
-                OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 20, sizeof(cl_mem), (void*)(gparam + devid))));
+            MCX_FPRINTF(cfg->flog, "- [device %d(%d): %s] threadph=%d extra=%d np=%.0f nthread=%d nblock=%d sharedbuf=%d\n", i, gpu[i].id, gpu[i].name, threadphoton, oddphoton,
+                        cfg->nphoton * cfg->workload[i] / fullload, (int)gpu[i].autothread, (int)gpu[i].autoblock, sharedbuf);
 
-                // launch mcxkernel
-                OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid], mcxkernel[devid], 1, NULL, &gpu[devid].autothread, &gpu[devid].autoblock, 0, NULL, &waittoread[devid])));
-                OCL_ASSERT((clFlush(mcxqueue[devid])));
-            }
+            OCL_TRY(((mcxkernel[i] = clCreateKernel(mcxprogram, "mcx_main_loop", &status), status)));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 0, sizeof(cl_mem), (void*)(gmedia + i))));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 1, sizeof(cl_mem), (void*)(gfield + i))));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 2, sizeof(cl_mem), (void*)(genergy + i))));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 3, sizeof(cl_mem), (void*)(gseed + ((cfg->seed != SEED_FROM_FILE) ? i : 0)))));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 4, sizeof(cl_mem), (cfg->issavedet ? (void*)(gdetphoton + i) : NULL))));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 5, sizeof(cl_mem), (void*)(gproperty + i))));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 6, sizeof(cl_mem), (void*)(gsrcpattern + i))));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 7, sizeof(cl_mem), (void*)(gdetpos + i))));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 8, sizeof(cl_mem), (i == 0) ? ((void*)(gprogress)) : NULL)));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 9, sizeof(cl_mem), (void*)(gdetected + i))));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 10, sizeof(cl_mem), ((cfg->seed == SEED_FROM_FILE) ? (void*)(&greplayw) : NULL) )));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 11, sizeof(cl_mem), ((cfg->seed == SEED_FROM_FILE) ? (void*)(&greplaytof) : NULL) )));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 12, sizeof(cl_mem), ((cfg->seed == SEED_FROM_FILE) ? (void*)(&greplaydetid) : NULL) )));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 13, sizeof(cl_mem), ((cfg->issaveseed) ? (void*)(gseeddata + i) : NULL) )));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 14, sizeof(cl_mem), ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) ? (void*)(gjumpdebug + i) : NULL) )));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 15, sizeof(cl_mem), ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) ? (void*)(gdebugdata + i) : NULL) )));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 16, sizeof(cl_mem), ((cfg->nphase) ? (void*)(ginvcdf + i) : NULL) )));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 17, sizeof(cl_mem), ((cfg->nangle) ? (void*)(gangleinvcdf + i) : NULL) )));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 18, sharedbuf, NULL)));
+            OCL_ASSERT((clSetKernelArg(mcxkernel[i], 19, sizeof(cl_mem), (void*)(gsmatrix + i))));
+        }
 
-            if ((param.debuglevel & MCX_DEBUG_PROGRESS)) {
-                int p0 = 0, ndone = -1, kernelstatus = 0;
-                int threadphoton = (int)(cfg->nphoton * cfg->workload[0] / (fullload * gpu[0].autothread * cfg->respin));
-                float maxval = ((threadphoton >> 1) * 4.5f);
+        if (status != CL_SUCCESS) {
+            break;    /* a clCreateKernel above failed; leave the guard */
+        }
 
-                if (workdev == 1 && gpu[0].iscpu) {
-                    maxval = cfg->nphoton * 0.95f;
-                }
+        MCX_FPRINTF(cfg->flog, "set kernel arguments complete : %d ms\n", GetTimeMillis() - tic);
+        fflush(cfg->flog);
 
-                mcx_progressbar(-0.f, cfg);
-
-                do {
-                    ndone = *progress;
-
-                    if (ndone > p0) {
-                        mcx_progressbar(ndone / maxval, cfg);
-                        p0 = ndone;
-                    }
-
-                    sleep_ms(100);
-                    OCL_ASSERT((clGetEventInfo(waittoread[0], CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(cl_int), &kernelstatus, NULL)));
-
-                    if (kernelstatus == CL_COMPLETE) {
-                        break;
-                    }
-                } while (p0 < (int)maxval);
-
-                mcx_progressbar(1.0f, cfg);
-                MCX_FPRINTF(cfg->flog, "\n");
-            }
-
-            clEnqueueUnmapMemObject(mcxqueue[0], gprogress[0], progress, 0, NULL, NULL);
-
-            //clWaitForEvents(workdev,waittoread);
-            for (devid = 0; devid < workdev; devid++) {
-                OCL_ASSERT((clFinish(mcxqueue[devid])));
-            }
-
-            tic1 = GetTimeMillis();
-            toc += tic1 - tic0;
-            MCX_FPRINTF(cfg->flog, "%s:  \t%d ms\n%s ... \t", T_("kernel complete"), tic1 - tic, T_("retrieving fields"));
-            fflush(cfg->flog);
-
-            for (devid = 0; devid < workdev; devid++) {
-                if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
-                    uint debugrec = 0;
-                    OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gjumpdebug[devid], CL_TRUE, 0, sizeof(uint),
-                                                    &debugrec, 0, NULL, waittoread + devid)));
-
-                    if (debugrec > 0) {
-                        if (debugrec > cfg->maxjumpdebug) {
-                            MCX_FPRINTF(cfg->flog, S_RED "%s (%u > %d), %s\n" S_RESET,
-                                        T_("WARNING: the saved trajectory positions are more than what your have specified"), debugrec, cfg->maxjumpdebug,
-                                        T_("please use the --maxjumpdebug option to specify a greater number"));
-                        } else {
-                            MCX_FPRINTF(cfg->flog, "%s: %u, total: %d\t", T_("saved trajectory positions"), debugrec, cfg->debugdatalen + debugrec);
-                        }
-
-                        debugrec = MIN(debugrec, cfg->maxjumpdebug);
-                        cfg->exportdebugdata = (float*)realloc(cfg->exportdebugdata, (cfg->debugdatalen + debugrec) * debuglen * sizeof(float));
-                        OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gdebugdata[devid], CL_FALSE, 0, sizeof(float)*debuglen * debugrec,
-                                                        cfg->exportdebugdata + cfg->debugdatalen, 0, NULL, waittoread + devid)));
-                        cfg->debugdatalen += debugrec;
-                    }
-                }
-
-                if (cfg->issavedet) {
-                    OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gdetected[devid], CL_FALSE, 0, sizeof(uint),
-                                                    &detected, 0, NULL, waittoread + devid)));
-                    OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gdetphoton[devid], CL_TRUE, 0, sizeof(float)*cfg->maxdetphoton * hostdetreclen,
-                                                    Pdet, 0, NULL, NULL)));
-
-                    if (cfg->issaveseed) {
-                        seeddata = (RandType*)calloc(sizeof(RandType), cfg->maxdetphoton * RAND_BUF_LEN);
-                        OCL_ASSERT(clEnqueueReadBuffer(mcxqueue[devid], gseeddata[devid], CL_TRUE, 0,
-                                                       sizeof(RandType)*cfg->maxdetphoton * RAND_BUF_LEN, seeddata, 0, NULL, NULL));
-                    }
-
-                    if (detected > cfg->maxdetphoton) {
-                        MCX_FPRINTF(cfg->flog, S_RED "%s (%u > %d), %s\t" S_RESET,
-                                    T_("WARNING: the detected photon number is more than what your have specified"), detected, cfg->maxdetphoton,
-                                    T_("please use the -H option to specify a greater number"));
-                    } else {
-                        MCX_FPRINTF(cfg->flog, "%s " S_BOLD S_BLUE "%d %s" S_RESET ", total: " S_BOLD S_BLUE "%d" S_RESET "\t", T_("detected"), detected, T_("photons"), cfg->detectedcount + detected);
-                    }
-
-                    cfg->his.detected += detected;
-                    detected = MIN(detected, cfg->maxdetphoton);
-
-                    if (cfg->exportdetected) {
-                        cfg->exportdetected = (float*)realloc(cfg->exportdetected, (cfg->detectedcount + detected) * hostdetreclen * sizeof(float));
-
-                        if (cfg->issaveseed && cfg->seeddata) {
-                            cfg->seeddata = (RandType*)realloc(cfg->seeddata, (cfg->detectedcount + detected) * sizeof(RandType) * RAND_BUF_LEN);
-                        }
-
-                        memcpy(cfg->exportdetected + cfg->detectedcount * (hostdetreclen), Pdet, detected * (hostdetreclen)*sizeof(float));
-
-                        if (cfg->issaveseed && cfg->seeddata) {
-                            memcpy(((RandType*)cfg->seeddata) + cfg->detectedcount * RAND_BUF_LEN, seeddata, detected * sizeof(RandType)*RAND_BUF_LEN);
-                        }
-
-                        cfg->detectedcount += detected;
-                    }
-
-                    if (cfg->issaveseed) {
-                        free(seeddata);
-                    }
-                }
-
-                mcx_flush(cfg);
-
-                //handling the 2pt distributions
-                if (cfg->issave2pt) {
-                    int rawfieldmul = isrfforward ? 4 : 2;
-                    float* rawfield = (float*)malloc(sizeof(float) * fieldlen * rawfieldmul);
-
-                    OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gfield[devid], CL_TRUE, 0, sizeof(cl_float) * fieldlen * rawfieldmul,
-                                                    rawfield, 0, NULL, NULL)));
-                    MCX_FPRINTF(cfg->flog, "%s:\t%d ms\n", T_("transfer complete"), GetTimeMillis() - tic);
-                    fflush(cfg->flog);
-
-                    if (!(param.debuglevel & MCX_DEBUG_RNG)) {
-                        for (i = 0; i < fieldlen; i++) { //accumulate field, can be done in the GPU
-                            field[i] = rawfield[i];
-
-                            if (isrfforward || (cfg->outputtype != otRF && cfg->outputtype != otRFmus)) {
-                                field[i] += rawfield[i + fieldlen]; /* for RF forward, add Re double-buffer; for non-RF, always add */
-                            }
-                        }
-                    } else {
-                        memcpy(field, rawfield, sizeof(cl_float)*fieldlen);
-                    }
-
-                    if (isrfforward) {
-                        /* RF forward: Im part in 3rd quarter [2F..3F), shadow at [3F..4F) */
-                        if (cfg->exportfield) {
-                            for (i = 0; i < fieldlen; i++) {
-                                cfg->exportfield[i + fieldlen] += rawfield[i + fieldlen * 2] + rawfield[i + fieldlen * 3];
-                            }
-                        }
-                    } else if ((cfg->outputtype == otRF || cfg->outputtype == otRFmus) && cfg->omega > 0.f) {
-                        if (cfg->exportfield) {
-                            for (i = 0; i < fieldlen; i++) {
-                                cfg->exportfield[i + fieldlen] += rawfield[i + fieldlen];
-                            }
-                        }
-                    }
-
-                    free(rawfield);
-
-                    if (cfg->respin > 1) {
-                        for (i = 0; i < fieldlen; i++) { //accumulate field, can be done in the GPU
-                            field[fieldlen + i] += field[i];
-                        }
-                    }
-
-                    if (iter + 1 == cfg->respin) {
-                        if (cfg->respin > 1) { //copy the accumulated fields back
-                            memcpy(field, field + fieldlen, sizeof(cl_float)*fieldlen);
-                        }
-                    }
-
-                    if (cfg->exportfield) {
-                        for (i = 0; i < fieldlen; i++) {
-                            cfg->exportfield[i] += field[i];
-                        }
-                    }
-                }
-
-                energy = (cl_float*)calloc(sizeof(cl_float), gpu[devid].autothread << 1);
-                OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], genergy[devid], CL_TRUE, 0, sizeof(cl_float) * (gpu[devid].autothread << 1),
-                                                energy, 0, NULL, NULL)));
-
-                for (i = 0; i < gpu[devid].autothread; i++) {
-                    cfg->energyesc += energy[(i << 1)];
-                    cfg->energytot += energy[(i << 1) + 1];
-                }
-
-                free(energy);
-
-                //initialize the next simulation
-                if (twindow1 < cfg->tend && iter < cfg->respin) {
-                    cl_float zero = 0.f;
-                    OCL_ASSERT((clEnqueueFillBuffer(mcxqueue[devid], gfield[devid], &zero, sizeof(cl_float), 0,
-                                                    sizeof(cl_float) * fieldlen * (isrfforward ? 4 : 2), 0, NULL, NULL)));
-                    OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 1, sizeof(cl_mem), (void*)(gfield + devid))));
-                }
-
-                if (cfg->respin > 1 && RAND_SEED_LEN > 1 && cfg->seed != SEED_FROM_FILE) {
-                    Pseed = (RandType*)malloc(sizeof(RandType) * gpu[devid].autothread * RAND_BUF_LEN);
-                    cl_uint* iseed = (cl_uint*)Pseed;
-
-                    for (j = 0; j < gpu[devid].autothread * RAND_SEED_LEN; j++) {
-                        iseed[j] = rand();
-                    }
-
-                    OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid], gseed[devid], CL_TRUE, 0, sizeof(RandType)*gpu[devid].autothread * RAND_BUF_LEN,
-                                                     Pseed, 0, NULL, NULL)));
-                    OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 3, sizeof(cl_mem), (void*)(gseed + devid))));
-                    free(Pseed);
-                }
-
-                OCL_ASSERT((clFinish(mcxqueue[devid])));
-
-                if (twindow1 < cfg->tend) {
-                    cl_float* tmpenergy = (cl_float*)calloc(sizeof(cl_float), gpu[devid].autothread * 3);
-                    OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid], genergy[devid], CL_TRUE, 0, sizeof(cl_float) * (gpu[devid].autothread << 1),
-                                                     tmpenergy, 0, NULL, NULL)));
-                    OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 2, sizeof(cl_mem), (void*)(genergy + devid))));
-                    free(tmpenergy);
-                }
-            }// loop over work devices
-        }// iteration
-    }// time gates
-
-    if (cfg->runtime < toc) {
-        cfg->runtime = toc;
-    }
-
-    if (cfg->issave2pt && cfg->srctype == MCX_SRC_PATTERN && cfg->srcnum > 1) { // post-processing only for multi-srcpattern
-        srcpw = (float*)calloc(cfg->srcnum, sizeof(float));
-        energytot = (float*)calloc(cfg->srcnum, sizeof(float));
-        energyabs = (float*)calloc(cfg->srcnum, sizeof(float));
-        uint psize = (int)cfg->srcparam1.w * (int)cfg->srcparam2.w;
-
-        for (uint i = 0; i < cfg->srcnum; i++) {
-            float kahanc = 0.f;
-
-            for (uint j = 0; j < psize; j++) {
-                mcx_kahanSum(&srcpw[i], &kahanc, cfg->srcpattern[j * cfg->srcnum + i]);
-            }
-
-            energytot[i] = cfg->nphoton * srcpw[i] / (float)psize;
-            kahanc = 0.f;
-
-            if (cfg->outputtype == otEnergy) {
-                int fieldlenPsrc = fieldlen / cfg->srcnum;
-
-                for (int j = 0; j < fieldlenPsrc; j++) {
-                    mcx_kahanSum(&energyabs[i], &kahanc, cfg->exportfield[j * cfg->srcnum + i]);
-                }
+        if (cfg->exportfield == NULL) {
+            if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
+                cfg->exportfield = (float*)calloc(sizeof(float) * dimxyz, cfg->maxgate * 2 * (1 + (cfg->outputtype == otRF || cfg->outputtype == otRFmus)) * cfg->detnum);
             } else {
-                for (uint j = 0; j < cfg->maxgate; j++)
-                    for (uint k = 0; k < dimlen.z; k++) {
-                        mcx_kahanSum(&energyabs[i], &kahanc, cfg->exportfield[j * dimxyz + (k * cfg->srcnum + i)]*mcx_updatemua((uint)cfg->vol[k], cfg));
-                    }
+                cfg->exportfield = (float*)calloc(sizeof(float) * fieldlen, 2 * (isrfforward ? 2 : 1));
             }
         }
-    }
 
-    if (cfg->issave2pt && cfg->isnormalized) {
-        float* scale = (float*)calloc(cfg->srcnum, sizeof(float));
-        scale[0] = 1.f;
-        int isnormalized = 0;
-        MCX_FPRINTF(cfg->flog, "%s\t", T_("normalizing raw data ..."));
-        cfg->energyabs += cfg->energytot - cfg->energyesc;
+        if (cfg->exportdetected == NULL) {
+            cfg->exportdetected = (float*)malloc(hostdetreclen * cfg->maxdetphoton * sizeof(float));
+        }
 
-        if (cfg->outputtype == otFlux || cfg->outputtype == otFluence || MCX_IS_ADJOINT_TYPE(cfg->outputtype) || (cfg->omega > 0.f && cfg->seed != SEED_FROM_FILE)) {
-            scale[0] = cfg->unitinmm / (cfg->energytot * Vvox * cfg->tstep); /* Vvox (in mm^3 already) * (Tstep) * (Eabsorp/U) */
+        if (cfg->issaveseed && cfg->seeddata == NULL) {
+            cfg->seeddata = malloc(cfg->maxdetphoton * sizeof(RandType) * RAND_BUF_LEN);
+        }
 
-            if (cfg->outputtype == otFluence || MCX_IS_ADJOINT_TYPE(cfg->outputtype)) {
-                scale[0] *= cfg->tstep;
-            }
-        } else if (cfg->outputtype == otEnergy || cfg->outputtype == otL) {
-            scale[0] = 1.f / cfg->energytot;
-        } else if (cfg->outputtype == otJacobian || cfg->outputtype == otWP || cfg->outputtype == otDCS || cfg->outputtype == otRF || cfg->outputtype == otRFmus || cfg->outputtype == otWLTOF || cfg->outputtype == otWPTOF) {
-            if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
-                int detid;
+        cfg->detectedcount = 0;
+        cfg->his.detected = 0;
+        cfg->his.respin = cfg->respin;
+        cfg->his.colcount = hostdetreclen;
+        cfg->energytot = 0.f;
+        cfg->energyesc = 0.f;
+        cfg->runtime = 0;
 
-                for (detid = 1; detid <= (int)cfg->detnum; detid++) {
-                    scale[0] = 0.f; // the cfg->normalizer and cfg.his.normalizer are inaccurate in this case, but this is ok
+        //simulate for all time-gates in maxgate groups per run
 
-                    for (size_t i = 0; i < cfg->nphoton; i++)
-                        if ((cfg->replay.detid[i] & 0xFFFF) == detid) {
-                            scale[0] += cfg->replay.weight[i];
+        cl_float Vvox;
+        Vvox = cfg->steps.x * cfg->steps.y * cfg->steps.z;
+        memcpy(&(param.bc), cfg->bc, 12);
+
+        tic0 = GetTimeMillis();
+
+        for (t = cfg->tstart; t < cfg->tend; t += cfg->tstep * cfg->maxgate) {
+            twindow0 = t;
+            twindow1 = t + cfg->tstep * cfg->maxgate;
+
+            MCX_FPRINTF(cfg->flog, S_CYAN "%s [%.1fns %.1fns] ...\n" S_RESET
+                        , T_("launching MCX simulation for time window"), twindow0 * 1e9, twindow1 * 1e9);
+            fflush(cfg->flog);
+
+            //total number of repetition for the simulations, results will be accumulated to field
+            for (iter = 0; iter < cfg->respin; iter++) {
+                MCX_FPRINTF(cfg->flog, "%s%2d ... \n", T_("simulation run#"), iter + 1);
+                fflush(cfg->flog);
+                fflush(cfg->flog);
+                mcx_flush(cfg);
+
+                param.twin0 = twindow0;
+                param.twin1 = twindow1;
+
+                for (devid = 0; devid < workdev; devid++) {
+                    int nblock = gpu[devid].autothread / gpu[devid].autoblock;
+
+                    param.threadphoton = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * gpu[devid].autothread * cfg->respin));
+                    param.oddphoton   = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * cfg->respin) - param.threadphoton * gpu[devid].autothread);
+                    param.blockphoton = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * nblock * cfg->respin));
+                    param.blockextra  = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * cfg->respin) - param.blockphoton * nblock);
+                    OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid], gparam[devid], CL_TRUE, 0, sizeof(MCXParam), &param, 0, NULL, NULL)));
+                    OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 20, sizeof(cl_mem), (void*)(gparam + devid))));
+
+                    // launch mcxkernel
+                    OCL_ASSERT((clEnqueueNDRangeKernel(mcxqueue[devid], mcxkernel[devid], 1, NULL, &gpu[devid].autothread, &gpu[devid].autoblock, 0, NULL, &waittoread[devid])));
+                    OCL_ASSERT((clFlush(mcxqueue[devid])));
+                }
+
+                if ((param.debuglevel & MCX_DEBUG_PROGRESS)) {
+                    int p0 = 0, ndone = -1, kernelstatus = 0;
+                    int threadphoton = (int)(cfg->nphoton * cfg->workload[0] / (fullload * gpu[0].autothread * cfg->respin));
+                    float maxval = ((threadphoton >> 1) * 4.5f);
+
+                    if (workdev == 1 && gpu[0].iscpu) {
+                        maxval = cfg->nphoton * 0.95f;
+                    }
+
+                    mcx_progressbar(-0.f, cfg);
+
+                    do {
+                        ndone = *progress;
+
+                        if (ndone > p0) {
+                            mcx_progressbar(ndone / maxval, cfg);
+                            p0 = ndone;
                         }
+
+                        sleep_ms(100);
+                        OCL_ASSERT((clGetEventInfo(waittoread[0], CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(cl_int), &kernelstatus, NULL)));
+
+                        if (kernelstatus == CL_COMPLETE) {
+                            break;
+                        }
+                    } while (p0 < (int)maxval);
+
+                    mcx_progressbar(1.0f, cfg);
+                    MCX_FPRINTF(cfg->flog, "\n");
+                }
+
+                /* NOTE: gprogress is mapped once before the loops and unmapped once in the
+                 * teardown. Unmapping here (inside the gate/repetition loop) was a latent
+                 * use-after-unmap: the next iteration's progress poll reads *progress after
+                 * the buffer had already been unmapped (only safe today because the default
+                 * single-gate/single-repetition case unmaps exactly once). */
+
+                //clWaitForEvents(workdev,waittoread);
+                for (devid = 0; devid < workdev; devid++) {
+                    OCL_ASSERT((clFinish(mcxqueue[devid])));
+
+                    /* release the kernel-launch event produced at clEnqueueNDRangeKernel
+                     * (used only for the progress poll above). It is overwritten every
+                     * gate/repetition iteration, so releasing it here (after the kernel has
+                     * completed) avoids leaking one cl_event per iteration. On NVIDIA's
+                     * OpenCL runtime a live event keeps an implicit reference to the queue/
+                     * context, which prevents clReleaseContext from freeing the GPU
+                     * allocations -> per-run device-memory leak. */
+                    if (waittoread[devid]) {
+                        clReleaseEvent(waittoread[devid]);
+                        waittoread[devid] = NULL;
+                    }
+                }
+
+                tic1 = GetTimeMillis();
+                toc += tic1 - tic0;
+                MCX_FPRINTF(cfg->flog, "%s:  \t%d ms\n%s ... \t", T_("kernel complete"), tic1 - tic, T_("retrieving fields"));
+                fflush(cfg->flog);
+
+                for (devid = 0; devid < workdev; devid++) {
+                    if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
+                        uint debugrec = 0;
+                        OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gjumpdebug[devid], CL_TRUE, 0, sizeof(uint),
+                                                        &debugrec, 0, NULL, NULL)));
+
+                        if (debugrec > 0) {
+                            if (debugrec > cfg->maxjumpdebug) {
+                                MCX_FPRINTF(cfg->flog, S_RED "%s (%u > %d), %s\n" S_RESET,
+                                            T_("WARNING: the saved trajectory positions are more than what your have specified"), debugrec, cfg->maxjumpdebug,
+                                            T_("please use the --maxjumpdebug option to specify a greater number"));
+                            } else {
+                                MCX_FPRINTF(cfg->flog, "%s: %u, total: %d\t", T_("saved trajectory positions"), debugrec, cfg->debugdatalen + debugrec);
+                            }
+
+                            debugrec = MIN(debugrec, cfg->maxjumpdebug);
+                            cfg->exportdebugdata = (float*)realloc(cfg->exportdebugdata, (cfg->debugdatalen + debugrec) * debuglen * sizeof(float));
+                            OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gdebugdata[devid], CL_FALSE, 0, sizeof(float)*debuglen * debugrec,
+                                                            cfg->exportdebugdata + cfg->debugdatalen, 0, NULL, NULL)));
+                            cfg->debugdatalen += debugrec;
+                        }
+                    }
+
+                    if (cfg->issavedet) {
+                        OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gdetected[devid], CL_FALSE, 0, sizeof(uint),
+                                                        &detected, 0, NULL, NULL)));
+                        OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gdetphoton[devid], CL_TRUE, 0, sizeof(float)*cfg->maxdetphoton * hostdetreclen,
+                                                        Pdet, 0, NULL, NULL)));
+
+                        if (cfg->issaveseed) {
+                            seeddata = (RandType*)calloc(sizeof(RandType), cfg->maxdetphoton * RAND_BUF_LEN);
+                            OCL_ASSERT(clEnqueueReadBuffer(mcxqueue[devid], gseeddata[devid], CL_TRUE, 0,
+                                                           sizeof(RandType)*cfg->maxdetphoton * RAND_BUF_LEN, seeddata, 0, NULL, NULL));
+                        }
+
+                        if (detected > cfg->maxdetphoton) {
+                            MCX_FPRINTF(cfg->flog, S_RED "%s (%u > %d), %s\t" S_RESET,
+                                        T_("WARNING: the detected photon number is more than what your have specified"), detected, cfg->maxdetphoton,
+                                        T_("please use the -H option to specify a greater number"));
+                        } else {
+                            MCX_FPRINTF(cfg->flog, "%s " S_BOLD S_BLUE "%d %s" S_RESET ", total: " S_BOLD S_BLUE "%d" S_RESET "\t", T_("detected"), detected, T_("photons"), cfg->detectedcount + detected);
+                        }
+
+                        cfg->his.detected += detected;
+                        detected = MIN(detected, cfg->maxdetphoton);
+
+                        if (cfg->exportdetected) {
+                            cfg->exportdetected = (float*)realloc(cfg->exportdetected, (cfg->detectedcount + detected) * hostdetreclen * sizeof(float));
+
+                            if (cfg->issaveseed && cfg->seeddata) {
+                                cfg->seeddata = (RandType*)realloc(cfg->seeddata, (cfg->detectedcount + detected) * sizeof(RandType) * RAND_BUF_LEN);
+                            }
+
+                            memcpy(cfg->exportdetected + cfg->detectedcount * (hostdetreclen), Pdet, detected * (hostdetreclen)*sizeof(float));
+
+                            if (cfg->issaveseed && cfg->seeddata) {
+                                memcpy(((RandType*)cfg->seeddata) + cfg->detectedcount * RAND_BUF_LEN, seeddata, detected * sizeof(RandType)*RAND_BUF_LEN);
+                            }
+
+                            cfg->detectedcount += detected;
+                        }
+
+                        if (cfg->issaveseed) {
+                            free(seeddata);
+                        }
+                    }
+
+                    mcx_flush(cfg);
+
+                    //handling the 2pt distributions
+                    if (cfg->issave2pt) {
+                        int rawfieldmul = isrfforward ? 4 : 2;
+                        float* rawfield = (float*)malloc(sizeof(float) * fieldlen * rawfieldmul);
+
+                        OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gfield[devid], CL_TRUE, 0, sizeof(cl_float) * fieldlen * rawfieldmul,
+                                                        rawfield, 0, NULL, NULL)));
+                        MCX_FPRINTF(cfg->flog, "%s:\t%d ms\n", T_("transfer complete"), GetTimeMillis() - tic);
+                        fflush(cfg->flog);
+
+                        if (!(param.debuglevel & MCX_DEBUG_RNG)) {
+                            for (i = 0; i < fieldlen; i++) { //accumulate field, can be done in the GPU
+                                field[i] = rawfield[i];
+
+                                if (isrfforward || (cfg->outputtype != otRF && cfg->outputtype != otRFmus)) {
+                                    field[i] += rawfield[i + fieldlen]; /* for RF forward, add Re double-buffer; for non-RF, always add */
+                                }
+                            }
+                        } else {
+                            memcpy(field, rawfield, sizeof(cl_float)*fieldlen);
+                        }
+
+                        if (isrfforward) {
+                            /* RF forward: Im part in 3rd quarter [2F..3F), shadow at [3F..4F) */
+                            if (cfg->exportfield) {
+                                for (i = 0; i < fieldlen; i++) {
+                                    cfg->exportfield[i + fieldlen] += rawfield[i + fieldlen * 2] + rawfield[i + fieldlen * 3];
+                                }
+                            }
+                        } else if ((cfg->outputtype == otRF || cfg->outputtype == otRFmus) && cfg->omega > 0.f) {
+                            if (cfg->exportfield) {
+                                for (i = 0; i < fieldlen; i++) {
+                                    cfg->exportfield[i + fieldlen] += rawfield[i + fieldlen];
+                                }
+                            }
+                        }
+
+                        free(rawfield);
+
+                        if (cfg->respin > 1) {
+                            for (i = 0; i < fieldlen; i++) { //accumulate field, can be done in the GPU
+                                field[fieldlen + i] += field[i];
+                            }
+                        }
+
+                        if (iter + 1 == cfg->respin) {
+                            if (cfg->respin > 1) { //copy the accumulated fields back
+                                memcpy(field, field + fieldlen, sizeof(cl_float)*fieldlen);
+                            }
+                        }
+
+                        if (cfg->exportfield) {
+                            for (i = 0; i < fieldlen; i++) {
+                                cfg->exportfield[i] += field[i];
+                            }
+                        }
+                    }
+
+                    energy = (cl_float*)calloc(sizeof(cl_float), gpu[devid].autothread << 1);
+                    OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], genergy[devid], CL_TRUE, 0, sizeof(cl_float) * (gpu[devid].autothread << 1),
+                                                    energy, 0, NULL, NULL)));
+
+                    for (i = 0; i < gpu[devid].autothread; i++) {
+                        cfg->energyesc += energy[(i << 1)];
+                        cfg->energytot += energy[(i << 1) + 1];
+                    }
+
+                    free(energy);
+                    energy = NULL;
+
+                    //initialize the next simulation
+                    if (twindow1 < cfg->tend && iter < cfg->respin) {
+                        cl_float zero = 0.f;
+                        OCL_ASSERT((clEnqueueFillBuffer(mcxqueue[devid], gfield[devid], &zero, sizeof(cl_float), 0,
+                                                        sizeof(cl_float) * fieldlen * (isrfforward ? 4 : 2), 0, NULL, NULL)));
+                        OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 1, sizeof(cl_mem), (void*)(gfield + devid))));
+                    }
+
+                    if (cfg->respin > 1 && RAND_SEED_LEN > 1 && cfg->seed != SEED_FROM_FILE) {
+                        Pseed = (RandType*)malloc(sizeof(RandType) * gpu[devid].autothread * RAND_BUF_LEN);
+                        cl_uint* iseed = (cl_uint*)Pseed;
+
+                        for (j = 0; j < gpu[devid].autothread * RAND_SEED_LEN; j++) {
+                            iseed[j] = rand();
+                        }
+
+                        OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid], gseed[devid], CL_TRUE, 0, sizeof(RandType)*gpu[devid].autothread * RAND_BUF_LEN,
+                                                         Pseed, 0, NULL, NULL)));
+                        OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 3, sizeof(cl_mem), (void*)(gseed + devid))));
+                        free(Pseed);
+                        Pseed = NULL;
+                    }
+
+                    OCL_ASSERT((clFinish(mcxqueue[devid])));
+
+                    if (twindow1 < cfg->tend) {
+                        cl_float* tmpenergy = (cl_float*)calloc(sizeof(cl_float), gpu[devid].autothread * 3);
+                        OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid], genergy[devid], CL_TRUE, 0, sizeof(cl_float) * (gpu[devid].autothread << 1),
+                                                         tmpenergy, 0, NULL, NULL)));
+                        OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 2, sizeof(cl_mem), (void*)(genergy + devid))));
+                        free(tmpenergy);
+                    }
+                }// loop over work devices
+            }// iteration
+        }// time gates
+
+        if (cfg->runtime < toc) {
+            cfg->runtime = toc;
+        }
+
+        if (cfg->issave2pt && cfg->srctype == MCX_SRC_PATTERN && cfg->srcnum > 1) { // post-processing only for multi-srcpattern
+            srcpw = (float*)calloc(cfg->srcnum, sizeof(float));
+            energytot = (float*)calloc(cfg->srcnum, sizeof(float));
+            energyabs = (float*)calloc(cfg->srcnum, sizeof(float));
+            uint psize = (int)cfg->srcparam1.w * (int)cfg->srcparam2.w;
+
+            for (uint i = 0; i < cfg->srcnum; i++) {
+                float kahanc = 0.f;
+
+                for (uint j = 0; j < psize; j++) {
+                    mcx_kahanSum(&srcpw[i], &kahanc, cfg->srcpattern[j * cfg->srcnum + i]);
+                }
+
+                energytot[i] = cfg->nphoton * srcpw[i] / (float)psize;
+                kahanc = 0.f;
+
+                if (cfg->outputtype == otEnergy) {
+                    int fieldlenPsrc = fieldlen / cfg->srcnum;
+
+                    for (int j = 0; j < fieldlenPsrc; j++) {
+                        mcx_kahanSum(&energyabs[i], &kahanc, cfg->exportfield[j * cfg->srcnum + i]);
+                    }
+                } else {
+                    for (uint j = 0; j < cfg->maxgate; j++)
+                        for (uint k = 0; k < dimlen.z; k++) {
+                            mcx_kahanSum(&energyabs[i], &kahanc, cfg->exportfield[j * dimxyz + (k * cfg->srcnum + i)]*mcx_updatemua((uint)cfg->vol[k], cfg));
+                        }
+                }
+            }
+        }
+
+        if (cfg->issave2pt && cfg->isnormalized) {
+            float* scale = (float*)calloc(cfg->srcnum, sizeof(float));
+            scale[0] = 1.f;
+            int isnormalized = 0;
+            MCX_FPRINTF(cfg->flog, "%s\t", T_("normalizing raw data ..."));
+            cfg->energyabs += cfg->energytot - cfg->energyesc;
+
+            if (cfg->outputtype == otFlux || cfg->outputtype == otFluence || MCX_IS_ADJOINT_TYPE(cfg->outputtype) || (cfg->omega > 0.f && cfg->seed != SEED_FROM_FILE)) {
+                scale[0] = cfg->unitinmm / (cfg->energytot * Vvox * cfg->tstep); /* Vvox (in mm^3 already) * (Tstep) * (Eabsorp/U) */
+
+                if (cfg->outputtype == otFluence || MCX_IS_ADJOINT_TYPE(cfg->outputtype)) {
+                    scale[0] *= cfg->tstep;
+                }
+            } else if (cfg->outputtype == otEnergy || cfg->outputtype == otL) {
+                scale[0] = 1.f / cfg->energytot;
+            } else if (cfg->outputtype == otJacobian || cfg->outputtype == otWP || cfg->outputtype == otDCS || cfg->outputtype == otRF || cfg->outputtype == otRFmus || cfg->outputtype == otWLTOF || cfg->outputtype == otWPTOF) {
+                if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
+                    int detid;
+
+                    for (detid = 1; detid <= (int)cfg->detnum; detid++) {
+                        scale[0] = 0.f; // the cfg->normalizer and cfg.his.normalizer are inaccurate in this case, but this is ok
+
+                        for (size_t i = 0; i < cfg->nphoton; i++)
+                            if ((cfg->replay.detid[i] & 0xFFFF) == detid) {
+                                scale[0] += cfg->replay.weight[i];
+                            }
+
+                        if (scale[0] > 0.f) {
+                            scale[0] = cfg->unitinmm / scale[0];
+                        }
+
+                        MCX_FPRINTF(cfg->flog, "%s %d alpha=%f\n", T_("normalization factor for detector"), detid, scale[0]);
+                        fflush(cfg->flog);
+                        mcx_normalize(cfg->exportfield + (detid - 1)*dimxyz * param.maxgate, scale[0], dimxyz * param.maxgate, cfg->isnormalized, 0, 1);
+
+                        if (cfg->outputtype == otRF || cfg->outputtype == otRFmus) {
+                            mcx_normalize(cfg->exportfield + fieldlen + (detid - 1)*dimxyz * param.maxgate, scale[0], dimxyz * param.maxgate, cfg->isnormalized, 0, 1);
+                        }
+                    }
+
+                    isnormalized = 1;
+                } else {
+                    scale[0] = 0.f;
+
+                    for (size_t i = 0; i < cfg->nphoton; i++) {
+                        scale[0] += cfg->replay.weight[i];
+                    }
 
                     if (scale[0] > 0.f) {
                         scale[0] = cfg->unitinmm / scale[0];
                     }
+                }
+            }
 
-                    MCX_FPRINTF(cfg->flog, "%s %d alpha=%f\n", T_("normalization factor for detector"), detid, scale[0]);
+            if ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) && cfg->srcnum > 1) { // post-processing only for multi-srcpattern
+                float scaleref = scale[0];
+                int psize = (int)cfg->srcparam1.w * (int)cfg->srcparam2.w;
+
+                if (cfg->srctype == MCX_SRC_PATTERN3D) {
+                    psize = (int)cfg->srcparam1.x * (int)cfg->srcparam1.y * (int)cfg->srcparam1.z;
+                }
+
+                for (i = 0; i < cfg->srcnum; i++) {
+                    scale[i] = psize / srcpw[i] * scaleref;
+                }
+            }
+
+            if (cfg->extrasrclen && cfg->srcid < 0) { // when multiple sources are simulated, the total photons are evenly divided
+                scale[0] *= (cfg->extrasrclen + 1);
+            }
+
+            cfg->normalizer = scale[0];
+            cfg->his.normalizer = scale[0];
+
+            if (!isnormalized) {
+                for (i = 0; i < cfg->srcnum; i++) {
+                    MCX_FPRINTF(cfg->flog, "%s %d, %s alpha=%f\n", T_("source"), (i + 1), T_("normalization factor"), scale[i]);
                     fflush(cfg->flog);
-                    mcx_normalize(cfg->exportfield + (detid - 1)*dimxyz * param.maxgate, scale[0], dimxyz * param.maxgate, cfg->isnormalized, 0, 1);
+                    mcx_normalize(cfg->exportfield, scale[i], fieldlen / cfg->srcnum * ((cfg->outputtype == otRF || cfg->outputtype == otRFmus || (cfg->omega > 0.f && cfg->seed != SEED_FROM_FILE) ? 1 : 0) + 1), cfg->isnormalized, i, cfg->srcnum);
+                }
+            }
 
-                    if (cfg->outputtype == otRF || cfg->outputtype == otRFmus) {
-                        mcx_normalize(cfg->exportfield + fieldlen + (detid - 1)*dimxyz * param.maxgate, scale[0], dimxyz * param.maxgate, cfg->isnormalized, 0, 1);
+            free(scale);
+        }
+
+        /* Adjoint post-processing: phi_src * phi_det (or grad.grad) per voxel */
+        if (cfg->issave2pt && MCX_IS_ADJOINT_TYPE(cfg->outputtype) && cfg->seed != SEED_FROM_FILE && cfg->detdir != NULL && cfg->exportfield) {
+            int isrf    = isrfforward;
+            int isdual  = MCX_IS_DUAL_ADJOINT_TYPE(cfg->outputtype);
+            unsigned int Ns = cfg->extrasrclen + 1 - cfg->detnum;
+            unsigned int Nd = cfg->detnum;
+            unsigned int pure_voxels = (unsigned int)(cfg->dim.x * cfg->dim.y * cfg->dim.z);
+            size_t adjointlen    = (size_t)pure_voxels * Ns * Nd;
+            size_t single_exportlen = adjointlen * (isrf ? 2 : 1);
+            size_t exportlen_adj = single_exportlen * (isdual ? 2 : 1);
+
+            /* Upload normalized forward fluences to GPU (Re and Im parts as separate buffers) */
+            cl_mem gfield_re = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * fieldlen, cfg->exportfield, &status);
+            OCL_ASSERT(status);
+            cl_mem gfield_im = (isrf) ? clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * fieldlen, cfg->exportfield + fieldlen, &status) : NULL;
+
+            if (isrf) {
+                OCL_ASSERT(status);
+            }
+
+            cl_mem gadjoint_mua = NULL, gadjoint_tmp = NULL;
+            float* hmua = NULL, *hsecond = NULL;
+
+            if (isdual) {
+                gadjoint_mua = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, sizeof(float) * single_exportlen, NULL, &status);
+                OCL_ASSERT(status);
+            }
+
+            gadjoint_tmp = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, sizeof(float) * single_exportlen, NULL, &status);
+            OCL_ASSERT(status);
+
+            size_t adjblocksize = 256;
+            size_t adjgridsize  = (pure_voxels + (unsigned int)adjblocksize - 1) / adjblocksize * adjblocksize;
+
+            if (isdual || cfg->outputtype == otAdjoint) {
+                cl_kernel kadj = clCreateKernel(mcxprogram, "mcx_adjoint_kernel", &status);
+                OCL_ASSERT(status);
+                cl_mem gnull = NULL;
+                OCL_ASSERT(clSetKernelArg(kadj, 0, sizeof(cl_mem), &gfield_re));
+                OCL_ASSERT(clSetKernelArg(kadj, 1, sizeof(cl_mem), isrf ? &gfield_im : &gnull));
+                OCL_ASSERT(clSetKernelArg(kadj, 2, sizeof(cl_mem), isdual ? &gadjoint_mua : &gadjoint_tmp));
+                OCL_ASSERT(clSetKernelArg(kadj, 3, sizeof(cl_uint), &pure_voxels));
+                cl_uint mgval = (cl_uint)cfg->maxgate;
+                OCL_ASSERT(clSetKernelArg(kadj, 4, sizeof(cl_uint), &mgval));
+                OCL_ASSERT(clSetKernelArg(kadj, 5, sizeof(cl_uint), &Ns));
+                OCL_ASSERT(clSetKernelArg(kadj, 6, sizeof(cl_uint), &Nd));
+                OCL_ASSERT(clEnqueueNDRangeKernel(mcxqueue[0], kadj, 1, NULL, &adjgridsize, &adjblocksize, 0, NULL, NULL));
+                OCL_ASSERT(clFinish(mcxqueue[0]));
+                clReleaseKernel(kadj);
+            }
+
+            if (isdual || cfg->outputtype != otAdjoint) {
+                cl_kernel kadj2 = clCreateKernel(mcxprogram, "mcx_adjoint_dcoeff_kernel", &status);
+                OCL_ASSERT(status);
+                cl_mem gnull = NULL;
+                cl_uint Nx = (cl_uint)cfg->dim.x;
+                cl_uint Ny = (cl_uint)cfg->dim.y;
+                OCL_ASSERT(clSetKernelArg(kadj2, 0, sizeof(cl_mem), &gfield_re));
+                OCL_ASSERT(clSetKernelArg(kadj2, 1, sizeof(cl_mem), isrf ? &gfield_im : &gnull));
+                OCL_ASSERT(clSetKernelArg(kadj2, 2, sizeof(cl_mem), &gadjoint_tmp));
+                OCL_ASSERT(clSetKernelArg(kadj2, 3, sizeof(cl_uint), &pure_voxels));
+                cl_uint mgval = (cl_uint)cfg->maxgate;
+                OCL_ASSERT(clSetKernelArg(kadj2, 4, sizeof(cl_uint), &mgval));
+                OCL_ASSERT(clSetKernelArg(kadj2, 5, sizeof(cl_uint), &Ns));
+                OCL_ASSERT(clSetKernelArg(kadj2, 6, sizeof(cl_uint), &Nd));
+                OCL_ASSERT(clSetKernelArg(kadj2, 7, sizeof(cl_uint), &Nx));
+                OCL_ASSERT(clSetKernelArg(kadj2, 8, sizeof(cl_uint), &Ny));
+                OCL_ASSERT(clEnqueueNDRangeKernel(mcxqueue[0], kadj2, 1, NULL, &adjgridsize, &adjblocksize, 0, NULL, NULL));
+                OCL_ASSERT(clFinish(mcxqueue[0]));
+                clReleaseKernel(kadj2);
+            }
+
+            clReleaseMemObject(gfield_re);
+
+            if (gfield_im) {
+                clReleaseMemObject(gfield_im);
+            }
+
+            /* Allocate separate Jacobian buffer; exportfield retains the normalized forward fluence */
+            if (cfg->exportjacob) {
+                free(cfg->exportjacob);
+            }
+
+            cfg->exportjacob = (float*)malloc(sizeof(float) * exportlen_adj);
+
+            if (isdual) {
+                hmua    = (float*)malloc(sizeof(float) * single_exportlen);
+                hsecond = (float*)malloc(sizeof(float) * single_exportlen);
+                OCL_ASSERT(clEnqueueReadBuffer(mcxqueue[0], gadjoint_mua, CL_TRUE, 0, sizeof(float) * single_exportlen, hmua, 0, NULL, NULL));
+                OCL_ASSERT(clEnqueueReadBuffer(mcxqueue[0], gadjoint_tmp, CL_TRUE, 0, sizeof(float) * single_exportlen, hsecond, 0, NULL, NULL));
+                clReleaseMemObject(gadjoint_mua);
+                clReleaseMemObject(gadjoint_tmp);
+
+                for (size_t k = 0; k < single_exportlen; k++) {
+                    hmua[k] *= -Vvox;
+                }
+
+                for (size_t k = 0; k < single_exportlen; k++) {
+                    hsecond[k] *= -cfg->unitinmm;
+                }
+
+                if (cfg->outputtype == otAdjointMuaMusp) {
+                    for (size_t vox = 0; vox < (size_t)pure_voxels; vox++) {
+                        unsigned int medid = cfg->vol[vox] & 0xFF;
+                        float opscale = 0.f;
+
+                        if (medid < cfg->medianum) {
+                            float mus   = cfg->prop[medid].mus;
+                            float onemg = 1.f - cfg->prop[medid].g;
+
+                            if (mus > 0.f && onemg > 0.f) {
+                                opscale = 1.f / (3.f * onemg * onemg * mus * mus);
+                            }
+                        }
+
+                        for (unsigned int sd = 0; sd < Ns * Nd; sd++) {
+                            hsecond[vox + (size_t)sd * pure_voxels] *= opscale;
+
+                            if (isrf) {
+                                hsecond[vox + (size_t)sd * pure_voxels + adjointlen] *= opscale;
+                            }
+                        }
                     }
                 }
 
-                isnormalized = 1;
+                if (!isrf) {
+                    memcpy(cfg->exportjacob,              hmua,    adjointlen * sizeof(float));
+                    memcpy(cfg->exportjacob + adjointlen, hsecond, adjointlen * sizeof(float));
+                } else {
+                    memcpy(cfg->exportjacob,                   hmua,                 adjointlen * sizeof(float));
+                    memcpy(cfg->exportjacob + adjointlen,      hsecond,              adjointlen * sizeof(float));
+                    memcpy(cfg->exportjacob + 2 * adjointlen,  hmua + adjointlen,    adjointlen * sizeof(float));
+                    memcpy(cfg->exportjacob + 3 * adjointlen,  hsecond + adjointlen, adjointlen * sizeof(float));
+                }
+
+                free(hmua);
+                free(hsecond);
             } else {
-                scale[0] = 0.f;
+                OCL_ASSERT(clEnqueueReadBuffer(mcxqueue[0], gadjoint_tmp, CL_TRUE, 0, sizeof(float) * single_exportlen, cfg->exportjacob, 0, NULL, NULL));
+                clReleaseMemObject(gadjoint_tmp);
 
-                for (size_t i = 0; i < cfg->nphoton; i++) {
-                    scale[0] += cfg->replay.weight[i];
+                float adj_scale = (cfg->outputtype == otAdjoint) ? -Vvox : -cfg->unitinmm;
+
+                for (size_t k = 0; k < single_exportlen; k++) {
+                    cfg->exportjacob[k] *= adj_scale;
                 }
 
-                if (scale[0] > 0.f) {
-                    scale[0] = cfg->unitinmm / scale[0];
-                }
-            }
-        }
+                if (cfg->outputtype == otAdjointMus || cfg->outputtype == otAdjointMusp) {
+                    for (size_t vox = 0; vox < (size_t)pure_voxels; vox++) {
+                        unsigned int medid = cfg->vol[vox] & 0xFF;
+                        float opscale = 0.f;
 
-        if ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) && cfg->srcnum > 1) { // post-processing only for multi-srcpattern
-            float scaleref = scale[0];
-            int psize = (int)cfg->srcparam1.w * (int)cfg->srcparam2.w;
+                        if (medid < cfg->medianum) {
+                            float mus   = cfg->prop[medid].mus;
+                            float onemg = 1.f - cfg->prop[medid].g;
 
-            if (cfg->srctype == MCX_SRC_PATTERN3D) {
-                psize = (int)cfg->srcparam1.x * (int)cfg->srcparam1.y * (int)cfg->srcparam1.z;
-            }
-
-            for (i = 0; i < cfg->srcnum; i++) {
-                scale[i] = psize / srcpw[i] * scaleref;
-            }
-        }
-
-        if (cfg->extrasrclen && cfg->srcid < 0) { // when multiple sources are simulated, the total photons are evenly divided
-            scale[0] *= (cfg->extrasrclen + 1);
-        }
-
-        cfg->normalizer = scale[0];
-        cfg->his.normalizer = scale[0];
-
-        if (!isnormalized) {
-            for (i = 0; i < cfg->srcnum; i++) {
-                MCX_FPRINTF(cfg->flog, "%s %d, %s alpha=%f\n", T_("source"), (i + 1), T_("normalization factor"), scale[i]);
-                fflush(cfg->flog);
-                mcx_normalize(cfg->exportfield, scale[i], fieldlen / cfg->srcnum * ((cfg->outputtype == otRF || cfg->outputtype == otRFmus || (cfg->omega > 0.f && cfg->seed != SEED_FROM_FILE) ? 1 : 0) + 1), cfg->isnormalized, i, cfg->srcnum);
-            }
-        }
-
-        free(scale);
-    }
-
-    /* Adjoint post-processing: phi_src * phi_det (or grad.grad) per voxel */
-    if (cfg->issave2pt && MCX_IS_ADJOINT_TYPE(cfg->outputtype) && cfg->seed != SEED_FROM_FILE && cfg->detdir != NULL && cfg->exportfield) {
-        int isrf    = isrfforward;
-        int isdual  = MCX_IS_DUAL_ADJOINT_TYPE(cfg->outputtype);
-        unsigned int Ns = cfg->extrasrclen + 1 - cfg->detnum;
-        unsigned int Nd = cfg->detnum;
-        unsigned int pure_voxels = (unsigned int)(cfg->dim.x * cfg->dim.y * cfg->dim.z);
-        size_t adjointlen    = (size_t)pure_voxels * Ns * Nd;
-        size_t single_exportlen = adjointlen * (isrf ? 2 : 1);
-        size_t exportlen_adj = single_exportlen * (isdual ? 2 : 1);
-
-        /* Upload normalized forward fluences to GPU (Re and Im parts as separate buffers) */
-        cl_mem gfield_re = clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * fieldlen, cfg->exportfield, &status);
-        OCL_ASSERT(status);
-        cl_mem gfield_im = (isrf) ? clCreateBuffer(mcxcontext, RO_MEM, sizeof(float) * fieldlen, cfg->exportfield + fieldlen, &status) : NULL;
-
-        if (isrf) {
-            OCL_ASSERT(status);
-        }
-
-        cl_mem gadjoint_mua = NULL, gadjoint_tmp = NULL;
-        float* hmua = NULL, *hsecond = NULL;
-
-        if (isdual) {
-            gadjoint_mua = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, sizeof(float) * single_exportlen, NULL, &status);
-            OCL_ASSERT(status);
-        }
-
-        gadjoint_tmp = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, sizeof(float) * single_exportlen, NULL, &status);
-        OCL_ASSERT(status);
-
-        size_t adjblocksize = 256;
-        size_t adjgridsize  = (pure_voxels + (unsigned int)adjblocksize - 1) / adjblocksize * adjblocksize;
-
-        if (isdual || cfg->outputtype == otAdjoint) {
-            cl_kernel kadj = clCreateKernel(mcxprogram, "mcx_adjoint_kernel", &status);
-            OCL_ASSERT(status);
-            cl_mem gnull = NULL;
-            OCL_ASSERT(clSetKernelArg(kadj, 0, sizeof(cl_mem), &gfield_re));
-            OCL_ASSERT(clSetKernelArg(kadj, 1, sizeof(cl_mem), isrf ? &gfield_im : &gnull));
-            OCL_ASSERT(clSetKernelArg(kadj, 2, sizeof(cl_mem), isdual ? &gadjoint_mua : &gadjoint_tmp));
-            OCL_ASSERT(clSetKernelArg(kadj, 3, sizeof(cl_uint), &pure_voxels));
-            cl_uint mgval = (cl_uint)cfg->maxgate;
-            OCL_ASSERT(clSetKernelArg(kadj, 4, sizeof(cl_uint), &mgval));
-            OCL_ASSERT(clSetKernelArg(kadj, 5, sizeof(cl_uint), &Ns));
-            OCL_ASSERT(clSetKernelArg(kadj, 6, sizeof(cl_uint), &Nd));
-            OCL_ASSERT(clEnqueueNDRangeKernel(mcxqueue[0], kadj, 1, NULL, &adjgridsize, &adjblocksize, 0, NULL, NULL));
-            OCL_ASSERT(clFinish(mcxqueue[0]));
-            clReleaseKernel(kadj);
-        }
-
-        if (isdual || cfg->outputtype != otAdjoint) {
-            cl_kernel kadj2 = clCreateKernel(mcxprogram, "mcx_adjoint_dcoeff_kernel", &status);
-            OCL_ASSERT(status);
-            cl_mem gnull = NULL;
-            cl_uint Nx = (cl_uint)cfg->dim.x;
-            cl_uint Ny = (cl_uint)cfg->dim.y;
-            OCL_ASSERT(clSetKernelArg(kadj2, 0, sizeof(cl_mem), &gfield_re));
-            OCL_ASSERT(clSetKernelArg(kadj2, 1, sizeof(cl_mem), isrf ? &gfield_im : &gnull));
-            OCL_ASSERT(clSetKernelArg(kadj2, 2, sizeof(cl_mem), &gadjoint_tmp));
-            OCL_ASSERT(clSetKernelArg(kadj2, 3, sizeof(cl_uint), &pure_voxels));
-            cl_uint mgval = (cl_uint)cfg->maxgate;
-            OCL_ASSERT(clSetKernelArg(kadj2, 4, sizeof(cl_uint), &mgval));
-            OCL_ASSERT(clSetKernelArg(kadj2, 5, sizeof(cl_uint), &Ns));
-            OCL_ASSERT(clSetKernelArg(kadj2, 6, sizeof(cl_uint), &Nd));
-            OCL_ASSERT(clSetKernelArg(kadj2, 7, sizeof(cl_uint), &Nx));
-            OCL_ASSERT(clSetKernelArg(kadj2, 8, sizeof(cl_uint), &Ny));
-            OCL_ASSERT(clEnqueueNDRangeKernel(mcxqueue[0], kadj2, 1, NULL, &adjgridsize, &adjblocksize, 0, NULL, NULL));
-            OCL_ASSERT(clFinish(mcxqueue[0]));
-            clReleaseKernel(kadj2);
-        }
-
-        clReleaseMemObject(gfield_re);
-
-        if (gfield_im) {
-            clReleaseMemObject(gfield_im);
-        }
-
-        /* Allocate separate Jacobian buffer; exportfield retains the normalized forward fluence */
-        if (cfg->exportjacob) {
-            free(cfg->exportjacob);
-        }
-
-        cfg->exportjacob = (float*)malloc(sizeof(float) * exportlen_adj);
-
-        if (isdual) {
-            hmua    = (float*)malloc(sizeof(float) * single_exportlen);
-            hsecond = (float*)malloc(sizeof(float) * single_exportlen);
-            OCL_ASSERT(clEnqueueReadBuffer(mcxqueue[0], gadjoint_mua, CL_TRUE, 0, sizeof(float) * single_exportlen, hmua, 0, NULL, NULL));
-            OCL_ASSERT(clEnqueueReadBuffer(mcxqueue[0], gadjoint_tmp, CL_TRUE, 0, sizeof(float) * single_exportlen, hsecond, 0, NULL, NULL));
-            clReleaseMemObject(gadjoint_mua);
-            clReleaseMemObject(gadjoint_tmp);
-
-            for (size_t k = 0; k < single_exportlen; k++) {
-                hmua[k] *= -Vvox;
-            }
-
-            for (size_t k = 0; k < single_exportlen; k++) {
-                hsecond[k] *= -cfg->unitinmm;
-            }
-
-            if (cfg->outputtype == otAdjointMuaMusp) {
-                for (size_t vox = 0; vox < (size_t)pure_voxels; vox++) {
-                    unsigned int medid = cfg->vol[vox] & 0xFF;
-                    float opscale = 0.f;
-
-                    if (medid < cfg->medianum) {
-                        float mus   = cfg->prop[medid].mus;
-                        float onemg = 1.f - cfg->prop[medid].g;
-
-                        if (mus > 0.f && onemg > 0.f) {
-                            opscale = 1.f / (3.f * onemg * onemg * mus * mus);
+                            if (mus > 0.f && onemg > 0.f) {
+                                opscale = (cfg->outputtype == otAdjointMus)
+                                          ? 1.f / (3.f * onemg * mus * mus)
+                                          : 1.f / (3.f * onemg * onemg * mus * mus);
+                            }
                         }
-                    }
 
-                    for (unsigned int sd = 0; sd < Ns * Nd; sd++) {
-                        hsecond[vox + (size_t)sd * pure_voxels] *= opscale;
+                        for (unsigned int sd = 0; sd < Ns * Nd; sd++) {
+                            cfg->exportjacob[vox + (size_t)sd * pure_voxels] *= opscale;
 
-                        if (isrf) {
-                            hsecond[vox + (size_t)sd * pure_voxels + adjointlen] *= opscale;
+                            if (isrf) {
+                                cfg->exportjacob[vox + (size_t)sd * pure_voxels + adjointlen] *= opscale;
+                            }
                         }
                     }
                 }
             }
 
-            if (!isrf) {
-                memcpy(cfg->exportjacob,              hmua,    adjointlen * sizeof(float));
-                memcpy(cfg->exportjacob + adjointlen, hsecond, adjointlen * sizeof(float));
-            } else {
-                memcpy(cfg->exportjacob,                   hmua,                 adjointlen * sizeof(float));
-                memcpy(cfg->exportjacob + adjointlen,      hsecond,              adjointlen * sizeof(float));
-                memcpy(cfg->exportjacob + 2 * adjointlen,  hmua + adjointlen,    adjointlen * sizeof(float));
-                memcpy(cfg->exportjacob + 3 * adjointlen,  hsecond + adjointlen, adjointlen * sizeof(float));
-            }
-
-            free(hmua);
-            free(hsecond);
-        } else {
-            OCL_ASSERT(clEnqueueReadBuffer(mcxqueue[0], gadjoint_tmp, CL_TRUE, 0, sizeof(float) * single_exportlen, cfg->exportjacob, 0, NULL, NULL));
-            clReleaseMemObject(gadjoint_tmp);
-
-            float adj_scale = (cfg->outputtype == otAdjoint) ? -Vvox : -cfg->unitinmm;
-
-            for (size_t k = 0; k < single_exportlen; k++) {
-                cfg->exportjacob[k] *= adj_scale;
-            }
-
-            if (cfg->outputtype == otAdjointMus || cfg->outputtype == otAdjointMusp) {
-                for (size_t vox = 0; vox < (size_t)pure_voxels; vox++) {
-                    unsigned int medid = cfg->vol[vox] & 0xFF;
-                    float opscale = 0.f;
-
-                    if (medid < cfg->medianum) {
-                        float mus   = cfg->prop[medid].mus;
-                        float onemg = 1.f - cfg->prop[medid].g;
-
-                        if (mus > 0.f && onemg > 0.f) {
-                            opscale = (cfg->outputtype == otAdjointMus)
-                                      ? 1.f / (3.f * onemg * mus * mus)
-                                      : 1.f / (3.f * onemg * onemg * mus * mus);
-                        }
-                    }
-
-                    for (unsigned int sd = 0; sd < Ns * Nd; sd++) {
-                        cfg->exportjacob[vox + (size_t)sd * pure_voxels] *= opscale;
-
-                        if (isrf) {
-                            cfg->exportjacob[vox + (size_t)sd * pure_voxels + adjointlen] *= opscale;
-                        }
-                    }
-                }
-            }
+            MCX_FPRINTF(cfg->flog, "adjoint Jacobian computation complete : %d ms\n", GetTimeMillis() - tic);
         }
-
-        MCX_FPRINTF(cfg->flog, "adjoint Jacobian computation complete : %d ms\n", GetTimeMillis() - tic);
-    }
 
 #ifndef MCX_CONTAINER
 
-    if (cfg->issave2pt && cfg->parentid == mpStandalone) {
-        MCX_FPRINTF(cfg->flog, "%s ... %zu %d\t", T_("saving data to file"), fieldlen, cfg->maxgate);
-        mcx_savedata(cfg->exportfield, fieldlen, cfg);
-        MCX_FPRINTF(cfg->flog, "%s : %d ms\n\n", T_("saving data complete"), GetTimeMillis() - tic);
-        fflush(cfg->flog);
-    }
-
-    if (cfg->issavedet && cfg->parentid == mpStandalone && cfg->exportdetected) {
-        cfg->his.unitinmm = cfg->unitinmm;
-        cfg->his.savedphoton = cfg->detectedcount;
-        cfg->his.totalphoton = cfg->nphoton;
-
-        if (cfg->issaveseed) {
-            cfg->his.seedbyte = sizeof(RandType) * RAND_BUF_LEN;
+        if (cfg->issave2pt && cfg->parentid == mpStandalone) {
+            MCX_FPRINTF(cfg->flog, "%s ... %zu %d\t", T_("saving data to file"), fieldlen, cfg->maxgate);
+            mcx_savedata(cfg->exportfield, fieldlen, cfg);
+            MCX_FPRINTF(cfg->flog, "%s : %d ms\n\n", T_("saving data complete"), GetTimeMillis() - tic);
+            fflush(cfg->flog);
         }
 
-        cfg->his.detected = cfg->detectedcount;
-        mcx_savedetphoton(cfg->exportdetected, cfg->seeddata, cfg->detectedcount, 0, cfg);
-    }
+        if (cfg->issavedet && cfg->parentid == mpStandalone && cfg->exportdetected) {
+            cfg->his.unitinmm = cfg->unitinmm;
+            cfg->his.savedphoton = cfg->detectedcount;
+            cfg->his.totalphoton = cfg->nphoton;
 
-    if ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) && cfg->parentid == mpStandalone && cfg->exportdebugdata) {
-        cfg->his.colcount = MCX_DEBUG_REC_LEN;
-        cfg->his.savedphoton = cfg->debugdatalen;
-        cfg->his.totalphoton = cfg->nphoton;
-        cfg->his.detected = 0;
-        mcx_savedetphoton(cfg->exportdebugdata, NULL, cfg->debugdatalen, 0, cfg);
-    }
+            if (cfg->issaveseed) {
+                cfg->his.seedbyte = sizeof(RandType) * RAND_BUF_LEN;
+            }
+
+            cfg->his.detected = cfg->detectedcount;
+            mcx_savedetphoton(cfg->exportdetected, cfg->seeddata, cfg->detectedcount, 0, cfg);
+        }
+
+        if ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) && cfg->parentid == mpStandalone && cfg->exportdebugdata) {
+            cfg->his.colcount = MCX_DEBUG_REC_LEN;
+            cfg->his.savedphoton = cfg->debugdatalen;
+            cfg->his.totalphoton = cfg->nphoton;
+            cfg->his.detected = 0;
+            mcx_savedetphoton(cfg->exportdebugdata, NULL, cfg->debugdatalen, 0, cfg);
+        }
 
 #endif
 
-    // total energy here equals total simulated photons+unfinished photons for all threads
-    MCX_FPRINTF(cfg->flog, "%s %zu %s (%zu) with %d devices (repeat x%d)\n%s: " S_BOLD S_BLUE "%.2f photon/ms" S_RESET "\n",
-                T_("simulated"), cfg->nphoton, T_("photons"), cfg->nphoton, workdev, cfg->respin, T_("MCX simulation speed"),
-                ((cfg->issavedet == FILL_MAXDETPHOTON) ? cfg->energytot : ((double)cfg->nphoton * ((cfg->respin > 1) ? (cfg->respin) : 1))) / MAX(1, cfg->runtime));
+        // total energy here equals total simulated photons+unfinished photons for all threads
+        MCX_FPRINTF(cfg->flog, "%s %zu %s (%zu) with %d devices (repeat x%d)\n%s: " S_BOLD S_BLUE "%.2f photon/ms" S_RESET "\n",
+                    T_("simulated"), cfg->nphoton, T_("photons"), cfg->nphoton, workdev, cfg->respin, T_("MCX simulation speed"),
+                    ((cfg->issavedet == FILL_MAXDETPHOTON) ? cfg->energytot : ((double)cfg->nphoton * ((cfg->respin > 1) ? (cfg->respin) : 1))) / MAX(1, cfg->runtime));
 
-    if (cfg->srctype == MCX_SRC_PATTERN && cfg->srcnum > 1) {
-        for (i = 0; i < cfg->srcnum; i++) {
-            MCX_FPRINTF(cfg->flog, "%s #%d %s: %.2f\t%s: " S_BOLD S_BLUE "%5.5f%%" S_RESET "\n(%s)\n",
-                        T_("source"), i + 1, T_("total simulated energy"), energytot[i], T_("absorbed"), energyabs[i] / energytot[i] * 100.f,
+        if (cfg->srctype == MCX_SRC_PATTERN && cfg->srcnum > 1) {
+            for (i = 0; i < cfg->srcnum; i++) {
+                MCX_FPRINTF(cfg->flog, "%s #%d %s: %.2f\t%s: " S_BOLD S_BLUE "%5.5f%%" S_RESET "\n(%s)\n",
+                            T_("source"), i + 1, T_("total simulated energy"), energytot[i], T_("absorbed"), energyabs[i] / energytot[i] * 100.f,
+                            T_("loss due to initial specular reflection is excluded in the total"));
+                fflush(cfg->flog);
+            }
+        } else {
+            MCX_FPRINTF(cfg->flog, "%s: %.2f\t%s: " S_BOLD S_BLUE "%5.5f%%" S_RESET "\n(%s)\n",
+                        T_("total simulated energy"), cfg->energytot, T_("absorbed"), (cfg->energytot - cfg->energyesc) / cfg->energytot * 100.f,
                         T_("loss due to initial specular reflection is excluded in the total"));
             fflush(cfg->flog);
         }
-    } else {
-        MCX_FPRINTF(cfg->flog, "%s: %.2f\t%s: " S_BOLD S_BLUE "%5.5f%%" S_RESET "\n(%s)\n",
-                    T_("total simulated energy"), cfg->energytot, T_("absorbed"), (cfg->energytot - cfg->energyesc) / cfg->energytot * 100.f,
-                    T_("loss due to initial specular reflection is excluded in the total"));
-        fflush(cfg->flog);
+
+        status = CL_SUCCESS;   /* reached the end of the run with no error */
+    } while (0);
+
+    /* ---- single NULL-safe teardown, reached on both the success and error paths ----
+     * Releases only what was actually created (handle arrays are calloc'd to NULL,
+     * scalar handles are NULL-initialized), uses plain clRelease* (not OCL_ASSERT) so a
+     * stray release error cannot mask the original failure, and re-reports any deferred
+     * acquisition error at the very end. */
+
+    /* gprogress is mapped once (above) and unmapped exactly once here before release */
+    if (progress && mcxqueue && mcxqueue[0] && gprogress && gprogress[0]) {
+        clEnqueueUnmapMemObject(mcxqueue[0], gprogress[0], progress, 0, NULL, NULL);
+        clFinish(mcxqueue[0]);
     }
 
-    clReleaseMemObject(gprogress[0]);
+    if (gprogress && gprogress[0]) {
+        clReleaseMemObject(gprogress[0]);
+    }
 
     if (cfg->seed == SEED_FROM_FILE) {
-        clReleaseMemObject(gseed[0]);
+        if (gseed && gseed[0]) {
+            clReleaseMemObject(gseed[0]);
+        }
 
         if (greplayw) {
             clReleaseMemObject(greplayw);
@@ -1642,59 +1730,65 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     }
 
     for (i = 0; i < workdev; i++) {
-        clFlush(mcxqueue[i]);
-        clFinish(mcxqueue[i]);
+        if (mcxqueue && mcxqueue[i]) {
+            clFlush(mcxqueue[i]);
+            clFinish(mcxqueue[i]);
+        }
 
-        clReleaseMemObject(gmedia[i]);
-        clReleaseMemObject(gproperty[i]);
-        clReleaseMemObject(gparam[i]);
-        clReleaseMemObject(gfield[i]);
-
-        if (cfg->seed != SEED_FROM_FILE) {
+        if (gmedia && gmedia[i])         {
+            clReleaseMemObject(gmedia[i]);
+        }
+        if (gproperty && gproperty[i])   {
+            clReleaseMemObject(gproperty[i]);
+        }
+        if (gparam && gparam[i])         {
+            clReleaseMemObject(gparam[i]);
+        }
+        if (gfield && gfield[i])         {
+            clReleaseMemObject(gfield[i]);
+        }
+        if (gseed && gseed[i] && cfg->seed != SEED_FROM_FILE) {
             clReleaseMemObject(gseed[i]);
         }
-
-        if (cfg->issavedet) {
+        if (gdetphoton && gdetphoton[i]) {
             clReleaseMemObject(gdetphoton[i]);
         }
-
-        clReleaseMemObject(genergy[i]);
-        clReleaseMemObject(gdetected[i]);
-
-        if (cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) {
+        if (genergy && genergy[i])       {
+            clReleaseMemObject(genergy[i]);
+        }
+        if (gdetected && gdetected[i])   {
+            clReleaseMemObject(gdetected[i]);
+        }
+        if (gsrcpattern && gsrcpattern[i]) {
             clReleaseMemObject(gsrcpattern[i]);
         }
-
-        if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
+        if (gjumpdebug && gjumpdebug[i]) {
             clReleaseMemObject(gjumpdebug[i]);
+        }
+        if (gdebugdata && gdebugdata[i]) {
             clReleaseMemObject(gdebugdata[i]);
         }
-
-        if (cfg->detpos) {
+        if (gdetpos && gdetpos[i])       {
             clReleaseMemObject(gdetpos[i]);
         }
-
-        if (cfg->issaveseed) {
+        if (gseeddata && gseeddata[i])   {
             clReleaseMemObject(gseeddata[i]);
         }
-
-        if (cfg->nphase) {
+        if (ginvcdf && ginvcdf[i])       {
             clReleaseMemObject(ginvcdf[i]);
         }
-
-        if (cfg->nangle) {
+        if (gangleinvcdf && gangleinvcdf[i]) {
             clReleaseMemObject(gangleinvcdf[i]);
         }
-
-        if (cfg->polmedianum && gsmatrix && gsmatrix[i]) {
+        if (gsmatrix && gsmatrix[i])     {
             clReleaseMemObject(gsmatrix[i]);
         }
-
-        if (mcxkernel[i]) {
+        if (mcxkernel && mcxkernel[i])   {
             clReleaseKernel(mcxkernel[i]);
         }
-
-        clReleaseEvent(waittoread[i]);
+        if (waittoread && waittoread[i]) {
+            clReleaseEvent(waittoread[i]);
+        }
     }
 
     free(gmedia);
@@ -1723,17 +1817,33 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     }
 
     for (devid = 0; devid < workdev; devid++) {
-        clReleaseCommandQueue(mcxqueue[devid]);
+        if (mcxqueue && mcxqueue[devid]) {
+            clReleaseCommandQueue(mcxqueue[devid]);
+        }
     }
 
     free(mcxqueue);
 
-    clReleaseProgram(mcxprogram);
-    clReleaseContext(mcxcontext);
-    clReleaseEvent(kernelevent);
+    if (mcxprogram) {
+        clReleaseProgram(mcxprogram);
+    }
+
+    if (mcxcontext) {
+        clReleaseContext(mcxcontext);
+    }
+
+    if (kernelevent) {
+        clReleaseEvent(kernelevent);
+    }
 
     free(field);
     free(srcpw);
     free(energytot);
     free(energyabs);
+    free(Pseed);    /* NULL on the success path; non-NULL only if acquisition aborted mid buffer-loop */
+    free(energy);
+
+    if (status != CL_SUCCESS) {
+        ocl_assess(status, __FILE__, __LINE__);   /* re-raise the deferred acquisition error after full cleanup */
+    }
 }
