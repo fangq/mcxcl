@@ -1971,6 +1971,7 @@ void mcx_createfluence(float** fluence, Config* cfg) {
 void mcx_clearfluence(float** fluence) {
     if (*fluence) {
         free(*fluence);
+        *fluence = NULL;    /* null after free so a repeated create/clear cycle does not double-free */
     }
 }
 
