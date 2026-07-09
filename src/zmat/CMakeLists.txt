@@ -37,6 +37,10 @@ set(LZMA_SDK_SOURCES
     easylzma/lzma/7zCrcOpt.c
     easylzma/lzma/CpuArch.c
     easylzma/lzma/Lzma2Dec.c
+    easylzma/lzma/Lzma2DecMt.c
+    easylzma/lzma/Lzma2Enc.c
+    easylzma/lzma/MtCoder.c
+    easylzma/lzma/MtDec.c
     easylzma/lzma/Xz.c
     easylzma/lzma/XzCrc64.c
     easylzma/lzma/XzCrc64Opt.c
@@ -47,7 +51,9 @@ set(LZMA_SDK_SOURCES
     easylzma/lzma/Delta.c
     easylzma/lzma/Bra86.c
     easylzma/lzma/7zStream.c
+    easylzma/lzma/LzFindMt.c
     easylzma/lzma/LzFindOpt.c
+    easylzma/lzma/Threads.c
 )
 
 set(ZMAT_SOURCES
@@ -67,12 +73,23 @@ endif()
 
 target_compile_definitions(zmat PRIVATE
     ZMAT_USE_LZMA_SDK
-    _7ZIP_ST
     NO_BLOSC2
     NO_ZLIB
     NO_ZSTD
     _LARGEFILE64_SOURCE=1
 )
+
+# The bundled LZMA SDK pulls in the multithreaded encoder/decoder paths
+# (Lzma2Enc/MtCoder/MtDec/LzFindMt), so the compressor must link against a
+# threading library. Match the Makefile, which enables COMPRESS_MF_MT and
+# links -pthread on non-Windows platforms. Use PUBLIC so the pthread
+# dependency propagates to targets that link the static zmat library.
+if(NOT WIN32)
+    target_compile_definitions(zmat PRIVATE COMPRESS_MF_MT)
+endif()
+
+find_package(Threads REQUIRED)
+target_link_libraries(zmat PUBLIC Threads::Threads)
 
 if(Matlab_FOUND)
     matlab_add_mex(
