@@ -370,8 +370,12 @@ $(CLPROGRAM)$(CLHEADER): $(CLPROGRAM).cl
 # Compile rules
 #################################################################
 
-## mcx_host.cpp embeds the OpenCL kernel; recompile whenever mcx_core.cl changes ##
-mcx_host$(OBJSUFFIX): $(CLSOURCE)
+## mcx_utils.c #includes mcx_core.clh (the embedded OpenCL kernel), and mcx_host.cpp
+## is built against the same kernel; recompile both whenever mcx_core.cl changes ##
+mcx_utils$(OBJSUFFIX) mcx_host$(OBJSUFFIX): $(CLSOURCE)
+
+## mcx_cu_host.cu #includes mcx_core.cl as its CUDA kernel source ##
+mcx_cu_host$(OBJSUFFIX): mcx_core.cl
 
 ##  Compile .c files  ##
 %$(OBJSUFFIX): %.c

@@ -308,7 +308,6 @@ void mcx_run_cuda(Config* cfg, float* fluence, float* totalenergy) {
     param.minstep     = minstep;
     param.tmax        = cfg->tend;
     param.oneoverc0   = R_C0 * cfg->unitinmm;
-    param.isrowmajor  = (uint)cfg->isrowmajor;
     param.save2pt     = (uint)cfg->issave2pt;
     param.doreflect   = (uint)cfg->isreflect;
     param.dorefint    = (uint)cfg->isrefint;
@@ -336,6 +335,22 @@ void mcx_run_cuda(Config* cfg, float* fluence, float* totalenergy) {
     param.partialdata = partialdata;
     param.w0offset    = w0offset;
     param.mediaformat = (uint)cfg->mediabyte;
+    /** Plain label volumes only need a byte per voxel; the per-step label lookup is a random
+     *  access over the whole domain, so packing it cuts that traffic 4x.  Bit 7 of the packed
+     *  value carries the DET_MASK detector flag, hence the 127-label limit. */
+    param.bytemedia   = 0;
+
+    if (cfg->mediabyte == MEDIA_LABEL_BYTE || cfg->mediabyte == MEDIA_LABEL_SHORT || cfg->mediabyte == MEDIA_LABEL_INT) {
+        size_t nvox = (size_t)cfg->dim.x * cfg->dim.y * cfg->dim.z;
+        param.bytemedia = 1;
+
+        for (size_t v = 0; v < nvox; v++)
+            if ((media[v] & MED_MASK) > 127) {
+                param.bytemedia = 0;
+                break;
+            }
+    }
+
     param.maxjumpdebug = (uint)cfg->maxjumpdebug;
     param.gscatter    = cfg->gscatter;
 
@@ -554,6 +569,12 @@ void mcx_run_cuda(Config* cfg, float* fluence, float* totalenergy) {
             lparam.threadphoton = (int)(gpuphoton / ((size_t)gpu[gpuid].autothread * cfg->respin));
             lparam.oddphoton    = (int)(gpuphoton / cfg->respin - (size_t)lparam.threadphoton * gpu[gpuid].autothread);
             lparam.maxgate      = (uint)gpu[gpuid].maxgate;
+            /* per-block photon quota for the dynamic dispatch path (MCX_DYNAMIC_LOAD) */
+            {
+                size_t nblk = gpu[gpuid].autothread / gpu[gpuid].autoblock;
+                lparam.blockphoton = (uint)(gpuphoton / (nblk * cfg->respin));
+                lparam.blockextra  = (uint)(gpuphoton / cfg->respin - (size_t)lparam.blockphoton * nblk);
+            }
 
             mcblock  = dim3(gpu[gpuid].autoblock, 1, 1);
             mcgrid   = dim3(gpu[gpuid].autothread / gpu[gpuid].autoblock, 1, 1);
@@ -607,7 +628,18 @@ void mcx_run_cuda(Config* cfg, float* fluence, float* totalenergy) {
             *progress = 0;
 
             /* Media volume */
-            if (cfg->mediabyte != MEDIA_2LABEL_SPLIT && cfg->mediabyte != MEDIA_ASGN_F2H) {
+            if (param.bytemedia) {
+                size_t nvox = (size_t)cfg->dim.x * cfg->dim.y * cfg->dim.z;
+                unsigned char* bytemedia = (unsigned char*)malloc(nvox);
+
+                for (size_t v = 0; v < nvox; v++) {
+                    bytemedia[v] = (unsigned char)((media[v] & 0x7FU) | ((media[v] & DET_MASK) >> 24));
+                }
+
+                CUDA_ASSERT(cudaMalloc((void**)&gmedia, nvox));
+                CUDA_ASSERT(cudaMemcpy(gmedia, bytemedia, nvox, cudaMemcpyHostToDevice));
+                free(bytemedia);
+            } else if (cfg->mediabyte != MEDIA_2LABEL_SPLIT && cfg->mediabyte != MEDIA_ASGN_F2H) {
                 CUDA_ASSERT(cudaMalloc((void**)&gmedia, sizeof(uint) * cfg->dim.x * cfg->dim.y * cfg->dim.z));
                 CUDA_ASSERT(cudaMemcpy(gmedia, media, sizeof(uint) * cfg->dim.x * cfg->dim.y * cfg->dim.z, cudaMemcpyHostToDevice));
             } else {
