@@ -12,8 +12,16 @@ on:
 
 jobs:
   build_linux_wheels:
-    name: Build manylinux2014 Wheels
-    runs-on: ubuntu-latest
+    name: Build manylinux2014 ${{ matrix.arch }} Wheels
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -30,12 +38,14 @@ jobs:
         run: |
           set -x
           cd .github/manylinux2014_wheel_builder
-          docker build --tag manylinux2014_wheel_builder --force-rm .
+          docker build --build-arg BASE_IMAGE=quay.io/pypa/manylinux2014_${{ matrix.arch }} \
+            --tag manylinux2014_wheel_builder --force-rm .
       - name: Build Manylinux2014 Wheels
         shell: bash
         run: |
           docker run -v ${GITHUB_WORKSPACE}:/src/ manylinux2014_wheel_builder
           sudo mv ${GITHUB_WORKSPACE}/pmcxcl/dist/ ${GITHUB_WORKSPACE}/dist/
+          ls -l ${GITHUB_WORKSPACE}/dist/
       - name: Check If the Build Version Exists on PyPI
         id: perform_pypi_upload_check
         shell: bash
