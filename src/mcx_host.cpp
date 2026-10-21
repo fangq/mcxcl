@@ -475,6 +475,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     size_t dimxyz = cfg->dim.x * cfg->dim.y * cfg->dim.z * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) ? cfg->srcnum : (cfg->srcid < 0) ? (cfg->extrasrclen + 1) : 1);
 
     cl_uint*  media = (cl_uint*)(cfg->vol);
+    int usebytemedia = 0;      /**< upload the label volume as 1 byte/voxel (see MCX_MEDIA_BYTE) */
     cl_float*  field = NULL;
 
     float*  Pdet = NULL;
@@ -510,7 +511,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             {cfg->srcparam2.x, cfg->srcparam2.y, cfg->srcparam2.z, cfg->srcparam2.w}
         }, cfg->extrasrclen, cfg->srcid,
         {{(float)cfg->dim.x, (float)cfg->dim.y, (float)cfg->dim.z, 0}}, dimlen, cp0, cp1, cachebox,
-        minstep, 0.f, 0.f, cfg->tend, R_C0* cfg->unitinmm, (uint)cfg->isrowmajor,
+        minstep, 0.f, 0.f, cfg->tend, R_C0* cfg->unitinmm, 0,
         (uint)cfg->issave2pt, (uint)cfg->isreflect, (uint)cfg->isrefint,
         (uint)cfg->issavedet, 1.f / cfg->tstep, cfg->minenergy,
         cfg->sradius* cfg->sradius, minstep* R_C0* cfg->unitinmm, cfg->maxdetphoton,
@@ -737,8 +738,34 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             }
         }
 
+        /** Plain label volumes only need a byte per voxel; the per-step label lookup is a
+         *  random access over the whole domain, so packing it cuts that traffic 4x. Bit 7 of
+         *  the packed value carries the DET_MASK detector flag, hence the 127-label limit. */
+        if (cfg->mediabyte == MEDIA_LABEL_BYTE || cfg->mediabyte == MEDIA_LABEL_SHORT || cfg->mediabyte == MEDIA_LABEL_INT) {
+            size_t nvox = (size_t)cfg->dim.x * cfg->dim.y * cfg->dim.z;
+            usebytemedia = 1;
+
+            for (size_t v = 0; v < nvox; v++)
+                if ((media[v] & MED_MASK) > 127) {
+                    usebytemedia = 0;
+                    break;
+                }
+        }
+
+        param.bytemedia = usebytemedia;
+
         for (i = 0; i < workdev; i++) {
-            if (cfg->mediabyte != MEDIA_2LABEL_SPLIT && cfg->mediabyte != MEDIA_ASGN_F2H) {
+            if (usebytemedia) {
+                size_t nvox = (size_t)cfg->dim.x * cfg->dim.y * cfg->dim.z;
+                unsigned char* bytemedia = (unsigned char*)malloc(nvox);
+
+                for (size_t v = 0; v < nvox; v++) {
+                    bytemedia[v] = (unsigned char)((media[v] & 0x7FU) | ((media[v] & DET_MASK) >> 24));
+                }
+
+                OCL_TRY(((gmedia[i] = clCreateBuffer(mcxcontext, RO_MEM, nvox, bytemedia, &status), status)));
+                free(bytemedia);
+            } else if (cfg->mediabyte != MEDIA_2LABEL_SPLIT && cfg->mediabyte != MEDIA_ASGN_F2H) {
                 OCL_TRY(((gmedia[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(cl_uint) * (cfg->dim.x * cfg->dim.y * cfg->dim.z), media, &status), status)));
             } else {
                 OCL_TRY(((gmedia[i] = clCreateBuffer(mcxcontext, RO_MEM, sizeof(cl_uint) * (2 * cfg->dim.x * cfg->dim.y * cfg->dim.z), media, &status), status)));
@@ -856,7 +883,11 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         OCL_TRY(((mcxprogram = clCreateProgramWithSource(mcxcontext, 1, (const char**) & (cfg->clsource), NULL, &status), status)));
 
         if (cfg->optlevel >= 1) {
-            snprintf(opt, MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-cl-mad-enable -DMCX_USE_NATIVE");
+            /** -cl-unsafe-math-optimizations implies -cl-mad-enable/-cl-no-signed-zeros and lets the
+             *  JIT use approximate reciprocals; unlike -cl-fast-relaxed-math it keeps inf/nan handling,
+             *  which hitgrid() relies on when a direction cosine is exactly zero.  -A 0 leaves it out,
+             *  together with dynamic dispatch, so fixed-seed trajectories stay comparable with mcx. */
+            snprintf(opt, MAX_JIT_OPT_LEN - strlen(opt), "%s ", cfg->autopilot ? "-cl-mad-enable -cl-unsafe-math-optimizations -DMCX_USE_NATIVE" : "-cl-mad-enable -DMCX_USE_NATIVE");
         }
 
         if (cfg->optlevel >= 2) {
@@ -867,7 +898,12 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DUSE_MACRO_CONST");
         }
 
-        if (cfg->optlevel >= 4) {
+        /** Dynamic per-block photon dispatch: photon lifetimes vary by orders of magnitude, so a
+         *  static photon-per-thread split makes every warp wait for its unluckiest lane.  Letting
+         *  the threads of a block draw from a shared counter removes that tail.  Replay needs the
+         *  static thread->photon mapping to index the saved seed/weight arrays, and -A 0 keeps it
+         *  so that a fixed seed reproduces each thread's photon trajectories exactly. */
+        if (cfg->seed != SEED_FROM_FILE && cfg->autopilot) {
             snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DGROUP_LOAD_BALANCE");
         }
 
@@ -881,6 +917,10 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         }
 
         snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "-DMED_TYPE=%d ", cfg->mediabyte);
+
+        if (usebytemedia) {
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DMCX_MEDIA_BYTE");
+        }
 
         snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", cfg->compileropt);
 

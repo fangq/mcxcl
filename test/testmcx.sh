@@ -168,7 +168,7 @@ if [ -z "$temp" ]; then echo "fail to print progress bar"; fail=$((fail+1)); els
 #if [ -z "$temp" ] || [ ! -f testrng222.jnii ] ; then echo "fail to create random numbers"; fail=$((fail+1)); else echo "ok"; fi
 
 echo "test saving trajectory feature -D M ... "
-temp=`"$MCX" --bench cube60 -D M -S 0 -d 0 $PARAM -n 1e2 | grep -o -E 'saved trajectory positions: [6-9][0-9]+'`
+temp=`"$MCX" --bench cube60 -D M -S 0 -d 0 $PARAM -n 1e2 | grep -o -E 'saved trajectory positions: [1-9][0-9]{3,}'`
 if [ -z "$temp" ]; then echo "fail to save trajectory data via -D M"; fail=$((fail+1)); else echo "ok"; fi
 
 temp=`which valgrind 2> /dev/null`

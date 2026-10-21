@@ -117,7 +117,7 @@ typedef struct KernelParams {
     cl_float  twin1;                /**< end time of the current time gate, unit is s  */
     cl_float  tmax;                 /**< maximum time gate length, same as cfg.tend */
     cl_float  oneoverc0;            /**< 1/(speed of light in the vacuum)*/
-    cl_uint isrowmajor;
+    cl_uint bytemedia;              /**< 1 if the label volume was uploaded as 1 byte/voxel */
     cl_uint save2pt;                /**< flag if mcx outputs fluence volume */
     cl_uint doreflect;              /**< flag if mcx performs reflection calculations */
     cl_uint dorefint;               /**< flag if mcx perform reflection calculations at internal boundaries */

@@ -53,6 +53,9 @@
 #define LOWER_MASK         0xFF000000              /**< mask of the lower label for SVMC */
 #define UPPER_MASK         0x00FF0000              /**< mask of the upper label for SVMC */
 
+#define MEDIA_LABEL_BYTE       1   /**<  media format: 8bit tissue label per voxel */
+#define MEDIA_LABEL_SHORT      2   /**<  media format: 16bit tissue label per voxel */
+#define MEDIA_LABEL_INT        4   /**<  media format: 32bit tissue label per voxel */
 #define MEDIA_ASGN_F2H        96   /**<  media format: input: float4 {mua,mus,g,n} -> {[half: mua],[half: mus],[half: g],[half: n]} */
 #define MEDIA_2LABEL_SPLIT    97   /**<  media format: 64bit:{[byte: lower label][byte: upper label][byte*3: reference point][byte*3: normal vector]} */
 #define MEDIA_2LABEL_MIX      98   /**<  media format: {[int: label1][int: label2][float32: label1 %]} -> 32bit:{[short 0-32767 scaled label1 %],[byte: label2],[byte: label1]} */
