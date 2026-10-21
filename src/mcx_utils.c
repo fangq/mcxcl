@@ -2,7 +2,7 @@
 **  \mainpage Monte Carlo eXtreme - GPU accelerated Monte Carlo Photon Migration \
 **      -- OpenCL edition
 **  \author Qianqian Fang <q.fang at neu.edu>
-**  \copyright Qianqian Fang, 2009-2025
+**  \copyright Qianqian Fang, 2009-2026
 **
 **  \section sref Reference:
 **  \li \c (\b Yu2018) Leiming Yu, Fanny Nina-Paravecino, David Kaeli, and Qianqian Fang,
@@ -5636,7 +5636,7 @@ void mcx_printheader(Config* cfg) {
     MCX_FPRINTF(cfg->flog, S_BLUE"\
 ==============================================================================\n\
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =\n\
-=          Copyright (c) 2010-2025 Qianqian Fang <q.fang at neu.edu>         =\n\
+=          Copyright (c) 2010-2026 Qianqian Fang <q.fang at neu.edu>         =\n\
 =" S_CYAN "                https://mcx.space/  &  https://neurojson.io                 " S_BLUE "=\n\
 =                                                                            =\n\
 = Computational Optics&Translational Imaging (COTI) Lab - " S_CYAN "http://fanglab.org " S_BLUE "=\n\

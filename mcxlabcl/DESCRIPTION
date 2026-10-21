@@ -1,6 +1,6 @@
 Name: mcxlabcl
-Version: 1.8
-Date: 2025-26-09
+Version: 3.0
+Date: 2026-10-21
 Title: GPU Monte Carlo eXtreme photon transport simulator for MATLAB/Octave and OpenCL
 Author: Qianqian Fang <fangqq@gmail.com>
 Maintainer: Qianqian Fang <fangqq@gmail.com>
