@@ -93,6 +93,12 @@ In addition, this release contains the following fixes and improvements
 
 The detailed updates can be found in the below change log
 
+* 2026-10-21 [3e98c4d] [doc] list the 1.2-1.5x OpenCL speedup in What's New
+* 2026-10-21 [8680d3f]*[perf] port speedopt (bc71b4b): dynamic photon dispatch, 1-byte label volume, unsafe-math JIT; 1.2-1.5x on OpenCL
+* 2026-10-21 [d7396f4] [bug] fix swapped sin/cos in MCX_SINCOS when native math is disabled (-o 0)
+* 2026-10-21 [9dee642] [ci] run the step-by-step trajectory tests on the POCL CPU device
+* 2026-10-21 [fe386b6] [release] set the v2026 (3.0) codename to Juxtaposition, fix 1.8.0 codename in mcxlabcl/NEWS
+* 2026-10-21 [15824d5] [doc] refresh the v2026 ChangeLog, NEWS and README change lists
 * 2026-10-21 [d1a0e24] [doc] list the RF replay, adjoint and pattern-replay fixes in What's New, update TODO
 * 2026-10-21 [0a478d7] [bug] fix segfault normalizing multi-pattern pattern3d output
 * 2026-10-21 [a2bc0a4] [port] deposit RF imaginary parts per pattern in photon sharing, from mcx ad0f881/8781d36
