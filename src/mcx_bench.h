@@ -367,8 +367,10 @@ MSTR(
 		"ID": "skinvessel",
 		"Photons": 1e6,
 		"RNGSeed":  1648335518,
-		"DoMismatch": true,
-		"DoAutoThread": true
+		"DoMismatch": false,
+		"DoPartialPath": false,
+		"DoAutoThread": true,
+		"OutputType": "f"
 	},
 	"Forward": {
 		"T0": 0,

@@ -231,6 +231,8 @@ $(CLPROGRAM)$(CLHEADER): $(CLPROGRAM).cl
 
 ## mcx_utils.c embeds the OpenCL kernel; recompile whenever mcx_core.cl changes ##
 mcx_utils$(OBJSUFFIX) mcx_host$(OBJSUFFIX): $(CLSOURCE)
+## mcx_utils.c embeds the built-in benchmarks ##
+mcx_utils$(OBJSUFFIX): mcx_bench.h
 
 ##  Compile .c files  ##
 %$(OBJSUFFIX): %.c
