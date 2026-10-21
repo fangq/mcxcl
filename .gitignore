@@ -1,0 +1,46 @@
+# build outputs
+*.o
+*.a
+*.mex
+*.mexa64
+*.mexmaci64
+*.mexmaca64
+*.mexw64
+bin/
+lib/
+src/lib/
+src/build/
+build/
+src/ubj/CMakeCache.txt
+src/ubj/CMakeFiles/
+src/ubj/cmake_install.cmake
+
+# python packaging
+pmcxcl/build/
+pmcxcl/dist/
+pmcxcl/*.whl
+*.egg-info/
+__pycache__/
+
+# simulation outputs
+*.mc2
+*.mch
+*.mct
+*_detp.jdat
+*_detp.jdt
+*_traj.jdat
+*_traj.jdt
+
+# editor/debug leftovers
+*.bak
+*.save
+*.swp
+*.log
+octave-workspace
+doc/html/
+doc/*.tar.gz
+
+# outputs of runs inside src/
+src/*.jnii
+src/*.bnii
+src/*.nii
