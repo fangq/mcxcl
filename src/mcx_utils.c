@@ -2035,6 +2035,10 @@ void mcx_preprocess(Config* cfg) {
         MCX_ERROR(-4, "the 'prop' field must contain at least 2 rows for the requested media format");
     }
 
+    if (cfg->mediabyte == MEDIA_2LABEL_MIX) { /* the kernel has no decoder for this format yet */
+        MCX_ERROR(-1, T_("Unsupported media format: mixlabel is only supported by MCX (CUDA)"));
+    }
+
     if ((cfg->mediabyte == MEDIA_ASGN_BYTE || cfg->mediabyte == MEDIA_AS_SHORT) && cfg->medianum < 3) {
         MCX_ERROR(-4, "the 'prop' field must contain at least 3 rows for the requested media format");
     }
