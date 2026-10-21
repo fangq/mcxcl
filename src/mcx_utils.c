@@ -1759,6 +1759,42 @@ void mcx_preprocess(Config* cfg) {
     cfg->srcdir.y *= tmp;
     cfg->srcdir.z *= tmp;
 
+    /**
+     * Append detectors as reversed sources for adjoint/srcid=-2 mode.
+     * In the mex container (mcxlabcl/pmcxcl), this is handled in the host wrapper
+     * before mcx_validatecfg is called, so we skip it here to avoid double-appending.
+     * This must live in mcx_preprocess (not mcx_validatecfg), because the command-line
+     * path never calls mcx_validatecfg.
+     */
+#ifndef MCX_CONTAINER
+
+    if ((MCX_IS_ADJOINT_TYPE(cfg->outputtype) || cfg->srcid == -2) && cfg->seed != SEED_FROM_FILE && cfg->detnum > 0 && cfg->detdir != NULL) {
+        unsigned int origextrasrclen = cfg->extrasrclen;
+
+        cfg->srcdata = (ExtraSrc*)realloc(cfg->srcdata, (cfg->extrasrclen + cfg->detnum) * sizeof(ExtraSrc));
+        memset(cfg->srcdata + cfg->extrasrclen, 0, cfg->detnum * sizeof(ExtraSrc));
+
+        for (unsigned int adi = 0; adi < cfg->detnum; adi++) {
+            cfg->srcdata[origextrasrclen + adi].srcpos.x = cfg->detpos[adi].x;
+            cfg->srcdata[origextrasrclen + adi].srcpos.y = cfg->detpos[adi].y;
+            cfg->srcdata[origextrasrclen + adi].srcpos.z = cfg->detpos[adi].z;
+            cfg->srcdata[origextrasrclen + adi].srcpos.w = 1.f;
+            cfg->srcdata[origextrasrclen + adi].srcdir   = cfg->detdir[adi];
+            cfg->srcdata[origextrasrclen + adi].srcparam1.x = cfg->detpos[adi].w;
+            cfg->srcdata[origextrasrclen + adi].srcparam1.y = 0.f;
+            cfg->srcdata[origextrasrclen + adi].srcparam1.z = 0.f;
+            cfg->srcdata[origextrasrclen + adi].srcparam1.w = 0.f;
+        }
+
+        cfg->extrasrclen += cfg->detnum;
+
+        if (MCX_IS_ADJOINT_TYPE(cfg->outputtype)) {
+            cfg->srcid = -1;
+        }
+    }
+
+#endif
+
     if (cfg->vol && cfg->polprop) {
         if (!(cfg->mediabyte <= 4)) {
             MCX_ERROR(-1, "Unsupported media format for polarized simulation");
@@ -2119,39 +2155,6 @@ void mcx_validatecfg(Config* cfg, float* detps, int dimdetps[2], int seedbyte) {
         MCX_ERROR(-6, "Jacobian output is only valid in the reply mode. Please define cfg.seed");
     }
 
-    /**
-     * Append detectors as reversed sources for adjoint/srcid=-2 mode.
-     * In the mex container (mcxlabcl/pmcxcl), this is handled in the host wrapper
-     * before mcx_validatecfg is called, so we skip it here to avoid double-appending.
-     */
-#ifndef MCX_CONTAINER
-
-    if ((MCX_IS_ADJOINT_TYPE(cfg->outputtype) || cfg->srcid == -2) && cfg->seed != SEED_FROM_FILE && cfg->detnum > 0 && cfg->detdir != NULL) {
-        unsigned int origextrasrclen = cfg->extrasrclen;
-
-        cfg->srcdata = (ExtraSrc*)realloc(cfg->srcdata, (cfg->extrasrclen + cfg->detnum) * sizeof(ExtraSrc));
-        memset(cfg->srcdata + cfg->extrasrclen, 0, cfg->detnum * sizeof(ExtraSrc));
-
-        for (unsigned int adi = 0; adi < cfg->detnum; adi++) {
-            cfg->srcdata[origextrasrclen + adi].srcpos.x = cfg->detpos[adi].x;
-            cfg->srcdata[origextrasrclen + adi].srcpos.y = cfg->detpos[adi].y;
-            cfg->srcdata[origextrasrclen + adi].srcpos.z = cfg->detpos[adi].z;
-            cfg->srcdata[origextrasrclen + adi].srcpos.w = 1.f;
-            cfg->srcdata[origextrasrclen + adi].srcdir   = cfg->detdir[adi];
-            cfg->srcdata[origextrasrclen + adi].srcparam1.x = cfg->detpos[adi].w;
-            cfg->srcdata[origextrasrclen + adi].srcparam1.y = 0.f;
-            cfg->srcdata[origextrasrclen + adi].srcparam1.z = 0.f;
-            cfg->srcdata[origextrasrclen + adi].srcparam1.w = 0.f;
-        }
-
-        cfg->extrasrclen += cfg->detnum;
-
-        if (MCX_IS_ADJOINT_TYPE(cfg->outputtype)) {
-            cfg->srcid = -1;
-        }
-    }
-
-#endif
 
     for (i = 0; i < cfg->detnum; i++) {
         if (!cfg->issrcfrom0) {
@@ -3275,7 +3278,7 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
                     rad = FIND_JSON_OBJ("R", "Optode.Detector.R", det);
                     dir = FIND_JSON_OBJ("Dir", "Optode.Detector.Dir", det);
 
-                    if (cJSON_GetArraySize(det) == 2) {
+                    if (cJSON_IsObject(det)) { /* {"Pos":[..],"R":r,"Dir":[..]}; may carry more than 2 fields */
                         pos = FIND_JSON_OBJ("Pos", "Optode.Detector.Pos", det);
                     }
 
