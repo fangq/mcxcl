@@ -93,6 +93,10 @@ In addition, this release contains the following fixes and improvements
 
 The detailed updates can be found in the below change log
 
+* 2026-10-21 [9f6aec7] [bench] sync the skinvessel benchmark with mcx (fluence output, no index mismatch)
+* 2026-10-21 [7edde8a] [bug] save the fluence data, not an uninitialized buffer, in nifti output (-F nii)
+* 2026-10-21 [fb8f61b] [test] compare trajectories per photon: 5e-2 mm tolerance, tolerate up to 10% forked photons
+* 2026-10-21 [f85f5c3] [doc] refresh the v2026 ChangeLog, NEWS and README change lists
 * 2026-10-21 [3e98c4d] [doc] list the 1.2-1.5x OpenCL speedup in What's New
 * 2026-10-21 [8680d3f]*[perf] port speedopt (bc71b4b): dynamic photon dispatch, 1-byte label volume, unsafe-math JIT; 1.2-1.5x on OpenCL
 * 2026-10-21 [d7396f4] [bug] fix swapped sin/cos in MCX_SINCOS when native math is disabled (-o 0)
