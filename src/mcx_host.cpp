@@ -1349,11 +1349,15 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             cfg->runtime = toc;
         }
 
-        if (cfg->issave2pt && cfg->srctype == MCX_SRC_PATTERN && cfg->srcnum > 1) { // post-processing only for multi-srcpattern
+        if (cfg->issave2pt && (cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) && cfg->srcnum > 1) { // post-processing only for multi-srcpattern
             srcpw = (float*)calloc(cfg->srcnum, sizeof(float));
             energytot = (float*)calloc(cfg->srcnum, sizeof(float));
             energyabs = (float*)calloc(cfg->srcnum, sizeof(float));
             uint psize = (int)cfg->srcparam1.w * (int)cfg->srcparam2.w;
+
+            if (cfg->srctype == MCX_SRC_PATTERN3D) {
+                psize = (int)cfg->srcparam1.x * (int)cfg->srcparam1.y * (int)cfg->srcparam1.z;
+            }
 
             for (uint i = 0; i < cfg->srcnum; i++) {
                 float kahanc = 0.f;
