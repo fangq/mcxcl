@@ -127,13 +127,14 @@ jobs:
             make CC=gcc CXX=g++ USERARFLAGS="-L/c/msys64/mingw64/lib libzmat.a"
             objdump -p ../bin/mcxcl.exe | grep "DLL Name:"
           fi
-      - name: Run tests on the POCL CPU OpenCL device (Linux only)
+      - name: Run tests and step-by-step trajectory tests on the POCL CPU OpenCL device (Linux only)
         if: ${{ runner.os == 'Linux' }}
         run: |
           sudo apt-get install -y pocl-opencl-icd python3-numpy
           ./bin/mcxcl -L
           cd test
           ./testmcx.sh -G 1
+          ./testtraj.sh -G 1
       - name: Create package folder
         run: |
           mkdir packages
