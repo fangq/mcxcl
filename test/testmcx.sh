@@ -176,6 +176,13 @@ if [ ! -z "$temp" ]; then
 fi
 
 
+temp=`which python3 2> /dev/null`
+if [ ! -z "$temp" ] && python3 -c "import numpy" 2> /dev/null; then
+    echo "test step-by-step photon trajectories against mcx golden data ... "
+    temp=`MCX="$MCX" ./testtraj.sh $PARAM 2>&1`
+    if [ $? -ne 0 ]; then echo "$temp" | grep -E 'FAILED|diverges|fail' | head -10; echo "fail to reproduce mcx trajectories"; fail=$((fail+1)); else echo "ok"; fi
+fi
+
 if [ "$fail" -gt "0" ];  then
     echo "failed $fail tests";
     exit $fail;
