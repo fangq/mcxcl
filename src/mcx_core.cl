@@ -2930,9 +2930,21 @@ __kernel void mcx_main_loop(
                         if (FABS(ppath[GPU_PARAM(gcfg, w0offset) + i]) > 0.f) {
                             float oldval = atomicadd(field + (idx1dold + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i, ((GPU_PARAM(gcfg, srcnum) == 1) ? weight : weight * ppath[GPU_PARAM(gcfg, w0offset) + i]));
 
-                            if (FABS(oldval) > MAX_ACCUM) {
+                            /* the RF imaginary parts carry the same per-pattern weight as the real part
+                               (port of mcx ad0f881 and 8781d36); [F..2F) holds Im in RF replay */
+                            if ((FABS(oldval) > MAX_ACCUM) & ((GPU_PARAM(gcfg, outputtype) != otRF) | ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)))) {
                                 atomicadd(field + (idx1dold + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i, ((oldval > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
                                 atomicadd(field + (idx1dold + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i + gcfg->dimlen.w, ((oldval > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
+                            } else if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
+                                float oldval_im = atomicadd(field + (idx1dold + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i + gcfg->dimlen.w * 2, ((GPU_PARAM(gcfg, srcnum) == 1) ? weight_im : weight_im * ppath[GPU_PARAM(gcfg, w0offset) + i]));
+
+                                if (FABS(oldval_im) > MAX_ACCUM) {
+                                    atomicadd(field + (idx1dold + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i + gcfg->dimlen.w * 2, ((oldval_im > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
+                                    atomicadd(field + (idx1dold + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i + gcfg->dimlen.w * 3, ((oldval_im > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
+                                }
+                            } else if ((GPU_PARAM(gcfg, outputtype) == otRF) & (GPU_PARAM(gcfg, omega) > 0.f)) {
+                                float rf_imag = -replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w - 1)] * pathlen * ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + 1];
+                                atomicadd(field + (idx1dold + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i + gcfg->dimlen.w, ((GPU_PARAM(gcfg, srcnum) == 1) ? rf_imag : rf_imag * ppath[GPU_PARAM(gcfg, w0offset) + i]));
                             }
                         }
                     }
