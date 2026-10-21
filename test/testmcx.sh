@@ -127,6 +127,25 @@ rm -rf replaytest.*
 temp=`("$MCX" --bench cube60 -s replaytest -q 1 -S 0 $PARAM && "$MCX" --bench cube60 -E replaytest_detp.jdt -S 0 $PARAM) | sed $'s/\x1b\[[0-9;]*m//g' | grep -o -E 'absorbed:.*3[0-8]\.[0-9]+%'`
 if [ -z "$temp" ]; then echo "fail to run photon replay"; fail=$((fail+1)); else echo "ok"; fi
 
+echo "test pattern source photon sharing replay ... "
+rm -rf patreplay*
+patsrc='{"Optode":{"Source":{"Type":"pattern","Pos":[10,10,0],"Param1":[40,0,0,2],"Param2":[0,40,0,2],"SrcNum":2,"Pattern":{"Nx":2,"Ny":2,"Nz":1,"Data":[1,2,1,2,1,2,1,2]}}}}'
+patrf='{"Optode":{"Source":{"Type":"pattern","Pos":[10,10,0],"Param1":[40,0,0,2],"Param2":[0,40,0,2],"SrcNum":2,"Frequency":1e8,"Pattern":{"Nx":2,"Ny":2,"Nz":1,"Data":[1,2,1,2,1,2,1,2]}}}}'
+"$MCX" --bench cube60 --json "$patsrc" -s patreplay -q 1 $PARAM > /dev/null 2>&1
+# pattern 2 is 2x pattern 1, so both must report the same per-pattern absorbed fraction:
+# energyabs and energytot then scale together. Dropping the per-pattern weight or the
+# srcnum stride in the replay deposit leaves energyabs equal and splits them 2:1 instead.
+temp=`"$MCX" --bench cube60 --json "$patsrc" -E patreplay_detp.jdt -O p -s patreplaywp $PARAM | grep -o -E '[0-9]+\.[0-9][0-9][0-9][0-9][0-9]%' | sed -e 's/\([0-9]*\.[0-9][0-9][0-9]\)[0-9]*%/\1/' | sort | uniq | wc -l`
+if [ "$temp" -ne "1" ]; then echo "fail to apply per-pattern weight in wp replay"; fail=$((fail+1)); else echo "ok"; fi
+
+echo "test pattern source photon sharing replay in RF mus mode ... "
+temp=`"$MCX" --bench cube60 --json "$patrf" -E patreplay_detp.jdt -O s -s patreplayrfmus $PARAM | grep -o -E '[0-9]+\.[0-9][0-9][0-9][0-9][0-9]%' | sed -e 's/\([0-9]*\.[0-9][0-9][0-9]\)[0-9]*%/\1/' | sort | uniq | wc -l`
+if [ "$temp" -ne "1" ]; then echo "fail to apply per-pattern weight in rfmus replay"; fail=$((fail+1)); else echo "ok"; fi
+
+echo "test RF mus replay output is non-zero ... "
+temp=`"$MCX" --bench cube60 --json '{"Optode":{"Source":{"Frequency":1e8}}}' -E replaytest_detp.jdt -O s -s rfmusreplay -F nii $PARAM > /dev/null 2>&1 && python3 -c "import sys,struct;d=open('rfmusreplay.nii','rb').read()[352:];print(int(any(v!=0 for v in struct.unpack('%df'%(len(d)//4),d))))" 2>/dev/null`
+if [ "$temp" != "1" ]; then echo "fail to produce non-zero rfmus replay output"; fail=$((fail+1)); else echo "ok"; fi
+
 echo "test heterogeneous domain ... "
 temp=`"$MCX" --bench spherebox -S 0 $PARAM | grep -o -E 'absorbed:.*1[01]\.[0-9]+%'`
 if [ -z "$temp" ]; then echo "fail to run spherebox benchmark"; fail=$((fail+1)); else echo "ok"; fi
