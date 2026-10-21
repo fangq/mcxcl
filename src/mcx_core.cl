@@ -1616,7 +1616,15 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
     }
 
     /** save current source ID before ppath pointer is shifted; used for adjoint detector-source identification */
-    int cur_src_id = (GPU_PARAM(gcfg, extrasrclen) & (GPU_PARAM(gcfg, srcid) < 0)) ? (int)ppath[GPU_PARAM(gcfg, w0offset) - 1] : 0;
+    int cur_src_id = (GPU_PARAM(gcfg, extrasrclen) * (GPU_PARAM(gcfg, srcid) < 0)) ? (int)ppath[GPU_PARAM(gcfg, w0offset) - 1] : 0;
+
+    /**
+     * In adjoint mode, detector sources are launched as disk sources (radius in param1.x) regardless
+     * of the main source type, so that detdir.w can shape the detector beam via the focus code below.
+     * Condition: current source ID exceeds the count of original (non-detector) sources.
+     */
+    int isadjdet = (MCX_IS_ADJOINT_TYPE(GPU_PARAM(gcfg, outputtype)) | (GPU_PARAM(gcfg, srcid) == -2)) &
+                   (cur_src_id > (int)(GPU_PARAM(gcfg, extrasrclen) + 1 - (int)GPU_PARAM(gcfg, detnum)));
 
     ppath += GPU_PARAM(gcfg, partialdata);
 
@@ -1642,6 +1650,35 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
 #endif
 
         *prop = TOFLOAT4(FLOAT4(launchsrc->pos.x, launchsrc->pos.y, launchsrc->pos.z, 0));
+
+        if (isadjdet) {
+            /* uniform disk (or annulus, param1.y > 0) point picking around the detector center */
+            float phi_adj = TWO_PI * rand_uniform01(t);
+            float sphi_adj, cphi_adj;
+            MCX_SINCOS(phi_adj, sphi_adj, cphi_adj);
+            float r_adj = MCX_MATHFUN(sqrt)(rand_uniform01(t) * FABS(launchsrc->param1.x * launchsrc->param1.x - launchsrc->param1.y * launchsrc->param1.y) + launchsrc->param1.y * launchsrc->param1.y);
+
+            if (v[0].z > -1.f + EPS && v[0].z < 1.f - EPS) {
+                float tmp0_adj = 1.f - v[0].z * v[0].z;
+                float tmp1_adj = r_adj * rsqrt(tmp0_adj);
+                p[0].x += tmp1_adj * (v[0].x * v[0].z * cphi_adj - v[0].y * sphi_adj);
+                p[0].y += tmp1_adj * (v[0].y * v[0].z * cphi_adj + v[0].x * sphi_adj);
+                p[0].z -= tmp1_adj * tmp0_adj * cphi_adj;
+            } else {
+                p[0].x += r_adj * cphi_adj;
+                p[0].y += r_adj * sphi_adj;
+            }
+
+            *idx1d = (int)(FLOOR(p[0].z)) * gcfg->dimlen.y + (int)(FLOOR(p[0].y)) * gcfg->dimlen.x + (int)(FLOOR(p[0].x));
+
+            if (p[0].x < 0.f || p[0].y < 0.f || p[0].z < 0.f || p[0].x >= gcfg->maxidx.x || p[0].y >= gcfg->maxidx.y || p[0].z >= gcfg->maxidx.z) {
+                *mediaid = 0;
+            } else {
+                *mediaid = media[*idx1d];
+            }
+
+            *Lmove = -1.f; /* disk is focusable: let detdir.w set the beam profile */
+        } else {
 
         /* --- Pencil beam (no position change needed) --- */
 #if defined(__NVCC__) || defined(MCX_SRC_PENCIL)
@@ -2088,6 +2125,7 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
         }
 
 #endif
+        } /* end of if (isadjdet) ... else */
 
         /**
          * If weight too low, skip
@@ -2149,37 +2187,6 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
                 v[0].x *= Rn2;
                 v[0].y *= Rn2;
                 v[0].z *= Rn2;
-            }
-        }
-
-        /**
-         * In adjoint mode, detector sources are launched as disk sources, overriding position.
-         * Condition: current source ID exceeds the count of original (non-detector) sources.
-         */
-        if ((MCX_IS_ADJOINT_TYPE(GPU_PARAM(gcfg, outputtype)) | (GPU_PARAM(gcfg, srcid) == -2)) &
-                (cur_src_id > (int)(GPU_PARAM(gcfg, extrasrclen) + 1 - (int)GPU_PARAM(gcfg, detnum)))) {
-            float phi_adj = TWO_PI * rand_uniform01(t);
-            float sphi_adj, cphi_adj;
-            MCX_SINCOS(phi_adj, sphi_adj, cphi_adj);
-            float r_adj = MCX_MATHFUN(sqrt)(rand_uniform01(t)) * launchsrc->param1.x;
-
-            if (v[0].z > -1.f + EPS && v[0].z < 1.f - EPS) {
-                float tmp0_adj = 1.f - v[0].z * v[0].z;
-                float tmp1_adj = r_adj * rsqrt(tmp0_adj);
-                p[0].x += tmp1_adj * (v[0].x * v[0].z * cphi_adj - v[0].y * sphi_adj);
-                p[0].y += tmp1_adj * (v[0].y * v[0].z * cphi_adj + v[0].x * sphi_adj);
-                p[0].z -= tmp1_adj * tmp0_adj * cphi_adj;
-            } else {
-                p[0].x += r_adj * cphi_adj;
-                p[0].y += r_adj * sphi_adj;
-            }
-
-            *idx1d = (int)(FLOOR(p[0].z)) * gcfg->dimlen.y + (int)(FLOOR(p[0].y)) * gcfg->dimlen.x + (int)(FLOOR(p[0].x));
-
-            if (p[0].x < 0.f || p[0].y < 0.f || p[0].z < 0.f || p[0].x >= gcfg->maxidx.x || p[0].y >= gcfg->maxidx.y || p[0].z >= gcfg->maxidx.z) {
-                *mediaid = 0;
-            } else {
-                *mediaid = media[*idx1d];
             }
         }
 
