@@ -3168,6 +3168,15 @@ __kernel void mcx_main_loop(
                         GPUDEBUG(("Rtotal=%f\n", Rtotal));
                     }
 
+                    /* store the position at the refractive interface, same as mcx (port of mcx f959c71) */
+                    if (GPU_PARAM(gcfg, debuglevel) & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
+                        if (GPU_PARAM(gcfg, maxpolmedia) > 0 && GPU_PARAM(gcfg, istrajstokes)) {
+                            savedebugstokes(&p, &s, (uint)f.w + idx * gcfg->threadphoton + min(idx, (idx < gcfg->oddphoton)*idx), gjumpdebug, gdebugdata, gcfg, (int)ppath[GPU_PARAM(gcfg, w0offset) - 1]);
+                        } else {
+                            savedebugdata(&p, (uint)f.w + idx * gcfg->threadphoton + min(idx, (idx < gcfg->oddphoton)*idx), gjumpdebug, gdebugdata, gcfg, (int)ppath[GPU_PARAM(gcfg, w0offset) - 1]);
+                        }
+                    }
+
                     if (Rtotal < 1.f
                             && (!(mediaid == 0 && ((isdet & 0xF) == bcMirror)))
                             && rand_next_reflect(t) > Rtotal) {
