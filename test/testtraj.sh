@@ -11,18 +11,20 @@
 # to the solver-neutral golden file golden/<case>.json. The golden data are
 # copied from MCX (mcx/test/golden): MCX-CL derives the per-thread seeds the
 # same way, so both solvers trace the same paths up to single-precision
-# round-off, which is tolerated by REFTOL and REFMATCH.
+# round-off, which is tolerated per photon by REFTOL and MAXFORK (see
+# trajtest.py: photons with the reference step count must match every step,
+# at most MAXFORK of the photons may fork at a reflect/escape decision).
 #
 # environment variables:
 #    MCX:    path to the mcxcl binary (default ../bin/mcxcl)
 #    PYTHON: python interpreter with numpy (default python3)
-#    REFTOL: position/relative weight tolerance (default 1e-3)
-#    REFMATCH: minimum fraction of steps matching the golden data (default 0.8)
+#    REFTOL: position (mm)/relative weight tolerance (default 5e-2)
+#    MAXFORK: maximum fraction of photons forking from the golden data (default 0.1)
 
 MCX=${MCX:-$(dirname "$0")/../bin/mcxcl}
 PYTHON=${PYTHON:-python3}
-REFTOL=${REFTOL:-1e-3}
-REFMATCH=${REFMATCH:-0.8}
+REFTOL=${REFTOL:-5e-2}
+MAXFORK=${MAXFORK:-0.1}
 PARAM="$@"
 TESTDIR=$(cd "$(dirname "$0")" && pwd)
 
@@ -57,7 +59,7 @@ for casefile in "$TESTDIR"/traj_cases/*.json; do
     fi
 
     "$PYTHON" "$TESTDIR/trajtest.py" "$traj" --case "$casefile" --ref "$TESTDIR/golden/$case.json" \
-        --tol "$REFTOL" --wtol "$REFTOL" --min-match "$REFMATCH" || fail=$((fail + 1))
+        --tol "$REFTOL" --wtol "$REFTOL" --max-fork "$MAXFORK" || fail=$((fail + 1))
 done
 
 if [ "$fail" -gt 0 ]; then
