@@ -1,6 +1,6 @@
 Change Log
 
-== MCX-CL 3.0.0 (v2026, CODENAME_TBD), FangQ <q.fang at neu.edu> ==
+== MCX-CL 3.0.0 (v2026, Juxtaposition), FangQ <q.fang at neu.edu> ==
  2026-10-21 [d1a0e24] [doc] list the RF replay, adjoint and pattern-replay fixes in What's New, update TODO
  2026-10-21 [0a478d7] [bug] fix segfault normalizing multi-pattern pattern3d output
  2026-10-21 [a2bc0a4] [port] deposit RF imaginary parts per pattern in photon sharing, from mcx ad0f881/8781d36

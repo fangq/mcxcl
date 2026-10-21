@@ -1,6 +1,6 @@
 Change Log
 
-== MCX-CL 3.0.0 (v2026, CODENAME_TBD), FangQ <q.fang at neu.edu> ==
+== MCX-CL 3.0.0 (v2026, Juxtaposition), FangQ <q.fang at neu.edu> ==
  2026-10-21 [d1a0e24] [doc] list the RF replay, adjoint and pattern-replay fixes in What's New, update TODO
  2026-10-21 [0a478d7] [bug] fix segfault normalizing multi-pattern pattern3d output
  2026-10-21 [a2bc0a4] [port] deposit RF imaginary parts per pattern in photon sharing, from mcx ad0f881/8781d36
@@ -65,7 +65,7 @@ Change Log
  2025-12-10 [3c2cc19] [ci] remove retired macos-13 runner, use macos-15-intel
  2025-10-13 [039fe86] [doc] add additional changelog
 
-== MCX-CL 1.8.0 (Genesis), FangQ <q.fang at neu.edu> ==
+== MCX-CL 1.8.0 (Infinity), FangQ <q.fang at neu.edu> ==
 
  2025-09-26 [aa2e389] [memory] release event, did not fix memory leak
  2025-09-20 [c5cc650] [feat] port Russian Roulette, ring src, hyperboloid src from mcx to mcxcl

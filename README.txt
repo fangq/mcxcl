@@ -3,7 +3,7 @@
 
 * '''Author:''' Qianqian Fang (q.fang at neu.edu)
 * '''License:''' GNU General Public License version 3 (GPLv3)
-* '''Version:''' 3.0 (CODENAME_TBD, v2026)
+* '''Version:''' 3.0 (Juxtaposition, v2026)
 * '''Website:''' https://mcx.space
 
 ---------------------------------------------------------------------

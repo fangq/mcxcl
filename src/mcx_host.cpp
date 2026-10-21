@@ -839,10 +839,10 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         tic = StartTimer();
 
 #if __OPENCL_C_VERSION__
-        MCX_FPRINTF(cfg->flog, "- %s: [CODENAME_TBD] %s OpenCL [%d] on [%s]\n",
+        MCX_FPRINTF(cfg->flog, "- %s: [Juxtaposition] %s OpenCL [%d] on [%s]\n",
                     T_("code name"), T_("compiled with"), __OPENCL_C_VERSION__, __DATE__);
 #else
-        MCX_FPRINTF(cfg->flog, "- %s: [CODENAME_TBD] %s OpenCL [%d] on [%s]\n",
+        MCX_FPRINTF(cfg->flog, "- %s: [Juxtaposition] %s OpenCL [%d] on [%s]\n",
                     T_("code name"), T_("compiled with"), CL_VERSION_1_0, __DATE__);
 #endif
 
