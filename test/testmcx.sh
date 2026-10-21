@@ -164,7 +164,7 @@ fi
 temp=`which cuda-memcheck 2> /dev/null`
 # in CUDA 12+, cuda-memcheck is a deprecated stub that just prints an error and exits;
 # skip the test in that case since compute-sanitizer can not instrument OpenCL apps
-if [ ! -z "$temp" ] && cuda-memcheck --version 2>&1 | grep -q 'does not support cuda-memcheck'; then
+if [ ! -z "$temp" ] && cuda-memcheck --version 2>&1 | grep -q -E 'does not support cuda-memcheck|toolkit matching the current driver'; then
     temp=""
 fi
 if [ ! -z "$temp" ]; then
