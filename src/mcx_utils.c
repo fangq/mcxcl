@@ -505,11 +505,11 @@ void mcx_savenii(float* dat, size_t len, char* name, int type32bit, int outputfo
     hdr.pixdim[2] = cfg->unitinmm;
     hdr.pixdim[3] = cfg->unitinmm;
     hdr.intent_code = NIFTI_INTENT_NONE;
-    logval = (float*)malloc(sizeof(float) * len);
 
     if (type32bit == NIFTI_TYPE_FLOAT32) {
         hdr.pixdim[4] = cfg->tstep * 1e6f;
     } else {
+        logval = (float*)malloc(sizeof(float) * len); /* keep dat intact, the label mask is written to a copy */
         short* mask = (short*)logval;
 
         for (i = 0; i < len; i++) {
@@ -581,7 +581,9 @@ void mcx_savenii(float* dat, size_t len, char* name, int type32bit, int outputfo
         MCX_ERROR(-9, "Output format is not supported");
     }
 
-    free(logval);
+    if (logval != dat) {
+        free(logval);
+    }
 }
 
 /**

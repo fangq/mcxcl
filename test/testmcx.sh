@@ -53,6 +53,11 @@ echo "test exporting builtin volume with gzip compression ... "
 temp=`"$MCX" --bench colin27 --dumpjson - --zip gzip | grep -o -E '"_ArrayZipData_":\s*"H4sIAAAAAAAA/\+z'`
 if [ -z "$temp" ]; then echo "fail to set gzip compression for volume exporting"; fail=$((fail+1)); else echo "ok"; fi
 
+echo "test saving fluence in nifti format ... "
+temp=`"$MCX" --bench cube60 -n 1e5 -s niitest -F nii $PARAM > /dev/null 2>&1 && python3 -c "import numpy as np; d=np.fromfile('niitest.nii',np.float32)[88:]; print(int(np.isfinite(d).all() and d.min()>=0 and d.sum()>0))" 2>/dev/null`
+rm -f niitest.nii niitest.jnii
+if [ "$temp" = "0" ]; then echo "fail to save the fluence in nifti format"; fail=$((fail+1)); elif [ -z "$temp" ]; then echo "skip (needs python3 with numpy)"; else echo "ok"; fi
+
 echo "test json input modifier --json ... "
 temp=`"$MCX" --bench cube60 --json '{"Optode":{"Source":{"Type":"isotropic","Pos":[29,29,29]}}}' --dumpjson 1 $PARAM | grep 'isotropic'`
 if [ -z "$temp" ]; then echo "fail to modify input via --json"; fail=$((fail+1)); else echo "ok"; fi
