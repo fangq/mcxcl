@@ -90,6 +90,15 @@ In addition, this release contains the following fixes and improvements
 
 The detailed updates can be found in the below change log
 
+* 2026-10-21 [d1a0e24] [doc] list the RF replay, adjoint and pattern-replay fixes in What's New, update TODO
+* 2026-10-21 [0a478d7] [bug] fix segfault normalizing multi-pattern pattern3d output
+* 2026-10-21 [a2bc0a4] [port] deposit RF imaginary parts per pattern in photon sharing, from mcx ad0f881/8781d36
+* 2026-10-21 [d1e0f32] [test] add pattern-replay and non-zero rfmus replay checks to testmcx.sh
+* 2026-10-21 [2a14c42]*[port] apply per-pattern stride and weight in wp/dcs/wptof/rfmus replay, from mcx ba36c98
+* 2026-10-21 [6b64571] [port] launch adjoint detector sources as disks before beam focusing, from mcx 9ec176e
+* 2026-10-21 [57545b0]*[bug] fix adjoint (-O A/D/U/V/W/Q) on the command line, fix detector JSON with Dir
+* 2026-10-21 [7e92747]*[bug] fix all-zero RF replay (-O r/s) output, write cos/sin to the shifted ppath slot
+* 2026-10-21 [7648ff0] [doc] v2026 What's New, ChangeLog and NEWS entries, refresh TODO list
 * 2026-10-21 [9591c05] [release] bump version to v2026 (3.0), pmcxcl to 0.8.0, update copyright years
 * 2026-10-21 [54559ae] [ci] run testmcx.sh and the trajectory tests on the POCL CPU device on Linux
 * 2026-10-21 [7bb12a9]*[bug] fix off-by-one photon index in wp/dcs/wptof/rfmus replay, port replay fixes from mcx
