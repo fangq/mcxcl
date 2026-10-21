@@ -1399,36 +1399,44 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                     int detid;
 
                     for (detid = 1; detid <= (int)cfg->detnum; detid++) {
-                        scale[0] = 0.f; // the cfg->normalizer and cfg.his.normalizer are inaccurate in this case, but this is ok
+                        if (cfg->isnormalized != 2) {
+                            scale[0] = 0.f; // the cfg->normalizer and cfg.his.normalizer are inaccurate in this case, but this is ok
 
-                        for (size_t i = 0; i < cfg->nphoton; i++)
-                            if ((cfg->replay.detid[i] & 0xFFFF) == detid) {
-                                scale[0] += cfg->replay.weight[i];
+                            for (size_t i = 0; i < cfg->nphoton; i++)
+                                if ((cfg->replay.detid[i] & 0xFFFF) == detid) {
+                                    scale[0] += cfg->replay.weight[i];
+                                }
+
+                            if (scale[0] > 0.f) {
+                                scale[0] = cfg->unitinmm / scale[0];
                             }
-
-                        if (scale[0] > 0.f) {
-                            scale[0] = cfg->unitinmm / scale[0];
+                        } else {
+                            scale[0] = cfg->unitinmm;
                         }
 
                         MCX_FPRINTF(cfg->flog, "%s %d alpha=%f\n", T_("normalization factor for detector"), detid, scale[0]);
                         fflush(cfg->flog);
-                        mcx_normalize(cfg->exportfield + (detid - 1)*dimxyz * param.maxgate, scale[0], dimxyz * param.maxgate, cfg->isnormalized, 0, 1);
+                        mcx_normalize(cfg->exportfield + (detid - 1)*dimxyz * param.maxgate, scale[0], dimxyz * param.maxgate, 0, 1);
 
                         if (cfg->outputtype == otRF || cfg->outputtype == otRFmus) {
-                            mcx_normalize(cfg->exportfield + fieldlen + (detid - 1)*dimxyz * param.maxgate, scale[0], dimxyz * param.maxgate, cfg->isnormalized, 0, 1);
+                            mcx_normalize(cfg->exportfield + fieldlen + (detid - 1)*dimxyz * param.maxgate, scale[0], dimxyz * param.maxgate, 0, 1);
                         }
                     }
 
                     isnormalized = 1;
                 } else {
-                    scale[0] = 0.f;
+                    if (cfg->isnormalized != 2) {
+                        scale[0] = 0.f;
 
-                    for (size_t i = 0; i < cfg->nphoton; i++) {
-                        scale[0] += cfg->replay.weight[i];
-                    }
+                        for (size_t i = 0; i < cfg->nphoton; i++) {
+                            scale[0] += cfg->replay.weight[i];
+                        }
 
-                    if (scale[0] > 0.f) {
-                        scale[0] = cfg->unitinmm / scale[0];
+                        if (scale[0] > 0.f) {
+                            scale[0] = cfg->unitinmm / scale[0];
+                        }
+                    } else {
+                        scale[0] = cfg->unitinmm;
                     }
                 }
             }
@@ -1457,7 +1465,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                 for (i = 0; i < cfg->srcnum; i++) {
                     MCX_FPRINTF(cfg->flog, "%s %d, %s alpha=%f\n", T_("source"), (i + 1), T_("normalization factor"), scale[i]);
                     fflush(cfg->flog);
-                    mcx_normalize(cfg->exportfield, scale[i], fieldlen / cfg->srcnum * ((cfg->outputtype == otRF || cfg->outputtype == otRFmus || (cfg->omega > 0.f && cfg->seed != SEED_FROM_FILE) ? 1 : 0) + 1), cfg->isnormalized, i, cfg->srcnum);
+                    mcx_normalize(cfg->exportfield, scale[i], fieldlen / cfg->srcnum * ((cfg->outputtype == otRF || cfg->outputtype == otRFmus || (cfg->omega > 0.f && cfg->seed != SEED_FROM_FILE) ? 1 : 0) + 1), i, cfg->srcnum);
                 }
             }
 
