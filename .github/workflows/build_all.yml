@@ -94,6 +94,10 @@ jobs:
             make oct CC=gcc-12 CXX=g++-12 LDFLAGS='-static-libgcc -static-libstdc++' EXTRALIB='-v'
             otool -L ../mcxlabcl/mcxcl.mex
           else
+            # use the gcc bundled with Octave, matching its MinGW headers; the rolling MSYS2 gcc
+            # (first in PATH for the other builds) clashes with them. OpenCL headers are in src/mingw64
+            export PATH="$GITHUB_WORKSPACE/octave/octave-10.3.0-w64/mingw64/bin:$PATH"
+            which gcc && gcc --version | head -1
             make oct CC=gcc CXX=g++ LIBOPENCL='/c/Windows/System32/OpenCL.dll --verbose' MEXLINKOPT='-static-libgcc -static-libstdc++ -Wl,-Bstatic -lm -Wl,-Bdynamic -v'
             objdump -p ../mcxlabcl/mcxcl.mex | grep "DLL Name:"
             make clean
