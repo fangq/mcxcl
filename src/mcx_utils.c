@@ -1870,6 +1870,15 @@ void mcx_preprocess(Config* cfg) {
         /*from here on, the array is always col-major*/
         if (cfg->mediabyte == MEDIA_2LABEL_SPLIT) {
             mcx_convertrow2col64((size_t**) & (cfg->vol), &(cfg->dim));
+        } else if (cfg->mediabyte == MEDIA_ASGN_F2H) { /* two stacked volumes: {mua,mus} then {g,n} half pairs */
+            size_t nvox = (size_t)cfg->dim.x * cfg->dim.y * cfg->dim.z;
+            unsigned int* upper = (unsigned int*)malloc(sizeof(unsigned int) * nvox);
+            memcpy(upper, cfg->vol + nvox, sizeof(unsigned int) * nvox);
+            mcx_convertrow2col(&upper, &(cfg->dim));
+            mcx_convertrow2col(&(cfg->vol), &(cfg->dim));
+            cfg->vol = (unsigned int*)realloc(cfg->vol, sizeof(unsigned int) * nvox * 2);
+            memcpy(cfg->vol + nvox, upper, sizeof(unsigned int) * nvox);
+            free(upper);
         } else {
             mcx_convertrow2col(&(cfg->vol), &(cfg->dim));
         }
@@ -2053,7 +2062,8 @@ void mcx_preprocess(Config* cfg) {
         cfg->savedetflag = 0x5;
     }
 
-    if (cfg->mediabyte >= 100 && cfg->savedetflag) {
+    /** the continuous-property formats have no tissue label to sort the per-medium data by */
+    if ((cfg->mediabyte >= 100 || cfg->mediabyte == MEDIA_ASGN_F2H) && cfg->savedetflag) {
         cfg->savedetflag = UNSET_SAVE_NSCAT(cfg->savedetflag);
         cfg->savedetflag = UNSET_SAVE_PPATH(cfg->savedetflag);
         cfg->savedetflag = UNSET_SAVE_MOM(cfg->savedetflag);
@@ -3769,9 +3779,7 @@ void mcx_loadvolume(char* filename, Config* cfg, int isbuf) {
             Grid3D grid = {&(cfg->vol), &(cfg->dim), {1.f, 1.f, 1.f}, cfg->isrowmajor};
 
             if (cfg->issrcfrom0) {
-                grid.orig.x = 0.f;
-                grid.orig.y = 0.f;
-                grid.orig.z = 0.f;
+                memset(&(grid.orig.x), 0, sizeof(float3));
             }
 
             status = mcx_load_jsonshapes(&grid, filename);
@@ -3796,18 +3804,20 @@ void mcx_loadvolume(char* filename, Config* cfg, int isbuf) {
     }
 
     datalen = cfg->dim.x * cfg->dim.y * cfg->dim.z;
-    cfg->vol = (unsigned int*)malloc(sizeof(unsigned int) * datalen * (1 + (cfg->mediabyte == MEDIA_2LABEL_SPLIT)));
+    cfg->vol = (unsigned int*)malloc(sizeof(unsigned int) * datalen * (1 + (cfg->mediabyte == MEDIA_2LABEL_SPLIT || cfg->mediabyte == MEDIA_ASGN_F2H)));
 
     if (!isbuf) {
         if (cfg->mediabyte == MEDIA_AS_F2H) {
             inputvol = (unsigned char*)malloc(sizeof(unsigned char) * (datalen << 3));
+        } else if (cfg->mediabyte == MEDIA_ASGN_F2H) {
+            inputvol = (unsigned char*)malloc(sizeof(unsigned char) * (datalen << 4));
         } else if (cfg->mediabyte >= 4) {
             inputvol = (unsigned char*)(cfg->vol);
         } else {
             inputvol = (unsigned char*)malloc(sizeof(unsigned char) * cfg->mediabyte * datalen);
         }
 
-        res = fread(inputvol, sizeof(unsigned char) * ((cfg->mediabyte == MEDIA_AS_F2H || cfg->mediabyte == MEDIA_2LABEL_SPLIT) ? 8 : MIN(cfg->mediabyte, 4)), datalen, fp);
+        res = fread(inputvol, sizeof(unsigned char) * ((cfg->mediabyte == MEDIA_ASGN_F2H) ? 16 : ((cfg->mediabyte == MEDIA_AS_F2H || cfg->mediabyte == MEDIA_2LABEL_SPLIT) ? 8 : MIN(cfg->mediabyte, 4))), datalen, fp);
         fclose(fp);
 
         if (res != datalen) {
@@ -3851,76 +3861,35 @@ void mcx_loadvolume(char* filename, Config* cfg, int isbuf) {
 
             cfg->vol[i] = f2i.i;
         }
-    } else if (cfg->mediabyte == MEDIA_AS_F2H) {
+    } else if (cfg->mediabyte == MEDIA_AS_F2H || cfg->mediabyte == MEDIA_ASGN_F2H) {
         float* val = (float*)inputvol;
-        union {
-            float f[2];
-            unsigned int i[2];
-            unsigned short h[2];
-        } f2h;
-        unsigned short tmp, m;
+        float f2h[2];
+        int offset = (cfg->mediabyte == MEDIA_ASGN_F2H);
 
         for (i = 0; i < datalen; i++) {
-            f2h.f[0] = val[i << 1] * cfg->unitinmm;
-            f2h.f[1] = val[(i << 1) + 1] * cfg->unitinmm;
+            f2h[0] = val[i << (1 + offset)] * cfg->unitinmm;       // mua
+            f2h[1] = val[(i << (1 + offset)) + 1] * cfg->unitinmm; // mus
+            cfg->vol[i] = mcx_float2half2(f2h);
 
-            if (f2h.f[0] != f2h.f[0] || f2h.f[1] != f2h.f[1]) { /*if one of mua/mus is nan in continuous medium, convert to 0-voxel*/
+            if (f2h[0] != f2h[0] || f2h[1] != f2h[1]) { /*if one of mua/mus is nan in continuous medium, convert to 0-voxel*/
                 cfg->vol[i] = 0;
-                continue;
+
+                if (cfg->mediabyte == MEDIA_AS_F2H) {
+                    continue;
+                }
             }
 
-            /**
-            float to half conversion
-            https://stackoverflow.com/questions/3026441/float32-to-float16/5587983#5587983
-            https://gamedev.stackexchange.com/a/17410  (for denorms)
-                */
-            m = ((f2h.i[0] >> 13) & 0x03ff);
-            tmp = (f2h.i[0] >> 23) & 0xff; /*exponent*/
-            tmp = (tmp - 0x70) & ((unsigned int)((int)(0x70 - tmp) >> 4) >> 27);
-
-            if (m < 0x10 && tmp == 0) { /*handle denorms - between 2^-24 and 2^-14*/
-                unsigned short sign = (f2h.i[0] >> 16) & 0x8000;
-                tmp = ((f2h.i[0] >> 23) & 0xff);
-                m = (f2h.i[0] >> 12) & 0x07ff;
-                m |= 0x0800u;
-                f2h.h[0] = sign | ((m >> (114 - tmp)) + ((m >> (113 - tmp)) & 1));
-            } else {
-                f2h.h[0] = (f2h.i[0] >> 31) << 5;
-                f2h.h[0] = (f2h.h[0] | tmp) << 10;
-                f2h.h[0] |= (f2h.i[0] >> 13) & 0x3ff;
+            if (cfg->mediabyte == MEDIA_ASGN_F2H) {
+                f2h[0] = val[(i << 2) + 2];   // g
+                f2h[1] = val[(i << 2) + 3];   // n
+                cfg->vol[i + datalen] = mcx_float2half2(f2h);
             }
-
-            m = ((f2h.i[1] >> 13) & 0x03ff);
-            tmp = (f2h.i[1] >> 23) & 0xff; /*exponent*/
-            tmp = (tmp - 0x70) & ((unsigned int)((int)(0x70 - tmp) >> 4) >> 27);
-
-            if (m < 0x10 && tmp == 0) { /*handle denorms - between 2^-24 and 2^-14*/
-                unsigned short sign = (f2h.i[1] >> 16) & 0x8000;
-                tmp = ((f2h.i[1] >> 23) & 0xff);
-                m = (f2h.i[1] >> 12) & 0x07ff;
-                m |= 0x0800u;
-                f2h.h[1] = sign | ((m >> (114 - tmp)) + ((m >> (113 - tmp)) & 1));
-            } else {
-                f2h.h[1] = (f2h.i[1] >> 31) << 5;
-                f2h.h[1] = (f2h.h[1] | tmp) << 10;
-                f2h.h[1] |= (f2h.i[1] >> 13) & 0x3ff;
-            }
-
-            if (f2h.i[0] == 0) { /*avoid being detected as a 0-label voxel, setting mus=EPS_fp16*/
-                f2h.i[0] = 0x00010000;
-            }
-
-            if (f2h.i[0] == SIGN_BIT) { /*avoid being detected as a 0-label voxel, setting mus=EPS_fp16*/
-                f2h.i[0] = 0;
-            }
-
-            cfg->vol[i] = f2h.i[0];
         }
     } else if (cfg->mediabyte == MEDIA_2LABEL_SPLIT) {
         memcpy(cfg->vol, inputvol, (datalen << 3));
     }
 
-    int medianum = cfg->medianum;
+    int medianum = MAX(cfg->medianum, cfg->polmedianum + 1);
 
     if (cfg->mediabyte <= 4)
         for (i = 0; i < datalen; i++) {
@@ -3929,7 +3898,7 @@ void mcx_loadvolume(char* filename, Config* cfg, int isbuf) {
             }
         }
 
-    if (!isbuf && (cfg->mediabyte < 4 || cfg->mediabyte == MEDIA_AS_F2H)) {
+    if (!isbuf && (cfg->mediabyte < 4 || cfg->mediabyte == MEDIA_AS_F2H || cfg->mediabyte == MEDIA_ASGN_F2H)) {
         free(inputvol);
     }
 }

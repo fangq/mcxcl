@@ -578,6 +578,16 @@ if (isreflect) {
 #define MEDIA_ASGN_BYTE    103
 #define MEDIA_AS_SHORT     104
 
+/* tissue label of a voxel, indexing the per-medium detected photon data (nscat/ppath/mom);
+   labelplus stores the label in the low 14 bits next to a half-float property */
+#ifdef __NVCC__
+    #define MCX_DETLABEL(m)  ((GPU_PARAM(gcfg, mediaformat) == MEDIA_LABEL_HALF) ? ((m) & 0x3FFF) : ((m) & MED_MASK))
+#elif MED_TYPE == MEDIA_LABEL_HALF
+    #define MCX_DETLABEL(m)  ((m) & 0x3FFF)
+#else
+    #define MCX_DETLABEL(m)  ((m) & MED_MASK)
+#endif
+
 /*=== Detector save flags ===*/
 #define SAVE_DETID(a)      ((a)    & 0x1)
 #define SAVE_NSCAT(a)      ((a)>>1 & 0x1)
@@ -2610,12 +2620,12 @@ __kernel void mcx_main_loop(
 
 #ifdef __NVCC__
                     } else {
-                        ((__local uint*)ppath)[(mediaid & MED_MASK) - 1]++;
+                        ((__local uint*)ppath)[MCX_DETLABEL(mediaid) - 1]++;
                     }
 
 #endif
 #else
-                    ((__local uint*)ppath)[(mediaid & MED_MASK) - 1]++;
+                    ((__local uint*)ppath)[MCX_DETLABEL(mediaid) - 1]++;
 #endif
                 }
 
@@ -2632,12 +2642,12 @@ __kernel void mcx_main_loop(
 
 #ifdef __NVCC__
                     } else {
-                        ppath[GPU_PARAM(gcfg, maxmedia) * (SAVE_NSCAT(GPU_PARAM(gcfg, savedetflag)) + SAVE_PPATH(GPU_PARAM(gcfg, savedetflag))) + (mediaid & MED_MASK) - 1] += 1.f - ctheta;
+                        ppath[GPU_PARAM(gcfg, maxmedia) * (SAVE_NSCAT(GPU_PARAM(gcfg, savedetflag)) + SAVE_PPATH(GPU_PARAM(gcfg, savedetflag))) + MCX_DETLABEL(mediaid) - 1] += 1.f - ctheta;
                     }
 
 #endif
 #else
-                    ppath[GPU_PARAM(gcfg, maxmedia) * (SAVE_NSCAT(GPU_PARAM(gcfg, savedetflag)) + SAVE_PPATH(GPU_PARAM(gcfg, savedetflag))) + (mediaid & MED_MASK) - 1] += 1.f - ctheta;
+                    ppath[GPU_PARAM(gcfg, maxmedia) * (SAVE_NSCAT(GPU_PARAM(gcfg, savedetflag)) + SAVE_PPATH(GPU_PARAM(gcfg, savedetflag))) + MCX_DETLABEL(mediaid) - 1] += 1.f - ctheta;
 #endif
                 }
 
@@ -2897,12 +2907,12 @@ __kernel void mcx_main_loop(
 
 #ifdef __NVCC__
             } else {
-                ppath[GPU_PARAM(gcfg, maxmedia) * (SAVE_NSCAT(GPU_PARAM(gcfg, savedetflag))) + (mediaid & MED_MASK) - 1] += f.z;
+                ppath[GPU_PARAM(gcfg, maxmedia) * (SAVE_NSCAT(GPU_PARAM(gcfg, savedetflag))) + MCX_DETLABEL(mediaid) - 1] += f.z;
             }
 
 #endif
 #else
-            ppath[GPU_PARAM(gcfg, maxmedia) * (SAVE_NSCAT(GPU_PARAM(gcfg, savedetflag))) + (mediaid & MED_MASK) - 1] += f.z;
+            ppath[GPU_PARAM(gcfg, maxmedia) * (SAVE_NSCAT(GPU_PARAM(gcfg, savedetflag))) + MCX_DETLABEL(mediaid) - 1] += f.z;
 #endif
         }
 
