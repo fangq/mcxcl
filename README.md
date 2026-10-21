@@ -70,6 +70,14 @@ In addition, this release contains the following fixes and improvements
   outputs now agree with MCX to ~1e-3 (relative L2)
 * ported the MCX replay normalization fixes (`-U 2`, time-gate clamping,
   SVMC mus division, ns time-of-flight accumulation, double-buffering)
+* fixed all-zero RF replay (`-O r`, `-O s`) output; RF and rfmus replay now
+  agree with MCX (relative L2 4e-5 and 2e-3)
+* fixed adjoint Jacobian outputs (`-O A/D/U/V/W/Q`) on the command line and a
+  segfault reading JSON detectors with a `Dir` field; adjoint detector sources
+  are now launched as disks so that `detdir(4)` shapes the detector beam
+* pattern/pattern3d sources now work in wp/dcs/wptof/rfmus replay and carry
+  per-pattern weights in the RF imaginary parts; fixed a segfault with
+  multi-pattern pattern3d sources
 * fixed a GPU memory leak on NVIDIA devices (#66), forcing g=1 in continuous
   media (#65), a macOS OpenCL runtime error (#61) and a double-free in
   `mcx_clearfluence`

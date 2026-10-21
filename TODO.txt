@@ -2,14 +2,15 @@
 
 == Short term projects ==
 
-* port pattern/pattern3d sources in wp/dcs/wptof/rfmus replay from mcx (fangq/mcx#259)
-* port the detdir(4) detector beam profile in adjoint mode from mcx
-* fix rfmus replay output (all zeros as of v2026)
+* pattern3d source output differs from mcx (fluence peak shifted by ~1 voxel, total +10%), even with a single pattern
 
 == Long term projects ==
 
 == Completed ==
 
+[done] * port pattern/pattern3d sources in wp/dcs/wptof/rfmus replay from mcx (fangq/mcx#259) [v2026]
+[done] * port the detdir(4) detector beam profile in adjoint mode from mcx [v2026]
+[done] * fix rfmus replay output (all zeros) [v2026]
 [done] * port SVMC from mcx to mcxcl [v2026]
 [done] * port polarized mcx to mcxcl [v2026]
 [done] * port mua/mus/g/n float format from mcx to mcxcl [v2026]
