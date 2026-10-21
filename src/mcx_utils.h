@@ -331,6 +331,7 @@ int  mcx_jdatadecode(void** vol, int* ndim, uint* dims, int maxdim, char** type,
 void mcx_savejnii(float* vol, int ndim, uint* dims, float* voxelsize, char* name, int isfloat, int iscol, Config* cfg);
 void mcx_savebnii(float* vol, int ndim, uint* dims, float* voxelsize, char* name, int isfloat, int iscol, Config* cfg);
 void mcx_savejdet(float* ppath, void* seeds, uint count, int doappend, Config* cfg);
+void mcx_savejdb(float* ppath, void* seeds, uint count, int doappend, Config* cfg);
 void mcx_replayprep(int* detid, float* ppath, History* his, Config* cfg);
 void mcx_loadbenchmark(char* key, Config* cfg);
 void mcx_replayinit(Config* cfg, float* detps, int dimdetps[2], int seedbyte);

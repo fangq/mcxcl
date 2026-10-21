@@ -964,8 +964,13 @@ void mcx_savedetphoton(float* ppath, void* seeds, int count, int doappend, Confi
     FILE* fp;
     char fhistory[MAX_FULL_PATH], filetag;
 
-    if (cfg->outputformat == ofJNifti || cfg->outputformat == ofBJNifti) {
+    if (cfg->outputformat == ofJNifti) {
         mcx_savejdet(ppath, seeds, count, doappend, cfg);
+        return;
+    }
+
+    if (cfg->outputformat == ofBJNifti) {
+        mcx_savejdb(ppath, seeds, count, doappend, cfg);
         return;
     }
 
@@ -1044,9 +1049,9 @@ void mcx_savejdet(float* ppath, void* seeds, uint count, int doappend, Config* c
     }
 
     if (cfg->his.detected == 0  && cfg->his.savedphoton) {
-        char colnum[] = {1, 3, 1, 1};
-        char* dtype[] = {"uint32", "single", "single", "uint32"};
-        char* dname[] = {"photonid", "p", "w0", "srcid"};
+        char colnum[] = {1, 3, 1, 1, 4};
+        char* dtype[] = {"uint32", "single", "single", "uint32", "single"};
+        char* dname[] = {"photonid", "p", "w0", "srcid", "iquv"};
         int activecol = sizeof(colnum) - (cfg->his.totalsource == 1);
         cJSON_AddItemToObject(obj, "Trajectory", dat = cJSON_CreateObject());
 
@@ -1069,9 +1074,9 @@ void mcx_savejdet(float* ppath, void* seeds, uint count, int doappend, Config* c
             col += dims[1];
         }
     } else {
-        int colnum[] = {1, cfg->his.maxmedia, cfg->his.maxmedia, cfg->his.maxmedia, 3, 3, 1};
-        char* dtype[] = {"uint32", "uint32", "single", "single", "single", "single", "single"};
-        char* dname[] = {"detid", "nscat", "ppath", "mom", "p", "v", "w0"};
+        int colnum[] = {1, cfg->his.maxmedia, cfg->his.maxmedia, cfg->his.maxmedia, 3, 3, 1, 4};
+        char* dtype[] = {"uint32", "uint32", "single", "single", "single", "single", "single", "single"};
+        char* dname[] = {"detid", "nscat", "ppath", "mom", "p", "v", "w0", "s"};
         cJSON_AddItemToObject(obj, "PhotonData", dat = cJSON_CreateObject());
 
         for (int id = 0; id < sizeof(colnum) / sizeof(int); id++) {
@@ -1080,7 +1085,7 @@ void mcx_savejdet(float* ppath, void* seeds, uint count, int doappend, Config* c
                 void* val = NULL;
                 float* fbuf = NULL;
                 uint*  ibuf = NULL;
-                int hassrcid = ((cfg->his.totalsource > 1) && id == 1);
+                int hassrcid = ((cfg->his.totalsource > 1) && id == 0); /* srcid is packed in the upper 16 bits of detid */
 
                 if (!strcmp(dtype[id], "uint32")) {
                     ibuf = (uint*)calloc(dims[0] * dims[1], sizeof(uint));
@@ -1088,10 +1093,6 @@ void mcx_savejdet(float* ppath, void* seeds, uint count, int doappend, Config* c
                     for (int i = 0; i < dims[0]; i++)
                         for (int j = 0; j < dims[1]; j++) {
                             ibuf[i * dims[1] + j] = ppath[i * cfg->his.colcount + col + j];
-
-                            if (hassrcid) {
-                                ibuf[i * dims[1] + j] &= 0xFFFF;
-                            }
                         }
 
                     val = (void*)ibuf;
@@ -1154,9 +1155,9 @@ void mcx_savejdet(float* ppath, void* seeds, uint count, int doappend, Config* c
     filetag = ((cfg->his.detected == 0  && cfg->his.savedphoton) ? 't' : 'h');
 
     if (cfg->rootpath[0]) {
-        sprintf(fhistory, "%s%c%s_%s.jdat", cfg->rootpath, pathsep, cfg->session, (filetag == 't' ? "traj" : "detp"));
+        sprintf(fhistory, "%s%c%s_%s.jdt", cfg->rootpath, pathsep, cfg->session, (filetag == 't' ? "traj" : "detp"));
     } else {
-        sprintf(fhistory, "%s_%s.jdat", cfg->session, (filetag == 't' ? "traj" : "detp"));
+        sprintf(fhistory, "%s_%s.jdt", cfg->session, (filetag == 't' ? "traj" : "detp"));
     }
 
     if (doappend) {
@@ -1178,6 +1179,227 @@ void mcx_savejdet(float* ppath, void* seeds, uint count, int doappend, Config* c
 
     if (root) {
         cJSON_Delete(root);
+    }
+}
+
+/**
+ * @brief Save detected photon data to a binary JData (.jdb) format file
+ *
+ * @param[in] ppath: buffer pointing to the detected photon data (partial path etc)
+ * @param[in] seeds: buffer pointing to the detected photon seed data
+ * @param[in] count: number of detected photons
+ * @param[in] doappend: flag if the new data is appended or write from the begining
+ * @param[in] cfg: simulation configuration
+ */
+
+void mcx_savejdb(float* ppath, void* seeds, uint count, int doappend, Config* cfg) {
+    FILE* fp;
+    char fhistory[MAX_FULL_PATH], filetag;
+    ubjw_context_t* root = NULL;
+    uchar* jsonstr = NULL;
+    size_t datalen, outputlen = 0;
+    int col = 0;
+
+    datalen = (size_t)count * cfg->his.colcount * sizeof(float)
+              + (size_t)count * cfg->his.seedbyte + 4096;
+    jsonstr = malloc(datalen << 1);
+    root = ubjw_open_memory(jsonstr, jsonstr + (datalen << 1));
+
+    ubjw_begin_object(root, UBJ_MIXED, 0);
+
+    /* the "MCXData" section */
+    ubjw_write_key(root, "MCXData");
+    ubjw_begin_object(root, UBJ_MIXED, 0);
+
+    ubjw_write_key(root, "Info");
+    ubjw_begin_object(root, UBJ_MIXED, 0);
+    UBJ_WRITE_KEY(root, "Version",        uint32, cfg->his.version);
+    UBJ_WRITE_KEY(root, "MediaNum",       uint32, cfg->his.maxmedia);
+    UBJ_WRITE_KEY(root, "DetNum",         uint32, cfg->his.detnum);
+    UBJ_WRITE_KEY(root, "ColumnNum",      uint32, cfg->his.colcount);
+    UBJ_WRITE_KEY(root, "TotalPhoton",    uint32, cfg->his.totalphoton);
+    UBJ_WRITE_KEY(root, "DetectedPhoton", uint32, count);
+    UBJ_WRITE_KEY(root, "SavedPhoton",    uint32, cfg->his.savedphoton);
+    UBJ_WRITE_KEY(root, "LengthUnit",     single, cfg->his.unitinmm);
+    UBJ_WRITE_KEY(root, "SeedByte",       uint32, cfg->his.seedbyte);
+    UBJ_WRITE_KEY(root, "Normalizer",     single, cfg->his.normalizer);
+    UBJ_WRITE_KEY(root, "Repeat",         int32,  cfg->his.respin);
+    UBJ_WRITE_KEY(root, "SrcNum",         uint32, cfg->his.srcnum);
+    UBJ_WRITE_KEY(root, "SaveDetFlag",    uint32, cfg->his.savedetflag);
+    UBJ_WRITE_KEY(root, "TotalSource",    uint32, cfg->his.totalsource);
+    ubjw_write_key(root, "Media");
+    ubjw_begin_array(root, UBJ_MIXED, 0);
+
+    for (int i = 0; i < cfg->medianum; i++) {
+        ubjw_begin_object(root, UBJ_MIXED, 4);
+        UBJ_WRITE_KEY(root, "mua", single, cfg->prop[i].mua / cfg->unitinmm);
+        UBJ_WRITE_KEY(root, "mus", single, cfg->prop[i].mus / cfg->unitinmm);
+        UBJ_WRITE_KEY(root, "g",   single, cfg->prop[i].g);
+        UBJ_WRITE_KEY(root, "n",   single, cfg->prop[i].n);
+        ubjw_end(root);
+    }
+
+    ubjw_end(root); /* end of "Media" */
+    ubjw_end(root); /* end of "Info" */
+
+    if (cfg->his.detected == 0 && cfg->his.savedphoton) {
+        char colnum[] = {1, 3, 1, 1, 4};
+        char* dtype[] = {"uint32", "single", "single", "uint32", "single"};
+        char* dname[] = {"photonid", "p", "w0", "srcid", "iquv"};
+        int activecol = sizeof(colnum) - (cfg->his.totalsource == 1);
+
+        ubjw_write_key(root, "Trajectory");
+        ubjw_begin_object(root, UBJ_MIXED, 0);
+
+        for (int id = 0; id < activecol; id++) {
+            uint dims[2] = {count, colnum[id]};
+            float* buf = (float*)calloc(dims[0] * dims[1], sizeof(float));
+
+            for (int i = 0; i < (int)dims[0]; i++)
+                for (int j = 0; j < (int)dims[1]; j++) {
+                    buf[i * dims[1] + j] = ppath[i * cfg->his.colcount + col + j];
+                }
+
+            ubjw_write_key(root, dname[id]);
+            ubjw_begin_object(root, UBJ_MIXED, 0);
+
+            if (mcx_jdataencode(buf, 2, dims, dtype[id], 4, cfg->zipid, root, 1, 0, cfg)) {
+                MCX_ERROR(-1, "error when converting to JSON");
+            }
+
+            ubjw_end(root);
+            free(buf);
+            col += dims[1];
+        }
+
+        if (cfg->issaveseed && seeds != NULL) {
+            uint dims[2] = {count, cfg->his.seedbyte};
+            ubjw_write_key(root, "seed");
+            ubjw_begin_object(root, UBJ_MIXED, 0);
+
+            if (mcx_jdataencode(seeds, 2, dims, "uint8", 1, cfg->zipid, root, 1, 0, cfg)) {
+                MCX_ERROR(-1, "error when converting to JSON");
+            }
+
+            ubjw_end(root);
+        }
+
+        ubjw_end(root); /* end of "Trajectory" */
+    } else {
+        int colnum[] = {1, cfg->his.maxmedia, cfg->his.maxmedia, cfg->his.maxmedia, 3, 3, 1, 4};
+        char* dtype[] = {"uint32", "uint32", "single", "single", "single", "single", "single", "single"};
+        char* dname[] = {"detid", "nscat", "ppath", "mom", "p", "v", "w0", "s"};
+
+        ubjw_write_key(root, "PhotonData");
+        ubjw_begin_object(root, UBJ_MIXED, 0);
+
+        for (int id = 0; id < (int)(sizeof(colnum) / sizeof(int)); id++) {
+            if ((cfg->savedetflag >> id) & 0x1) {
+                uint dims[2] = {count, colnum[id]};
+                void* val = NULL;
+                float* fbuf = NULL;
+                uint*  ibuf = NULL;
+                int hassrcid = ((cfg->his.totalsource > 1) && id == 0); /* srcid is packed in the upper 16 bits of detid */
+
+                if (!strcmp(dtype[id], "uint32")) {
+                    ibuf = (uint*)calloc(dims[0] * dims[1], sizeof(uint));
+
+                    for (int i = 0; i < (int)dims[0]; i++)
+                        for (int j = 0; j < (int)dims[1]; j++) {
+                            ibuf[i * dims[1] + j] = ppath[i * cfg->his.colcount + col + j];
+                        }
+
+                    val = (void*)ibuf;
+                } else {
+                    fbuf = (float*)calloc(dims[0] * dims[1], sizeof(float));
+
+                    for (int i = 0; i < (int)dims[0]; i++)
+                        for (int j = 0; j < (int)dims[1]; j++) {
+                            fbuf[i * dims[1] + j] = ppath[i * cfg->his.colcount + col + j];
+                        }
+
+                    val = (void*)fbuf;
+                }
+
+                if (hassrcid) {
+                    uint* srcid = (uint*)calloc(dims[0] * dims[1], sizeof(uint));
+
+                    for (int i = 0; i < (int)(dims[0] * dims[1]); i++) {
+                        srcid[i] = ibuf[i] >> 16;
+                        ibuf[i] &= 0xFFFF;
+                    }
+
+                    ubjw_write_key(root, "srcid");
+                    ubjw_begin_object(root, UBJ_MIXED, 0);
+
+                    if (mcx_jdataencode((void*)srcid, 2, dims, dtype[id], 4, cfg->zipid, root, 1, 0, cfg)) {
+                        MCX_ERROR(-1, "error when converting to JSON");
+                    }
+
+                    ubjw_end(root);
+                    free(srcid);
+                }
+
+                ubjw_write_key(root, dname[id]);
+                ubjw_begin_object(root, UBJ_MIXED, 0);
+
+                if (mcx_jdataencode(val, 2, dims, dtype[id], 4, cfg->zipid, root, 1, 0, cfg)) {
+                    MCX_ERROR(-1, "error when converting to JSON");
+                }
+
+                ubjw_end(root);
+                free(val);
+                col += dims[1];
+            }
+        }
+
+        if (cfg->issaveseed && seeds != NULL) {
+            uint dims[2] = {count, cfg->his.seedbyte};
+            ubjw_write_key(root, "seed");
+            ubjw_begin_object(root, UBJ_MIXED, 0);
+
+            if (mcx_jdataencode(seeds, 2, dims, "uint8", 1, cfg->zipid, root, 1, 0, cfg)) {
+                MCX_ERROR(-1, "error when converting to JSON");
+            }
+
+            ubjw_end(root);
+        }
+
+        ubjw_end(root); /* end of "PhotonData" */
+    }
+
+    ubjw_end(root); /* end of "MCXData" */
+    ubjw_end(root); /* end of root object */
+
+    outputlen = ubjw_close_context(root);
+
+    if (jsonstr == NULL) {
+        MCX_ERROR(-1, "error when converting to JSON");
+    }
+
+    filetag = ((cfg->his.detected == 0 && cfg->his.savedphoton) ? 't' : 'h');
+
+    if (cfg->rootpath[0]) {
+        sprintf(fhistory, "%s%c%s_%s.jdb", cfg->rootpath, pathsep, cfg->session, (filetag == 't' ? "traj" : "detp"));
+    } else {
+        sprintf(fhistory, "%s_%s.jdb", cfg->session, (filetag == 't' ? "traj" : "detp"));
+    }
+
+    if (doappend) {
+        fp = fopen(fhistory, "ab");
+    } else {
+        fp = fopen(fhistory, "wb");
+    }
+
+    if (fp == NULL) {
+        MCX_ERROR(-2, "can not save data to disk");
+    }
+
+    fwrite(jsonstr, outputlen, 1, fp);
+    fclose(fp);
+
+    if (jsonstr) {
+        free(jsonstr);
     }
 }
 
@@ -3698,9 +3920,9 @@ void mcx_loadvolume(char* filename, Config* cfg, int isbuf) {
 }
 
 /**
- * @brief Load previously saved photon seeds from an .jdat file for replay
+ * @brief Load previously saved photon seeds from a .jdt (or legacy .jdat) file for replay
  *
- * @param[in] filename: the name/path of the .jdat file produced from the baseline simulation
+ * @param[in] filename: the name/path of the .jdt file produced from the baseline simulation
  * @param[in,out] cfg: simulation configuration
  */
 
@@ -3708,7 +3930,7 @@ void mcx_loadseedjdat(char* filename, Config* cfg) {
     char* jbuf;
     int len;
 
-    FILE* fp = fopen(filename, "rt");
+    FILE* fp = fopen(filename, "rb");
 
     if (fp == NULL) {
         MCX_ERROR(-6, "fail to open the specified seed jdata file");
@@ -3942,7 +4164,7 @@ void mcx_prepdomain(char* filename, Config* cfg) {
     }
 
     if (cfg->seed == SEED_FROM_FILE && cfg->seedfile[0]) {
-        if (strstr(cfg->seedfile, ".jdat") != NULL) {
+        if (strstr(cfg->seedfile, ".jdt") != NULL || strstr(cfg->seedfile, ".jdat") != NULL) {
             mcx_loadseedjdat(cfg->seedfile, cfg);
         } else {
             mcx_loadseedfile(cfg);
@@ -4913,7 +5135,7 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
                     break;
 
                 case 'E':
-                    if (i < argc - 1 && (strstr(argv[i + 1], ".mch") != NULL || strstr(argv[i + 1], ".jdat") != NULL) ) { /*give an mch file to initialize the seed*/
+                    if (i < argc - 1 && (strstr(argv[i + 1], ".mch") != NULL || strstr(argv[i + 1], ".jdt") != NULL || strstr(argv[i + 1], ".jdat") != NULL) ) { /*give an mch file to initialize the seed*/
 #if defined(USE_LL5_RAND)
                         MCX_ERROR(-1, T_("seeding file is not supported in this binary"));
 #else
@@ -5468,7 +5690,7 @@ where possible parameters include (the first value in [*|*] is the default)\n\
                                eg: --bc ______010 saves photons exiting at y=0\n\
  -u [1.|float] (--unitinmm)    defines the length unit for the grid edge\n\
  -U [1|0]      (--normalize)   1 to normalize flux to unitary; 0 save raw\n\
- -E [0|int|.jdat] (--seed)     set random-number-generator seed, -1 to generate\n\
+ -E [0|int|.jdt] (--seed)      set random-number-generator seed, -1 to generate\n\
                                if a jdat/mch file is followed, MCX \"replays\" \n\
                                the detected photon; the replay mode can be used\n\
                                to calculate the mua/mus Jacobian matrices\n\
