@@ -2092,6 +2092,11 @@ void mcx_validatecfg(Config* cfg, float* detps, int dimdetps[2], int seedbyte) {
         partialdata + SAVE_DETID(cfg->savedetflag) + 3 * (SAVE_PEXIT(cfg->savedetflag) + SAVE_VEXIT(cfg->savedetflag))
         + SAVE_W0(cfg->savedetflag) + 4 * SAVE_IQUV(cfg->savedetflag);
 
+    if (!(cfg->mediabyte == MEDIA_LABEL_BYTE || cfg->mediabyte == MEDIA_LABEL_SHORT || cfg->mediabyte == MEDIA_LABEL_INT
+            || (cfg->mediabyte >= MEDIA_ASGN_F2H && cfg->mediabyte <= MEDIA_AS_SHORT))) {
+        MCX_ERROR(-1, T_("Unsupported media format"));
+    }
+
     if (!cfg->issrcfrom0) {
         cfg->srcpos.x--;
         cfg->srcpos.y--;
