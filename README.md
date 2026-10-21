@@ -93,6 +93,8 @@ In addition, this release contains the following fixes and improvements
 
 The detailed updates can be found in the below change log
 
+* 2026-10-21 [b3040bc] [bug] pass uint32 and float32 label volumes as 32bit labels in pmcxcl/mcxlabcl, reject unknown media formats
+* 2026-10-21 [49215c9] [doc] refresh the v2026 ChangeLog, NEWS and README change lists
 * 2026-10-21 [9f6aec7] [bench] sync the skinvessel benchmark with mcx (fluence output, no index mismatch)
 * 2026-10-21 [7edde8a] [bug] save the fluence data, not an uninitialized buffer, in nifti output (-F nii)
 * 2026-10-21 [fb8f61b] [test] compare trajectories per photon: 5e-2 mm tolerance, tolerate up to 10% forked photons
