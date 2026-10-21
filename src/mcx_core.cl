@@ -2255,7 +2255,7 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
     *Lmove = 0.f;
 
     if (((GPU_PARAM(gcfg, outputtype) == otRF) | (GPU_PARAM(gcfg, outputtype) == otRFmus)) & !((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE))) { /* RF replay only, not RF forward */
-        float rf_tof = photontof[(threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton - 1) + (int)f[0].w)];
+        float rf_tof = photontof[(threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton - 1) + (int)f[0].w - 1)]; /* f[0].w was incremented above */
         float rf_sin, rf_cos;
         MCX_SINCOS(GPU_PARAM(gcfg, omega) * rf_tof, rf_sin, rf_cos);
         ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum)] = rf_cos;
@@ -2566,30 +2566,34 @@ __kernel void mcx_main_loop(
 
                 /* WP/DCS/RF replay energy deposit at scattering site */
                 if ((bool)(GPU_PARAM(gcfg, outputtype) == otWP) | (bool)(GPU_PARAM(gcfg, outputtype) == otDCS) | (bool)(GPU_PARAM(gcfg, outputtype) == otWPTOF) | ((GPU_PARAM(gcfg, seed) == SEED_FROM_FILE) & (GPU_PARAM(gcfg, outputtype) == otRFmus))) {
-                    int tshift = (idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w);
-                    tmp0 = (GPU_PARAM(gcfg, outputtype) == otDCS) ? (1.f - ctheta) : 1.f;
+                    int photonidx = idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w - 1; /* f.w is 1-based after launch */
+                    int tshift = MIN(GPU_PARAM(gcfg, maxgate) - 1, (int)(FLOOR((photontof[photonidx] - gcfg->twin0) * GPU_PARAM(gcfg, Rtstep))));
+                    float rw = replayweight[photonidx];
 
-                    if (GPU_PARAM(gcfg, outputtype) == otRFmus) {
-                        float rf_cos_val = ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum)];
-                        float rf_sin_val = ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + 1];
-                        float rw = replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w)];
-                        tmp0 = rw * rf_cos_val;
-                        sphi = rw * rf_sin_val;
-                    } else if (GPU_PARAM(gcfg, outputtype) == otWPTOF) {
-                        tmp0 = photontof[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w)];
-                        tmp0 *= replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w)];
-                    } else {
-                        tmp0 *= replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w)];
-                    }
-
-                    tshift = (int)(FLOOR((photontof[tshift] - gcfg->twin0) * GPU_PARAM(gcfg, Rtstep))) +
-                             ( (GPU_PARAM(gcfg, replaydet) == -1) ? (((photondetid[tshift] & 0xFFFF) - 1) * GPU_PARAM(gcfg, maxgate)) : 0);
+                    tshift += (GPU_PARAM(gcfg, replaydet) == -1) ? (((photondetid[photonidx] & 0xFFFF) - 1) * GPU_PARAM(gcfg, maxgate)) : 0;
 
                     if (GPU_PARAM(gcfg, extrasrclen) * (GPU_PARAM(gcfg, srcid) < 0)) {
                         tshift += ((int)ppath[GPU_PARAM(gcfg, w0offset) - 1] - 1) * ((GPU_PARAM(gcfg, replaydet) == -1) ? GPU_PARAM(gcfg, detnum) : 1) * GPU_PARAM(gcfg, maxgate);
                     }
 
-                    tshift = MIN(GPU_PARAM(gcfg, maxgate) - 1, tshift);
+#if MED_TYPE == MEDIA_2LABEL_SPLIT
+
+                    /* in SVMC, the mus at the scattering site is only known inside the kernel, so 1/mus
+                       (in voxel unit) is applied here; the host converts it to mm via cfg->unitinmm */
+                    if ((bool)(GPU_PARAM(gcfg, outputtype) == otRFmus) | (bool)(GPU_PARAM(gcfg, outputtype) == otWP) | (bool)(GPU_PARAM(gcfg, outputtype) == otWPTOF)) {
+                        rw = (prop.y == 0.f) ? 0.f : rw / prop.y;
+                    }
+
+#endif
+
+                    if (GPU_PARAM(gcfg, outputtype) == otRFmus) {
+                        tmp0 = rw * ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum)];
+                        sphi = rw * ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + 1];
+                    } else if (GPU_PARAM(gcfg, outputtype) == otWPTOF) {
+                        tmp0 = photontof[photonidx] * 1e9f * rw; /* in ns so that the double-buffer engages */
+                    } else {
+                        tmp0 = ((GPU_PARAM(gcfg, outputtype) == otDCS) ? (1.f - ctheta) : 1.f) * rw;
+                    }
 
 #ifndef USE_ATOMIC
                     field[idx1d + tshift * gcfg->dimlen.z] += tmp0;
@@ -2601,12 +2605,10 @@ __kernel void mcx_main_loop(
 #else
                     float oldval = atomicadd(field + idx1d + tshift * gcfg->dimlen.z, tmp0);
 
+                    /* double-buffer to prevent float round-off once a voxel exceeds MAX_ACCUM */
                     if (FABS(oldval) > MAX_ACCUM) {
-                        if (atomicadd(field + idx1d + tshift * gcfg->dimlen.z, -oldval) < 0.f) {
-                            atomicadd(field + idx1d + tshift * gcfg->dimlen.z, oldval);
-                        } else {
-                            atomicadd(field + idx1d + tshift * gcfg->dimlen.z + gcfg->dimlen.w, oldval);
-                        }
+                        atomicadd(field + idx1d + tshift * gcfg->dimlen.z, ((oldval > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
+                        atomicadd(field + idx1d + tshift * gcfg->dimlen.z + gcfg->dimlen.w, ((oldval > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
                     }
 
                     if (GPU_PARAM(gcfg, outputtype) == otRFmus) {
@@ -2853,7 +2855,7 @@ __kernel void mcx_main_loop(
                         if (GPU_PARAM(gcfg, outputtype) == otRF) {
                             weight = -weight * ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum)];
                         } else if (GPU_PARAM(gcfg, outputtype) == otWLTOF) {
-                            weight = weight * photontof[idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w - 1];
+                            weight = weight * photontof[idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w - 1] * 1e9f;
                         }
                     }
                 } else if (GPU_PARAM(gcfg, outputtype) == otL) {

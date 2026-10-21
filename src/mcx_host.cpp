@@ -471,6 +471,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     cl_mem* gprogress = NULL, *gdetected = NULL, *gdetpos = NULL, *gjumpdebug = NULL, *gdebugdata = NULL, *ginvcdf = NULL, *gangleinvcdf = NULL;
 
     int isrfforward = (cfg->omega > 0.f && cfg->seed != SEED_FROM_FILE);  /**< RF forward: complex photon weights */
+    int isquadfield = (isrfforward || cfg->outputtype == otRFmus);         /**< 4-quarter field [Re, Re_db, Im, Im_db] */
     size_t dimxyz = cfg->dim.x * cfg->dim.y * cfg->dim.z * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) ? cfg->srcnum : (cfg->srcid < 0) ? (cfg->extrasrclen + 1) : 1);
 
     cl_uint*  media = (cl_uint*)(cfg->vol);
@@ -767,10 +768,10 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                 OCL_TRY(((gseed[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(RandType) * gpu[i].autothread * RAND_BUF_LEN, Pseed, &status), status)));
             }
 
-            OCL_TRY(((gfield[i] = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, sizeof(cl_float) * fieldlen * (isrfforward ? 4 : 2), NULL, &status), status)));
+            OCL_TRY(((gfield[i] = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, sizeof(cl_float) * fieldlen * (isquadfield ? 4 : 2), NULL, &status), status)));
             {
                 cl_float zero = 0.f;
-                OCL_TRY((clEnqueueFillBuffer(mcxqueue[i], gfield[i], &zero, sizeof(cl_float), 0, sizeof(cl_float) * fieldlen * (isrfforward ? 4 : 2), 0, NULL, NULL)));
+                OCL_TRY((clEnqueueFillBuffer(mcxqueue[i], gfield[i], &zero, sizeof(cl_float), 0, sizeof(cl_float) * fieldlen * (isquadfield ? 4 : 2), 0, NULL, NULL)));
             }
 
             if (cfg->issavedet) {
@@ -1240,7 +1241,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
                     //handling the 2pt distributions
                     if (cfg->issave2pt) {
-                        int rawfieldmul = isrfforward ? 4 : 2;
+                        int rawfieldmul = isquadfield ? 4 : 2;
                         float* rawfield = (float*)malloc(sizeof(float) * fieldlen * rawfieldmul);
 
                         OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gfield[devid], CL_TRUE, 0, sizeof(cl_float) * fieldlen * rawfieldmul,
@@ -1252,22 +1253,22 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                             for (i = 0; i < fieldlen; i++) { //accumulate field, can be done in the GPU
                                 field[i] = rawfield[i];
 
-                                if (isrfforward || (cfg->outputtype != otRF && cfg->outputtype != otRFmus)) {
-                                    field[i] += rawfield[i + fieldlen]; /* for RF forward, add Re double-buffer; for non-RF, always add */
+                                if (isquadfield || cfg->outputtype != otRF) {
+                                    field[i] += rawfield[i + fieldlen]; /* add the Re double-buffer, except in RF replay where [F..2F) holds Im */
                                 }
                             }
                         } else {
                             memcpy(field, rawfield, sizeof(cl_float)*fieldlen);
                         }
 
-                        if (isrfforward) {
-                            /* RF forward: Im part in 3rd quarter [2F..3F), shadow at [3F..4F) */
+                        if (isquadfield) {
+                            /* RF forward/rfmus replay: Im part in 3rd quarter [2F..3F), shadow at [3F..4F) */
                             if (cfg->exportfield) {
                                 for (i = 0; i < fieldlen; i++) {
                                     cfg->exportfield[i + fieldlen] += rawfield[i + fieldlen * 2] + rawfield[i + fieldlen * 3];
                                 }
                             }
-                        } else if ((cfg->outputtype == otRF || cfg->outputtype == otRFmus) && cfg->omega > 0.f) {
+                        } else if (cfg->outputtype == otRF && cfg->omega > 0.f) {
                             if (cfg->exportfield) {
                                 for (i = 0; i < fieldlen; i++) {
                                     cfg->exportfield[i + fieldlen] += rawfield[i + fieldlen];
@@ -1312,7 +1313,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                     if (twindow1 < cfg->tend && iter < cfg->respin) {
                         cl_float zero = 0.f;
                         OCL_ASSERT((clEnqueueFillBuffer(mcxqueue[devid], gfield[devid], &zero, sizeof(cl_float), 0,
-                                                        sizeof(cl_float) * fieldlen * (isrfforward ? 4 : 2), 0, NULL, NULL)));
+                                                        sizeof(cl_float) * fieldlen * (isquadfield ? 4 : 2), 0, NULL, NULL)));
                         OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 1, sizeof(cl_mem), (void*)(gfield + devid))));
                     }
 
@@ -1395,6 +1396,16 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             } else if (cfg->outputtype == otEnergy || cfg->outputtype == otL) {
                 scale[0] = 1.f / cfg->energytot;
             } else if (cfg->outputtype == otJacobian || cfg->outputtype == otWP || cfg->outputtype == otDCS || cfg->outputtype == otRF || cfg->outputtype == otRFmus || cfg->outputtype == otWLTOF || cfg->outputtype == otWPTOF) {
+                /**
+                 * \c isvoxelunit flags the replay outputs whose raw data carries a length in voxel unit:
+                 * an accumulated path length (jacobian/rf/wltof), or the 1/mus divided inside the kernel
+                 * in SVMC mode (wp/wptof/rfmus). wltof/wptof are accumulated in nanoseconds by the kernel.
+                 */
+                int isvoxelunit = (cfg->outputtype == otJacobian || cfg->outputtype == otRF || cfg->outputtype == otWLTOF) ||
+                                  (cfg->mediabyte == MEDIA_2LABEL_SPLIT && (cfg->outputtype == otWP || cfg->outputtype == otWPTOF || cfg->outputtype == otRFmus));
+                float unitscale = ((isvoxelunit) ? cfg->unitinmm : 1.f) *
+                                  ((cfg->outputtype == otWLTOF || cfg->outputtype == otWPTOF) ? 1e-9f : 1.f);
+
                 if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
                     int detid;
 
@@ -1408,10 +1419,10 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                                 }
 
                             if (scale[0] > 0.f) {
-                                scale[0] = cfg->unitinmm / scale[0];
+                                scale[0] = unitscale / scale[0];
                             }
                         } else {
-                            scale[0] = cfg->unitinmm;
+                            scale[0] = unitscale;
                         }
 
                         MCX_FPRINTF(cfg->flog, "%s %d alpha=%f\n", T_("normalization factor for detector"), detid, scale[0]);
@@ -1433,10 +1444,10 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                         }
 
                         if (scale[0] > 0.f) {
-                            scale[0] = cfg->unitinmm / scale[0];
+                            scale[0] = unitscale / scale[0];
                         }
                     } else {
-                        scale[0] = cfg->unitinmm;
+                        scale[0] = unitscale;
                     }
                 }
             }
