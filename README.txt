@@ -35,6 +35,9 @@ include
 
 In addition, this release contains the following fixes and improvements
 
+* 1.2-1.5x faster simulations on OpenCL devices, from dynamic per-block photon
+  dispatch, 1-byte label volumes and `-cl-unsafe-math-optimizations`; `-A 0`
+  keeps the static photon split and strict math for reproducible trajectories
 * fixed an off-by-one photon index in wp/dcs/wptof/rfmus replay that used the
   time-of-flight and weight of the next photon; wp/dcs/jacobian/wltof replay
   outputs now agree with MCX to ~1e-3 (relative L2)
