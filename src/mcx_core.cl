@@ -2603,33 +2603,50 @@ __kernel void mcx_main_loop(
                         tmp0 = ((GPU_PARAM(gcfg, outputtype) == otDCS) ? (1.f - ctheta) : 1.f) * rw;
                     }
 
-#ifndef USE_ATOMIC
-                    field[idx1d + tshift * gcfg->dimlen.z] += tmp0;
+                    /* with a pattern/pattern3d source, every pattern owns an interleaved slot in the field and
+                       each deposit carries that pattern's launch weight, the same way the propagation-step
+                       deposit handles srcnum>1 (port of mcx ba36c98); srcnum is 1 for all other sources */
+                    for (int isrc = 0; isrc < GPU_PARAM(gcfg, srcnum); isrc++) {
+                        float wsrc = 1.f;
+                        uint fieldid = idx1d + tshift * gcfg->dimlen.z;
 
-                    if (GPU_PARAM(gcfg, outputtype) == otRFmus) {
-                        field[idx1d + tshift * gcfg->dimlen.z + gcfg->dimlen.w * 2] += sphi;
-                    }
+                        if (GPU_PARAM(gcfg, srcnum) > 1) {
+                            if (FABS(ppath[GPU_PARAM(gcfg, w0offset) + isrc]) == 0.f) {
+                                continue;
+                            }
+
+                            wsrc = ppath[GPU_PARAM(gcfg, w0offset) + isrc];
+                            fieldid = fieldid * GPU_PARAM(gcfg, srcnum) + isrc;
+                        }
+
+#ifndef USE_ATOMIC
+                        field[fieldid] += tmp0 * wsrc;
+
+                        if (GPU_PARAM(gcfg, outputtype) == otRFmus) {
+                            field[fieldid + gcfg->dimlen.w * 2] += sphi * wsrc;
+                        }
 
 #else
-                    float oldval = atomicadd(field + idx1d + tshift * gcfg->dimlen.z, tmp0);
+                        float oldval = atomicadd(field + fieldid, tmp0 * wsrc);
 
-                    /* double-buffer to prevent float round-off once a voxel exceeds MAX_ACCUM */
-                    if (FABS(oldval) > MAX_ACCUM) {
-                        atomicadd(field + idx1d + tshift * gcfg->dimlen.z, ((oldval > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
-                        atomicadd(field + idx1d + tshift * gcfg->dimlen.z + gcfg->dimlen.w, ((oldval > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
-                    }
-
-                    if (GPU_PARAM(gcfg, outputtype) == otRFmus) {
-                        float oldval_im = atomicadd(field + idx1d + tshift * gcfg->dimlen.z + gcfg->dimlen.w * 2, sphi);
-
-                        if (FABS(oldval_im) > MAX_ACCUM) {
-                            atomicadd(field + idx1d + tshift * gcfg->dimlen.z + gcfg->dimlen.w * 2, ((oldval_im > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
-                            atomicadd(field + idx1d + tshift * gcfg->dimlen.z + gcfg->dimlen.w * 3, ((oldval_im > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
+                        /* double-buffer to prevent float round-off once a voxel exceeds MAX_ACCUM */
+                        if (FABS(oldval) > MAX_ACCUM) {
+                            atomicadd(field + fieldid, ((oldval > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
+                            atomicadd(field + fieldid + gcfg->dimlen.w, ((oldval > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
                         }
-                    }
 
-                    GPUDEBUG(("atomic write to [%d] %e, w=%f\n", idx1d, tmp0, p.w));
+                        if (GPU_PARAM(gcfg, outputtype) == otRFmus) {
+                            float oldval_im = atomicadd(field + fieldid + gcfg->dimlen.w * 2, sphi * wsrc);
+
+                            if (FABS(oldval_im) > MAX_ACCUM) {
+                                atomicadd(field + fieldid + gcfg->dimlen.w * 2, ((oldval_im > 0.f) ? -MAX_ACCUM : MAX_ACCUM));
+                                atomicadd(field + fieldid + gcfg->dimlen.w * 3, ((oldval_im > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
+                            }
+                        }
+
+                        GPUDEBUG(("atomic write to [%d] %e, w=%f\n", fieldid, tmp0, p.w));
 #endif
+                    }
                 }
 
                 if (GPU_PARAM(gcfg, debuglevel) & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
