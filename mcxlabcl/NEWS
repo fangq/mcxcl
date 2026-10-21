@@ -1,6 +1,10 @@
 Change Log
 
 == MCX-CL 3.0.0 (v2026, Juxtaposition), FangQ <q.fang at neu.edu> ==
+ 2026-10-21 [8b70c29] [bug] reject mixlabel volumes with a clear error instead of failing in the kernel
+ 2026-10-21 [e6a2ee1] [test] run testmcx.sh in a scratch folder instead of overwriting the files tracked in test/
+ 2026-10-21 [3451244] [bug] load asgn_float volumes, fix crash saving detected photons with labelplus/asgn_float
+ 2026-10-21 [09a8c18] [doc] refresh the v2026 ChangeLog, NEWS and README change lists
  2026-10-21 [b3040bc] [bug] pass uint32 and float32 label volumes as 32bit labels in pmcxcl/mcxlabcl, reject unknown media formats
  2026-10-21 [49215c9] [doc] refresh the v2026 ChangeLog, NEWS and README change lists
  2026-10-21 [9f6aec7] [bench] sync the skinvessel benchmark with mcx (fluence output, no index mismatch)
