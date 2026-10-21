@@ -886,8 +886,12 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             /** -cl-unsafe-math-optimizations implies -cl-mad-enable/-cl-no-signed-zeros and lets the
              *  JIT use approximate reciprocals; unlike -cl-fast-relaxed-math it keeps inf/nan handling,
              *  which hitgrid() relies on when a direction cosine is exactly zero.  -A 0 leaves it out,
-             *  together with dynamic dispatch, so fixed-seed trajectories stay comparable with mcx. */
-            snprintf(opt, MAX_JIT_OPT_LEN - strlen(opt), "%s ", cfg->autopilot ? "-cl-mad-enable -cl-unsafe-math-optimizations -DMCX_USE_NATIVE" : "-cl-mad-enable -DMCX_USE_NATIVE");
+             *  together with dynamic dispatch, so fixed-seed trajectories stay comparable with mcx.
+             *  Saving seeds (-q 1) and replaying them (-E) leave it out too: the two runs build the kernel
+             *  with different macros, and a replayed photon only retraces its path if both evaluate the
+             *  float math identically, which the reassociation it allows does not guarantee. */
+            int isunsafemath = cfg->autopilot && !cfg->issaveseed && cfg->seed != SEED_FROM_FILE;
+            snprintf(opt, MAX_JIT_OPT_LEN - strlen(opt), "%s ", isunsafemath ? "-cl-mad-enable -cl-unsafe-math-optimizations -DMCX_USE_NATIVE" : "-cl-mad-enable -DMCX_USE_NATIVE");
         }
 
         if (cfg->optlevel >= 2) {
