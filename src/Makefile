@@ -229,8 +229,8 @@ $(CLPROGRAM)$(CLHEADER): $(CLPROGRAM).cl
 # Compile rules
 #################################################################
 
-## mcx_host.cpp embeds the OpenCL kernel; recompile whenever mcx_core.cl changes ##
-mcx_host$(OBJSUFFIX): $(CLSOURCE)
+## mcx_utils.c embeds the OpenCL kernel; recompile whenever mcx_core.cl changes ##
+mcx_utils$(OBJSUFFIX) mcx_host$(OBJSUFFIX): $(CLSOURCE)
 
 ##  Compile .c files  ##
 %$(OBJSUFFIX): %.c
