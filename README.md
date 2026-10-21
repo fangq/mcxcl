@@ -45,54 +45,97 @@ Table of Contents:
 What's New
 -------------
 
-MCX-CL v2025.10 ports a number of major features of CUDA-based MCX to OpenCL.
-Notable features ported to MCX-CL include
+MCX-CL v2026 (3.0) is a milestone release that brings MCX-CL to near feature
+parity with CUDA-based MCX, and makes its ray-tracing results verifiable
+step-by-step against MCX. Notable features ported to MCX-CL in this release
+include
 
-* multi-source support (introduced to MCX in v2024.2)
-* "hyperboloid" and "ring" source types and demo (introduced in Oct 2021 and Sep 2023, respectively)
-* Russian roulette support (introduced in v2017.3, but never ported to mcxcl)
-* support multi-source replay (fangq/mcx#250)
-
-As of v2025.10, MCX-CL contains nearly all features in MCX except the following
-* SVMC (MCX v2021.2)
+* split-voxel MC (SVMC) for hybrid voxel/surface domains (MCX v2021.2)
 * polarized light simulations (MCX v2023)
-* mua/mus/g/n float format (MCX v2024.2)
-* RF replay (MCX v2023)
-* international language support (MCX v2025.10)
+* mua/mus/g/n 4-float media format (MCX v2024.2)
+* RF replay, RF forward and RF/CW adjoint Jacobians, including the
+  adjoint_dcoeff/mus/musp and dual Jacobian outputs, saving both forward
+  and Jacobian in the adjoint mode
+* wedge/fan line sources and slit sources with Gaussian broadening
+* international language support (`--lang`)
+* 1x1x1 volumes, and `.jdt`/`.jdb` detected photon and trajectory files
+  with separate `srcid` records
+* per-thread random number seeds derived exactly as in MCX, so that MCX and
+  MCX-CL trace the same photon paths for the same seed
 
-In addition, in this release, we also added the following key new features
+In addition, this release contains the following fixes and improvements
 
-* enable "--optlevel 3" by default, boosting speed by 30%-100% on various devices
-* pmcxcl now supports Apple silicon
-* pmcxcl is updated to import new pmcx utility functions introduced in v2025.10
-* optimize thread configuration to accelerate Arm Mali GPU, speed-up by 6x
+* fixed an off-by-one photon index in wp/dcs/wptof/rfmus replay that used the
+  time-of-flight and weight of the next photon; wp/dcs/jacobian/wltof replay
+  outputs now agree with MCX to ~1e-3 (relative L2)
+* ported the MCX replay normalization fixes (`-U 2`, time-gate clamping,
+  SVMC mus division, ns time-of-flight accumulation, double-buffering)
+* fixed a GPU memory leak on NVIDIA devices (#66), forcing g=1 in continuous
+  media (#65), a macOS OpenCL runtime error (#61) and a double-free in
+  `mcx_clearfluence`
+* zmat is upgraded to 1.0.0 (miniz 3.1.1, lz4 1.10.0)
+* new step-by-step trajectory tests (`test/testtraj.sh`) compare MCX-CL
+  against the MCX golden trajectories, and run, together with `testmcx.sh`,
+  on a CPU OpenCL device (POCL) in the CI with `-A 0 -t <photons> -T 1`
+* pmcxcl is bumped to 0.8.0
 
 
 The detailed updates can be found in the below change log
 
-* 2025-10-06 [24e41f1] [release] update version to v2025.10, codename Infinity
-* 2025-10-01 [b2a507b] [feat] use USE_MCXCL>0 to set OpenCL device, negative to set CUDA device
-* 2025-10-01 [6e6d5bd] [pmcxcl] make optlevel=3 default, 30-100% speedup, bump pmcxcl 0.4.0
-* 2025-10-01 [a4e9f1b] [bug] fix failing multisrc example after fixing -o 4 warnings
-* 2025-10-01 [f967e86] [bug] fix hyperboloid and slit sources, add demo script
-* 2025-10-01 [8e61287] [clang] fix additional clang warnings
-* 2025-10-01 [a396631] [clang] fix all clang warnings on macos
-* 2025-10-01 [06d2d5e] [opencl] fix ocl compilation warnings
-* 2025-09-30 [17c9faa] [bug] fix multi-source replay bug, ported from fangq/mcx#250
-* 2025-09-29 [ff45ab3] [bug] add the missing gcfg constants for -o 4 optimization
-* 2025-09-26 [f4e0f0d] [doc] update documentation for v2025.10
-* 2025-09-26 [aa2e389] [memory] release event, did not fix memory leak
-* 2025-09-20 [c5cc650] [feat] port Russian Roulette, ring src, hyperboloid src from mcx to mcxcl
-* 2025-09-19 [a9dd9af] [ci] fix upload ci error
-* 2025-09-19 [3a81111] [ci] restore the removed PATH setting
-* 2025-09-19 [817e505] [ci] fix octave windows path
-* 2025-09-19 [db396e8] [bug] fix multi-source bug after porting fangq/mcx#163
-* 2025-09-19 [afc0db9] [feat] initial port of the multi-source support, fangq/mcx#163
-* 2025-08-25 [f931612] [pmcxcl] bump version to 0.3.2 to include expanded mcx utils functions
-* 2025-07-20 [4f1de0e] [ci] use windows-2022 as 2019 has retired
-* 2025-07-20 [a38255b] [pmcxcl] build for apple silicon
-* 2025-04-23 [eb39147] [pmcxcl] fix pmcxcl ci build, bump version to 0.3.1
-* 2025-04-23 [18ea941] [feat] optimize mcxcl for Arm Mali GPU, gain 6x speedup
+* 2026-10-21 [9591c05] [release] bump version to v2026 (3.0), pmcxcl to 0.8.0, update copyright years
+* 2026-10-21 [54559ae] [ci] run testmcx.sh and the trajectory tests on the POCL CPU device on Linux
+* 2026-10-21 [7bb12a9]*[bug] fix off-by-one photon index in wp/dcs/wptof/rfmus replay, port replay fixes from mcx
+* 2026-10-21 [88e248e] [port] save nscat in .jdt/.jdb by reinterpreting the kernel's uint bits (mcx 0bd0a73)
+* 2026-10-21 [d7ea87b] [port] make -U 2 only skip the detected-weight normalization in replay (mcx 1be8bad)
+* 2026-10-21 [b5d3b0a] [port] fix double pre-processing when using -j/--json (mcx 71b3d6c)
+* 2026-10-21 [0b17a15]*[port] save detected photons/trajectories as .jdt (text) or .jdb (binary), split srcid (mcx 6d7a81a, 6444821)
+* 2026-10-21 [253b22f]*[test] step-by-step trajectory tests against mcx golden data
+* 2026-10-21 [809dc7f] [test] also skip the cuda-memcheck stub shipped by the HPC SDK
+* 2026-10-21 [c18e9e7] [port] save the photon position at refractive interfaces in trajectories (mcx f959c71)
+* 2026-10-21 [95b9dd1]*[port] derive per-thread RNG seeds the same way as mcx
+* 2026-10-21 [0f7df4b] [build] rebuild mcx_utils.o when the embedded kernel mcx_core.cl changes
+* 2026-10-21 [6b9b06b] [ci] add .gitignore for build, packaging and simulation output files
+* 2026-09-10 [c9ab15b] [pmcxcl] add aarch64 pmcxcl linux build, bump to 0.7.3
+* 2026-07-09 [00ce46e] [cmake] fix cmake lzma linking error
+* 2026-06-14 [fcdd6fd] [bug] null *fluence after free in mcx_clearfluence to avoid double-free on reuse
+* 2026-06-13 [8c9c3f0]*[bug] opencl: fix NVIDIA GPU memory leak and harden host buffer handling, fix #66
+* 2026-05-20 [16e9221] [bug] avoid forcing g=1 in continuous medium format, fix #65
+* 2026-05-20 [2309b5e] [test] skip cuda-memcheck if not installed
+* 2026-05-20 [55e592d] [test] fix broken tests after zmat 1.0 update
+* 2026-05-20 [e0b526a]*[feat] port 1x1x1 volume support from mcx to mcxcl previous commits are https://github.com/fangq/mcx/commit/f2d3bc49b62740f822bebd0f345b29c5681b0e57 https://github.com/fangq/mcx/commit/ee5be15d39e6eddb6b3f2f6c3de0b8de7b826909
+* 2026-05-08 [35c5b95] [mex] update buildmcxcl.m to include new units, suppress string length warning
+* 2026-05-02 [9ea93f6] [opencl] remove opencl jit warnings
+* 2026-05-01 [dc0f3e0] [pmcxcl] bump pmcxcl to 0.7.1 to include fix to #61
+* 2026-05-01 [a66add5] [bug] fix macos opencl runtime error, fix #61
+* 2026-04-23 [8129dd4] [ci] update windows octave to 10.3
+* 2026-04-23 [abaf0d8] [ci] set up msys g++
+* 2026-04-22 [5fb48da] [ci] fix choco mingw installation error
+* 2026-04-22 [493fe49] [ci] update zmat and disable multi-threading lzma
+* 2026-04-16 [31b3a6d]*[feat] upgrade zmat to 1.0.0, miniz->3.1.1,lz4->1.10.0
+* 2026-04-07 [bcd8067]*[feat] complete port of RF forward/adjoint Jacobian from trinity to master bump pmcxcl version to 0.7.0
+* 2026-04-05 [8f70ff2]*[feat] complete trinity to master backport
+* 2026-04-05 [8b4a7d5] [build] remove CUDA/trinity targets from master Makefile
+* 2026-04-05 [0f692be]*[feat] output both forward and jacobian in the adjoint mode
+* 2026-04-01 [5c2816e]*[feat] port --lang from mcx to mcxcl
+* 2026-04-01 [00bdfae]*[feat] port RF forward and RF/CW adjoint Jacobian from mcx
+* 2026-02-20 [239c149] [pmcxcl] bump version to 0.6,support svmc,polarization,RF-replay,4-float media
+* 2026-02-20 [e6bf718] [bug] fix multisrc bug when using --optlevel 3
+* 2026-02-20 [9275c9e] [opt] optimize atomic float add on various devices
+* 2026-02-20 [8233115] [bug] fix rf replay omega failing to pass to kernel bug
+* 2026-02-19 [232df0d] [demo] add rfreplay demo port from mcx
+* 2026-02-19 [5756a54]*[feat] port RF replay from mcx to mcxcl, not yet working
+* 2026-02-18 [ca582b0] [bug] add the missing mcx_mie unit
+* 2026-02-18 [68f3211]*[feat] port polarization simulation from mcx to mcxcl
+* 2026-02-18 [4d53ce3]*[feat] port wedge-source and slit source with gaussian broadening from mcx
+* 2026-02-18 [75f9066] [json] add MaxDetPhoton, BCFlags and MinEnergy in the json parsing
+* 2026-02-18 [8b05259]*[feat] port mua/mus/g/n 4-float media type asgn_float from mcx to mcxcl
+* 2026-02-18 [4ff9e20] [bug] fix USE_MCXCL overwrite cfg.gpuid
+* 2026-02-17 [7c7c6d5]*[feat] port svmc from mcx to mcxcl
+* 2026-02-16 [979dc1c] [bug] time gates settings should be initialized
+* 2025-12-31 [59373ba] [ci] remove octave image from mcxcl package
+* 2025-12-13 [983430e] [ci] fix missing g++-12 on macos-15-intel
+* 2025-12-10 [3c2cc19] [ci] remove retired macos-13 runner, use macos-15-intel
+* 2025-10-13 [039fe86] [doc] add additional changelog
 
 Introduction
 -------------

@@ -2,14 +2,17 @@
 
 == Short term projects ==
 
-* port SVMC from mcx to mcxcl
-* port polarized mcx to mcxcl
-* port mua/mus/g/n float format from mcx to mcxcl
+* port pattern/pattern3d sources in wp/dcs/wptof/rfmus replay from mcx (fangq/mcx#259)
+* port the detdir(4) detector beam profile in adjoint mode from mcx
+* fix rfmus replay output (all zeros as of v2026)
 
 == Long term projects ==
 
 == Completed ==
 
+[done] * port SVMC from mcx to mcxcl [v2026]
+[done] * port polarized mcx to mcxcl [v2026]
+[done] * port mua/mus/g/n float format from mcx to mcxcl [v2026]
 [done] * port invcdf for customized scattering phase function
 [done] * fluorescent material support via pattern3d source [2009/09/30, FangQ]
 [done] * results does not repeat with identical random number seed, need to check [2009/04/07, FangQ]
