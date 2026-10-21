@@ -1092,7 +1092,11 @@ void mcx_savejdet(float* ppath, void* seeds, uint count, int doappend, Config* c
 
                     for (int i = 0; i < dims[0]; i++)
                         for (int j = 0; j < dims[1]; j++) {
-                            ibuf[i * dims[1] + j] = ppath[i * cfg->his.colcount + col + j];
+                            if (id == 1) { /* nscat is accumulated by the kernel as raw uint bits */
+                                memcpy(ibuf + i * dims[1] + j, ppath + i * cfg->his.colcount + col + j, sizeof(uint));
+                            } else {
+                                ibuf[i * dims[1] + j] = ppath[i * cfg->his.colcount + col + j];
+                            }
                         }
 
                     val = (void*)ibuf;
@@ -1306,7 +1310,11 @@ void mcx_savejdb(float* ppath, void* seeds, uint count, int doappend, Config* cf
 
                     for (int i = 0; i < (int)dims[0]; i++)
                         for (int j = 0; j < (int)dims[1]; j++) {
-                            ibuf[i * dims[1] + j] = ppath[i * cfg->his.colcount + col + j];
+                            if (id == 1) { /* nscat is accumulated by the kernel as raw uint bits */
+                                memcpy(ibuf + i * dims[1] + j, ppath + i * cfg->his.colcount + col + j, sizeof(uint));
+                            } else {
+                                ibuf[i * dims[1] + j] = ppath[i * cfg->his.colcount + col + j];
+                            }
                         }
 
                     val = (void*)ibuf;
