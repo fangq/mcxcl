@@ -2258,8 +2258,9 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
         float rf_tof = photontof[(threadid * gcfg->threadphoton + min(threadid, gcfg->oddphoton - 1) + (int)f[0].w - 1)]; /* f[0].w was incremented above */
         float rf_sin, rf_cos;
         MCX_SINCOS(GPU_PARAM(gcfg, omega) * rf_tof, rf_sin, rf_cos);
-        ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum)] = rf_cos;
-        ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + 1] = rf_sin;
+        /* ppath was shifted by partialdata above, so w0offset+srcnum of the unshifted buffer is 4+srcnum here */
+        ppath[4 + GPU_PARAM(gcfg, srcnum)] = rf_cos;
+        ppath[5 + GPU_PARAM(gcfg, srcnum)] = rf_sin;
     }
 
     if (GPU_PARAM(gcfg, debuglevel) & MCX_DEBUG_PROGRESS) {
