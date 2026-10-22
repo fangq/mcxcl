@@ -23,7 +23,7 @@
 #include "mcx_const.h"
 
 #ifndef NANGLES
-    #define NANGLES 181
+    #define NANGLES 1000
 #endif
 
 #define MAX_JIT_OPT_LEN  (MAX_PATH_LENGTH << 1)

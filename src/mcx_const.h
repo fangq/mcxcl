@@ -67,7 +67,7 @@
 #define MEDIA_AS_SHORT        104  /**<  media format: 32bit:{[short: mua],[short: mus]} */
 
 #define MCX_DEBUG_REC_LEN  6  /**<  number of floating points per position saved when -D M is used for trajectory */
-#define NANGLES            181   /**< number of discrete angles for Mueller matrix */
+#define NANGLES            1000  /**< number of discrete angles for Mueller matrix, same as mcx */
 
 #define MCX_DEBUG_RNG          1   /**< debug flags: 1 - run RNG testing kernel and return RNG numbers */
 #define MCX_DEBUG_MOVE         2   /**< debug flags: 2 - save and output photon trajectory data */

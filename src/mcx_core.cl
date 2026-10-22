@@ -549,7 +549,7 @@ if (isreflect) {
 #define MAX_ACCUM          1000.f
 
 #define MCX_DEBUG_REC_LEN  6
-#define NANGLES            181
+#define NANGLES            1000
 
 #ifndef MCX_DEBUG_MOVE
     #define MCX_DEBUG_MOVE         2
