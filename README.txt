@@ -58,7 +58,22 @@ In addition, this release contains the following fixes and improvements
 * new step-by-step trajectory tests (`test/testtraj.sh`) compare MCX-CL
   against the MCX golden trajectories, and run, together with `testmcx.sh`,
   on a CPU OpenCL device (POCL) in the CI with `-A 0 -t <photons> -T 1`
+* polarized simulations now match MCX: the Mie scattering matrix is tabulated at
+  1000 angles as in MCX instead of 181 (the coarse table over-weighted forward
+  scattering), the source Stokes vector (`Optode.Source.IQUV`) is read from JSON
+  input, and Stokes trajectories (`--trajstokes 1`) are sized and saved correctly
+* `--maxvoidstep` and `--trajstokes` are accepted on the command line as in MCX
+* the host-generated RNG seeds had ~75% of their bits set on Linux and macOS, which
+  biased the first photon of each thread; seeds are now uniform (the random streams
+  for a given seed change, replay of saved seeds is unaffected)
+* pmcxcl wheels are now built for Linux aarch64 (#67), and the macOS wheels are tagged
+  with their actual architecture (`arm64` or `x86_64`) instead of `universal2`, which
+  made pip install an x86_64 binary on Apple silicon running macOS 15+ (#60);
+  `pmcxcl.mcxlab()` runs the simulation with pmcxcl, and a failed import reports the
+  actual error (#60)
 * pmcxcl is bumped to 0.8.0
+
+We would like to thank @hanno-gmg (#60) and @ptrhbt (#67) for reporting issues.
 
 
 The detailed updates can be found in the below change log
@@ -153,10 +168,10 @@ modern graphics processing unit (GPU), this program is able to perform Monte
 Carlo (MC) simulations at a blazing speed, typically hundreds to
 a thousand times faster than a single-threaded CPU-based MC implementation.
 
-MCX-CL is the OpenCL implementation of the MCX algorithm. Unlike MCX
-which can only be executed on NVIDIA GPUs, MCX-CL is written in OpenCL,
+MCX-CL is the OpenCL implementation of the MCX algorithm. Unlike MCX,
+which runs on NVIDIA (CUDA) or AMD (HIP/ROCm) GPUs, MCX-CL is written in OpenCL,
 the Open Computing Language, and can be executed on most modern CPUs
-and GPUs available today, including Intel and AMD CPUs and GPUs. MCX-CL
+and GPUs available today, including Intel and AMD CPUs and GPUs and Apple silicon. MCX-CL
 is highly portable, highly scalable and is feature-rich just like MCX.
 
 Due to the nature of the underlying MC algorithms, MCX and MCX-CL are
@@ -168,12 +183,12 @@ laws. They are numerical solvers to the underlying radiative transfer equation
 (RTE) and their solutions have been validated across many publications
 using optical instruments and experimental measurements. In comparison,
 most graphics-oriented ray-tracers have to make many approximations in
-order to achieve fast rendering, enable to provide quantitatively accurate
+order to achieve fast rendering, and are unable to provide quantitatively accurate
 light simulation results. Because of this, MCX/MCX-CL have been extensively
 used by biophotonics research communities to obtain reference solutions and
 guide the development of novel medical imaging systems or clinical
 applications. Additionally, MCX/MCX-CL are volumetric ray-tracers; they
-traverse photon-rays throughout complex 3-D domains and computes physically
+traverse photon-rays throughout complex 3-D domains and compute physically
 meaningful quantities such as spatially resolved fluence, flux, diffuse
 reflectance/transmittance, energy deposition, partial pathlengths,
 among many others. In contrast, most graphics ray-tracing engines
@@ -206,7 +221,7 @@ A short summary of the main features includes:
 * multi-GPU support
 * advanced features: photon-replay, photon-sharing, and more
 
-MCX-CL can be used on Windows, Linux and Mac OS. Multiple user 
+MCX-CL can be used on Windows, Linux and macOS. Multiple user  
 interfaces are provided, including
 
 * '''Command line mode:''' mcxcl can be executed in the command line, best suited \
@@ -575,7 +590,7 @@ mcxcl --session "preptest"  --input "/drives/taote1/users/fangq/Download/MCXStud
 =Please visit our free scientific data sharing portal at https://neurojson.io=
 = and consider sharing your public datasets in standardized JSON/JData format=
 ==============================================================================
-$Rev::4fdc45 $ v2025 $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$
+$Rev::4fdc45 $ v2026 $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$
 ==============================================================================
 - variant name: [Detective MCXCL] compiled with OpenCL version [1]
 - compiled with: [RNG] Logistic-Lattice [Seed Length] 5
@@ -585,7 +600,7 @@ Building kernel with option: -cl-mad-enable -DMCX_USE_NATIVE -DMCX_SIMPLIFY_BRAN
 build program complete : 23 ms
 - [device 0(1): Graphics Device] threadph=15 oddphotons=169600 np=10000000.0 nthread=655360 nblock=64 repetition=1
 set kernel arguments complete : 23 ms
-lauching mcx_main_loop for time window [0.0ns 5.0ns] ...
+launching mcx_main_loop for time window [0.0ns 5.0ns] ...
 simulation run# 1 ... 
 
 kernel complete:  	796 ms
@@ -695,7 +710,7 @@ such as the following:
 =Please visit our free scientific data sharing portal at https://neurojson.io=
 = and consider sharing your public datasets in standardized JSON/JData format=
 ==============================================================================
-$Rev::4fdc45 $ v2025 $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$
+$Rev::4fdc45 $ v2026 $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$
 ==============================================================================
 
 usage: mcxcl <param1> <param2> ...
@@ -707,7 +722,7 @@ where possible parameters include (the first value in [*|*] is the default)
                                JSON input file; if -f is followed by nothing or
                                a single '-', it reads input from stdin via pipe
       or
- -Q/--bench [cube60, skinvessel,...] run a buint-in benchmark specified by name
+ -Q/--bench [cube60, skinvessel,...] run a built-in benchmark specified by name
                                run -Q without parameter to get a list
  -N benchmark  (--net)         get benchmark from NeuroJSON.io, -N only to list
                                benchmark can be dataset URL,or dbname/benchname
@@ -720,7 +735,7 @@ where possible parameters include (the first value in [*|*] is the default)
  -b [1|0]      (--reflect)     1 to reflect photons at ext. boundary;0 to exit
  -B '______'   (--bc)          per-face boundary condition (BC), 6 letters for
     /case insensitive/         bounding box faces at -x,-y,-z,+x,+y,+z axes;
-                               overwrite -b if given. 
+                               overwrite -b if given.
                                each letter can be one of the following:
                                '_': undefined, fallback to -b
                                'r': like -b 1, Fresnel reflection BC
@@ -732,18 +747,21 @@ where possible parameters include (the first value in [*|*] is the default)
                                the 7th-12th letters can be:
                                '0': do not use this face to detect photon, or
                                '1': use this face for photon detection (-d 1)
-                               the order of the faces for letters 7-12 is 
+                               the order of the faces for letters 7-12 is
                                the same as the first 6 letters
                                eg: --bc ______010 saves photons exiting at y=0
  -u [1.|float] (--unitinmm)    defines the length unit for the grid edge
- -U [1|0]      (--normalize)   1 to normalize flux to unitary; 0 save raw
- -E [0|int|.jdat] (--seed)     set random-number-generator seed, -1 to generate
-                               if a jdat/mch file is followed, MCX "replays" 
+ -U [1|0|2]    (--normalize)   1 to normalize flux to unitary; 0 save raw;
+                               2 behaves as 1, except in replay mode, where
+                               the normalization by the total detected weight
+                               is skipped and only the unit conversion applies
+ -E [0|int|.jdt] (--seed)      set random-number-generator seed, -1 to generate
+                               if a jdat/mch file is followed, MCX "replays"
                                the detected photon; the replay mode can be used
                                to calculate the mua/mus Jacobian matrices
  -z [0|1]      (--srcfrom0)    1 volume origin is [0 0 0]; 0: origin at [1 1 1]
- -Y [0|int]    (--replaydet)   replay only the detected photons from a given 
-                               detector (det ID starts from 1), used with -E 
+ -Y [0|int]    (--replaydet)   replay only the detected photons from a given
+                               detector (det ID starts from 1), used with -E
                                if 0, replay all detectors and sum all Jacobians
                                if -1, replay all detectors and save separately
  -V [0|1]      (--specular)    1 source located in the background,0 inside mesh
@@ -755,24 +773,28 @@ where possible parameters include (the first value in [*|*] is the default)
  -t [16384|int](--thread)      total thread number
  -T [64|int]   (--blocksize)   thread number per block
  -A [1|int]    (--autopilot)   auto thread config:1 enable;0 disable
+                               autopilot also dispatches photons dynamically,
+                               so runs with the same seed agree statistically
+                               but not bit-wise; use -A 0 to reproduce a run
  -G [0|int]    (--gpu)         specify which GPU to use, list GPU by -L; 0 auto
       or
  -G '1101'     (--gpu)         using multiple devices (1 enable, 0 disable)
  -W '50,30,20' (--workload)    workload for active devices; normalized by sum
  -I            (--printgpu)    print GPU information and run program
- -o [1|int]    (--optlevel)    optimization level 0-no opt;1-4 more optimized
+ -o [3|int]    (--optlevel)    optimization level 0-no opt;1-4 more optimized
  -J '-DMACRO'  (--compileropt) specify additional JIT compiler options
                                A few built-in preprocessors include
               -DMCX_GPU_DEBUG  - print step-by-step debug info
+              -cl-nv-verbose   - print register counts (NVIDIA only)
  -k my_simu.cl (--kernel)      user specified OpenCL kernel source file
 
 == Input options ==
  -P '{...}'    (--shapes)      a JSON string for additional shapes in the grid.
-                               only the root object named 'Shapes' is parsed 
-                               and added to the existing domain defined via -f 
+                               only the root object named 'Shapes' is parsed
+                               and added to the existing domain defined via -f
                                or --bench
  -j '{...}'    (--json)        a JSON string for modifying all input settings.
-                               this input can be used to modify all existing 
+                               this input can be used to modify all existing
                    settings defined by -f or --bench
  -K [1|int|str](--mediabyte)   volume data format, use either a number or a str
        voxel binary data layouts are shown in {...}, where [] for byte,[i:]
@@ -780,7 +802,7 @@ where possible parameters include (the first value in [*|*] is the default)
        [f:] for 4-byte float; on Little-Endian systems, least-sig. bit on left
                                1 or byte: 0-128 tissue labels
                                2 or short: 0-65535 (max to 4000) tissue labels
-                               4 or integer: integer tissue labels 
+                               4 or integer: integer tissue labels
                               98 or mixlabel: label1+label2+label1_percentage
                                 {[label1][label2][s:0-32767 label1 percentage]}
                               99 or labelplus: 32bit composite voxel format
@@ -802,10 +824,18 @@ where possible parameters include (the first value in [*|*] is the default)
 
 == Output options ==
  -s sessionid  (--session)     a string to label all output file names
- -O [X|XFEJPML](--outputtype)  X - output flux, F - fluence, E - energy density
+ -O [X|XFEJPMRLSTBADCUVWQ](--outputtype) X - output flux, F - fluence, E - energy density
                                J - Jacobian (replay mode),   P - scattering
                                event counts at each voxel (replay mode only)
-                               M - momentum transfer; L - total pathlength
+                               M - momentum transfer; R - RF/FD mua Jacobian
+                               L - total pathlength; S - RF/FD mus Jacobian
+                               T - time-of-flight*nscat; B - time-of-flight*path
+                               A - adjoint mua Jacobian (needs detpos+detdir)
+                               D - adjoint D-coeff Jacobian (needs detpos+dir)
+                               U - adjoint mus Jacobian (grad*grad*3*D^2*(1-g))
+                               V - adjoint mus' Jacobian (grad*grad*3*D^2)
+                               W - dual adjoint [J_mua,J_D] pair in 1 session
+                               Q - dual adjoint [J_mua,J_mus'] pair in 1 session
  -d [1|0-3]    (--savedet)     1 to save photon info at detectors; 0 not save
                                2 reserved, 3 terminate simulation when detected
                                photon buffer is filled
@@ -840,13 +870,13 @@ where possible parameters include (the first value in [*|*] is the default)
                                tx3 - GL texture data for rendering (GL_RGBA32F)
     the bnii/jnii formats support compression (-Z) and generate small files
     load jnii (JSON) and bnii (UBJSON) files using below lightweight libs:
-      MATLAB/Octave: JNIfTI toolbox   https://github.com/NeuroJSON/jnifti, 
+      MATLAB/Octave: JNIfTI toolbox   https://github.com/NeuroJSON/jnifti,
       MATLAB/Octave: JSONLab toolbox  https://github.com/NeuroJSON/jsonlab,
       Python:        PyJData:         https://pypi.org/project/jdata
       JavaScript:    JSData:          https://github.com/NeuroJSON/jsdata
  -Z [zlib|...] (--zip)         set compression method if -F jnii or --dumpjson
                                is used (when saving data to JSON/JNIfTI format)
-                               0 zlib: zip format (moderate compression,fast) 
+                               0 zlib: zip format (moderate compression,fast)
                                1 gzip: gzip format (compatible with *.gz)
                                2 base64: base64 encoding with no compression
                                3 lzip: lzip format (high compression,very slow)
@@ -859,11 +889,13 @@ where possible parameters include (the first value in [*|*] is the default)
                                if followed by nothing or '-', mcx will print
                                the JSON to the console; write to a file if file
                                name is specified; by default, prints settings
-                               after pre-processing; '--dumpjson 2' prints 
+                               after pre-processing; '--dumpjson 2' prints
                                raw inputs before pre-processing
 
 == User IO options ==
  -h            (--help)        print this message
+ -y [zh_CN,..] (--lang)        select language, followed by nothing to print
+                               a list of supported languages
  -v            (--version)     print MCX revision number
  -l            (--log)         print messages to a log file instead
  -i            (--interactive) interactive mode
@@ -886,8 +918,11 @@ where possible parameters include (the first value in [*|*] is the default)
  --gscatter     [1e9|int]      after a photon completes the specified number of
                                scattering events, mcx then ignores anisotropy g
                                and only performs isotropic scattering for speed
+ --srcid  [0|-1,0,1,2,..]     -1 simulate multi-source separately;0 all sources
+                               together;a positive integer runs a single source
+ --trajstokes   [0|1]          set to 1 to save Stokes IQUV in trajectory data
  --maxvoidstep  [1000|int]     maximum distance (in voxel unit) of a photon that
-                               can travel before entering the domain, if 
+                               can travel before entering the domain, if
                                launched outside (i.e. a widefield source)
  --maxjumpdebug [10000000|int] when trajectory is requested (i.e. -D M),
                                use this parameter to set the maximum positions
@@ -910,6 +945,8 @@ or (use -N/--net to browse community-contributed mcxcl simulations at https://ne
        mcxcl -N
 or (run user-shared mcxcl simulations, see full list at https://neurojson.org/db/mcx)
        mcxcl -N aircube60
+or (print in simplified Chinese using -y/--lang)
+       mcxcl -y zh_CN -Q cube60
 or (use -f - to read piped input file modified by shell text processing utilities)
        mcxcl -Q cube60 --dumpjson | sed -e 's/pencil/cone/g' | mcxcl -f -
 or (download/modify simulations from NeuroJSON.io and run with mcxcl -f)
@@ -1000,7 +1037,7 @@ represent complex and hierarchical data. Using the JSON format makes a input
 file self-explanatory, extensible and easy-to-interface with other applications 
 (like MATLAB).
 
-A sample JSON input file can be found under the examples/quicktest folder. The 
+A sample JSON input file can be found under the example/quicktest folder. The 
 same file, `qtest.json`, is also shown below:
 <pre>
 {
@@ -1078,7 +1115,7 @@ same file, `qtest.json`, is also shown below:
 }
 </pre>
 
-A JSON input file requiers several root objects, namely "Domain", "Session", 
+A JSON input file requires several root objects, namely "Domain", "Session", 
 "Forward" and "Optode". Other root sections, like "Help", will be ignored. 
 Each object is a data structure providing information
 indicated by its name. Each object can contain various sub-fields. 
@@ -1135,7 +1172,7 @@ a binary .bin volume. A shape file uses more descriptive
 syntax and can be easily understood and shared with others.
 
 Samples on how to use the shape files are included under
-the example/shapetest folder. 
+the mcx/example/shapetest folder (in the MCX package). 
 
 The sample shape file, shapes.json, is shown below:
 <pre>
@@ -1199,7 +1236,7 @@ In these cases, a shape file must have a suffix of .json.
 You can also merge the Shapes section with a .json input file
 by simply appending the Shapes section to the root-level object.
 You can find an example, jsonshape_allinone.json, under 
-examples/shapetest. In this case, you no longer need to define
+mcx/example/shapetest (in the MCX package). In this case, you no longer need to define
 the "VolumeFile" field in the input.
 
 Another way to use Shapes is to specify it using the -P (or --shapes)
@@ -1217,7 +1254,7 @@ the JSONlab toolbox [4] to load and process in MATLAB.
 == # Output data formats ==
 
 MCX may produces several output files depending user's simulation settings.
-Overall, MCX produces two types of outputs, 1) data accummulated within the 
+Overall, MCX produces two types of outputs, 1) data accumulated within the 
 3D volume of the domain (volumetric output), and 2) data stored for each detected
 photon (detected photon data).
 
@@ -1231,7 +1268,7 @@ to output different physical quantities by setting the `-O` option. When the
 flag `-X/--saveref` is used, the output volume may contain the total diffuse
 reflectance only along the background-voxels adjacent to non-zero voxels. 
 A negative sign is added for the diffuse reflectance raw output to distinguish
-it from the fuence data in the interior voxels.
+it from the fluence data in the interior voxels.
 
 When photon-sharing (simultaneous simulations of multiple patterns) or photon-replay
 (the Jacobian of all source/detector pairs) is used, the output array may be extended
@@ -1259,7 +1296,7 @@ https://github.com/NeuroJSON/jnifti
 A .jnii output file can be generated by using `-F jnii` in the command line.
 
 The .jnii file can be potentially read in nearly all programming languages 
-because it is 100% comaptible to the JSON format. However, to properly decode
+because it is 100% compatible to the JSON format. However, to properly decode
 the ND array with built-in compression, one should call JData compatible
 libraries, which can be found at https://neurojson.org/wiki
 
@@ -1345,7 +1382,7 @@ The supported data file formats are explained below.
 ==== jdat files ====
 
 By default, or when `-F jnii` is explicitly specified, a `.jdat` file is written, which is a
-pure JSON file. This file contains a hierachical data record of the following JSON structure
+pure JSON file. This file contains a hierarchical data record of the following JSON structure
 
  {
    "MCXData": {
@@ -1399,7 +1436,7 @@ stores the photon data, `data['MCXData']['Trajectory']` stores the trajectory da
 ==== mch files ====
 
 The .mch file, or MC history file is stored if one specifies `-F mc2` in the command line,
-but we strongly encourage users to adpot the default JSON/.jdat format for easy data sharing. 
+but we strongly encourage users to adopt the default JSON/.jdat format for easy data sharing. 
 
 The .mch file contains a 256 byte binary header, followed by a 2-D numerical array
 of dimensions #savedphoton * #colcount as recorded in the header.
@@ -1484,12 +1521,12 @@ or
  info=mcxlab('gpuinfo')
 
 Overall, mcxlabcl and mcxlab is highly compatible with nearly identical features
-and interfaces. If yo have a working mcxlab script, the simpliest way to use it
+and interfaces. If yo have a working mcxlab script, the simplest way to use it
 with mcxlabcl on non-NVIDIA devices is to insert the below command
 
  eval('base','USE_MCXCL=1;');
 
-at the begining of the script, and insert 
+at the beginning of the script, and insert 
 
  eval('base','USE_MCXCL=0;');
 
@@ -1510,9 +1547,29 @@ Please make sure you select the fastest processor on your system by using the cf
 field. 
 
 ---------------------------------------------------------------------------
+== # Using PMCX-CL in Python ==
+
+PMCX-CL is the native binary binding of MCX-CL for Python 3.6 or newer. Similar to
+MCXLABCL, PMCX-CL can run GPU-based simulations inside a Python environment with
+efficient in-memory inputs and outputs. Binary wheels are available for Linux
+(x86_64 and aarch64), macOS (Apple silicon and Intel) and Windows, and can be
+installed with
+
+  python3 -m pip install pmcxcl pmcx
+
+where "pmcx" provides the utility functions (detweight, meanpath, loadmc2 etc.)
+that pmcxcl imports. Please read the pmcxcl/README.md file for more details on how
+to install and use PMCX-CL.
+
+---------------------------------------------------------------------------
 == # Using MCX Studio GUI ==
 
-MCXStudio is a graphics user interface (GUI) for MCX/MCXCL and MMC. It gives users
+Starting from v2026, MCX ships MCX Studio 2 (`mcxstudio2/` in the MCX repository), a
+rewritten cross-platform GUI for MCX, MCX-CL and MMC with a live JSON preview, a
+shape editor and built-in visualization of fluence and photon paths. The original
+MCXStudio described below is still included.
+
+MCXStudio is a graphical user interface (GUI) for MCX/MCXCL and MMC. It gives users
 a straightforward way to set the command line options and simulation
 parameters. It also allows users to create different simulation tasks 
 and organize them into a project and save for later use.
@@ -1562,14 +1619,14 @@ file and messages printed on the screen.
 
 An mc2 file contains the fluence-rate distribution from the simulation in 
 the given medium. By default, this fluence-rate is a normalized solution 
-(as opposed to the raw probability) therefore, one can compare this directly 
+(as opposed to the raw probability), therefore, one can compare it directly  
 to the analytical solutions (i.e. Green's function). The order of storage in the 
 mc2 files is the same as the input file: i.e., if the input is row-major, the 
 output is row-major, and so on. The dimensions of the file are Nx, Ny, Nz, and Ng
 where Ng is the total number of time gates.
 
 By default, MCX produces the '''Green's function''' of the 
-'''fluence rate'''  for the given domain and source. Sometime it is also 
+'''fluence rate''' for the given domain and source. It is sometimes also  
 known as the time-domain "two-point" function. If you run MCX with the following command
 
   mcxcl -f input.inp -s output ....
@@ -1587,7 +1644,7 @@ The unit of the MCX output is "W/mm<sup>2 = J/(mm<sup>2</sup>s)", if it is inter
 
 The Green's function of the fluence-rate means that it is produced
 by a '''unitary source'''. In simple terms, this represents the 
-fraction of particles/energy that arrives a location per second 
+fraction of particles/energy that arrives at a location per second  
 under '''the radiation of 1 unit (packet or J) of particle or energy 
 at time t=0'''. The Green's function is calculated by a process referred
 to as the "normalization" in the MCX code and is detailed in the 
@@ -1598,7 +1655,8 @@ defined in the input file. For example, if you type
 
  0.e+00 5.e-09 1e-10  # time-gates(s): start, end, step
 
-in the 5th row in the input file, MCX will produce 50 fluence-rate
+in the 5th row of a legacy .inp input file (or "T0": 0, "T1": 5e-9, "Dt": 1e-10
+in the "Forward" section of a JSON input file), MCX will produce 50 fluence-rate
 snapshots, corresponding to the time-windows at [0 0.1] ns, 
 [0.1 0.2]ns ... and [4.9,5.0] ns. To convert the fluence rate
 to the fluence for each time-window, you just need to
@@ -1607,8 +1665,8 @@ To convert the time-dependent fluence-rate to continuous-wave (CW)
 fluence (fluence in short), you need to integrate the
 fluence-rate along the time dimension. Assuming the fluence-rate after 
 5 ns is negligible, then the CW fluence is simply sum(flux_i*0.1 ns, i=1,50). 
-You can read <tt>mcx/examples/validation/plotsimudata.m</tt>
-and <tt>mcx/examples/sphbox/plotresults.m</tt> for examples 
+You can read <tt>mcx/example/validation/plotsimudata.m</tt>
+and <tt>mcx/example/sphbox/plotresults.m</tt> for examples 
 to compare an MCX output with the analytical fluence-rate/fluence solutions.
 
 One can load an mc2 output file into Matlab or Octave using the
@@ -1625,7 +1683,7 @@ Note that for time-resolved simulations, the corresponding solution
 in the results approximates the flux at the center point
 of each time window. For example, if the simulation time window 
 setting is [t0,t0+dt,t0+2dt,t0+3dt...,t1], the time points for the 
-snapshots stored in the solution file is located at 
+snapshots stored in the solution file are located at  
 [t0+dt/2, t0+3*dt/2, t0+5*dt/2, ... ,t1-dt/2]
 
 A more detailed interpretation of the output data can be found at 
@@ -1639,17 +1697,17 @@ The current density can be calculated at the boundary of the domain by two means
 1. using the detected photon partial path output (i.e. the second output of mcxlab.m),
 one can compute the total energy E received by a detector, then one can
 divide E by the area/aperture of the detector to obtain the J(r) at a detector
-(E should be calculated as a function of t by using the time-of-fly of detected
+(E should be calculated as a function of t by using the time-of-flight of detected
 photons, the E(t)/A gives J(r,t); if you integrate all time gates, the total E/A
 gives the current I(r), instead of the current density).
 
 2. use -X 1 or --saveref/cfg.issaveref option in mcx to enable the
-diffuse reflectance recordings on the boundary. the diffuse reflectance
+diffuse reflectance recordings on the boundary. The diffuse reflectance
 is represented by the current density J(r) flowing outward from the domain.
 
 The current density has, as mentioned, the same unit as fluence rate,
-but the difference is that J(r,t) is a vector, and Phi(r,t) is a scalar. Both measuring
-the energy flow across a small area (the are has direction in the case of J) per unit
+but the difference is that J(r,t) is a vector, and Phi(r,t) is a scalar. Both measure
+the energy flow across a small area (the area has a direction in the case of J) per unit
 time.
 
 You can find more rigorous definitions of these quantities in Lihong Wang's
@@ -1661,10 +1719,10 @@ Timing information is printed on the screen (stdout). The
 clock starts (at time T0) right before the initialization data is copied 
 from CPU to GPU. For each simulation, the elapsed time from T0
 is printed (in ms). Also the accumulated elapsed time is printed for 
-all memory transaction from GPU to CPU.
+all memory transactions from GPU to CPU.
 
 When a user specifies "-D P" in the command line, or set cfg.debuglevel='P',
-MCXCL or MCXLABCL prints a progress bar showing the percentage of completition.
+MCXCL or MCXLABCL prints a progress bar showing the percentage of completion.
 
 ---------------------------------------------------------------------------
 == # Best practices guide ==
@@ -1691,7 +1749,18 @@ It has been shown that MCX-CL's speed is related to the thread number (-t).
 Generally, the more threads, the better speed, until all GPU resources
 are fully occupied. For higher-end GPUs, a thread number over 10,000 
 is recommended. Please use the autopilot mode, "-A", to let MCX determine
-the "optimal" thread number when you are not sure what to use.
+the "optimal" thread number when you are not sure what to use. In autopilot mode,
+photons are also dispatched to the threads dynamically, so that threads that
+finish early take on more photons.
+
+=== Use -A 0 to reproduce a simulation exactly ===
+Because of the dynamic photon dispatch and the faster math mode
+(-cl-unsafe-math-optimizations) enabled by the autopilot, two autopilot runs with
+the same seed ("-E") agree statistically but do not simulate the identical set of
+photons. To reproduce a simulation exactly, for example to debug or to compare
+outputs bit-by-bit, use "-A 0" (cfg.autopilot=0 in MCXLABCL/PMCX-CL) and keep the
+seed, the thread number ("-t") and the block size ("-T") unchanged. Photon replay
+always uses the static dispatch.
 
 ---------------------------------------------------------------------------
 == # Acknowledgement ==

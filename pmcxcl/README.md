@@ -26,7 +26,12 @@ CPU-based MC implementation.
 
 ## How to Install
 
-* PIP: ```pip install pmcxcl```, see https://pypi.org/project/pmcxcl/
+* PIP: ```pip install pmcxcl pmcx```, see https://pypi.org/project/pmcxcl/
+
+Binary wheels are available for Linux (x86_64 and aarch64), macOS (Apple silicon and
+Intel) and Windows. The `pmcx` package provides the utility functions (`detweight`,
+`meanpath`, `loadmc2`, `mcxlab` post-processing etc.) that `pmcxcl` imports; on macOS,
+pip installs it as a pure-python package.
 
 
 ## Runtime Dependencies
@@ -60,7 +65,7 @@ OpenCL runtimes.
 * **Python Interpreter**: Python 3.6 or above. The ```pip``` Python package manager and the ```wheel``` package (available
   via ```pip```) are not required but recommended.
 * **C/C++ Compiler**: pmcxcl can be compiled using a wide variety of C compilers, including
-  * GNU GCC for Linux, MacOS (intalled via MacPorts or brew), and Windows (installed via msys2, mingw64 or cygwin64)
+  * GNU GCC for Linux, MacOS (installed via MacPorts or brew), and Windows (installed via msys2, mingw64 or cygwin64)
   * Microsoft Visual Studio C/C++ Compiler for Windows.
   * Apple Clang for macOS, available via Xcode.
 
@@ -83,8 +88,8 @@ This can be queried via ```echo $env:PATH``` on Windows or ```echo $PATH``` on L
 
 2. Clone the repository and switch to the ```pmcxcl/``` folder:
     ```bash
-        git clone --recursive https://github.com/fangq/mcx.git
-        cd mcx/pmcxcl
+        git clone --recursive https://github.com/fangq/mcxcl.git
+        cd mcxcl/pmcxcl
     ```
 3. One can run `python3 setup.py install` or `python3 -m pip install .` to both locally build and install the module
 
@@ -97,15 +102,16 @@ to force installing this locally compiled `pmcxcl` module and overwrite any prev
 
 ## How to use
 
-The PMCXCL module is easy to use. You can use the `pmcxcl.gpuinfo()` function to first verify
-if you have NVIDIA/CUDA compatible GPUs installed; if there are NVIDIA GPUs detected,
-you can then call the `run()` function to launch a photon simulation.
+The PMCXCL module is easy to use. You can use the `pmcxcl.gpuinfo()` function to first list
+the OpenCL CPUs and GPUs available on your computer; if a device is found, you can then call
+the `mcxlab()` function, or `run()`, to launch a photon simulation. The device is selected by
+`cfg['gpuid']` (1 for the first device, the default).
 
 A simulation can be defined conveniently in two approaches - a one-liner and a two-liner:
 
-* For the one-liner, one simply pass on each MCX simulation setting as positional
-argument. The supported setting names are compatible to nearly all the input fields
-for the MATLAB version of MCX/MCXCL - [MCXLAB](https://github.com/fangq/mcx/blob/master/mcxlab/mcxlab.m))
+* For the one-liner, one simply passes each MCX simulation setting as a keyword
+argument. The supported setting names are compatible with nearly all the input fields
+of the MATLAB version of MCX/MCXCL - [MCXLAB](https://github.com/fangq/mcx/blob/master/mcxlab/mcxlab.m)
 
 ```python3
 import pmcxcl
@@ -121,12 +127,26 @@ plt.show()
 ```
 
 * Alternatively, one can also define a Python dict object containing each setting
-as a key, and pass on the dict object to `pmcxcl.run()`
+as a key, and pass on the dict object to `pmcxcl.run()`, or preferably, `pmcxcl.mcxlab()`
 
 ```python3
 import pmcxcl
 import numpy as np
 cfg = {'nphoton': 1000000, 'vol':np.ones([60,60,60],dtype='uint8'), 'tstart':0, 'tend':5e-9, 'tstep':5e-9,
        'srcpos': [30,30,0], 'srcdir':[0,0,1], 'prop':[[0,0,1,1],[0.005,1,0.01,1.37]]}
-res = pmcxcl.run(cfg)
+res = pmcxcl.run(cfg)      # returns detected photon data as a concatenated 2D array res['detp']
+# or alternatively/preferably (requires pmcx)
+res = pmcxcl.mcxlab(cfg)   # post-processes res['detp'] and res['traj'] into dicts
 ```
+
+The detected photon data returned by `pmcxcl.mcxlab()` can be post-processed with the utility
+functions from `pmcx`, for example, `pmcxcl.detweight(res['detp'], cfg['prop'])` computes the
+detected photon weights.
+
+### Reproducible simulations
+
+By default, `pmcxcl` runs in the autopilot mode (`cfg['autopilot']=1`), where photons are dispatched
+to the threads dynamically and the kernel is compiled with faster but less strict math. As a result,
+two runs with the same `cfg['seed']` agree statistically, but do not simulate the identical set of
+photons. To reproduce a simulation exactly, set `cfg['autopilot']=0` together with a fixed
+`cfg['seed']`, and keep the thread settings (`cfg['nthread']`, `cfg['nblocksize']`) unchanged.
