@@ -86,7 +86,7 @@
 char shortopt[] = {'h', 'i', 'f', 'n', 'm', 't', 'T', 's', 'a', 'g', 'b', 'B', 'D', '-', 'G', 'W', 'z',
                    'd', 'r', 'S', 'p', 'e', 'U', 'R', 'l', 'L', 'M', 'I', '-', 'o', 'k', 'v', 'J',
                    'A', 'P', 'E', 'F', 'H', 'K', 'u', '-', 'x', 'X', '-', 'w', '-', 'q', 'V', 'm',
-                   'Y', 'O', '-', '-', 'Q', '-', 'Z', 'j', '-', 'N', '-', 'y', '\0'
+                   'Y', 'O', '-', '-', 'Q', '-', 'Z', 'j', '-', 'N', '-', 'y', '-', '-', '\0'
                   };
 
 /**
@@ -104,7 +104,8 @@ const char* fullopt[] = {"--help", "--interactive", "--input", "--photon", "--mo
                          "--mediabyte", "--unitinmm", "--atomic", "--saveexit", "--saveref",
                          "--internalsrc", "--savedetflag", "--gscatter", "--saveseed", "--specular",
                          "--momentum", "--replaydet", "--outputtype", "--voidtime", "--showkernel",
-                         "--bench", "--dumpjson", "--zip", "--json", "--maxjumpdebug", "--net", "--srcid", "--lang", ""
+                         "--bench", "--dumpjson", "--zip", "--json", "--maxjumpdebug", "--net", "--srcid", "--lang",
+                         "--maxvoidstep", "--trajstokes", ""
                         };
 
 /**
@@ -5316,6 +5317,10 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
                         i = mcx_readarg(argc, argv, i, &showkernel, "char");
                     } else if (strcmp(argv[i] + 2, "internalsrc") == 0) {
                         i = mcx_readarg(argc, argv, i, &(cfg->internalsrc), "int");
+                    } else if (strcmp(argv[i] + 2, "maxvoidstep") == 0) {
+                        i = mcx_readarg(argc, argv, i, &(cfg->maxvoidstep), "int");
+                    } else if (strcmp(argv[i] + 2, "trajstokes") == 0) {
+                        i = mcx_readarg(argc, argv, i, &(cfg->istrajstokes), "int");
                     } else if (strcmp(argv[i] + 2, "srcid") == 0) {
                         i = mcx_readarg(argc, argv, i, &(cfg->srcid), "int");
                     } else if (strcmp(argv[i] + 2, "dumpjson") == 0) {
@@ -5870,6 +5875,7 @@ where possible parameters include (the first value in [*|*] is the default)\n\
                                and only performs isotropic scattering for speed\n\
  --srcid  [0|-1,0,1,2,..]     -1 simulate multi-source separately;0 all sources\n\
                                together;a positive integer runs a single source\n\
+ --trajstokes   [0|1]          set to 1 to save Stokes IQUV in trajectory data\n\
  --maxvoidstep  [1000|int]     maximum distance (in voxel unit) of a photon that\n\
                                can travel before entering the domain, if \n\
                                launched outside (i.e. a widefield source)\n\
