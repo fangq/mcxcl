@@ -1121,7 +1121,7 @@ inline void cleanup_configs(MCXConfig& mcx_config, float* fluence) {
 
 
 py::dict pmcxcl_interface(const py::dict& user_cfg) {
-    unsigned int partial_data, hostdetreclen;
+    unsigned int partial_data, hostdetreclen, debuglen;
     Config mcx_config;  /* mcx_config: structure to store all simulation parameters */
     GPUInfo* gpu_info = nullptr;        /** gpuInfo: structure to store GPU information */
     unsigned int active_dev = 0;
@@ -1162,6 +1162,7 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
 
         /** Validate all input fields, and warn incompatible inputs */
         mcx_validatecfg(&mcx_config, det_ps, dim_det_ps, seed_byte);
+        debuglen = MCX_DEBUG_REC_LEN + (mcx_config.istrajstokes << 2);
 
         partial_data =
             (mcx_config.medianum - 1) * (SAVE_NSCAT(mcx_config.savedetflag) + SAVE_PPATH(mcx_config.savedetflag) +
@@ -1226,7 +1227,7 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
         }
 
         if (mcx_config.debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
-            mcx_config.exportdebugdata = (float*) malloc(mcx_config.maxjumpdebug * sizeof(float) * MCX_DEBUG_REC_LEN);
+            mcx_config.exportdebugdata = (float*) malloc(mcx_config.maxjumpdebug * sizeof(float) * debuglen);
         }
 
         /** Start multiple threads, one thread to run portion of the simulation on one OpenCL GPU, all in parallel */
@@ -1263,7 +1264,7 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
         field_dim[5] = 1;
 
         if (mcx_config.debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) {
-            field_dim[0] = MCX_DEBUG_REC_LEN;
+            field_dim[0] = debuglen;
             field_dim[1] = mcx_config.debugdatalen; // his.savedphoton is for one repetition, should correct
             field_dim[2] = 0;
             field_dim[3] = 0;

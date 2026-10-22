@@ -1731,7 +1731,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         }
 
         if ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) && cfg->parentid == mpStandalone && cfg->exportdebugdata) {
-            cfg->his.colcount = MCX_DEBUG_REC_LEN;
+            cfg->his.colcount = debuglen;
             cfg->his.savedphoton = cfg->debugdatalen;
             cfg->his.totalphoton = cfg->nphoton;
             cfg->his.detected = 0;

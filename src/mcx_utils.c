@@ -1822,6 +1822,11 @@ void mcx_preprocess(Config* cfg) {
     }
 
 
+    // if neither trajectory or polarization is enabled, disable istrajstokes flag
+    if (!(cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) || !((cfg->mediabyte <= 4) && (cfg->polmedianum > 0))) {
+        cfg->istrajstokes = 0;
+    }
+
     if (cfg->debuglevel & MCX_DEBUG_MOVE_ONLY) {
         cfg->issave2pt = 0;
         cfg->issavedet = 0;
