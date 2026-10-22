@@ -46,6 +46,30 @@ jobs:
           docker run -v ${GITHUB_WORKSPACE}:/src/ manylinux2014_wheel_builder
           sudo mv ${GITHUB_WORKSPACE}/pmcxcl/dist/ ${GITHUB_WORKSPACE}/dist/
           ls -l ${GITHUB_WORKSPACE}/dist/
+      - name: Save the wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: pmcxcl-wheels-${{ matrix.arch }}
+          path: dist/*.whl
+
+  # the PyPI publish action only runs on x86_64, so the wheels of every architecture are
+  # uploaded from one x86_64 job; this also keeps a release from publishing only some of them
+  upload_pypi:
+    name: Upload Linux Wheels to PyPI
+    needs: build_linux_wheels
+    runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'fangq' && github.event_name != 'pull_request' }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Collect the wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pmcxcl-wheels-*
+          merge-multiple: true
+          path: dist/
+      - name: List the wheels
+        run: ls -l dist/
       - name: Check If the Build Version Exists on PyPI
         id: perform_pypi_upload_check
         shell: bash
@@ -53,7 +77,7 @@ jobs:
           ${GITHUB_WORKSPACE}/.github/check-pypi-upload.sh
       - name: Upload packages to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        if: ${{ github.repository_owner == 'fangq' && steps.perform_pypi_upload_check.outputs.perform_pypi_upload == 1  && github.event_name != 'pull_request'}}
+        if: ${{ steps.perform_pypi_upload_check.outputs.perform_pypi_upload == 1 }}
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
           verify_metadata: false
