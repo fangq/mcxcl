@@ -58,7 +58,7 @@ jobs:
     name: Upload Linux Wheels to PyPI
     needs: build_linux_wheels
     runs-on: ubuntu-latest
-    if: ${{ github.repository_owner == 'fangq' && github.event_name != 'pull_request' }}
+    if: ${{ github.repository_owner == 'fangq' && github.actor == 'fangq' && github.event_name != 'pull_request' }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
