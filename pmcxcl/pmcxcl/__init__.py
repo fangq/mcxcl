@@ -46,7 +46,7 @@ try:
         tddiffusion,
         getdistance,
         detphoton,
-        mcxlab,
+        mcxlab as _pmcx_mcxlab,
         cwdiffusion,
         cwfluxdiffusion,
         cwfluencediffusion,
@@ -69,6 +69,15 @@ except ImportError:  # pragma: no cover
     print(
         "please first install pmcx module to use utility functions such as 'detweight', 'meanpath' etc"
     )
+else:
+
+    def mcxlab(*args):
+        """pmcx.mcxlab() running the simulation with pmcxcl (OpenCL) instead of pmcx (CUDA)"""
+        if len(args) == 1 and isinstance(args[0], dict):
+            args = (args[0], "opencl")
+        return _pmcx_mcxlab(*args)
+
+    mcxlab.__doc__ += "\n" + (_pmcx_mcxlab.__doc__ or "")
 
 from .bench import bench
 
