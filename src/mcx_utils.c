@@ -1810,6 +1810,14 @@ void mcx_preprocess(Config* cfg) {
             MCX_ERROR(-1, "you must specify light wavelength lambda to run polarized photon simulation");
         }
 
+        if (cfg->srciquv.x < 0.f) {
+            MCX_ERROR(-4, "initial total light intensity must not be negative");
+        }
+
+        if (cfg->srciquv.y < -1.f || cfg->srciquv.y > 1.f || cfg->srciquv.z < -1.f || cfg->srciquv.z > 1.f || cfg->srciquv.w < -1.f || cfg->srciquv.w > 1.f) {
+            MCX_ERROR(-4, "initial Q, U and V must be floating-point numbers between -1 and 1");
+        }
+
         mcx_prep_polarized(cfg);
     }
 
@@ -3060,6 +3068,15 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
                         count++;
                     }
                 }
+            }
+
+            subitem = FIND_JSON_OBJ("IQUV", "Optode.Source.IQUV", src);
+
+            if (subitem) {
+                cfg->srciquv.x = subitem->child->valuedouble;
+                cfg->srciquv.y = subitem->child->next->valuedouble;
+                cfg->srciquv.z = subitem->child->next->next->valuedouble;
+                cfg->srciquv.w = subitem->child->next->next->next->valuedouble;
             }
 
             if (!cfg->issrcfrom0) {
