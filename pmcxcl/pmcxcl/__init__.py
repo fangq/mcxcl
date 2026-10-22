@@ -30,8 +30,10 @@ res = pmcxcl.run(nphoton=1000000, vol=np.ones([60, 60, 60], dtype='uint8'),
 
 try:
     from _pmcxcl import gpuinfo, run, version
-except ImportError:  # pragma: no cover
-    print("the pmcxcl binary extension (_pmcxcl) is not compiled! please compile first")
+except ImportError as e:  # pragma: no cover
+    # show why: a present but unloadable _pmcxcl (e.g. an arm64 build in an x86_64 python)
+    # used to be reported as "not compiled"
+    print("the pmcxcl binary extension (_pmcxcl) can not be loaded: %s" % e)
 
 try:
     from pmcx import (
