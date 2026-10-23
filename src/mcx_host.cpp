@@ -1012,7 +1012,17 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         } else if (strstr(extensions, "cl_intel_global_float_atomics")) {
             snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_INTEL_FLOAT_ATOMIC");
         } else if (strstr(extensions, "cl_ext_float_atomics")) {
-            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_OPENCL_FLOAT_ATOMIC");
+            /* the cl_ext_float_atomics functions (atomic_float, atomic_fetch_add_explicit) are OpenCL
+               C 3.0 atomics: without -cl-std=CL3.0 the default OpenCL C 1.2 build fails (Intel Arc).
+               OpenCL 3.0 devices compile OpenCL C 3.0 even when CL_DEVICE_OPENCL_C_VERSION (deprecated
+               in 3.0) still says 1.2, as on Intel Arc; the kernel falls back to the CAS loop if the
+               device does not define __opencl_c_ext_fp32_global_atomic_add, and so do older devices */
+            char clver[256] = {'\0'};
+            clGetDeviceInfo(devices[0], CL_DEVICE_VERSION, sizeof(clver) - 1, clver, NULL);
+
+            if (strncmp(clver, "OpenCL ", 7) == 0 && atoi(clver + 7) >= 3) {
+                snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -cl-std=CL3.0 -DUSE_OPENCL_FLOAT_ATOMIC");
+            }
         }
 
         MCX_FPRINTF(cfg->flog, "building kernel with option: %s\n", opt);

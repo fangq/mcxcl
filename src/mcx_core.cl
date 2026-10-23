@@ -210,9 +210,9 @@ inline float atomicadd(volatile __global float* address, const float value) {
 inline float atomicadd(volatile __global float* address, const float value) {
     return atomic_add((volatile __global float*)address, value);
 }
-#elif defined(USE_OPENCL_FLOAT_ATOMIC)
-/* Tier 3: Cross-vendor cl_ext_float_atomics (AMD RDNA2+, Intel) */
-#pragma OPENCL EXTENSION cl_ext_float_atomics : enable
+#elif defined(USE_OPENCL_FLOAT_ATOMIC) && defined(__opencl_c_ext_fp32_global_atomic_add)
+/* Tier 3: Cross-vendor cl_ext_float_atomics (AMD RDNA2+, Intel); it needs OpenCL C 3.0 atomics
+   (the host adds -cl-std=CL3.0), and is enabled by the feature macro, not by a pragma */
 inline float atomicadd(volatile __global float* address, const float value) {
     return atomic_fetch_add_explicit(
                (volatile __global atomic_float*)address,
