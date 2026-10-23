@@ -2782,8 +2782,10 @@ __kernel void mcx_main_loop(
         if (gcfg->mediaformat == MEDIA_ASGN_F2H) {
             updateproperty_asgn(&prop, mediaid, idx1d, media, gproperty, gcfg);
         } else if (gcfg->mediaformat == MEDIA_2LABEL_SPLIT) {
-            updateproperty_svmc(&prop, mediaid, idx1d, media,
-                                FLOAT3(p.x, p.y, p.z), &nuvox, &flipdir, gproperty, gcfg);
+            if (!SV_ISSPLIT(nuvox.sv)) { /* in a split voxel, the side and its property are tracked by the interface code */
+                updateproperty_svmc(&prop, mediaid, idx1d, media,
+                                    FLOAT3(p.x, p.y, p.z), &nuvox, &flipdir, gproperty, gcfg);
+            }
         } else {
             updateproperty(&prop, mediaid, gproperty, gcfg);
         }
@@ -2792,8 +2794,15 @@ __kernel void mcx_main_loop(
 #if MED_TYPE == MEDIA_ASGN_F2H
         updateproperty_asgn(&prop, mediaid, idx1d, media, gproperty, gcfg);
 #elif MED_TYPE == MEDIA_2LABEL_SPLIT
-        updateproperty_svmc(&prop, mediaid, idx1d, media,
-                            FLOAT3(p.x, p.y, p.z), &nuvox, &flipdir, gproperty, gcfg);
+
+        /* as in mcx: in a split voxel, the side and its property are set when the photon enters the voxel
+           and flipped at the interface; re-deriving the side from the position here would undo a crossing,
+           as the photon sits on the interface plane right after it */
+        if (!SV_ISSPLIT(nuvox.sv)) {
+            updateproperty_svmc(&prop, mediaid, idx1d, media,
+                                FLOAT3(p.x, p.y, p.z), &nuvox, &flipdir, gproperty, gcfg);
+        }
+
 #else
         updateproperty(&prop, mediaid, gproperty, gcfg);
 #endif
@@ -3324,7 +3333,16 @@ __kernel void mcx_main_loop(
 
                         transmit(&v, n1, prop.w, flipdir.w);
 
-                        if (mediaid == 0) {
+                        /* as in mcx, a photon transmitted into the background side of a split voxel also ends */
+                        if (mediaid == 0
+#if MED_TYPE == MEDIA_2LABEL_SPLIT || defined(__NVCC__)
+#ifdef __NVCC__
+                                || (issvmc && SV_CURLABEL(nuvox.sv) == 0)
+#else
+                                || SV_CURLABEL(nuvox.sv) == 0
+#endif
+#endif
+                           ) {
                             GPUDEBUG(("transmit to air, relaunch, idx=[%d] mediaid=[%d] bc=[%d] ref=[%d]\n", idx1d, mediaid, isdet, GPU_PARAM(gcfg, doreflect)));
 
                             if (LAUNCHNEWPHOTON(&p, &v, &s, &f, &flipdir, &prop, &idx1d, field, &mediaid, &w0, &Lmove,
@@ -3343,6 +3361,7 @@ __kernel void mcx_main_loop(
                                 w_im = w0_im = 0.f;
                             }
 
+                            testint = 1; /* re-enable the ray-interface test for the new photon, as in mcx */
                             continue;
                         }
 
@@ -3388,9 +3407,7 @@ __kernel void mcx_main_loop(
                                     w_im = w0_im = 0.f;
                                 }
 
-#ifdef __NVCC__
                                 testint = 1;
-#endif
                                 continue;
                             }
 
@@ -3442,8 +3459,16 @@ __kernel void mcx_main_loop(
 
 #ifdef __NVCC__
         } /* close: if (isreflect) */
+        else if (issvmc) { /* no reflection: take the property of the side the photon is on, as in mcx */
+            *((FLOAT4VEC*)(&prop)) = gproperty[SV_CURLABEL(nuvox.sv)];
+        }
 
 #endif
+#elif MED_TYPE == MEDIA_2LABEL_SPLIT
+
+        /* no reflection: take the property of the side of the split voxel that the photon is on, which
+           the interface crossing above flipped; mcx does the same in the else branch of if (isreflect) */
+        *((FLOAT4VEC*)(&prop)) = gproperty[SV_CURLABEL(nuvox.sv)];
 #endif  /* MCX_DO_REFLECTION */
     }   /* end of main while loop */
 
