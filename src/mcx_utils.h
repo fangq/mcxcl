@@ -337,6 +337,7 @@ void mcx_loadbenchmark(char* key, Config* cfg);
 void mcx_replayinit(Config* cfg, float* detps, int dimdetps[2], int seedbyte);
 void mcx_validatecfg(Config* cfg, float* detps, int dimdetps[2], int seedbyte);
 int  mcx_float2half2(float input[2]);
+float mcx_half2float(unsigned short h);
 
 void mcx_prep_polarized(Config* cfg);
 #ifdef MCX_CONTAINER
