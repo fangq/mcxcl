@@ -2531,7 +2531,9 @@ __kernel void mcx_main_loop(
                         n_det, detectedphoton, t, (__global RandType*)n_seed, gproperty, media, srcpattern, gdetpos, gcfg, idx, blockphoton,
                         gprogress, (__local RandType*)((__local char*)sharedmem + sizeof(float) * (GPU_PARAM(gcfg, nphaselen) + GPU_PARAM(gcfg, nanglelen)) + get_local_id(0)*GPU_PARAM(gcfg, issaveseed)*RAND_BUF_LEN * sizeof(RandType)),
                         gseeddata, gjumpdebug, gdebugdata, sharedmem, &nuvox, photontof)) {
-        n_seed[idx] = NO_LAUNCH;
+        /* no NO_LAUNCH marker in n_seed: it holds RAND_SEED_LEN words per thread, so n_seed[idx]
+           is a seed word of thread idx/RAND_SEED_LEN; with dynamic dispatch every idle thread lands
+           here at the start and corrupted the seeds of threads that had not read them yet */
         return;
     }
 
