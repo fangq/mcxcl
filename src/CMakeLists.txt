@@ -42,8 +42,13 @@ set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS}")
 if( ${CMAKE_COMPILER_IS_GNUCXX} )
     if(WIN32)
         set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} -static-libgcc -static-libstdc++ -Wl,-Bstatic,--whole-archive -lwinpthread -lgomp -Wl,--no-whole-archive -Wl,-Bdynamic")
-    else()
+    elseif(APPLE)
         set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} -static-libgcc -static-libstdc++")
+    else()
+        # do not export the symbols of the static libstdc++/libgcc: their GNU_UNIQUE symbols
+        # (std::locale facet ids) are merged process-wide, so a module using the system libstdc++
+        # (such as _pmcx, which pmcxcl imports) could crash in std::cout after _pmcxcl was loaded
+        set(CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} -static-libgcc -static-libstdc++ -Wl,--exclude-libs,ALL")
     endif()
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -pedantic -Wall -fPIC -O3 -std=c99")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -pedantic -Wall -fPIC -O3")
