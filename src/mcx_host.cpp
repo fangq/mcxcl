@@ -1745,7 +1745,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                     T_("simulated"), cfg->nphoton, T_("photons"), cfg->nphoton, workdev, cfg->respin, T_("MCX simulation speed"),
                     ((cfg->issavedet == FILL_MAXDETPHOTON) ? cfg->energytot : ((double)cfg->nphoton * ((cfg->respin > 1) ? (cfg->respin) : 1))) / MAX(1, cfg->runtime));
 
-        if (cfg->srctype == MCX_SRC_PATTERN && cfg->srcnum > 1) {
+        if (cfg->issave2pt && cfg->srctype == MCX_SRC_PATTERN && cfg->srcnum > 1) {
             for (i = 0; i < cfg->srcnum; i++) {
                 MCX_FPRINTF(cfg->flog, "%s #%d %s: %.2f\t%s: " S_BOLD S_BLUE "%5.5f%%" S_RESET "\n(%s)\n",
                             T_("source"), i + 1, T_("total simulated energy"), energytot[i], T_("absorbed"), energyabs[i] / energytot[i] * 100.f,
@@ -1758,6 +1758,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                         T_("loss due to initial specular reflection is excluded in the total"));
             fflush(cfg->flog);
         }
+
+        cfg->energyabs = cfg->energytot - cfg->energyesc;
 
         status = CL_SUCCESS;   /* reached the end of the run with no error */
     } while (0);
