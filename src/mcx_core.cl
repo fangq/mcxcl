@@ -37,6 +37,13 @@
     /* OpenCL: __constant__ used in kernel source for CUDA-style declarations */
     #define __constant__  __constant
     #define __device__
+
+#if defined(__clang__)
+    /* the JIT flags (MCX_IS_REFLECT, MCX_DYNAMIC_LOAD, -Dgcfg* with USE_MACRO_CONST) fold to
+       constants on purpose so that dead branches are removed; clang-based compilers (AMD, Intel,
+       POCL) would warn about every && / || with such a constant operand */
+    #pragma clang diagnostic ignored "-Wconstant-logical-operand"
+#endif
 #endif
 
 /*============================================================================

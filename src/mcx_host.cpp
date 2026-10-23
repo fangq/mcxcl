@@ -1039,6 +1039,23 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             msg = new char[len];
             clGetProgramBuildInfo(mcxprogram, devices[0], CL_PROGRAM_BUILD_LOG, len, msg, NULL);
 
+            /* the NVIDIA driver reports this for every kernel, even a one-line one; drop it */
+            const char* nvnote = "is a kernel, so overriding noinline attribute";
+            char* hit;
+
+            while ((hit = strstr(msg, nvnote)) != NULL) {
+                char* lstart = hit, *lend = strchr(hit, '\n');
+
+                while (lstart > msg && lstart[-1] != '\n') {
+                    lstart--;
+                }
+
+                lend = lend ? lend + 1 : hit + strlen(hit);
+                memmove(lstart, lend, strlen(lend) + 1);
+            }
+
+            len = strlen(msg);
+
             for (int i = 0; i < (int)len; i++)
                 if (msg[i] <= 'z' && msg[i] >= 'A') {
                     MCX_FPRINTF(cfg->flog, "Kernel build log:\n%s\n", msg);
