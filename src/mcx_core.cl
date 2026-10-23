@@ -2919,7 +2919,7 @@ __kernel void mcx_main_loop(
 #endif
 
         /*--- Read new voxel media index ---*/
-        mediaidold = mediaid | isdet;
+        mediaidold = mediaid | (isdet & DET_MASK); /* isdet holds the boundary flag outside the domain, keep it out of the label */
         idx1dold = idx1d;
         idx1d = (flipdir.z * gcfg->dimlen.y + flipdir.y * gcfg->dimlen.x + flipdir.x);
         GPUDEBUG(("idx1d [%d]->[%d]\n", idx1dold, idx1d));
@@ -3093,14 +3093,17 @@ __kernel void mcx_main_loop(
 #endif
 
         /*--- Launch new photon: exit volume / time window / cyclic BC ---*/
-        if ((mediaid == 0 && ((isdet & 0xF) == bcAbsorb || (isdet & 0xF) == bcCyclic || ((isdet & 0xF) == bcReflect && n1 == gproperty[0].w)))
+        /* label 0 is the exterior: a photon entering it, inside or outside the grid, ends unless it is
+           reflected there (reflection on, mismatched index) or by a reflect/mirror facet, as in mcx */
+        if ((mediaid == 0 && ((!MCX_IS_REFLECT || n1 == gproperty[0].w) || ((isdet & 0xF) == bcUnknown && !GPU_PARAM(gcfg, doreflect))
+                              || (isdet & 0xF) == bcAbsorb || (isdet & 0xF) == bcCyclic) && (isdet & 0xF) != bcMirror)
 #if MED_TYPE == MEDIA_2LABEL_SPLIT || defined(__NVCC__)
 #ifdef __NVCC__
                 || (issvmc && ((idx1d != idx1dold || hitintf) && !SV_ISUPPER(nuvox.sv) && !SV_LOWER(nuvox.sv)
-                               && (!GPU_PARAM(gcfg, doreflect) || n1 == gproperty[0].w)))
+                               && (!MCX_IS_REFLECT || n1 == gproperty[0].w)))
 #else
                 || ((idx1d != idx1dold || hitintf) && !SV_ISUPPER(nuvox.sv) && !SV_LOWER(nuvox.sv)
-                    && (!GPU_PARAM(gcfg, doreflect) || n1 == gproperty[0].w))
+                    && (!MCX_IS_REFLECT || n1 == gproperty[0].w))
 #endif
 #endif
                 || f.y > gcfg->twin1) {
