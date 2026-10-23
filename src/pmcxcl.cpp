@@ -197,20 +197,30 @@ void parseVolume(const py::dict& user_cfg, Config& mcx_config) {
         auto f_style_volume = py::array_t<uint8_t, py::array::f_style>::ensure(volume_handle);
         mcx_config.mediabyte = 1;
         auto buffer = f_style_volume.request();
+        int i = buffer.shape.size() == 4;
 
-        if (buffer.shape.size() == 4) {
-            throw py::value_error("Invalid volume dims for uint8_t volume.");
+        /* a 4-D uint8 array is a 4-byte (asgn_byte) or 8-byte (svmc, e.g. from pmcx.svmc) record per
+           voxel, the same as an int8 array and as uint8 arrays in mcxlab */
+        if (i == 1 && buffer.shape.at(0) != 4 && buffer.shape.at(0) != 8) {
+            throw py::value_error("Invalid volume dims for uint8_t volume: the 1st dimension of a 4-D array must be 4 or 8.");
         }
 
-        mcx_config.dim = {static_cast<unsigned int>(buffer.shape.at(0)),
-                          static_cast<unsigned int>(buffer.shape.at(1)),
-                          static_cast<unsigned int>(buffer.shape.at(2))
+        mcx_config.dim = {static_cast<unsigned int>(buffer.shape.at(i)),
+                          static_cast<unsigned int>(buffer.shape.at(i + 1)),
+                          static_cast<unsigned int>(buffer.shape.at(i + 2))
                          };
         dim_xyz = mcx_config.dim.x * mcx_config.dim.y * mcx_config.dim.z;
-        mcx_config.vol = static_cast<unsigned int*>(malloc(dim_xyz * sizeof(unsigned int)));
 
-        for (int i = 0; i < buffer.size; i++) {
-            mcx_config.vol[i] = static_cast<unsigned char*>(buffer.ptr)[i];
+        if (i == 1) {
+            mcx_config.mediabyte = (buffer.shape.at(0) == 4) ? MEDIA_ASGN_BYTE : MEDIA_2LABEL_SPLIT;
+            mcx_config.vol = static_cast<unsigned int*>(malloc(dim_xyz * buffer.shape.at(0)));
+            memcpy(mcx_config.vol, buffer.ptr, dim_xyz * buffer.shape.at(0));
+        } else {
+            mcx_config.vol = static_cast<unsigned int*>(malloc(dim_xyz * sizeof(unsigned int)));
+
+            for (size_t k = 0; k < (size_t)buffer.size; k++) {
+                mcx_config.vol[k] = static_cast<unsigned char*>(buffer.ptr)[k];
+            }
         }
     } else if (py::array_t<uint16_t>::check_(volume_handle)) {
         auto f_style_volume = py::array_t<uint16_t, py::array::f_style>::ensure(volume_handle);
@@ -298,68 +308,36 @@ void parseVolume(const py::dict& user_cfg, Config& mcx_config) {
                     break;
                 }
 
-                case 2: {
-                    mcx_config.mediabyte = MEDIA_AS_F2H;
+                case 2:
+                case 4: {
+                    mcx_config.mediabyte = (buffer.shape.at(0) == 2 ? MEDIA_AS_F2H : MEDIA_ASGN_F2H);
                     auto val = (float*) buffer.ptr;
-                    union {
-                        float f[2];
-                        unsigned int i[2];
-                        unsigned short h[2];
-                    } f2h;
-                    unsigned short tmp, m;
+
+                    float f2h[2];
+                    int offset = (mcx_config.mediabyte == MEDIA_ASGN_F2H);
+
+                    if (mcx_config.mediabyte == MEDIA_ASGN_F2H) {
+                        mcx_config.vol = static_cast<unsigned int*>(realloc(mcx_config.vol, dim_xyz * 2 * sizeof(unsigned int)));
+                    }
 
                     for (i = 0; i < dim_xyz; i++) {
-                        f2h.f[0] = val[i << 1] * mcx_config.unitinmm;        // mua
-                        f2h.f[1] = val[(i << 1) + 1] * mcx_config.unitinmm;  // mus
+                        f2h[0] = val[i << (1 + offset)] * mcx_config.unitinmm;        // mua
+                        f2h[1] = val[(i << (1 + offset)) + 1] * mcx_config.unitinmm; // mus
 
-                        if (f2h.f[0] != f2h.f[0]
-                                || f2h.f[1] != f2h.f[1]) { /*if one of mua/mus is nan in continuous medium, convert to 0-voxel*/
+                        if (f2h[0] != f2h[0]
+                                || f2h[1] != f2h[1]) { /*if one of mua/mus is nan in continuous medium, convert to 0-voxel*/
                             mcx_config.vol[i] = 0;
                             continue;
                         }
 
-                        /**
-                        float to half conversion
-                        https://stackoverflow.com/questions/3026441/float32-to-float16/5587983#5587983
-                        https://gamedev.stackexchange.com/a/17410  (for denorms)
-                        */
-                        m = ((f2h.i[0] >> 13) & 0x03ff);
-                        tmp = (f2h.i[0] >> 23) & 0xff; /*exponent*/
-                        tmp = (tmp - 0x70) & ((unsigned int) ((int) (0x70 - tmp) >> 4) >> 27);
-
-                        if (m < 0x10 && tmp == 0) { /*handle denorms - between 2^-24 and 2^-14*/
-                            unsigned short sign = (f2h.i[0] >> 16) & 0x8000;
-                            tmp = ((f2h.i[0] >> 23) & 0xff);
-                            m = (f2h.i[0] >> 12) & 0x07ff;
-                            m |= 0x0800u;
-                            f2h.h[0] = sign | ((m >> (114 - tmp)) + ((m >> (113 - tmp)) & 1));
+                        if (mcx_config.mediabyte == MEDIA_ASGN_F2H) {
+                            mcx_config.vol[i] = mcx_float2half2(f2h);
+                            f2h[0] = val[(i << 2) + 2];   // g
+                            f2h[1] = val[(i << 2) + 3];   // n
+                            mcx_config.vol[i + dim_xyz] = mcx_float2half2(f2h);
                         } else {
-                            f2h.h[0] = (f2h.i[0] >> 31) << 5;
-                            f2h.h[0] = (f2h.h[0] | tmp) << 10;
-                            f2h.h[0] |= (f2h.i[0] >> 13) & 0x3ff;
+                            mcx_config.vol[i] = mcx_float2half2(f2h);
                         }
-
-                        m = ((f2h.i[1] >> 13) & 0x03ff);
-                        tmp = (f2h.i[1] >> 23) & 0xff; /*exponent*/
-                        tmp = (tmp - 0x70) & ((unsigned int) ((int) (0x70 - tmp) >> 4) >> 27);
-
-                        if (m < 0x10 && tmp == 0) { /*handle denorms - between 2^-24 and 2^-14*/
-                            unsigned short sign = (f2h.i[1] >> 16) & 0x8000;
-                            tmp = ((f2h.i[1] >> 23) & 0xff);
-                            m = (f2h.i[1] >> 12) & 0x07ff;
-                            m |= 0x0800u;
-                            f2h.h[1] = sign | ((m >> (114 - tmp)) + ((m >> (113 - tmp)) & 1));
-                        } else {
-                            f2h.h[1] = (f2h.i[1] >> 31) << 5;
-                            f2h.h[1] = (f2h.h[1] | tmp) << 10;
-                            f2h.h[1] |= (f2h.i[1] >> 13) & 0x3ff;
-                        }
-
-                        if (f2h.i[0] == 0) { /*avoid being detected as a 0-label voxel, setting mus=EPS_fp16*/
-                            f2h.i[0] = 0x00010000;
-                        }
-
-                        mcx_config.vol[i] = f2h.i[0];
                     }
 
                     break;
@@ -1326,7 +1304,7 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
         }
 
         if (mcx_config.issave2pt) {
-            int field_len;
+            size_t field_len;
             field_dim[0] = mcx_config.srcnum * mcx_config.dim.x;
             field_dim[1] = mcx_config.dim.y;
             field_dim[2] = mcx_config.dim.z;
@@ -1342,6 +1320,15 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
 
             if (mcx_config.extrasrclen && mcx_config.srcid < 0) {
                 field_dim[5] *= (mcx_config.extrasrclen + 1);
+            }
+
+            /** adjoint forward fluence: reshape to [Nx, Ny, Nz, maxgate, Ns+Nd] (5D) */
+            if (MCX_IS_ADJOINT_TYPE(mcx_config.outputtype) && mcx_config.seed != SEED_FROM_FILE && mcx_config.detdir != nullptr) {
+                int nsrcslots = mcx_config.extrasrclen + 1;
+                int isrf = (mcx_config.omega > 0.f) ? 1 : 0;
+                field_dim[0] = mcx_config.dim.x;
+                field_dim[4] = nsrcslots;
+                field_dim[5] = isrf ? 2 : 1;
             }
 
             field_len = field_dim[0] * field_dim[1] * field_dim[2] * field_dim[3] * field_dim[4] * field_dim[5];
@@ -1490,23 +1477,6 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
                 mcx_config.exportjacob = nullptr;
             }
 
-            // Stat dictionary output
-            auto stat_dict = py::dict();
-            stat_dict["runtime"] = mcx_config.runtime;
-            stat_dict["nphoton"] = mcx_config.nphoton * ((mcx_config.respin > 1) ? (mcx_config.respin) : 1);
-            stat_dict["energytot"] = mcx_config.energytot;
-            stat_dict["energyabs"] = mcx_config.energyabs;
-            stat_dict["normalizer"] = mcx_config.normalizer;
-            stat_dict["unitinmm"] = mcx_config.unitinmm;
-            py::list workload;
-
-            for (unsigned int i = 0; i < active_dev; i++) {
-                workload.append(mcx_config.workload[i]);
-            }
-
-            stat_dict["workload"] = workload;
-            output["stat"] = stat_dict;
-
             /** return the final optical properties for polarized MCX simulation */
             if (mcx_config.polprop) {
                 for (unsigned int i = 0; i < mcx_config.polmedianum; i++) {
@@ -1520,6 +1490,23 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
                 output["prop"] = opt_properties;
             }
         }
+
+        // Stat dictionary output, returned even when the fluence is not saved (issave2pt=0), as mcxlab does
+        auto stat_dict = py::dict();
+        stat_dict["runtime"] = mcx_config.runtime;
+        stat_dict["nphoton"] = mcx_config.nphoton * ((mcx_config.respin > 1) ? (mcx_config.respin) : 1);
+        stat_dict["energytot"] = mcx_config.energytot;
+        stat_dict["energyabs"] = mcx_config.energyabs;
+        stat_dict["normalizer"] = mcx_config.normalizer;
+        stat_dict["unitinmm"] = mcx_config.unitinmm;
+        py::list workload;
+
+        for (unsigned int i = 0; i < active_dev; i++) {
+            workload.append(mcx_config.workload[i]);
+        }
+
+        stat_dict["workload"] = workload;
+        output["stat"] = stat_dict;
     } catch (const char* err) {
         cleanup_configs(mcx_config, fluence);
         throw py::runtime_error(err);
