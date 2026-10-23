@@ -79,6 +79,11 @@ else:
 
     mcxlab.__doc__ += "\n" + (_pmcx_mcxlab.__doc__ or "")
 
+    try:
+        from pmcx import svmc  # newer than pmcx 0.7.3; with an older pmcx, only pmcxcl.svmc is missing
+    except ImportError:  # pragma: no cover
+        pass
+
 from .bench import bench
 
 __version__ = "0.7.5"
@@ -116,3 +121,6 @@ __all__ = (
     "plotphotons",
     "plotvol",
 )
+
+if "svmc" in globals():
+    __all__ += ("svmc",)
