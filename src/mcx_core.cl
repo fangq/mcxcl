@@ -1814,12 +1814,14 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
                 } else
 #endif
 #endif
-                {
+#if defined(__NVCC__) || !defined(MCX_SRC_PATTERN3D)
+                {   /* in a pattern3d JIT build, this planar offset would add to the volumetric one above */
                     p[0] = FLOAT4(p[0].x + rx * launchsrc->param1.x + ry * launchsrc->param2.x,
                                   p[0].y + rx * launchsrc->param1.y + ry * launchsrc->param2.y,
                                   p[0].z + rx * launchsrc->param1.z + ry * launchsrc->param2.z,
                                   p[0].w);
                 }
+#endif
 
 #if defined(__NVCC__) || defined(MCX_SRC_PATTERN)
 #ifdef __NVCC__
