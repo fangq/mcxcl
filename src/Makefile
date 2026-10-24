@@ -59,7 +59,7 @@ FILES = $(FILES_COMMON)
 CLSOURCE =
 
 # --- OpenCL backend (default, and when no goal specified) ---
-ifneq (,$(filter $(MAKECMDGOALS),all static mex oct intelcpu))
+ifneq (,$(filter $(MAKECMDGOALS),all static mex oct intelcpu unittest))
     USERCCFLAGS += -DUSE_OPENCL -DMCX_OPENCL -DMCX_EMBED_CL
     FILES += $(FILES_OCL)
     CLSOURCE = $(addsuffix $(CLHEADER), $(CLPROGRAM))
@@ -250,6 +250,13 @@ $(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(ZMATLIB) $(OBJS)
 	@$(ECHO) "Linking $@ ..."
 	$(AR) $(OBJS) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY) $(USERLINKOPT)
 
+##  Host unit tests (test/unit), linked with the same objects as mcxcl except its main() ##
+unittest: makedirs $(CLSOURCE) $(ZMATLIB) $(OBJS)
+	$(CC) $(INCLUDEDIRS) $(CCOPT) $(USERCCFLAGS) -I. -c -o test_utils$(OBJSUFFIX) ../test/unit/test_utils.c
+	$(CC) $(INCLUDEDIRS) $(CCOPT) $(USERCCFLAGS) -I. -c -o test_main$(OBJSUFFIX) ../test/unit/test_main.c
+	$(AR) test_main$(OBJSUFFIX) test_utils$(OBJSUFFIX) $(filter-out mcxcl$(OBJSUFFIX),$(OBJS)) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/mcxcl_unittest$(EXESUFFIX) $(USERLINKOPT)
+	$(OUTPUT_DIR)/mcxcl_unittest$(EXESUFFIX)
+
 $(ZMATLIB):
 	-$(MAKE) -C zmat lib AR=ar CPPOPT="-O3 $(DLLFLAG)" CCOPT="-O3 $(DLLFLAG)" USERLINKOPT=
 
@@ -269,6 +276,7 @@ clean:
 	-rm -f $(OBJS) $(addsuffix $(OBJSUFFIX), $(FILES_OCL)) $(CLPROGRAM)$(CLHEADER)
 	-rm -f $(OUTPUT_DIR)/$(BINARY)$(EXESUFFIX)
 	-rm -f $(OUTPUT_DIR)/mcxcl$(EXESUFFIX)
+	-rm -f test_utils$(OBJSUFFIX) test_main$(OBJSUFFIX) $(OUTPUT_DIR)/mcxcl_unittest$(EXESUFFIX)
 	-rm -f $(ZMATLIB)
 
 xxd:

@@ -68,6 +68,8 @@ typedef cl_ulong  RandType;
 typedef cl_bitfield         cl_mem_flags_NV;
 #endif
 
+char* print_cl_errstring(cl_int err);  /**< the name of an OpenCL error code */
+
 #define RO_MEM             (CL_MEM_READ_ONLY  | CL_MEM_COPY_HOST_PTR)
 #define WO_MEM             (CL_MEM_WRITE_ONLY | CL_MEM_COPY_HOST_PTR)
 #define RW_MEM             (CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR)

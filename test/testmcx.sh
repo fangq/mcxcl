@@ -157,6 +157,46 @@ echo "test RF mus replay output is non-zero ... "
 temp=`"$MCX" --bench cube60 --json '{"Optode":{"Source":{"Frequency":1e8}}}' -E replaytest_detp.jdt -O s -s rfmusreplay -F nii $PARAM > /dev/null 2>&1 && python3 -c "import sys,struct;d=open('rfmusreplay.nii','rb').read()[352:];print(int(any(v!=0 for v in struct.unpack('%df'%(len(d)//4),d))))" 2>/dev/null`
 if [ "$temp" != "1" ]; then echo "fail to produce non-zero rfmus replay output"; fail=$((fail+1)); else echo "ok"; fi
 
+# the builtin inputs of mcx, next to this repository
+BUILTINDIR=${BUILTINDIR:-$TESTDIR/../../mcx/test/builtin}
+
+# short runs of the less common host paths: each must finish and report the simulation;
+# runok "description" "output file that must exist, or -" mcx options...
+runok() {
+    desc=$1; outfile=$2; shift 2
+    echo "test $desc ... "
+    out=`"$MCX" "$@" $PARAM 2>&1 | sed 's/\x1b\[[0-9;]*m//g'`
+    if [ -z "`echo "$out" | grep -E 'simulated [0-9]+ photons'`" ] || echo "$out" | grep -q -E 'MCX[A-Z]* ERROR'; then
+        echo "fail to run $desc"; fail=$((fail+1))
+    elif [ "$outfile" != "-" ] && [ ! -s "$outfile" ]; then
+        echo "fail to save $outfile for $desc"; fail=$((fail+1))
+    else
+        echo "ok"
+    fi
+}
+
+DET1='{"Optode":{"Detector":[{"Pos":[30,20,0],"R":2,"Dir":[0,0,1]},{"Pos":[30,40,0],"R":2,"Dir":[0,0,1]}]}}'
+DETRF='{"Optode":{"Source":{"Frequency":1e8},"Detector":[{"Pos":[30,20,0],"R":2,"Dir":[0,0,1]}]}}'
+runok "adjoint mua Jacobian" adja.jnii --bench cube60 -n 1e5 -O a -s adja --json "$DET1"
+runok "adjoint D Jacobian" adjd.jnii --bench cube60 -n 1e5 -O d -s adjd --json "$DET1"
+runok "adjoint mus Jacobian" adju.jnii --bench cube60 -n 1e5 -O u -s adju --json "$DET1"
+runok "adjoint mus' Jacobian" adjv.jnii --bench cube60 -n 1e5 -O v -s adjv --json "$DET1"
+runok "dual adjoint mua/D Jacobians" adjw.jnii --bench cube60 -n 1e5 -O w -s adjw --json "$DET1"
+runok "dual adjoint mua/mus' Jacobians" adjq.jnii --bench cube60 -n 1e5 -O q -s adjq --json "$DET1"
+runok "RF dual adjoint Jacobians" adjrf.jnii --bench cube60 -n 1e5 -O w -s adjrf --json "$DETRF"
+runok "RF forward fluence" rffwd.jnii --bench cube60 -n 1e5 -O r -s rffwd --json '{"Optode":{"Source":{"Frequency":1e8}}}'
+runok "forward fluence of each source and detector slot (srcid -2)" srcm2.jnii --bench cube60 -n 1e5 --srcid -2 -s srcm2 --json "$DET1"
+"$MCX" --bench cube60b -n 1e5 -s replaytest -q 1 -w DP -S 0 $PARAM > /dev/null 2>&1
+runok "replay of all detectors at once" replayall.jnii --bench cube60b -E replaytest_detp.jdt -Y -1 -O j -s replayall
+runok "time gates in groups (-g)" gates.jnii --bench cube60 -n 1e5 -g 2 -s gates --json '{"Forward":{"T0":0,"T1":5e-9,"Dt":1e-9}}'
+runok "two simultaneous patterns" pat2.jnii --bench cube60planar -n 1e5 -s pat2 --json '{"Optode":{"Source":{"Type":"pattern","Pos":[10,10,-10],"Param1":[40,0,0,2],"Param2":[0,40,0,2],"SrcNum":2,"Pattern":{"Nx":2,"Ny":2,"Data":[1,0,0,1,0,1,1,0]}}}}'
+runok "3-D pattern source" pat3d.jnii --bench cube60 -n 1e5 -s pat3d --json '{"Optode":{"Source":{"Type":"pattern3d","Pos":[20,20,20],"Param1":[2,2,2,0],"Pattern":{"Nx":2,"Ny":2,"Nz":2,"Data":[1,1,1,1,1,1,1,1]}}}}'
+runok "unnormalized output (-U 0) of an energy deposit" udep.jnii --bench cube60 -n 1e5 -U 0 -O e -s udep
+runok "continuous media, wide-field source, no reflection" cont0.jnii -f "$BUILTINDIR/mcxlab_demo_continuous_mua_mus_1.json" -n 1e5 -b 0 -s cont0 --json '{"Optode":{"Source":{"Type":"disk","Param1":[5,0,0,0]}}}'
+runok "continuous media, wide-field source, with reflection" cont1.jnii -f "$BUILTINDIR/mcxlab_demo_continuous_mua_mus_1.json" -n 1e5 -b 1 -s cont1 --json '{"Optode":{"Source":{"Type":"disk","Param1":[5,0,0,0]}}}'
+runok "polarized light with reflection, wide-field source" pol1.jnii -f "$BUILTINDIR/mcxlab_demo_polarized_photon_1.json" -n 1e5 -b 1 -s pol1
+runok "polarized light with reflection, pencil beam" pol2.jnii -f "$BUILTINDIR/mcxlab_demo_polarized_photon_1.json" -n 1e5 -b 1 -s pol2 --json '{"Optode":{"Source":{"Type":"pencil"}}}'
+
 echo "test heterogeneous domain ... "
 temp=`"$MCX" --bench spherebox -S 0 $PARAM | grep -o -E 'absorbed:.*1[01]\.[0-9]+%'`
 if [ -z "$temp" ]; then echo "fail to run spherebox benchmark"; fail=$((fail+1)); else echo "ok"; fi
