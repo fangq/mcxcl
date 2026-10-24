@@ -1739,7 +1739,17 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
         if (cfg->issave2pt && cfg->parentid == mpStandalone) {
             MCX_FPRINTF(cfg->flog, "%s ... %zu %d\t", T_("saving data to file"), fieldlen, cfg->maxgate);
-            mcx_savedata(cfg->exportfield, fieldlen, cfg);
+
+            /* the adjoint modes save the Jacobians, whose dimensions mcx_savedata uses, rather
+               than the forward fluence of each source/detector slot kept in exportfield */
+            if (MCX_IS_ADJOINT_TYPE(cfg->outputtype) && cfg->exportjacob && cfg->seed != SEED_FROM_FILE && cfg->detdir != NULL) {
+                size_t jacoblen = (size_t)cfg->dim.x * cfg->dim.y * cfg->dim.z * (cfg->extrasrclen + 1 - cfg->detnum) * cfg->detnum
+                                  * (MCX_IS_DUAL_ADJOINT_TYPE(cfg->outputtype) ? 2 : 1) * ((cfg->omega > 0.f) ? 2 : 1);
+                mcx_savedata(cfg->exportjacob, jacoblen, cfg);
+            } else {
+                mcx_savedata(cfg->exportfield, fieldlen, cfg);
+            }
+
             MCX_FPRINTF(cfg->flog, "%s : %d ms\n\n", T_("saving data complete"), GetTimeMillis() - tic);
             fflush(cfg->flog);
         }
