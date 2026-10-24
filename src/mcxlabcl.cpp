@@ -1245,11 +1245,11 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
             mexErrMsgTxt("the 'kernelfile' field must be a non-empty string");
         }
 
-        if (len > MAX_SESSION_LENGTH) {
+        if (len >= MAX_PATH_LENGTH) {
             mexErrMsgTxt("the 'kernelfile' field is too long");
         }
 
-        int status = mxGetString(item, cfg->kernelfile, MAX_SESSION_LENGTH);
+        int status = mxGetString(item, cfg->kernelfile, MAX_PATH_LENGTH);
 
         if (status != 0) {
             mexWarnMsgTxt("not enough space. string is truncated.");

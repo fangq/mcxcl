@@ -781,11 +781,11 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
             throw py::value_error("the 'kernelfile' field must be a non-empty string");
         }
 
-        if (kernelfile.size() > MAX_SESSION_LENGTH) {
+        if (kernelfile.size() >= MAX_PATH_LENGTH) {
             throw py::value_error("the 'kernelfile' field is too long");
         }
 
-        strncpy(mcx_config.kernelfile, kernelfile.c_str(), MAX_SESSION_LENGTH);
+        strncpy(mcx_config.kernelfile, kernelfile.c_str(), MAX_PATH_LENGTH - 1);
     }
 
     if (user_cfg.contains("session")) {

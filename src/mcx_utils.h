@@ -236,7 +236,7 @@ typedef struct MCXConfig {
     double energyabs;            /**<total absorbed photon packet weights*/
     double energyesc;            /**<total escaped photon packet weights*/
     char rootpath[MAX_PATH_LENGTH]; /**<sets the input and output root folder*/
-    char kernelfile[MAX_SESSION_LENGTH];
+    char kernelfile[MAX_PATH_LENGTH];
     char compileropt[MAX_PATH_LENGTH];
     char* shapedata;             /**<a pointer points to a string defining the JSON-formatted shape data*/
     char* extrajson;             /**<a pointer points to a string defining the extra JSON input data*/

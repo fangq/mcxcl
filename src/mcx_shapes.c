@@ -108,12 +108,6 @@ int mcx_parse_shapestring(Grid3D* g, char* shapedata) {
         if (jroot) {
             int err;
 
-            if (g && g->vol && *(g->vol)) {
-                *(g->vol) = (unsigned int*)realloc((void*) * (g->vol), g->dim->x * g->dim->y * g->dim->z * sizeof(int));
-            } else {
-                *(g->vol) = (unsigned int*)calloc(g->dim->x * g->dim->y, g->dim->z * sizeof(int));
-            }
-
             if ((err = mcx_parse_jsonshapes(jroot, g))) { /*error msg is generated inside*/
                 return err;
             }
@@ -158,15 +152,11 @@ int mcx_parse_jsonshapes(cJSON* root, Grid3D* g) {
     int id, objcount = 1;
     int (*raster)(cJSON * obj, Grid3D * g) = NULL;
 
-    if (g && g->vol && *g->vol) {
-        free(*(g->vol));
-    }
-
     if (g && g->dim && g->dim->x * g->dim->y * g->dim->z > 0) {
-        (*(g->vol)) = (unsigned int*)calloc(sizeof(unsigned int), g->dim->x * g->dim->y * g->dim->z);
-
-        for (id = 0; id < (g->dim->x * g->dim->y * g->dim->z); id++) {
-            (*(g->vol))[id] = 1;
+        if (g->vol && *(g->vol)) {
+            (*(g->vol)) = (unsigned int*)realloc((void*)(*(g->vol)), sizeof(unsigned int) * g->dim->x * g->dim->y * g->dim->z);
+        } else {
+            (*(g->vol)) = (unsigned int*)calloc(sizeof(unsigned int), g->dim->x * g->dim->y * g->dim->z);
         }
     }
 
@@ -541,19 +531,19 @@ int mcx_raster_slabs(cJSON* obj, Grid3D* g) {
 
     val = cJSON_GetObjectItem(obj, "Bound");
 
-    if (val) {
+    if (val && val->type == cJSON_Array) {
         num = cJSON_GetArraySize(val);
 
         if (num == 0) {
             return 0;
         }
 
-        if (num == 2 && obj->child->type != cJSON_Array) {
-            item = obj;
+        if (num == 2 && val->child->type != cJSON_Array) {
+            item = val;
             bd = (float*)malloc(cJSON_GetArraySize(obj) * sizeof(float));
             num = 1;
         } else {
-            item = obj->child;
+            item = val->child;
             bd = (float*)malloc(cJSON_GetArraySize(obj) * 2 * sizeof(float));
         }
 
@@ -575,7 +565,7 @@ int mcx_raster_slabs(cJSON* obj, Grid3D* g) {
             item = item->next;
         }
     } else {
-        sprintf(ErrorMsg, "A %s command misses Bound field", obj->string);
+        sprintf(ErrorMsg, "A %s command misses Bound field or not an array", obj->string);
         return 1;
     }
 
