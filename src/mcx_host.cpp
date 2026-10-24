@@ -442,6 +442,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     cl_float  minstep = MIN(MIN(cfg->steps.x, cfg->steps.y), cfg->steps.z);
     cl_float t, twindow0, twindow1;
     cl_float fullload = 0.f;
+    int respinsplit = (cfg->respin < 0) ? -cfg->respin : 1;  /**< a negative respin splits the photons into -respin runs, a positive one repeats them all */
     cl_float* energy = NULL;
     cl_uint* progress = NULL;
     cl_uint detected = 0, workdev;
@@ -1080,8 +1081,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         for (i = 0; i < workdev; i++) {
             cl_int threadphoton, oddphoton, sharedbuf;
 
-            threadphoton = (int)(cfg->nphoton * cfg->workload[i] / (fullload * gpu[i].autothread * cfg->respin));
-            oddphoton = (int)(cfg->nphoton * cfg->workload[i] / (fullload * cfg->respin) - threadphoton * gpu[i].autothread);
+            threadphoton = (int)(cfg->nphoton * cfg->workload[i] / (fullload * gpu[i].autothread * respinsplit));
+            oddphoton = (int)(cfg->nphoton * cfg->workload[i] / (fullload * respinsplit) - threadphoton * gpu[i].autothread);
             sharedbuf = (param.nphaselen + param.nanglelen) * sizeof(float) + gpu[i].autoblock * (cfg->issaveseed * (RAND_BUF_LEN * sizeof(RandType)) + sizeof(float) * (param.w0offset + cfg->srcnum + 2 * (cfg->outputtype == otRF || cfg->outputtype == otRFmus || MCX_IS_ADJOINT_TYPE(cfg->outputtype))));
 
             MCX_FPRINTF(cfg->flog, "- [device %d(%d): %s] threadph=%d extra=%d np=%.0f nthread=%d nblock=%d sharedbuf=%d\n", i, gpu[i].id, gpu[i].name, threadphoton, oddphoton,
@@ -1158,7 +1159,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             fflush(cfg->flog);
 
             //total number of repetition for the simulations, results will be accumulated to field
-            for (iter = 0; iter < cfg->respin; iter++) {
+            for (iter = 0; iter < ABS(cfg->respin); iter++) {
                 MCX_FPRINTF(cfg->flog, "%s%2d ... \n", T_("simulation run#"), iter + 1);
                 fflush(cfg->flog);
                 fflush(cfg->flog);
@@ -1170,10 +1171,10 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                 for (devid = 0; devid < workdev; devid++) {
                     int nblock = gpu[devid].autothread / gpu[devid].autoblock;
 
-                    param.threadphoton = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * gpu[devid].autothread * cfg->respin));
-                    param.oddphoton   = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * cfg->respin) - param.threadphoton * gpu[devid].autothread);
-                    param.blockphoton = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * nblock * cfg->respin));
-                    param.blockextra  = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * cfg->respin) - param.blockphoton * nblock);
+                    param.threadphoton = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * gpu[devid].autothread * respinsplit));
+                    param.oddphoton   = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * respinsplit) - param.threadphoton * gpu[devid].autothread);
+                    param.blockphoton = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * nblock * respinsplit));
+                    param.blockextra  = (int)(cfg->nphoton * cfg->workload[devid] / (fullload * respinsplit) - param.blockphoton * nblock);
                     OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid], gparam[devid], CL_TRUE, 0, sizeof(MCXParam), &param, 0, NULL, NULL)));
                     OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 20, sizeof(cl_mem), (void*)(gparam + devid))));
 
@@ -1184,7 +1185,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
                 if ((param.debuglevel & MCX_DEBUG_PROGRESS)) {
                     int p0 = 0, ndone = -1, kernelstatus = 0;
-                    int threadphoton = (int)(cfg->nphoton * cfg->workload[0] / (fullload * gpu[0].autothread * cfg->respin));
+                    int threadphoton = (int)(cfg->nphoton * cfg->workload[0] / (fullload * gpu[0].autothread * respinsplit));
                     float maxval = ((threadphoton >> 1) * 4.5f);
 
                     if (workdev == 1 && gpu[0].iscpu) {
@@ -1349,19 +1350,21 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
                         free(rawfield);
 
-                        if (cfg->respin > 1) {
+                        if (ABS(cfg->respin) > 1) {
                             for (i = 0; i < fieldlen; i++) { //accumulate field, can be done in the GPU
                                 field[fieldlen + i] += field[i];
                             }
                         }
 
-                        if (iter + 1 == cfg->respin) {
-                            if (cfg->respin > 1) { //copy the accumulated fields back
+                        if (iter + 1 == ABS(cfg->respin)) {
+                            if (ABS(cfg->respin) > 1) { //copy the accumulated fields back
                                 memcpy(field, field + fieldlen, sizeof(cl_float)*fieldlen);
                             }
                         }
 
-                        if (cfg->exportfield) {
+                        /* the output takes the field once, after the last repetition has been
+                           accumulated; adding it after every repetition counted the earlier ones again */
+                        if (cfg->exportfield && iter + 1 == ABS(cfg->respin)) {
                             for (i = 0; i < fieldlen; i++) {
                                 cfg->exportfield[i] += field[i];
                             }
@@ -1381,14 +1384,14 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                     energy = NULL;
 
                     //initialize the next simulation
-                    if (twindow1 < cfg->tend && iter < cfg->respin) {
+                    if (twindow1 < cfg->tend && iter < ABS(cfg->respin)) {
                         cl_float zero = 0.f;
                         OCL_ASSERT((clEnqueueFillBuffer(mcxqueue[devid], gfield[devid], &zero, sizeof(cl_float), 0,
                                                         sizeof(cl_float) * fieldlen * (isquadfield ? 4 : 2), 0, NULL, NULL)));
                         OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 1, sizeof(cl_mem), (void*)(gfield + devid))));
                     }
 
-                    if (cfg->respin > 1 && RAND_SEED_LEN > 1 && cfg->seed != SEED_FROM_FILE) {
+                    if (ABS(cfg->respin) > 1 && RAND_SEED_LEN > 1 && cfg->seed != SEED_FROM_FILE) {
                         Pseed = (RandType*)malloc(sizeof(RandType) * gpu[devid].autothread * RAND_BUF_LEN);
                         cl_uint* iseed = (cl_uint*)Pseed;
 
@@ -1778,8 +1781,9 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 #endif
 
         // total energy here equals total simulated photons+unfinished photons for all threads
-        MCX_FPRINTF(cfg->flog, "%s %zu %s (%zu) with %d devices (repeat x%d)\n%s: " S_BOLD S_BLUE "%.2f photon/ms" S_RESET "\n",
-                    T_("simulated"), cfg->nphoton, T_("photons"), cfg->nphoton, workdev, cfg->respin, T_("MCX simulation speed"),
+        MCX_FPRINTF(cfg->flog, "%s %.0f %s (%.0f) with %d devices (repeat x%d)\n%s: " S_BOLD S_BLUE "%.2f photon/ms" S_RESET "\n",
+                    T_("simulated"), (double)cfg->nphoton * ((cfg->respin > 1) ? (cfg->respin) : 1), T_("photons"),
+                    (double)cfg->nphoton * ((cfg->respin > 1) ? (cfg->respin) : 1), workdev, ABS(cfg->respin), T_("MCX simulation speed"),
                     ((cfg->issavedet == FILL_MAXDETPHOTON) ? cfg->energytot : ((double)cfg->nphoton * ((cfg->respin > 1) ? (cfg->respin) : 1))) / MAX(1, cfg->runtime));
 
         if (cfg->issave2pt && cfg->srctype == MCX_SRC_PATTERN && cfg->srcnum > 1) {
