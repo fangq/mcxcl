@@ -2172,6 +2172,10 @@ void mcx_validatecfg(Config* cfg, float* detps, int dimdetps[2], int seedbyte) {
         }
     }
 
+    if (cfg->tstep == 0.f) {
+        cfg->tstep = cfg->tend;  /* one time gate, as in mcx */
+    }
+
     if (cfg->tstart > cfg->tend || cfg->tstep == 0.f) {
         MCX_ERROR(-6, "incorrect time gate settings");
     }
