@@ -192,11 +192,16 @@ runok "time gates in groups (-g)" gates.jnii --bench cube60 -n 1e5 -g 2 -s gates
 runok "two simultaneous patterns" pat2.jnii --bench cube60planar -n 1e5 -s pat2 --json '{"Optode":{"Source":{"Type":"pattern","Pos":[10,10,-10],"Param1":[40,0,0,2],"Param2":[0,40,0,2],"SrcNum":2,"Pattern":{"Nx":2,"Ny":2,"Data":[1,0,0,1,0,1,1,0]}}}}'
 runok "3-D pattern source" pat3d.jnii --bench cube60 -n 1e5 -s pat3d --json '{"Optode":{"Source":{"Type":"pattern3d","Pos":[20,20,20],"Param1":[2,2,2,0],"Pattern":{"Nx":2,"Ny":2,"Nz":2,"Data":[1,1,1,1,1,1,1,1]}}}}'
 runok "unnormalized output (-U 0) of an energy deposit" udep.jnii --bench cube60 -n 1e5 -U 0 -O e -s udep
-runok "continuous media, wide-field source, no reflection" cont0.jnii -f "$BUILTINDIR/mcxlab_demo_continuous_mua_mus_1.json" -n 1e5 -b 0 -s cont0 --json '{"Optode":{"Source":{"Type":"disk","Param1":[5,0,0,0]}}}'
-runok "continuous media, wide-field source, with reflection" cont1.jnii -f "$BUILTINDIR/mcxlab_demo_continuous_mua_mus_1.json" -n 1e5 -b 1 -s cont1 --json '{"Optode":{"Source":{"Type":"disk","Param1":[5,0,0,0]}}}'
-runok "polarized light with reflection, wide-field source" pol1.jnii -f "$BUILTINDIR/mcxlab_demo_polarized_photon_1.json" -n 1e5 -b 1 -s pol1
-runok "polarized light with reflection, pencil beam" pol2.jnii -f "$BUILTINDIR/mcxlab_demo_polarized_photon_1.json" -n 1e5 -b 1 -s pol2 --json '{"Optode":{"Source":{"Type":"pencil"}}}'
-runok "continuous media, pencil beam, no reflection" cont2.jnii -f "$BUILTINDIR/mcxlab_demo_continuous_mua_mus_1.json" -n 1e5 -b 0 -s cont2 --json '{"Optode":{"Source":{"Type":"pencil"}}}'
+# these read the mcx builtin inputs, which a checkout of mcxcl alone lacks
+if [ -f "$BUILTINDIR/mcxlab_demo_continuous_mua_mus_1.json" ]; then
+    runok "continuous media, wide-field source, no reflection" cont0.jnii -f "$BUILTINDIR/mcxlab_demo_continuous_mua_mus_1.json" -n 1e5 -b 0 -s cont0 --json '{"Optode":{"Source":{"Type":"disk","Param1":[5,0,0,0]}}}'
+    runok "continuous media, wide-field source, with reflection" cont1.jnii -f "$BUILTINDIR/mcxlab_demo_continuous_mua_mus_1.json" -n 1e5 -b 1 -s cont1 --json '{"Optode":{"Source":{"Type":"disk","Param1":[5,0,0,0]}}}'
+    runok "polarized light with reflection, wide-field source" pol1.jnii -f "$BUILTINDIR/mcxlab_demo_polarized_photon_1.json" -n 1e5 -b 1 -s pol1
+    runok "polarized light with reflection, pencil beam" pol2.jnii -f "$BUILTINDIR/mcxlab_demo_polarized_photon_1.json" -n 1e5 -b 1 -s pol2 --json '{"Optode":{"Source":{"Type":"pencil"}}}'
+    runok "continuous media, pencil beam, no reflection" cont2.jnii -f "$BUILTINDIR/mcxlab_demo_continuous_mua_mus_1.json" -n 1e5 -b 0 -s cont2 --json '{"Optode":{"Source":{"Type":"pencil"}}}'
+else
+    echo "skip the continuous-media and polarized tests: no mcx builtin inputs in $BUILTINDIR"
+fi
 runok "repeated runs accumulated (-r 2)" resp2.jnii --bench cube60 -n 1e5 -r 2 -s resp2
 runok "photons split over repeated runs (-r -2)" respm2.jnii --bench cube60 -n 1e5 -r -2 -s respm2
 runok "manual thread and block sizes (-A 0)" manual.jnii --bench cube60 -n 1e5 -A 0 -t 16384 -T 64 -g 10 -s manual
