@@ -6,7 +6,7 @@
 # Author:  Qianqian Fang <q.fang at neu.edu>
 # License: GPLv3
 # Version: 0.5
-# URL:     http://mcx.space/computebench
+# URL:     https://mcx.space/computebench
 # Github:  https://github.com/fangq/mcx/
 #
 ###############################################################################
@@ -30,8 +30,8 @@ use warnings;
 use Term::ANSIColor qw(:constants);
 
 my $MCX="../bin/mcxcl";
-my $URL="http://mcx.space/computebench/";
-my $POSTURL="http://mcx.space/computebench/gpucontest.cgi";
+my $URL="https://mcx.space/computebench/";
+my $POSTURL="https://mcx.space/computebench/gpucontest.cgi";
 
 my %report=();
 my $prettyjson=1;
@@ -81,8 +81,8 @@ The supported options include (multiple parameters can be used, separated by spa
 	-o 'mcx options'   supply additional mcx command line options, such as '-n 1e6'
 	-n <num> / -G <01> / -W <w1,w2,..> additional mcx command options add after those in -o
 	--bin /path/to/mcxcl  manually specify mcx binary location (default: ../bin/mcx)
-	--get url  specify mcx benchmark web link (default: http://mcx.space/computebench)
-	--post url specify submission link (default: http://mcx.space/computebench/gpucontest.cgi)\n",
+	--get url  specify mcx benchmark web link (default: https://mcx.space/computebench)
+	--post url specify submission link (default: https://mcx.space/computebench/gpucontest.cgi)\n",
 		$0);
 		exit 0;
 	}else{
@@ -387,7 +387,7 @@ sub submitresult(){
 			die("fail to submit benchmark data") if($content eq '');
 		}
 		if($content=~/success/i){
-			print "Submission is successful, please browse http://mcx.space/computebench/ to see the result\n";
+			print "Submission is successful, please browse https://mcx.space/computebench/ to see the result\n";
 		}
 	}
 }

@@ -46,7 +46,7 @@ function buildmcxcl(varargin)
 %    file by installing your graphics driver or install CUDA/AMD GPU SDK
 %    and copy OpenCL.dll to the C:\Windows\System32 folder.
 %
-% This function is part of Monte Carlo eXtreme (MCX) URL: http://mcx.space
+% This function is part of Monte Carlo eXtreme (MCX) URL: https://mcx.space
 %
 % License: GNU General Public License version 3, please read LICENSE.txt for details
 %
