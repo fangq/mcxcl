@@ -1126,6 +1126,12 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             }
         }
 
+        /* a volume times its time gates that does not fit in memory gives NULL,
+           which everything after this writes through */
+        if (cfg->exportfield == NULL) {
+            MCX_ERROR(-2, "not enough memory for the output: reduce Dim, the number of time gates, or the detectors replayed");
+        }
+
         if (cfg->exportdetected == NULL) {
             cfg->exportdetected = (float*)malloc(hostdetreclen * cfg->maxdetphoton * sizeof(float));
         }
