@@ -2,25 +2,26 @@
 
 As the name indicates, this example runs a short simulation
 for the purpose of testing the command line options build
-with MCX. 
+with MCX-CL. 
 
-To run this example, you need to first compile mcx binary.
+To run this example, you need to first compile the mcxcl binary,
+or download a pre-compiled mcxcl package, so that ../../bin/mcxcl exists.
 Then you can choose to run the following shell scripts:
 
 listgpu.sh
-    A script to call mcx to print the GPU information 
+    A script to call mcxcl to print the CPU/GPU information 
     only. Run this script and find out how many GPUs you 
     have in your graphics card and the related parameters 
     (memory, cores etc) 
 
 run_qtest.sh
-    This will run MCX for a simple homogeneous medium as 
-    the example used in the Fang2009 paper. It will launch 
-    only 0.3 million photons and take roughly half a second. 
+    This will run MCX-CL for a simple homogeneous medium as 
+    the example used in the Fang2009 paper. It launches 
+    1e7 photons; the fluence is saved in qtest.jnii.
 
 run_qtest_silent.sh
     This script does the same thing as run_qtest.sh, 
-    except it let mcx to print messages to a log file 
+    except it lets mcxcl print messages to a log file 
     rather than printing on the screen (so called silent mode) 
 
 

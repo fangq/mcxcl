@@ -71,7 +71,16 @@ In addition, this release contains the following fixes and improvements
   made pip install an x86_64 binary on Apple silicon running macOS 15+ (#60);
   `pmcxcl.mcxlab()` runs the simulation with pmcxcl, and a failed import reports the
   actual error (#60)
-* pmcxcl is bumped to 0.8.0
+* the released Linux binaries and mex files are built in a manylinux2014 container and\
+  run on glibc 2.17 or newer; Octave mex files for Windows and macOS are built against\
+  Octave 10 (`liboctmex`)
+* input parsing is hardened by fuzzing the JSON inputs and command line options; invalid\
+  `-u`, `-W`, `-K` and `-Z` values now stop with an error instead of crashing or hanging
+* `-r` now repeats or splits the photons as documented; a time step of 0 is treated as\
+  a single time gate; `--dumpjson`, `mcx2json` and `json2mcx` round-trip all settings
+* fixed the svmc mismatch with MCX, a hang with interior label-0 regions, and the\
+  `cl_ext_float_atomics` kernel build on Intel Arc GPUs
+* pmcxcl is bumped to 0.7.5
 
 We would like to thank @hanno-gmg (#60) and @ptrhbt (#67) for reporting issues.
 
@@ -431,6 +440,17 @@ the nightly-built packages from
 
 https://mcx.space/nightly/
 
+The release packages can be found at https://mcx.space/wiki/?Get and on the GitHub
+release page (https://github.com/fangq/mcxcl/releases). In addition
+
+* the Python module can be installed using <tt>python3 -m pip install pmcxcl pmcx</tt>
+* on Windows, MCX Studio (including mcxcl) can be installed with an installer, or
+  using <tt>winget install coti.mcxstudio</tt>
+* the released Linux binaries and mex files are built in a manylinux2014 container and
+  run on Linux distributions with glibc 2.17 or newer
+* the released Octave mex files for Windows and macOS are linked against <tt>liboctmex</tt> and
+  require Octave 10 or newer; the Linux Octave mex file works with any recent Octave
+
 If one has downloaded the mcxcl binary package, after extraction, you may open
 a terminal (on Windows, type cmd the Start menu), cd mcxcl folder and then cd
 the bin subfolder. Please type "mcxcl" and enter, if the binary is compatible with
@@ -482,167 +502,72 @@ Please make sure that your downloaded <tt>MCXStudio</tt> matches your operating 
 '''For Mac users:''' Please unzip the package under your '''[https://www.cnet.com/how-to/how-to-find-your-macs-home-folder-and-add-it-to-finder/ home directory]''' directly (Shift+Command+H).
 
 ==== # Notes for Windows Users ===
-When you start MCXStudio, you may see a dialog to ask you to modify the TdrDelay key 
-in the registry so that mcx can run more than 5 seconds. If you select Yes, some 
-of you may get an error saying you do not have permission. 
-
-To solve this problem, you need to quit MCXStudio, and then right-click on the 
-<tt>mcxstudio.exe</tt>, and select "Run as Administrator". Then, you should be 
-able to apply the registry change successfully. 
-
-Alternatively, one should open file browser, navigate into mcxcl/setup/win64 folder,
-and right-click on the "apply_timeout_registry_fix.bat" file and select 
-"Run as Administrator".
+The Windows installer of MCX Studio (also available via <tt>winget install coti.mcxstudio</tt>)
+sets the <tt>TdrDelay</tt> registry key so that GPU simulations can run longer than a few
+seconds. If you use the zip packages instead, please open the file browser, navigate into
+the <tt>mcxcl/setup/win64</tt> folder, right-click on the <tt>apply_timeout_registry_fix.bat</tt>
+file and select "Run as Administrator".
 
 '''You must reboot your computer for this change to be effective!'''
 
-=== # Step 4. Start MCXStudio and query GPU information ==
+=== # Step 4. Query GPU information ==
 
-Now, navigate to the MCXStudio folder (i.e. the top folder of the extracted 
-software structure). On Windows, right-click on the executable named <tt>"mcxstudio.exe"</tt> 
-and select "Run as Administrator" for the first time only; on the Linux, 
-double click on the <tt>mcxstudio</tt> executable; on the Mac, open a 
-terminal and type
+Open a terminal (on Windows, type "cmd" in the Start menu), and cd into the folder
+containing the <tt>mcxcl</tt> executable (for the MCX Studio package, this is
+<tt>MCXSuite/mcxcl/bin</tt>), then type
 
- cd ~/MCXStudio
- open mcxstudio.app
+ mcxcl -L
 
-First, click on the "New" button to the top-left (green plus icon), 
-select the 3rd option "<tt>NVIDIA/AMD/Intel CPUs/GPUs (MCX-CL)</tt>", 
-and type a session name '''"test"''' in the field below. Then click 
-OK. You should see a blue/yellow "test" icon added to the left panel. 
+You should see an output like
 
-Now, click on the '''"GPU"''' button on the toolbar (6th button from 
-the left side), an Output window will popup, and wait for a few seconds, 
-you should see an output like
-
-<pre>"-- Run Command --"
-"mcxcl" -L
-"-- Printing GPU Information --"
-Platform [0] Name NVIDIA CUDA
-============ GPU device ID 0 [1 of 2]: Graphics Device  ============
- Device 1 of 2:		Graphics Device
+<pre>Platform [0] Name NVIDIA CUDA
+============ GPU device ID 0 [1 of 2]: NVIDIA TITAN V  ============
+ Device 1 of 2:		NVIDIA TITAN V
  Compute units   :	80 core(s)
- Global memory   :	12644188160 B
+ Global memory   :	12625903616 B
  Local memory    :	49152 B
  Constant memory :	65536 B
  Clock speed     :	1455 MHz
  Compute Capacity:	7.0
- Stream Processor:	10240
+ Stream Processor:	5120
  Vendor name    :	NVIDIA
- Auto-thread    :	655360       
-...
-Platform [1] Name Intel(R) OpenCL
-============ CPU device ID 2 [1 of 1]: Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz  ============
- Device 3 of 1:		Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz
- Compute units   :	8 core(s)
- Global memory   :	33404575744 B
- Local memory    :	32768 B
- Constant memory :	131072 B
- Clock speed     :	4200 MHz
- Vendor name    :	Intel
- Auto-thread    :	512
+ Auto-thread    :	327680
  Auto-block     :	64
+...</pre>
 
-"-- Task completed --"
-</pre>
+Your output may look different from above. If you do not see any output, or
+it returns no GPU found, that means your OpenCL support was not installed
+properly. Please go back to Steps 1-2 and reinstall the drivers.
 
-Your output may look different from above. If you do not see any output, or 
-it returns no GPU found, that means your OpenCL support was not installed 
-properly. Please go back to Steps 1-2 and reinstall the drivers. 
-
-If you have Intel CPU with Integrated GPU, you should be able to see a section with 
-<b>"Platform [?] Name Intel(R) OpenCL"</b> in the above output. You may see only 
+If you have an Intel CPU with an integrated GPU, you should be able to see a section with
+"Platform [?] Name Intel(R) OpenCL" in the above output. You may see only
 the CPU is listed, or both the CPU and the integrated GPU.
 
+If you prefer a graphical interface, start <tt>mcxstudio</tt> in the top folder of the
+MCX Studio package. Starting from v2026, <tt>mcxstudio</tt> is MCX Studio 2, a rewritten
+GUI for MCX, MCX-CL and MMC; selecting the "intel", "amd" or "cpu" processor runs
+the simulation with mcxcl.
 
 === # Step 5. Run a trial simulation ==
 
-If your above GPU query was successful, you should now see in the middle panel 
-of the MCXStudio window, under the Section entitled "GPU Settings", in a check-box 
-list under "Run MCX on", you should now see the available devices on your laptop. 
+Now, you can run a built-in benchmark to verify that mcxcl works
 
-To avoid running lengthy simulations, please change the <u>"Total photon number (-n)"</u> 
-field under the <u>"Basic Settings"</u> from <tt>1e6</tt> to <tt>1e5</tt>.
+ mcxcl -Q cube60 -n 1e6
 
-Now, you can then run a trial simulation, by first clicking on the "Validate" 
-button (blue check-mark icon), and then click on "Run" (the button to the 
-right of validate). This will launch an MCXCL simulation. The output window 
-will show again, and you can see the messages printed from the simulation, 
-similar to the output below
+which simulates 1 million photons in a 60x60x60 homogeneous domain. At the end of the
+simulation, mcxcl prints the simulation speed and the absorbed fraction, and saves the
+fluence in <tt>cube60.jnii</tt> and the detected photons in <tt>cube60_detp.jdt</tt>.
+Use <tt>-G</tt> to select the device (see <tt>mcxcl -L</tt>), for example, <tt>-G 2</tt> to run on
+the 2nd device, or <tt>-G 11</tt> to run on the first two devices together.
 
-<pre>"-- Command: --"
-mcxcl --session "preptest"  --input "/drives/taote1/users/fangq/Download/MCXStudio/Output/mcxclsessions/preptest/preptest.json" --root "/drives/taote1/users/fangq/Download/MCXStudio/Output/mcxclsessions/preptest" --outputformat mc2 --gpu 10 --autopilot 1 --photon 10000000 --normalize 1 --save2pt 1 --reflect 1 --savedet 1 --unitinmm 1.00 --saveseed 0 --seed "1648335518" --compileropt "-D USE_ATOMIC" --array 0 --dumpmask 0 --repeat 1  --maxdetphoton 10000000
-"-- Executing Simulation --"
-==============================================================================
-=                       Monte Carlo eXtreme (MCX) -- OpenCL                  =
-=          Copyright (c) 2010-2025 Qianqian Fang <q.fang at neu.edu>         =
-=                https://mcx.space/  &  https://neurojson.io                 =
-=                                                                            =
-= Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =
-=   Department of Bioengineering, Northeastern University, Boston, MA, USA   =
-==============================================================================
-=    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =
-==============================================================================
-= Open-source codes and reusable scientific data are essential for research, =
-= MCX proudly developed human-readable JSON-based data formats for easy reuse=
-=                                                                            =
-=Please visit our free scientific data sharing portal at https://neurojson.io=
-= and consider sharing your public datasets in standardized JSON/JData format=
-==============================================================================
-$Rev::4fdc45 $ v2026 $Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$
-==============================================================================
-- variant name: [Detective MCXCL] compiled with OpenCL version [1]
-- compiled with: [RNG] Logistic-Lattice [Seed Length] 5
-initializing streams ...	init complete : 0 ms
-
-Building kernel with option: -cl-mad-enable -DMCX_USE_NATIVE -DMCX_SIMPLIFY_BRANCH -DMCX_VECTOR_INDEX -DMCX_SRC_PENCIL  -D USE_ATOMIC -DUSE_ATOMIC -D MCX_SAVE_DETECTORS -D MCX_DO_REFLECTION
-build program complete : 23 ms
-- [device 0(1): Graphics Device] threadph=15 oddphotons=169600 np=10000000.0 nthread=655360 nblock=64 repetition=1
-set kernel arguments complete : 23 ms
-launching mcx_main_loop for time window [0.0ns 5.0ns] ...
-simulation run# 1 ... 
-
-kernel complete:  	796 ms
-retrieving flux ... 	
-detected 0 photons, total: 0	transfer complete:        818 ms
-normalizing raw data ...	normalization factor alpha=20.000000
-saving data to file ... 216000 1	saving data complete : 821 ms
-
-simulated 10000000 photons (10000000) with 1 devices (repeat x1)
-MCX simulation speed: 12953.37 photon/ms
-total simulated energy: 10000000.00	absorbed: 27.22654%
-(loss due to initial specular reflection is excluded in the total)
-</pre>
-
-If this simulation is completed successfully, you should be able to see the 
-"Simulation speed" and total simulated energy reported at the end. Please 
-verify your "absorbed" percentage value printed at the end (in bold above), 
-and make sure it is '''~27%'''. We found that some Intel OpenCL library 
-versions produced incorrect results. 
-
-If your laptop shows an error for the Intel GPU, please choose another 
-device from the "GPU Settings" section, and run the simulation again. 
-
-If your GPU/CPU gives the below error (found on HD4400 GPU and 4th gen Intel CPUs)
-
-  error: OpenCL extension 'cl_khr_fp64' is unsupported
-  MCXCL ERROR(11):Error: Failed to build program executable! in unit mcx_host.cpp:510
-
-You may add 
-
-   -J "-DUSE_LL5_RAND"
-
-in the <tt>MCXStudio GUI</tt>\<tt>Advanced Settings</tt>\<tt>Additional Parameters</tt> 
-field. This should allow it to run, but please verify the absorption fraction 
-is ~27%. For 4th generation Intel CPU, we found that install the Intel CPU 
-OpenCL run-time can produce correct simulations. Please download it from here
-
-https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
+The same simulation can be run from MCX Studio by starting from the cube60 built-in
+benchmark, or from MATLAB/Octave using <tt>mcxlabcl</tt> and from Python using
+<tt>pmcxcl</tt>.
 
 === # Step 6. Test MATLAB for visualization ==
 
-From v2019.3, MCXStudio provides builtin 3D volume visualization, this step is no longer needed.
+From v2019.3, MCXStudio provides builtin 3D volume visualization, this step is no longer needed. MCX Studio 2
+(v2026) renders the domain, the fluence and the photon trajectories in its 3-D view.
 
 
 === # Step 7. Setting up MATLAB search path ==
@@ -699,7 +624,7 @@ such as the following:
 =          Copyright (c) 2010-2025 Qianqian Fang <q.fang at neu.edu>         =
 =                https://mcx.space/  &  https://neurojson.io                 =
 =                                                                            =
-= Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =
+= Computational Optics&Translational Imaging (COTI) Lab - https://fanglab.org =
 =   Department of Bioengineering, Northeastern University, Boston, MA, USA   =
 ==============================================================================
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =
@@ -1301,11 +1226,11 @@ the ND array with built-in compression, one should call JData compatible
 libraries, which can be found at https://neurojson.org/wiki
 
 Specifically, to parse/save .jnii files in MATLAB, you should use
-* JSONLab for MATLAB (https://github.com/fangq/jsonlab) or install `octave-jsonlab` on Fedora/Debian/Ubuntu
-* `jsonencode/jsondecode` in MATLAB + `jdataencode/jdatadecode` from JSONLab (https://github.com/fangq/jsonlab)
+* JSONLab for MATLAB (https://neurojson.org/download/jsonlab) or install `octave-jsonlab` on Fedora/Debian/Ubuntu
+* `jsonencode/jsondecode` in MATLAB + `jdataencode/jdatadecode` from JSONLab (https://neurojson.org/download/jsonlab)
 
 To parse/save .jnii files in Python, you should use
-* PyJData module (https://pypi.org/project/jdata/) or install `python3-jdata` on Debian/Ubuntu
+* PyJData module (https://neurojson.org/download/pyjdata) or install `python3-jdata` on Debian/Ubuntu
 
 In Python, the volumetric data is loaded as a `dict` object where `data['NIFTIData']` 
 is a NumPy `ndarray` object storing the volumetric data.
@@ -1328,11 +1253,11 @@ the ND array with built-in compression, one should call JData compatible
 libraries, which can be found at https://neurojson.org/wiki
 
 Specifically, to parse/save .jnii files in MATLAB, you should use one of
-* JSONLab for MATLAB (https://github.com/fangq/jsonlab) or install `octave-jsonlab` on Fedora/Debian/Ubuntu
-* `jsonencode/jsondecode` in MATLAB + `jdataencode/jdatadecode` from JSONLab (https://github.com/fangq/jsonlab)
+* JSONLab for MATLAB (https://neurojson.org/download/jsonlab) or install `octave-jsonlab` on Fedora/Debian/Ubuntu
+* `jsonencode/jsondecode` in MATLAB + `jdataencode/jdatadecode` from JSONLab (https://neurojson.org/download/jsonlab)
 
 To parse/save .jnii files in Python, you should use
-* PyJData module (https://pypi.org/project/jdata/) or install `python3-jdata` on Debian/Ubuntu
+* PyJData module (https://neurojson.org/download/pyjdata) or install `python3-jdata` on Debian/Ubuntu
 
 In Python, the volumetric data is loaded as a `dict` object where `data['NIFTIData']` 
 is a NumPy `ndarray` object storing the volumetric data.
@@ -1379,10 +1304,12 @@ disabled using the `-d` flag.
 The detected photon data are stored in a separate file from the volumetric output.
 The supported data file formats are explained below.
 
-==== jdat files ====
+==== jdt and jdb files ====
 
-By default, or when `-F jnii` is explicitly specified, a `.jdat` file is written, which is a
-pure JSON file. This file contains a hierarchical data record of the following JSON structure
+By default, or when `-F jnii` is explicitly specified, a `session_detp.jdt` file is written, which is a
+pure JSON file; with `-F bnii`, the same data are saved in the binary JData format as
+`session_detp.jdb`. Prior to v2026, this file used the `.jdat` suffix; `.jdat` files can still
+be loaded for replay. This file contains a hierarchical data record of the following JSON structure
 
  {
    "MCXData": {
@@ -1397,16 +1324,12 @@ pure JSON file. This file contains a hierarchical data record of the following J
        },
        "PhotonData":{
            "detid":
+	   "srcid":
 	   "nscat":
 	   "ppath":
 	   "mom":
 	   "p":
 	   "v":
-	   "w0":
-       },
-       "Trajectory":{
-           "photonid":
-	   "p":
 	   "w0":
        },
        "Seed":[
@@ -1415,28 +1338,29 @@ pure JSON file. This file contains a hierarchical data record of the following J
    }
  }
 
-where "Info" is required, and other subfields are optional depends on users' input.
+where "Info" is required, and other subfields are optional depending on users' input;
+"srcid" is only present in multi-source simulations, and "Seed" only when `-q 1` is used.
 Each subfield in this file may contain JData 1-D or 2-D array constructs to allow 
 storing binary and compressed data.
 
-Although .jdat and .jnii have different suffix, they are both JSON/JData files and
+Although .jdt and .jnii have different suffixes, they are both JSON/JData files and
 can be opened/written by the same JData compatible libraries mentioned above, i.e.
 
 For MATLAB
-* JSONLab for MATLAB (https://github.com/fangq/jsonlab) or install `octave-jsonlab` on Fedora/Debian/Ubuntu
-* `jsonencode/jsondecode` in MATLAB + `jdataencode/jdatadecode` from JSONLab (https://github.com/fangq/jsonlab)
+* JSONLab for MATLAB (https://neurojson.org/download/jsonlab) or install `octave-jsonlab` on Fedora/Debian/Ubuntu
+* `jsonencode/jsondecode` in MATLAB + `jdataencode/jdatadecode` from JSONLab (https://neurojson.org/download/jsonlab)
 
 For Python
-* PyJData module (https://pypi.org/project/jdata/) or install `python3-jdata` on Debian/Ubuntu
+* PyJData module (https://neurojson.org/download/pyjdata) or install `python3-jdata` on Debian/Ubuntu
 
 In Python, the volumetric data is loaded as a `dict` object where `data['MCXData']['PhotonData']` 
-stores the photon data, `data['MCXData']['Trajectory']` stores the trajectory data etc.
+stores the photon data, and `data['MCXData']['Seed']` stores the RNG seeds.
 
 
 ==== mch files ====
 
 The .mch file, or MC history file is stored if one specifies `-F mc2` in the command line,
-but we strongly encourage users to adopt the default JSON/.jdat format for easy data sharing. 
+but we strongly encourage users to adopt the default JSON/.jdt format for easy data sharing. 
 
 The .mch file contains a 256 byte binary header, followed by a 2-D numerical array
 of dimensions #savedphoton * #colcount as recorded in the header.
@@ -1464,8 +1388,8 @@ following the detected photon data, consisting of a 2-D byte array of #savedphot
 
 To load the mch file, one should call `loadmch.m` in MATLAB/Octave.
 
-Saving to .mch history file is depreciated as we are transitioning towards
-JSON/JData formatted outputs (.jdat).
+Saving to .mch history file is deprecated as we are transitioning towards
+JSON/JData formatted outputs (.jdt/.jdb).
 
 
 === Photon trajectory data ===
@@ -1474,11 +1398,12 @@ For debugging and plotting purposes, MCX can output photon trajectories, as poly
 when `-D M` or `-D T` flag is attached, or mcxlab is asked for the 5th output. Such information
 can be stored in one of the following formats.
 
-==== jdat files ====
+==== jdt and jdb files ====
 
-By default, or when `-F jnii` is used, MCX-Cl merges the trajectory data with the detected photon and
-seed data and saved as a JSON-compatible .jdat file. The overall structure of the
-.jdat file as well as the relevant parsers can be found in the above section.
+By default, or when `-F jnii` is used, MCX-CL saves the trajectory data in a separate JSON file
+named `session_traj.jdt` (or `session_traj.jdb` with `-F bnii`), with a "Trajectory" object
+storing the "photonid", "p" (position), "w0" (weight) and "srcid" of each trajectory point.
+The relevant parsers can be found in the above section.
 
 ==== mct files ====
 
@@ -1486,8 +1411,8 @@ If `-F mc2` is used, MCX-CL stores the photon trajectory data in to a .mct file 
 uses the same binary format as .mch but renamed as .mct. This file can be loaded to
 MATLAB using the same `loadmch.m` function. 
 
-Using .mct file is depreciated and users are encouraged to migrate to .jdat file
-as described below.
+Using .mct file is deprecated and users are encouraged to migrate to the .jdt file
+as described above.
 
 ---------------------------------------------------------------------------
 == # Using MCXLABCL in MATLAB and Octave ==
@@ -1564,49 +1489,24 @@ to install and use PMCX-CL.
 ---------------------------------------------------------------------------
 == # Using MCX Studio GUI ==
 
-Starting from v2026, MCX ships MCX Studio 2 (`mcxstudio2/` in the MCX repository), a
-rewritten cross-platform GUI for MCX, MCX-CL and MMC with a live JSON preview, a
-shape editor and built-in visualization of fluence and photon paths. The original
-MCXStudio described below is still included.
+Starting from v2026, the `mcxstudio` GUI included in the MCX Studio packages is
+MCX Studio 2 (`mcxstudio2/` in the MCX repository, https://github.com/fangq/mcx), a
+rewrite of the original MCXStudio. It is a cross-platform graphical front end for MCX,
+MCX-CL and MMC, written with Lazarus, and runs on Windows, Linux and macOS.
 
-MCXStudio is a graphical user interface (GUI) for MCX/MCXCL and MMC. It gives users
-a straightforward way to set the command line options and simulation
-parameters. It also allows users to create different simulation tasks 
-and organize them into a project and save for later use.
-MCX Studio can be run on many platforms such as Windows,
-GNU Linux and Mac OS.
+In MCX Studio 2, a simulation is simply the `.json` input file that mcxcl reads; there
+is no separate project format. The Command tab shows the command line that will be run,
+and the JSON tab shows the file that will be written. The built-in 3-D view renders the
+domain, shapes, sources and detectors, as well as the fluence and photon trajectories
+written by the simulators. Depending on the selected processor (`nvidia`, `amd`, `intel`
+or `cpu`) and the domain, it runs mcx, mcxcl or mmc; selecting `intel` or `cpu`
+uses mcxcl. For example
 
-To use MCXStudio, it is suggested to put the mcxstudio binary
-in the same directory as the mcx command; alternatively, you can
-also add the path to mcx command to your PATH environment variable.
+  mcxstudio --run --processor intel benchmark1.json
 
-Once launched, MCX Studio will automatically check if mcx/mcxcl
-binary is in the search path, if so, the "GPU" button in the 
-toolbar will be enabled. It is suggested to click on this button
-once, and see if you can see a list of GPUs and their parameters 
-printed in the output field at the bottom part of the window. 
-If you are able to see this information, your system is ready
-to run MCX simulations. If you get error messages or not able
-to see any usable GPU, please check the following:
-
-* are you running MCX Studio/MCX on a computer with a supported card?
-* have you installed the CUDA/NVIDIA drivers correctly?
-* did you put mcx in the same folder as mcxstudio or add its path to PATH?
-
-If your system has been properly configured, you can now add new simulations 
-by clicking the "New" button. MCX Studio will ask you to give a session
-ID string for this new simulation. Then you are allowed to adjust the parameters
-based on your needs. Once you finish the adjustment, you should click the 
-"Verify" button to see if there are missing settings. If everything looks
-fine, the "Run" button will be activated. Click on it once will start your
-simulation. If you want to abort the current simulation, you can click
-the "Stop" button.
-
-You can create multiple tasks with MCX Studio by hitting the "New"
-button again. The information for all session configurations can
-be saved as a project file (with .mcxp extension) by clicking the
-"Save" button. You can load a previously saved project file back
-to MCX Studio by clicking the "Load" button.
+Projects (`.mcxp` files) created by the original MCXStudio can be opened with
+`mcxstudio -p project.mcxp`, or converted to JSON files using `utils/mcxp2json.py` in MCX.
+Please read the `mcxstudio2/README.md` file in MCX for details.
 
 
 ---------------------------------------------------------------------------

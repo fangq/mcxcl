@@ -19,68 +19,86 @@ A GPU-accelerated MC for heterogeneous computing platforms
 
                 3.1. [6]Binary package
 
-                3.2. [7]Source code
+                3.2. [7]Python module
 
-          4. [8]Tutorial
+                3.3. [8]Source code
 
-          5. [9]Acknowledgement
+          4. [9]Tutorial
+
+          5. [10]Acknowledgement
 
 1. Introduction
 
    MCXCL (or MCX for OpenCL) is a high-performance, highly scalable and
    general-purpose Monte Carlo photon transport simulator for biophotonics
-   applications. Compared to [10]MCX (implemented with NVIDIA CUDA), MCXCL
+   applications. Compared to [11]MCX (implemented with NVIDIA CUDA), MCXCL
    is written in the OpenCL framework, and is capable of launching
    parallel photon simulations on most modern CPUs and GPUs produced by
-   many vendors, including NVIDIA, AMD and Intel.
+   many vendors, including NVIDIA, AMD, Intel and Apple.
+
+   The current release is MCX-CL v2026 (3.0 - Juxtaposition). This
+   release brings MCX-CL to near feature parity with MCX, including
+   split-voxel MC (SVMC), polarized light, RF replay, RF forward and
+   adjoint Jacobians, and uses the same input files, command line options
+   and output formats (JNIfTI .jnii/.bnii volumes and .jdt/.jdb detected
+   photon files) as MCX. For the same seed, MCX and MCX-CL trace the same
+   photon paths (with -A 0).
 
 2. Supported Devices and Simulation Speed
 
-   MCXCL is supported on a [11]long list of processors, including NVIDIA
-   GPUs, AMD CPUs and GPUs as well as Intel CPUs and (integrated) GPUs. A
-   comparison between different CPUs/GPUs in [12]3 benchmark problems (and
-   [13]3 optimizations) is shown in the below figure. MCXCL is currently
-   about 2x-3x slower than MCX (CUDA based) on NVIDIA GPUs (see the
-   inset). This is a result of lagged OpenCL driver development of NVIDIA.
-   On the other hand, MCXCL performs quite well on AMD and Intel
-   processors.
+   MCXCL is supported on a [12]long list of processors, including NVIDIA
+   GPUs, AMD CPUs and GPUs, Intel CPUs and GPUs, and Apple silicon. It
+   also runs on CPUs using the open-source OpenCL runtime [13]pocl. A
+   comparison between different CPUs/GPUs in [14]3 benchmark problems is
+   shown in the below figure (measured in 2017-2018; please see
+   [15]https://mcx.space/computebench/ for more recent results). In
+   v2026, dynamic photon dispatch and 1-byte label volumes make MCX-CL
+   1.2-1.5x faster than the previous release.
 
-   [14]upload:mcxcl_benchmark_0118.png
-
-     * Update: 11/14/2017, added AMD Vega 64 results
+   [16]upload:mcxcl_benchmark_0118.png
 
 3. Download
 
 3.1. Binary package
 
-   Pre-compiled MCXCL binary packages (v2018) for Linux/Windows/MacOS can
-   be [15]downloaded here.
+   Pre-compiled MCXCL binary packages (v2026) for Linux/Windows/macOS can
+   be [17]downloaded here, or from the [18]GitHub release page. The
+   released Linux binaries are built against glibc 2.17 (manylinux2014)
+   and run on most Linux distributions released since 2014. The Octave
+   mex files of MCXLABCL for Windows and macOS require Octave 10 or newer.
 
-   However, you are highly recommended to download the [16]MCXSuite.zip
-   package for each platform. MCXCL is part of the suite and easy-to-use
-   GUI interface (MCX Studio) is provided to help one design new
-   simulation and review results. Video tutorials regarding MCXStudio can
-   be found [17]here.
+   However, you are highly recommended to download the all-in-one MCX
+   Studio package for each platform. MCXCL is part of the suite, together
+   with MCX, MMC and the MCX Studio GUI (mcxstudio), which helps one
+   design new simulations and review results. On Windows, the suite can
+   also be installed using "winget install coti.mcxstudio". The latest
+   automatically built packages can be found at [19]the nightly-build
+   folder.
 
-3.2. Source code
+3.2. Python module
+
+   The Python binding of MCXCL, pmcxcl, can be installed from [20]PyPI.
+   Binary wheels are provided for Linux (x86_64 and aarch64), macOS
+   (x86_64 and arm64) and Windows.
+
+ python3 -m pip install pmcxcl pmcx
+
+3.3. Source code
 
    MCXCL is open-source! You can download the latest source code at
-   [18]http://github.com/fangq/mcxcl.
+   [21]https://github.com/fangq/mcxcl.
 
 4. Tutorial
 
-   A tutorial on how to use MCX Studio GUI tool can be found below. The
-   tutorial uses MCX as an example; the procedures for using MCXCL is
-   almost the same, except that you need to select "NVIDIA/AMD/Intel
-   CPUs/GPUs" when creating the simulation. More tutorials can be found
-   [19]here.
-
-          [20][mcxstudio_tutorial_2.png]
+   To get started, run "mcxcl -L" to list the supported devices, and then
+   run a built-in benchmark, such as "mcxcl -Q cube60". Please see
+   README.md for details. Video tutorials on how to use the MCX tools can
+   be found [22]here.
 
    For tutorials to use the command line mcxcl binary, please check out
    the below tutorial:
 
-   [21]http://mcx.space/wiki/index.cgi?Demo/MCXCL
+   [23]https://mcx.space/wiki/index.cgi?Demo/MCXCL
 
 5. Acknowledgement
 
@@ -89,24 +107,26 @@ A GPU-accelerated MC for heterogeneous computing platforms
 
 References
 
-   1. http://mcx.space/wiki/index.cgi?action=rss
-   2. https://www.spiedigitallibrary.org/journals/journal-of-biomedical-optics/volume-23/issue-01/010504/Scalable-and-massively-parallel-Monte-Carlo-photon-transport-simulations-for/10.1117/1.JBO.23.1.010504.full?SSO=1#ArticleLink
-   3. http://mcx.space/wiki/index.cgi?MCXCL#Introduction
-   4. http://mcx.space/wiki/index.cgi?MCXCL#Supported_Devices_and_Simulation_Speed
-   5. http://mcx.space/wiki/index.cgi?MCXCL#Download
-   6. http://mcx.space/wiki/index.cgi?MCXCL#Binary_package
-   7. http://mcx.space/wiki/index.cgi?MCXCL#Source_code
-   8. http://mcx.space/wiki/index.cgi?MCXCL#Tutorial
-   9. http://mcx.space/wiki/index.cgi?MCXCL#Acknowledgement
-  10. http://mcx.space/
-  11. https://www.khronos.org/conformance/adopters/conformant-products/opencl
-  12. https://github.com/fangq/mcxcl/tree/master/example/benchmark
-  13. https://github.com/fangq/mcxcl_bench/blob/master/run_benchmarking.sh#L3
-  14. http://mcx.space/wiki/upload/mcxcl_benchmark_0118.png
-  15. http://mcx.space/wiki/index.cgi?Get
-  16. http://mcx.space/wiki/index.cgi?Learn#mcxstudio
-  17. http://mcx.space/wiki/index.cgi?Demo/MCXStudio
-  18. http://github.com/fangq/mcxcl
-  19. http://mcx.space/wiki/index.cgi?Demo/MCXStudio
-  20. http://mcx.space/tutorials/mcxstudio/4_How_to_design_a_simulation_and_visualize_the_results.htm
-  21. http://mcx.space/wiki/index.cgi?Demo/MCXCL
+   1. https://mcx.space/wiki/index.cgi?action=rss
+   2. https://doi.org/10.1117/1.JBO.23.1.010504
+   3. https://mcx.space/wiki/index.cgi?MCXCL#Introduction
+   4. https://mcx.space/wiki/index.cgi?MCXCL#Supported_Devices_and_Simulation_Speed
+   5. https://mcx.space/wiki/index.cgi?MCXCL#Download
+   6. https://mcx.space/wiki/index.cgi?MCXCL#Binary_package
+   7. https://mcx.space/wiki/index.cgi?MCXCL#Python_module
+   8. https://mcx.space/wiki/index.cgi?MCXCL#Source_code
+   9. https://mcx.space/wiki/index.cgi?MCXCL#Tutorial
+  10. https://mcx.space/wiki/index.cgi?MCXCL#Acknowledgement
+  11. https://mcx.space/
+  12. https://www.khronos.org/conformance/adopters/conformant-products/opencl
+  13. https://portablecl.org/
+  14. https://github.com/fangq/mcxcl/tree/master/example/benchmark
+  15. https://mcx.space/computebench/
+  16. https://mcx.space/wiki/upload/mcxcl_benchmark_0118.png
+  17. https://mcx.space/wiki/index.cgi?Get
+  18. https://github.com/fangq/mcxcl/releases
+  19. https://mcx.space/nightly/
+  20. https://pypi.org/project/pmcxcl/
+  21. https://github.com/fangq/mcxcl
+  22. https://mcx.space/wiki/index.cgi?Demo/MCXStudio
+  23. https://mcx.space/wiki/index.cgi?Demo/MCXCL

@@ -197,7 +197,7 @@ Method A: Running everything from your laptop
    Our developed MCX/MMC/MCXCL tools are packaged in a single zip file,
    available for you to download at
 
-   [34]http://mcx.space/nightly/
+   [34]https://mcx.space/nightly/
 
    Please click on the folder matching your operating system (for example,
    if you run a 64bit Windows, you need to navigate into win64 folder),
@@ -338,9 +338,9 @@ gq/Download/MCXStudio/Output/mcxclsessions/preptest" --outputformat mc2 --gpu 10
 ==============================================================================
 =                       Monte Carlo eXtreme (MCX) -- OpenCL                  =
 =          Copyright (c) 2010-2018 Qianqian Fang <q.fang at neu.edu>         =
-=                             http://mcx.space/                              =
+=                             https://mcx.space/                              =
 =                                                                            =
-= Computational Optics&Translational Imaging (COTI) Lab - http://fanglab.org =
+= Computational Optics&Translational Imaging (COTI) Lab - https://fanglab.org =
 =            Department of Bioengineering, Northeastern University           =
 ==============================================================================
 =    The MCX Project is funded by the NIH/NIGMS under grant R01-GM114365     =
@@ -481,38 +481,38 @@ lls will use mcxcl
    Feel free to try more simulations by browsing our screencast tutorial
    page at
 
-   [44]http://mcx.space/wiki/index.cgi?Demo/MCXStudio
+   [44]https://mcx.space/wiki/index.cgi?Demo/MCXStudio
 
    When you have difficulty running our codes using your hardware, please
    feel free post to [45]#MCXOSA18 hashtag on Twitter to get help.
 
 References
 
-   1. http://mcx.space/wiki/index.cgi?action=rss
-   2. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Preparation_of_your_Laptop
-   3. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_1_Verify_your_CPU_GPU_support
-   4. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Verify_GPU_CPU_support
-   5. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Laptops_without_discrete_GPUs
-   6. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Laptops_with_discrete_GPUs
-   7. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_2_Install_MATLAB
-   8. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_3_Download_the_MCXStudio_software_package
-   9. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Notes_for_Mac_Users
-  10. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Notes_for_Windows_Users
-  11. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_4_Start_MCXStudio_and_query_GPU_information
-  12. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_5_Run_a_trial_simulation
-  13. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_6_Test_MATLAB_for_visualization
-  14. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_7_Setting_up_MATLAB_search_path_for_MCXLAB_MMCLAB_training
-  15. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Final_suggestions
-  16. http://mcx.space/wiki/index.cgi?MCXCL
-  17. http://mcx.space/wiki/index.cgi?MMC
-  18. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodB
+   1. https://mcx.space/wiki/index.cgi?action=rss
+   2. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Preparation_of_your_Laptop
+   3. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_1_Verify_your_CPU_GPU_support
+   4. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Verify_GPU_CPU_support
+   5. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Laptops_without_discrete_GPUs
+   6. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Laptops_with_discrete_GPUs
+   7. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_2_Install_MATLAB
+   8. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_3_Download_the_MCXStudio_software_package
+   9. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Notes_for_Mac_Users
+  10. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Notes_for_Windows_Users
+  11. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_4_Start_MCXStudio_and_query_GPU_information
+  12. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_5_Run_a_trial_simulation
+  13. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_6_Test_MATLAB_for_visualization
+  14. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_7_Setting_up_MATLAB_search_path_for_MCXLAB_MMCLAB_training
+  15. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Final_suggestions
+  16. https://mcx.space/wiki/index.cgi?MCXCL
+  17. https://mcx.space/wiki/index.cgi?MMC
+  18. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodB
   19. https://twitter.com/hashtag/MCXOSA18?src=hash
-  20. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_6_Test_MATLAB_for_visualization
+  20. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_6_Test_MATLAB_for_visualization
   21. https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
   22. https://www.voidtools.com/
-  23. http://mcx.space/wiki/upload/windows_intel_gpu_verify.png
-  24. http://mcx.space/wiki/upload/windows_opencl_verify.png
-  25. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_2_Install_MATLAB
+  23. https://mcx.space/wiki/upload/windows_intel_gpu_verify.png
+  24. https://mcx.space/wiki/upload/windows_opencl_verify.png
+  25. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_2_Install_MATLAB
   26. https://downloadcenter.intel.com/download/24345/Intel-Driver-Support-Assistant
   27. https://www.intel.com/content/www/us/en/support/articles/000022440/graphics-drivers.html
   28. https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
@@ -521,15 +521,15 @@ References
   31. https://support.amd.com/en-us/download
   32. https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
   33. https://www.mathworks.com/campaigns/products/trials.html
-  34. http://mcx.space/nightly/
+  34. https://mcx.space/nightly/
   35. https://www.cnet.com/how-to/how-to-find-your-macs-home-folder-and-add-it-to-finder/
-  36. http://mcx.space/wiki/upload/windows_mcxstudio_verify.png
-  37. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_1_Verify_your_CPU_GPU_support
+  36. https://mcx.space/wiki/upload/windows_mcxstudio_verify.png
+  37. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_1_Verify_your_CPU_GPU_support
   38. https://software.intel.com/en-us/articles/opencl-drivers#latest_CPU_runtime
-  39. http://mcx.space/wiki/upload/matlab_path_verify.png
-  40. http://mcx.space/wiki/upload/matlab_gpu_verify.png
-  41. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_1_Verify_your_CPU_GPU_support
+  39. https://mcx.space/wiki/upload/matlab_path_verify.png
+  40. https://mcx.space/wiki/upload/matlab_gpu_verify.png
+  41. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodA#Step_1_Verify_your_CPU_GPU_support
   42. https://goo.gl/forms/n2BxesZgcL1D6piF3
-  43. http://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodB
-  44. http://mcx.space/wiki/index.cgi?Demo/MCXStudio
+  43. https://mcx.space/wiki/index.cgi?Workshop/MCX18Preparation/MethodB
+  44. https://mcx.space/wiki/index.cgi?Demo/MCXStudio
   45. https://twitter.com/hashtag/MCXOSA18?src=hash

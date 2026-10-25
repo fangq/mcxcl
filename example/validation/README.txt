@@ -8,7 +8,7 @@ index n=1 (without reflection) or n=1.37 (with reflection).
 The detailed report can be found in the paper Fang2009 
 Section 3.2 and Fig. 5.
 
-To run this example, you need to first compile the mcx
+To run this example, you need to first compile the mcxcl
 binary, and then run the run_validation.sh and 
 run_validation_b.sh scripts to run simulations for
 n=1 and n=1.37, respectively. Then you need to start
