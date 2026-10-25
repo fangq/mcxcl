@@ -32,16 +32,6 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-24.04' }}
         run: sudo apt-get update && sudo apt-get install -y ocl-icd-libopencl1 opencl-headers ocl-icd-opencl-dev octave-dev upx-ucl
       - name: Install dependencies (MacOS only)
-        if: ${{ runner.os == 'macOS' && matrix.os != 'macos-14' }}
-        run: |
-          curl -L -o Octave-9.2-Intel.dmg --insecure https://github.com/octave-app/octave-app/releases/download/v9.2/Octave-9.2-Intel.dmg
-          xattr -c Octave-*.dmg
-          sudo hdiutil attach Octave-9.2-Intel.dmg
-          sudo cp -a /Volumes/Octave\ 9.2/Octave-9.2.app /Applications
-          sudo hdiutil detach /Volumes/Octave\ 9.2
-          rm -rf Octave-9.2-Intel.dmg
-          echo "/Applications/Octave-9.2.app/Contents/Resources/usr/Cellar/octave-octapp@9.2.0/9.2.0/bin" >> $GITHUB_PATH
-      - name: Install dependencies (MacOS only)
         if: ${{ runner.os == 'macOS' }}
         run: |
           brew install octave
@@ -141,6 +131,19 @@ jobs:
           cd test
           ./testmcx.sh -G 1
           ./testtraj.sh -G 1
+      - name: Rebuild Linux release binaries for glibc 2.17 (manylinux2014)
+        if: ${{ matrix.os == 'ubuntu-22.04' }}
+        run: |
+          # built on this runner, every binary and mex file needs GLIBC_2.34 and
+          # does not start on Ubuntu 20.04 or older; the manylinux2014 (CentOS 7)
+          # image links them against glibc 2.17 and checks that they do
+          docker build --build-arg WITH_CUDA=0 -t mcx-linux-release-builder .github/linux_release_builder
+          MLROOT=$(dirname "$(dirname "$(readlink -f "$(which matlab)")")")
+          OCTINC=$(dirname "$(dirname "$(find /usr/include -path '*/octave/mex.h' | head -1)")")
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/src" \
+              -v "$MLROOT:$MLROOT:ro" -e MATLAB_ROOT="$MLROOT" \
+              -v "$OCTINC:/octinc:ro" -e OCTAVE_INCDIR=/octinc \
+              mcx-linux-release-builder bash .github/linux_release_builder/build_mcxcl.sh
       - name: Create package folder
         run: |
           mkdir packages
