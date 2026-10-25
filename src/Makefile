@@ -34,7 +34,9 @@ OUTPUTFLAG:=-o
 XXD=xxd
 
 ZMATLIB    :=lib/libzmat.a
-USERLINKOPT?=$(ZMATLIB)
+# zmat deflates and inflates zlib/gzip in parallel with pthreads; after libzmat.a
+ZMATLINK   :=-lpthread
+USERLINKOPT?=$(ZMATLIB) $(ZMATLINK)
 DOXYCFG=mcx_doxygen.cfg
 
 #################################################################
@@ -117,7 +119,7 @@ ifeq ($(findstring CYGWIN,$(PLATFORM)), CYGWIN)
   MEX        :=cmd /c mex.bat -v -f mexopts_msys2_gcc.xml
   DLLFLAG=
   ZMATLIB    :=zmat/zmatlib.o zmat/miniz/miniz.o zmat/lz4/lz4.o zmat/lz4/lz4hc.o zmat/easylzma/*.o zmat/easylzma/lzma/*.o
-  USERLINKOPT:=$(ZMATLIB)
+  USERLINKOPT:=$(ZMATLIB) $(ZMATLINK)
   MEXLINKLIBS="\$$LINKLIBS"
 else ifeq ($(findstring MINGW64,$(PLATFORM)), MINGW64)
   MW_MINGW64_LOC?=/c/msys64/usr

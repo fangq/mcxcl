@@ -11,7 +11,11 @@ project(zmat)
 option(STATIC_LIB "Build static library" ON)
 
 # C Options
-set(CMAKE_C_FLAGS "-g -Wall -O3 -fPIC")
+if(MSVC)
+    set(CMAKE_C_FLAGS "-O2")
+else()
+    set(CMAKE_C_FLAGS "-g -Wall -O3 -fPIC")
+endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/../)
 
 # Add include directories
@@ -79,15 +83,16 @@ target_compile_definitions(zmat PRIVATE
     _LARGEFILE64_SOURCE=1
 )
 
-# The bundled LZMA SDK pulls in the multithreaded encoder/decoder paths
-# (Lzma2Enc/MtCoder/MtDec/LzFindMt), so the compressor must link against a
-# threading library. Match the Makefile, which enables COMPRESS_MF_MT and
-# links -pthread on non-Windows platforms. Use PUBLIC so the pthread
-# dependency propagates to targets that link the static zmat library.
+# The block-parallel zlib/gzip (zmat_run_indexed, zmat_encode) and the
+# multithreaded LZMA SDK paths (Lzma2Enc/MtCoder/MtDec/LzFindMt) need a
+# threading library: pthreads, or Win32 threads with MSVC. Match the Makefile,
+# which enables COMPRESS_MF_MT and links -pthread on non-Windows platforms.
+# PUBLIC so the dependency propagates to targets that link the static zmat.
 if(NOT WIN32)
     target_compile_definitions(zmat PRIVATE COMPRESS_MF_MT)
 endif()
 
+set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 target_link_libraries(zmat PUBLIC Threads::Threads)
 
