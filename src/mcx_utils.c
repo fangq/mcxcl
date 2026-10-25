@@ -933,7 +933,9 @@ void mcx_savedata(float* dat, size_t len, Config* cfg) {
             dims[5] *= cfg->detnum;
         }
 
-        if (cfg->seed == SEED_FROM_FILE && (cfg->outputtype == otRF || cfg->outputtype == otRFmus)) {
+        /* the real and imaginary parts: RF replay, and RF forward (omega > 0) */
+        if ((cfg->seed == SEED_FROM_FILE && (cfg->outputtype == otRF || cfg->outputtype == otRFmus)) ||
+                (cfg->outputtype == otRF && cfg->seed != SEED_FROM_FILE && cfg->omega > 0.f)) {
             dims[5] *= 2;
         }
 

@@ -1565,6 +1565,12 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             }
 
             free(scale);
+        } else if (cfg->issave2pt && (cfg->outputtype == otWLTOF || cfg->outputtype == otWPTOF) && cfg->exportfield) {
+            /* unnormalized wltof/wptof output: the kernel accumulates the time-of-flight in
+               nanoseconds only so that the double-buffer engages, an internal precision measure
+               rather than a change of unit, so it is undone here too and the raw output stays in
+               seconds, as with normalization (mcx 585f607) */
+            mcx_normalize(cfg->exportfield, 1e-9f, fieldlen, 0, 1);
         }
 
         /* Adjoint post-processing: phi_src * phi_det (or grad.grad) per voxel */
