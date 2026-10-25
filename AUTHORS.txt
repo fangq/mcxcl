@@ -1,5 +1,5 @@
 Monte Carlo eXtreme for OpenCL (MCX-CL) was written by Qianqian Fang.
-Qianqian is currently an Associate Professor in the 
+Qianqian is currently a Professor in the 
 Department of Bioengineering at Northeastern University, USA.
 
 Address: Dept. of Bioengineering
