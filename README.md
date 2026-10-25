@@ -105,8 +105,23 @@ In addition, this release contains the following fixes and improvements
 * the released Linux binaries and mex files are built in a manylinux2014 container and
   run on glibc 2.17 or newer; Octave mex files for Windows and macOS are built against
   Octave 10 (`liboctmex`)
-* input parsing is hardened by fuzzing the JSON inputs and command line options; invalid
-  `-u`, `-W`, `-K` and `-Z` values now stop with an error instead of crashing or hanging
+* unit tests and coverage: host-side unit tests (`make unittest`, 560 checks) raise the
+  line coverage of the host code to about 95%, and the 141 built-in example tests of MCX
+  run with MCX-CL against golden values; the bugs these tests found were fixed
+* fuzzing: four rounds of JSON-aware mutation fuzzing of the input files and of the
+  command-line options, run on AddressSanitizer builds of mcx, mcxcl and mmc; every
+  crash, hang and memory error they found was fixed
+* hardening: JSON arrays are length-checked before use; JData arrays must carry valid
+  annotations and decode to their declared size; optical properties, time gates, SrcNum,
+  the voxel size (`-u`), the roulette threshold (`-e`), device workloads (`-W`), media
+  formats (`-K`) and compression methods (`-Z`) are validated; invalid input now stops
+  with an error message instead of crashing or hanging
+* fixes found by fuzzing: the step length is no longer divided by a zero effective
+  scattering coefficient (mus=0, or g=1 once `--gscatter` is reached), which hung the
+  kernel; `-e` of 1 or more no longer relaunches photons forever; RF forward output now
+  keeps its imaginary part in .jnii/.bnii files
+* `Session.OutputType` in JSON inputs accepts the names mcxlabcl and pmcxcl use ("flux",
+  ...); only the first letter used to be read, so "flux" gave fluence
 * `-r` now repeats or splits the photons as documented; a time step of 0 is treated as
   a single time gate; `--dumpjson`, `mcx2json` and `json2mcx` round-trip all settings
 * fixed the svmc mismatch with MCX, a hang with interior label-0 regions, and the
