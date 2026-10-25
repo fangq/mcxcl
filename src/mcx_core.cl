@@ -2821,9 +2821,13 @@ __kernel void mcx_main_loop(
 
         /*--- Advance photon to next voxel boundary ---*/
         f.z = hitgrid(&p, &v, &flipdir);
-        float slen = f.z * prop.y * (v.w + 1.f > GPU_PARAM(gcfg, gscatter) ? (1.f - prop.z) : 1.f);
+        /* the scattering coefficient in effect: mus, or mus*(1-g) once the photon has
+           scattered gscatter times -- 0 for g=1 then, as for mus=0, and a photon that
+           does not scatter just moves to the next voxel rather than by 0/0 */
+        float musp = prop.y * (v.w + 1.f > GPU_PARAM(gcfg, gscatter) ? (1.f - prop.z) : 1.f);
+        float slen = f.z * musp;
         slen = fmin(slen, f.x);
-        f.z = native_divide(slen, prop.y * (v.w + 1.f > GPU_PARAM(gcfg, gscatter) ? (1.f - prop.z) : 1.f));
+        f.z = (musp == 0.f) ? f.z : native_divide(slen, musp);
 
         GPUDEBUG(("p=[%f %f %f] -> <%f %f %f>*%f -> flip=%d\n", p.x, p.y, p.z, v.x, v.y, v.z, f.z, flipdir.w));
 
