@@ -7,9 +7,9 @@
 %   J_mua(r) = -phi_src(r) * phi_det(r) * dV      [mua sensitivity]
 %   J_D(r)   = -grad(phi_src) . grad(phi_det) * dV [diffusion-coeff sensitivity]
 %
-% Output: flux.data is complex [Nx, Ny, Nz, Ns*Nd, 2]
-%   flux.data(:,:,:,:,1)  ->  J_mua  (same as outputtype='adjoint')
-%   flux.data(:,:,:,:,2)  ->  J_D    (same as outputtype='adjoint_dcoeff')
+% Output: flux.jmua and flux.jd are each complex [Nx, Ny, Nz, Ns*Nd]
+%   flux.jmua  ->  J_mua  (same as outputtype='adjoint')
+%   flux.jd    ->  J_D    (same as outputtype='adjoint_dcoeff')
 %
 % Both are validated against Redbird FEM diffusion.  Agreement is expected in
 % the diffusive regime (away from source/boundary).
