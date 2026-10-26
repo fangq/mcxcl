@@ -3574,7 +3574,7 @@ static inline float mcx_fd_grad(__global const float* field, unsigned int vox, u
 /**
  * @brief Adjoint D-coefficient Jacobian kernel: ∇φ_src · ∇φ_det per voxel.
  *
- * For each voxel, computes J_D(s,d) = ∇φ_src · ∇φ_det in voxel units.
+ * For each voxel and each channel (s,d) of gsdmap, computes J_D(s,d) = ∇φ_src · ∇φ_det in voxel units.
  * For RF (complex) mode, gfield_im must be non-NULL and the complex dot product is computed:
  *   Re(J_D) = ∇Re(φ_src)·∇Re(φ_det) − ∇Im(φ_src)·∇Im(φ_det)
  *   Im(J_D) = ∇Re(φ_src)·∇Im(φ_det) + ∇Im(φ_src)·∇Re(φ_det)
@@ -3582,14 +3582,14 @@ static inline float mcx_fd_grad(__global const float* field, unsigned int vox, u
 #ifdef __NVCC__
 __global__ void mcx_adjoint_dcoeff_kernel(float* gfield_re, float* gfield_im, float* gadjoint,
         unsigned int dimxyz, unsigned int maxgate,
-        unsigned int Ns, unsigned int Nd,
+        unsigned int Ns, const unsigned int* gsdmap, unsigned int nch,
         unsigned int Nx, unsigned int Ny) {
     unsigned int vox = blockIdx.x * blockDim.x + threadIdx.x;
 #else
 __kernel void mcx_adjoint_dcoeff_kernel(__global float* gfield_re, __global float* gfield_im,
                                         __global float* gadjoint,
                                         unsigned int dimxyz, unsigned int maxgate,
-                                        unsigned int Ns, unsigned int Nd,
+                                        unsigned int Ns, __global const unsigned int* gsdmap, unsigned int nch,
                                         unsigned int Nx, unsigned int Ny) {
     unsigned int vox = get_global_id(0);
 #endif
@@ -3604,38 +3604,45 @@ __kernel void mcx_adjoint_dcoeff_kernel(__global float* gfield_re, __global floa
     unsigned int iy  = (vox / Nx) % Ny;
     unsigned int iz  = vox / Nxy;
 
-    size_t adjointlen = (size_t)dimxyz * Ns * Nd;
+    size_t adjointlen = (size_t)dimxyz * nch;
+    unsigned int lasts = 0xFFFFFFFFu;
+    float gsx_re = 0.f, gsy_re = 0.f, gsz_re = 0.f, gsx_im = 0.f, gsy_im = 0.f, gsz_im = 0.f;
 
-    for (unsigned int s = 0; s < Ns; s++) {
-        float gsx_re = mcx_fd_grad(gfield_re, vox, s, maxgate, dimxyz, ix, Nx, 1);
-        float gsy_re = mcx_fd_grad(gfield_re, vox, s, maxgate, dimxyz, iy, Ny, Nx);
-        float gsz_re = mcx_fd_grad(gfield_re, vox, s, maxgate, dimxyz, iz, Nz, Nxy);
-        float gsx_im = 0.f, gsy_im = 0.f, gsz_im = 0.f;
+    /* one output per channel (source-detector pair of gsdmap); the source gradient is reused
+       while consecutive channels share the source */
+    for (unsigned int c = 0; c < nch; c++) {
+        unsigned int s = gsdmap[c << 1], d = gsdmap[(c << 1) + 1];
 
-        if (gfield_im != 0) {
-            gsx_im = mcx_fd_grad(gfield_im, vox, s, maxgate, dimxyz, ix, Nx, 1);
-            gsy_im = mcx_fd_grad(gfield_im, vox, s, maxgate, dimxyz, iy, Ny, Nx);
-            gsz_im = mcx_fd_grad(gfield_im, vox, s, maxgate, dimxyz, iz, Nz, Nxy);
-        }
-
-        for (unsigned int d = 0; d < Nd; d++) {
-            float gdx_re = mcx_fd_grad(gfield_re, vox, Ns + d, maxgate, dimxyz, ix, Nx, 1);
-            float gdy_re = mcx_fd_grad(gfield_re, vox, Ns + d, maxgate, dimxyz, iy, Ny, Nx);
-            float gdz_re = mcx_fd_grad(gfield_re, vox, Ns + d, maxgate, dimxyz, iz, Nz, Nxy);
-
-            unsigned int out_idx = vox + (unsigned int)((size_t)(s * Nd + d) * dimxyz);
-            gadjoint[out_idx] = gsx_re * gdx_re + gsy_re * gdy_re + gsz_re * gdz_re;
+        if (s != lasts) {
+            gsx_re = mcx_fd_grad(gfield_re, vox, s, maxgate, dimxyz, ix, Nx, 1);
+            gsy_re = mcx_fd_grad(gfield_re, vox, s, maxgate, dimxyz, iy, Ny, Nx);
+            gsz_re = mcx_fd_grad(gfield_re, vox, s, maxgate, dimxyz, iz, Nz, Nxy);
 
             if (gfield_im != 0) {
-                float gdx_im = mcx_fd_grad(gfield_im, vox, Ns + d, maxgate, dimxyz, ix, Nx, 1);
-                float gdy_im = mcx_fd_grad(gfield_im, vox, Ns + d, maxgate, dimxyz, iy, Ny, Nx);
-                float gdz_im = mcx_fd_grad(gfield_im, vox, Ns + d, maxgate, dimxyz, iz, Nz, Nxy);
-
-                gadjoint[out_idx] -= gsx_im * gdx_im + gsy_im * gdy_im + gsz_im * gdz_im;
-                gadjoint[out_idx + (unsigned int)(adjointlen)] =
-                    gsx_re * gdx_im + gsy_re * gdy_im + gsz_re * gdz_im
-                    + gsx_im * gdx_re + gsy_im * gdy_re + gsz_im * gdz_re;
+                gsx_im = mcx_fd_grad(gfield_im, vox, s, maxgate, dimxyz, ix, Nx, 1);
+                gsy_im = mcx_fd_grad(gfield_im, vox, s, maxgate, dimxyz, iy, Ny, Nx);
+                gsz_im = mcx_fd_grad(gfield_im, vox, s, maxgate, dimxyz, iz, Nz, Nxy);
             }
+
+            lasts = s;
+        }
+
+        float gdx_re = mcx_fd_grad(gfield_re, vox, Ns + d, maxgate, dimxyz, ix, Nx, 1);
+        float gdy_re = mcx_fd_grad(gfield_re, vox, Ns + d, maxgate, dimxyz, iy, Ny, Nx);
+        float gdz_re = mcx_fd_grad(gfield_re, vox, Ns + d, maxgate, dimxyz, iz, Nz, Nxy);
+
+        size_t out_idx = vox + (size_t)c * dimxyz;
+        gadjoint[out_idx] = gsx_re * gdx_re + gsy_re * gdy_re + gsz_re * gdz_re;
+
+        if (gfield_im != 0) {
+            float gdx_im = mcx_fd_grad(gfield_im, vox, Ns + d, maxgate, dimxyz, ix, Nx, 1);
+            float gdy_im = mcx_fd_grad(gfield_im, vox, Ns + d, maxgate, dimxyz, iy, Ny, Nx);
+            float gdz_im = mcx_fd_grad(gfield_im, vox, Ns + d, maxgate, dimxyz, iz, Nz, Nxy);
+
+            gadjoint[out_idx] -= gsx_im * gdx_im + gsy_im * gdy_im + gsz_im * gdz_im;
+            gadjoint[out_idx + adjointlen] =
+                gsx_re * gdx_im + gsy_re * gdy_im + gsz_re * gdz_im
+                + gsx_im * gdx_re + gsy_im * gdy_re + gsz_im * gdz_re;
         }
     }
 }
@@ -3643,7 +3650,7 @@ __kernel void mcx_adjoint_dcoeff_kernel(__global float* gfield_re, __global floa
 /**
  * @brief Adjoint Jacobian kernel: φ_src(r) × φ_det(r) per voxel.
  *
- * Integrates all time gates, then for each source-detector pair computes the
+ * Integrates all time gates, then for each source-detector pair (channel) of gsdmap computes the
  * (complex) product of CW fluences. For RF mode, gfield_im must be non-NULL.
  *   Re(J) = Re(φ_src)*Re(φ_det) − Im(φ_src)*Im(φ_det)
  *   Im(J) = Re(φ_src)*Im(φ_det) + Im(φ_src)*Re(φ_det)
@@ -3651,13 +3658,13 @@ __kernel void mcx_adjoint_dcoeff_kernel(__global float* gfield_re, __global floa
 #ifdef __NVCC__
 __global__ void mcx_adjoint_kernel(float* gfield_re, float* gfield_im, float* gadjoint,
                                    unsigned int dimxyz, unsigned int maxgate,
-                                   unsigned int Ns, unsigned int Nd) {
+                                   unsigned int Ns, const unsigned int* gsdmap, unsigned int nch) {
     unsigned int vox = blockIdx.x * blockDim.x + threadIdx.x;
 #else
 __kernel void mcx_adjoint_kernel(__global float* gfield_re, __global float* gfield_im,
                                  __global float* gadjoint,
                                  unsigned int dimxyz, unsigned int maxgate,
-                                 unsigned int Ns, unsigned int Nd) {
+                                 unsigned int Ns, __global const unsigned int* gsdmap, unsigned int nch) {
     unsigned int vox = get_global_id(0);
 #endif
 
@@ -3665,38 +3672,47 @@ __kernel void mcx_adjoint_kernel(__global float* gfield_re, __global float* gfie
         return;
     }
 
-    size_t adjointlen = (size_t)dimxyz * Ns * Nd;
+    size_t adjointlen = (size_t)dimxyz * nch;
+    unsigned int lasts = 0xFFFFFFFFu;
+    float cw_src_re = 0.f, cw_src_im = 0.f;
 
-    for (unsigned int s = 0; s < Ns; s++) {
-        float cw_src_re = 0.f, cw_src_im = 0.f;
+    /* one output per channel (source-detector pair of gsdmap); the time-integrated source
+       fluence is reused while consecutive channels share the source */
+    for (unsigned int c = 0; c < nch; c++) {
+        unsigned int s = gsdmap[c << 1], d = gsdmap[(c << 1) + 1];
 
-        for (unsigned int t = 0; t < maxgate; t++) {
-            unsigned int idx = vox + (unsigned int)((size_t)(t + s * maxgate) * dimxyz);
-            cw_src_re += gfield_re[idx];
-
-            if (gfield_im != 0) {
-                cw_src_im += gfield_im[idx];
-            }
-        }
-
-        for (unsigned int d = 0; d < Nd; d++) {
-            float cw_det_re = 0.f, cw_det_im = 0.f;
+        if (s != lasts) {
+            cw_src_re = 0.f;
+            cw_src_im = 0.f;
 
             for (unsigned int t = 0; t < maxgate; t++) {
-                unsigned int idx = vox + (unsigned int)((size_t)(t + (Ns + d) * maxgate) * dimxyz);
-                cw_det_re += gfield_re[idx];
+                size_t idx = vox + (size_t)(t + s * maxgate) * dimxyz;
+                cw_src_re += gfield_re[idx];
 
                 if (gfield_im != 0) {
-                    cw_det_im += gfield_im[idx];
+                    cw_src_im += gfield_im[idx];
                 }
             }
 
-            unsigned int out_idx = vox + (unsigned int)((size_t)(s * Nd + d) * dimxyz);
-            gadjoint[out_idx] = cw_src_re * cw_det_re - cw_src_im * cw_det_im;
+            lasts = s;
+        }
+
+        float cw_det_re = 0.f, cw_det_im = 0.f;
+
+        for (unsigned int t = 0; t < maxgate; t++) {
+            size_t idx = vox + (size_t)(t + (Ns + d) * maxgate) * dimxyz;
+            cw_det_re += gfield_re[idx];
 
             if (gfield_im != 0) {
-                gadjoint[out_idx + (unsigned int)(adjointlen)] = cw_src_re * cw_det_im + cw_src_im * cw_det_re;
+                cw_det_im += gfield_im[idx];
             }
+        }
+
+        size_t out_idx = vox + (size_t)c * dimxyz;
+        gadjoint[out_idx] = cw_src_re * cw_det_re - cw_src_im * cw_det_im;
+
+        if (gfield_im != 0) {
+            gadjoint[out_idx + adjointlen] = cw_src_re * cw_det_im + cw_src_im * cw_det_re;
         }
     }
 }

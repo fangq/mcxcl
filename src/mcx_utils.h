@@ -191,6 +191,8 @@ typedef struct MCXConfig {
     POLMedium* polprop;           /**<absorption and scatterer mapping table for polarized photon simulation*/
     float4* detpos;               /**<detector positions and radius, overwrite detradius*/
     float4* detdir;               /**<detector normal direction and focal length (for adjoint output type)*/
+    unsigned int* sdmap;          /**<adjoint Jacobian channels: 0-based (source, detector) index pairs, 2*sdmaplen values; NULL for all Ns x Nd pairs*/
+    unsigned int sdmaplen;        /**<number of channels (rows) in sdmap*/
     float4* smatrix;              /**<scattering Mueller matrix */
 
     unsigned int maxgate;         /**<simultaneous recording gates*/
@@ -336,6 +338,8 @@ void mcx_replayprep(int* detid, float* ppath, History* his, Config* cfg);
 void mcx_loadbenchmark(char* key, Config* cfg);
 void mcx_replayinit(Config* cfg, float* detps, int dimdetps[2], int seedbyte);
 void mcx_validatecfg(Config* cfg, float* detps, int dimdetps[2], int seedbyte);
+unsigned int mcx_jacchannels(Config* cfg);
+unsigned int* mcx_getsdmap(Config* cfg);
 int  mcx_float2half2(float input[2]);
 float mcx_half2float(unsigned short h);
 

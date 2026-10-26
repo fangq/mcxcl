@@ -674,6 +674,7 @@ The fields MCX-CL reads:
 | `Source.Frequency` | modulation frequency (Hz) for frequency-domain (RF) outputs |
 | `Source.IQUV`, `Source.WaveLength` | Stokes vector and wavelength (nm) for polarized MC |
 | `Detector` | array of `{"Pos": [x,y,z], "R": radius}`, and `"Dir"` for the adjoint outputs |
+| `SDMap` | channels of the adjoint Jacobians: an array of `[srcid, detid]` arrays (1-based; extra values ignored); default: all source-detector pairs |
 
 `Optode.Source` can also be an array of sources, each with its own `Type`, `Pos`,
 `Dir` and parameters. Several examples are in the `example/` folder, for example
@@ -869,6 +870,10 @@ Output quantities, files and formats
 | `V` | `adjoint_musp` | adjoint mus' Jacobian |
 | `W` | `adjoint_mua_d` | adjoint mua and D Jacobians together |
 | `Q` | `adjoint_mua_musp` | adjoint mua and mus' Jacobians together |
+
+The adjoint Jacobians have one channel per source-detector pair, `[Nx,Ny,Nz,Ns*Nd]`
+with the detector index varying the fastest; `Optode.SDMap` (`cfg.sdmap`), a list of
+1-based `[srcid, detid]` rows, computes only those channels, in that order.
 
 ### Interpreting the fluence
 

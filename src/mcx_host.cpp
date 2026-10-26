@@ -1578,9 +1578,9 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             int isrf    = isrfforward;
             int isdual  = MCX_IS_DUAL_ADJOINT_TYPE(cfg->outputtype);
             unsigned int Ns = cfg->extrasrclen + 1 - cfg->detnum;
-            unsigned int Nd = cfg->detnum;
+            cl_uint nch = (cl_uint)mcx_jacchannels(cfg); /* Ns*Nd, or the rows of cfg.sdmap */
             unsigned int pure_voxels = (unsigned int)(cfg->dim.x * cfg->dim.y * cfg->dim.z);
-            size_t adjointlen    = (size_t)pure_voxels * Ns * Nd;
+            size_t adjointlen    = (size_t)pure_voxels * nch;
             size_t single_exportlen = adjointlen * (isrf ? 2 : 1);
             size_t exportlen_adj = single_exportlen * (isdual ? 2 : 1);
 
@@ -1595,6 +1595,12 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
             cl_mem gadjoint_mua = NULL, gadjoint_tmp = NULL;
             float* hmua = NULL, *hsecond = NULL;
+
+            /* the 0-based (source, detector) pair of each Jacobian channel */
+            unsigned int* hsdmap = mcx_getsdmap(cfg);
+            cl_mem gsdmap = clCreateBuffer(mcxcontext, RO_MEM, sizeof(cl_uint) * 2 * (nch > 0 ? nch : 1), hsdmap, &status);
+            OCL_ASSERT(status);
+            free(hsdmap);
 
             if (isdual) {
                 gadjoint_mua = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, sizeof(float) * single_exportlen, NULL, &status);
@@ -1618,7 +1624,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                 cl_uint mgval = (cl_uint)cfg->maxgate;
                 OCL_ASSERT(clSetKernelArg(kadj, 4, sizeof(cl_uint), &mgval));
                 OCL_ASSERT(clSetKernelArg(kadj, 5, sizeof(cl_uint), &Ns));
-                OCL_ASSERT(clSetKernelArg(kadj, 6, sizeof(cl_uint), &Nd));
+                OCL_ASSERT(clSetKernelArg(kadj, 6, sizeof(cl_mem), &gsdmap));
+                OCL_ASSERT(clSetKernelArg(kadj, 7, sizeof(cl_uint), &nch));
                 OCL_ASSERT(clEnqueueNDRangeKernel(mcxqueue[0], kadj, 1, NULL, &adjgridsize, &adjblocksize, 0, NULL, NULL));
                 OCL_ASSERT(clFinish(mcxqueue[0]));
                 clReleaseKernel(kadj);
@@ -1637,15 +1644,17 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                 cl_uint mgval = (cl_uint)cfg->maxgate;
                 OCL_ASSERT(clSetKernelArg(kadj2, 4, sizeof(cl_uint), &mgval));
                 OCL_ASSERT(clSetKernelArg(kadj2, 5, sizeof(cl_uint), &Ns));
-                OCL_ASSERT(clSetKernelArg(kadj2, 6, sizeof(cl_uint), &Nd));
-                OCL_ASSERT(clSetKernelArg(kadj2, 7, sizeof(cl_uint), &Nx));
-                OCL_ASSERT(clSetKernelArg(kadj2, 8, sizeof(cl_uint), &Ny));
+                OCL_ASSERT(clSetKernelArg(kadj2, 6, sizeof(cl_mem), &gsdmap));
+                OCL_ASSERT(clSetKernelArg(kadj2, 7, sizeof(cl_uint), &nch));
+                OCL_ASSERT(clSetKernelArg(kadj2, 8, sizeof(cl_uint), &Nx));
+                OCL_ASSERT(clSetKernelArg(kadj2, 9, sizeof(cl_uint), &Ny));
                 OCL_ASSERT(clEnqueueNDRangeKernel(mcxqueue[0], kadj2, 1, NULL, &adjgridsize, &adjblocksize, 0, NULL, NULL));
                 OCL_ASSERT(clFinish(mcxqueue[0]));
                 clReleaseKernel(kadj2);
             }
 
             clReleaseMemObject(gfield_re);
+            clReleaseMemObject(gsdmap);
 
             if (gfield_im) {
                 clReleaseMemObject(gfield_im);
@@ -1688,7 +1697,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                             }
                         }
 
-                        for (unsigned int sd = 0; sd < Ns * Nd; sd++) {
+                        for (unsigned int sd = 0; sd < nch; sd++) {
                             hsecond[vox + (size_t)sd * pure_voxels] *= opscale;
 
                             if (isrf) {
@@ -1736,7 +1745,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                             }
                         }
 
-                        for (unsigned int sd = 0; sd < Ns * Nd; sd++) {
+                        for (unsigned int sd = 0; sd < nch; sd++) {
                             cfg->exportjacob[vox + (size_t)sd * pure_voxels] *= opscale;
 
                             if (isrf) {
@@ -1758,7 +1767,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             /* the adjoint modes save the Jacobians, whose dimensions mcx_savedata uses, rather
                than the forward fluence of each source/detector slot kept in exportfield */
             if (MCX_IS_ADJOINT_TYPE(cfg->outputtype) && cfg->exportjacob && cfg->seed != SEED_FROM_FILE && cfg->detdir != NULL) {
-                size_t jacoblen = (size_t)cfg->dim.x * cfg->dim.y * cfg->dim.z * (cfg->extrasrclen + 1 - cfg->detnum) * cfg->detnum
+                size_t jacoblen = (size_t)cfg->dim.x * cfg->dim.y * cfg->dim.z * mcx_jacchannels(cfg)
                                   * (MCX_IS_DUAL_ADJOINT_TYPE(cfg->outputtype) ? 2 : 1) * ((cfg->omega > 0.f) ? 2 : 1);
                 mcx_savedata(cfg->exportjacob, jacoblen, cfg);
             } else {
