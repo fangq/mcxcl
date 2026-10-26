@@ -20,7 +20,7 @@ function varargout = mcxlabcl(varargin)
 %    Request only the outputs you need: each extra output costs memory and
 %    time. The detphoton, seeds and traj outputs are only produced when they
 %    are requested, and [~, detphoton] = mcxlabcl(cfg) skips the fluence
-%    volume in Octave.
+%    volume in Octave (set cfg.issave2pt=0 to do the same in MATLAB).
 %
 % Input:
 %    cfg: a struct, or a struct array; each element is one simulation.
@@ -35,8 +35,9 @@ function varargout = mcxlabcl(varargin)
 %    A variable USE_MCXCL in the base workspace changes the default for all
 %    following mcxlab/mcxlabcl calls: USE_MCXCL=1 makes both use mcxcl.mex*,
 %    USE_MCXCL=0 makes both use mcx.mex*; option='opencl'/'cuda' still
-%    overrides it. With mcxcl.mex*, USE_MCXCL set to an integer N>1 (or a
-%    device string such as '0101') also replaces cfg.gpuid by N.
+%    overrides it. USE_MCXCL set to an integer N>1 (or a device string such
+%    as '0101') also selects mcxcl.mex* and replaces cfg.gpuid by N; set to
+%    -N, it selects mcx.mex* and replaces cfg.gpuid by N.
 %
 %    Fields marked with * are required; values in [] are the defaults.
 %    Lengths are in grid (voxel) units unless stated otherwise; cfg.unitinmm
@@ -265,10 +266,16 @@ function varargout = mcxlabcl(varargin)
 %                      Examples: <demo_mcxlab_replay.m>, <demo_replay_timedomain.m>,
 %                      <demo_replay_frequencydomain.m>,
 %                      <demo_validate_mcx_adjoint_jacobian.m>
+%      cfg.issave2pt:  [1]: compute the 1st output; 0: skip it, which is faster
+%                      when only detphoton is needed
 %      cfg.issaveref:  1: save the diffuse reflectance in fluence.dref [0]; it is
 %                      recorded in the background voxels next to the domain, so
 %                      pad cfg.vol with a layer of 0s where it is wanted
 %      cfg.session:    a name for the output files, used when mcxlabcl returns nothing
+%      cfg.flog:       where the log goes [2]: 2 stderr (the MATLAB/Octave console),
+%                      1 or 0 stdout, or a file name (appended)
+%      cfg.lang:       language of the log: zh_CN, zh_TW, ja_JP, fr_CA, es_MX, de_DE,
+%                      ko_KR, hi_IN or pt_BR
 %
 % == Replay ==
 %      Replaying the detected photons of a baseline run, with cfg.seed set to its
@@ -308,7 +315,6 @@ function varargout = mcxlabcl(varargin)
 %                        'R' fill the 1st output with random numbers to test the RNG
 %      cfg.maxjumpdebug: the most trajectory positions recorded [10000000]
 %      cfg.istrajstokes: 1: also record the Stokes vector along trajectories [0]
-%      cfg.printnum:   print the final state of this many photons [0]
 %
 %      accepted but without effect (legacy): cfg.isref3, cfg.isrefint,
 %      cfg.sradius, cfg.crop0, cfg.crop1, cfg.faststep, cfg.steps (an alias
@@ -404,6 +410,8 @@ if (nargin == 2 && ischar(varargin{2}))
     if (strcmp(varargin{2}, 'preview'))
         [varargout{1:nargout}] = mcxpreview(varargin{1});
         return
+    elseif (strcmp(varargin{2}, 'opencl'))
+        useopencl = 1;
     elseif (strcmp(varargin{2}, 'cuda'))
         useopencl = 0;
     end
@@ -421,8 +429,7 @@ if (isstruct(varargin{1}))
                     'respin', 'isref3', 'isrefint', 'isgpuinfo', 'issrcfrom0', 'autopilot', 'minenergy', 'unitinmm', ...
                     'voidtime', 'issavedet', 'issaveseed', 'issaveref', 'issaveexit', 'ismomentum', 'isspecular', ...
                     'replaydet', 'maxvoidstep', 'maxjumpdebug', 'gscatter', 'srcnum', 'srcid', 'omega', 'issave2pt', ...
-                    'lambda', 'steps', 'crop0', 'crop1', 'printnum', 'istrajstokes', 'optlevel', 'isatomic', ...
-                    'internalsrc'};
+                    'lambda', 'steps', 'crop0', 'crop1', 'istrajstokes', 'optlevel', 'isatomic', 'internalsrc'};
         for j = 1:length(castlist)
             if (isfield(varargin{1}(i), castlist{j}))
                 varargin{1}(i).(castlist{j}) = double(varargin{1}(i).(castlist{j}));
@@ -534,6 +541,8 @@ if (nargout >= 2)
             flags = {cfg(i).savedetflag};
             if (isfield(cfg(i), 'issaveref'))
                 flags{end + 1} = cfg(i).issaveref;
+            else
+                flags{end + 1} = 0;
             end
             if (isfield(cfg(i), 'srcnum'))
                 flags{end + 1} = cfg(i).srcnum;

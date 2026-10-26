@@ -204,7 +204,7 @@ cJSON* mcx_lang = NULL;  /**< JSON object to store translations for supported la
 void mcx_initcfg(Config* cfg) {
     cfg->tstart = 0.f;
     cfg->tend = 5e-9f;
-    cfg->tstep = 5e-9f;
+    cfg->tstep = VERY_BIG;
     cfg->medianum = 0;
     cfg->polmedianum = 0;
     cfg->mediabyte = 1;
@@ -2239,8 +2239,8 @@ void mcx_validatecfg(Config* cfg, float* detps, int dimdetps[2], int seedbyte) {
         }
     }
 
-    if (cfg->tstep == 0.f) {
-        cfg->tstep = cfg->tend;  /* one time gate, as in mcx */
+    if (cfg->tstep == 0.f || cfg->tstep >= VERY_BIG) {
+        cfg->tstep = cfg->tend;  /* tstep not given (pmcxcl/mcxlabcl): one time gate, as in mcx */
     }
 
     if (cfg->tstart > cfg->tend || !(cfg->tstep > 0.f)) {
@@ -3674,7 +3674,8 @@ int mcx_loadjson(cJSON* root, Config* cfg) {
                "adjoint_mus", ...): only the first character used to be read, so "flux" gave
                'f' (fluence), "dcs" 'd' and "wl" 'w' */
             const char* typenames[] = {"flux", "fluence", "energy", "jacobian", "nscat", "wl", "wp", "wm", "rf", "length", "rfmus", "wltof", "wptof",
-                                       "adjoint", "adjoint_dcoeff", "adjoint_mus", "adjoint_musp", "adjoint_mua_d", "adjoint_mua_musp", ""};
+                                       "adjoint", "adjoint_dcoeff", "adjoint_mus", "adjoint_musp", "adjoint_mua_d", "adjoint_mua_musp", ""
+                                      };
             const char typeletters[] = "xfejpjpmrlstbaduvwq";
             /* absent: the current type; the macro's fallback would be the tail of the
                letter table ("xfej..."), read as a name */
@@ -4047,11 +4048,13 @@ void mcx_savejdata(char* filename, Config* cfg) {
             if (cfg->srcpos.w != 1.f) {
                 cJSON_AddNumberToObject(sub, "Weight", cfg->srcpos.w);
             }
+
             cJSON_AddItemToObject(sub, "Dir", mcx_dirtojson(&(cfg->srcdir.x)));
             cJSON_AddItemToObject(sub, "Param1", cJSON_CreateFloatArray(&(cfg->srcparam1.x), 4));
             cJSON_AddItemToObject(sub, "Param2", cJSON_CreateFloatArray(&(cfg->srcparam2.x), 4));
         }
     }
+
     cJSON_AddNumberToObject(sub, "SrcNum", cfg->srcnum);
 
     if (cfg->lambda > 0.f) {
@@ -4208,6 +4211,7 @@ void mcx_savejdata(char* filename, Config* cfg) {
         if (!cfg->isrowmajor) { /* before mcx_preprocess (--dumpjson 2), a JData volume is still row-major */
             mcx_convertcol2row((uint**)(&buf), (uint3*)&cfg->dim);
         }
+
         vol = (uint*)buf;
 
         if (cfg->mediabyte == 1) {
@@ -4289,7 +4293,7 @@ void mcx_savejdata(char* filename, Config* cfg) {
  * a caller (mcxlab, the unit tests) passed a buffer of its own and vouches
  * for its size.
  */
-static size_t mcx_jdata_bytes = (size_t)-1;
+static size_t mcx_jdata_bytes = (size_t) -1;
 
 /**
  * @brief Load media index data volume (.bin or .vol) to the memory
@@ -4358,7 +4362,7 @@ void mcx_loadvolume(char* filename, Config* cfg, int isbuf) {
         MCX_ERROR(-6, "the volume array in Shapes is smaller than Domain.Dim and Domain.MediaFormat require");
     }
 
-    mcx_jdata_bytes = (size_t)-1;  /* used up: a later buffer is a caller's own */
+    mcx_jdata_bytes = (size_t) -1; /* used up: a later buffer is a caller's own */
 
     cfg->vol = (unsigned int*)malloc(sizeof(unsigned int) * datalen * (1 + (cfg->mediabyte == MEDIA_2LABEL_SPLIT || cfg->mediabyte == MEDIA_ASGN_F2H)));
 
@@ -5993,20 +5997,19 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
 
                     break;
 
-                case 'O':
-                    {
-                        /* outputtype is a single char: the letter typed, then
-                           mcx_lookupindex turns it into an index in place */
-                        char otype[MAX_SESSION_LENGTH];
-                        i = mcx_readstrarg(argc, argv, i, otype, sizeof(otype));
-                        cfg->outputtype = otype[0];
-                    }
+                case 'O': {
+                    /* outputtype is a single char: the letter typed, then
+                       mcx_lookupindex turns it into an index in place */
+                    char otype[MAX_SESSION_LENGTH];
+                    i = mcx_readstrarg(argc, argv, i, otype, sizeof(otype));
+                    cfg->outputtype = otype[0];
+                }
 
-                    if (mcx_lookupindex(&(cfg->outputtype), outputtype)) {
-                        MCX_ERROR(-2, T_("the specified output data type is not recognized"));
-                    }
+                if (mcx_lookupindex(&(cfg->outputtype), outputtype)) {
+                    MCX_ERROR(-2, T_("the specified output data type is not recognized"));
+                }
 
-                    break;
+                break;
 
                 case 'K':
                     if (i + 1 < argc && isalpha((int)argv[i + 1][0]) ) {

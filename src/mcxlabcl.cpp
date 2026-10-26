@@ -34,6 +34,7 @@
 #include "mcx_const.h"
 #include "mcx_utils.h"
 #include "mcx_shapes.h"
+#include "mcx_lang.h"
 
 #if defined(USE_CUDA) && defined(USE_OPENCL)
     #include "mcx_cu_host.h"
@@ -229,6 +230,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
 
             /** Initialize cfg with default values first */
             mcx_initcfg(&cfg);
+            cfg.flog = stderr;
 #if defined(USE_CUDA) && !defined(USE_OPENCL)
             cfg.compute = cbCUDA; /**< default to CUDA backend in CUDA-only builds */
 #endif
@@ -248,7 +250,10 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
             mcx_flush(&cfg);
 
             /** Overwite the output flags using the number of output present */
-            cfg.issave2pt = (nlhs >= 1); /** save fluence rate to the 1st output if present */
+            if (nlhs < 1) {
+                cfg.issave2pt = 0;    /** issave2pt defualt is 1, but allow users to manually disable, auto disable only if there is no output */
+            }
+
             cfg.issavedet = (nlhs >= 2 && cfg.issavedet == 0) ? 1 : ((nlhs < 2) ? 0 : cfg.issavedet); /** save detected photon data to the 2nd output if present */
             cfg.issaveseed = (nlhs >= 4); /** save detected photon seeds to the 4th output if present */
 #if defined(USE_MT_RAND)
@@ -303,7 +308,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
             }
 
             /** Initialize all buffers necessary to store the output variables */
-            if (nlhs >= 1) {
+            if (nlhs >= 1 && cfg.issave2pt) {
                 int fieldlen = cfg.dim.x * cfg.dim.y * cfg.dim.z * (int)((cfg.tend - cfg.tstart) / cfg.tstep + 0.5) * cfg.srcnum;
 
                 if (cfg.replay.seed != NULL && cfg.replaydet == -1) {
@@ -476,7 +481,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
 
                 fieldlen = fielddim[0] * fielddim[1] * fielddim[2] * fielddim[3] * fielddim[4] * fielddim[5];
 
-                if (cfg.issaveref) {
+                if (cfg.issaveref && cfg.exportfield) {
                     int highdim = fielddim[3] * fielddim[4] * fielddim[5];
                     int voxellen = cfg.dim.x * cfg.dim.y * cfg.dim.z;
                     float* dref = (float*)malloc(fieldlen * sizeof(float));
@@ -502,7 +507,7 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
                     free(dref);
                 }
 
-                if (cfg.issave2pt) {
+                if (cfg.issave2pt && cfg.exportfield) {
                     mxSetFieldByNumber(plhs[0], jstruct, 0, mxCreateNumericArray(((fielddim[5] > 1) ? 6 : (4 + (fielddim[4] > 1))), fielddim, mxSINGLE_CLASS, mxREAL));
                     memcpy((float*)mxGetPr(mxGetFieldByNumber(plhs[0], jstruct, 0)), cfg.exportfield,
                            fieldlen * sizeof(float));
@@ -709,6 +714,11 @@ void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[]) {
             free(detps);
         }
 
+        /** Close the log file opened by cfg.flog */
+        if (cfg.flog && cfg.flog != stdout && cfg.flog != stderr) {
+            fclose(cfg.flog);
+        }
+
         mcx_cleargpuinfo(&gpuinfo);
         mcx_clearcfg(&cfg);
     }
@@ -738,7 +748,6 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
         return;
     }
 
-    cfg->flog = stderr;
     GET_1ST_FIELD(cfg, nphoton)
     GET_ONE_FIELD(cfg, nblocksize)
     GET_ONE_FIELD(cfg, nthread)
@@ -778,6 +787,7 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
     GET_ONE_FIELD(cfg, srcnum)
     GET_ONE_FIELD(cfg, srcid)
     GET_ONE_FIELD(cfg, omega)
+    GET_ONE_FIELD(cfg, issave2pt)
     GET_ONE_FIELD(cfg, lambda)
     GET_VEC3_FIELD(cfg, steps)
     GET_VEC3_FIELD(cfg, crop0)
@@ -1583,6 +1593,60 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
         }
 
         printf("mcx.workload=<<%ld>>;\n", arraydim[0]*arraydim[1]);
+    } else if (strcmp(name, "flog") == 0) {
+        int len = mxGetNumberOfElements(item);
+        char logfile[MAX_PATH_LENGTH] = {'\0'};
+
+        if (mxIsChar(item)) {
+            if (len > 0) {
+                mxGetString(item, logfile, MAX_PATH_LENGTH);
+                cfg->flog = fopen(logfile, "a+");
+
+                if (cfg->flog == NULL) {
+                    mexErrMsgTxt("Log output file can not be written");
+                }
+            } else {
+                cfg->flog = stdout;
+            }
+        } else {
+            double* val = mxGetPr(item);
+
+            if (len > 0 && val[0] <= 2) {
+                cfg->flog = ((int)val[0] == 2 ? stderr : stdout);
+            }
+        }
+
+        printf("mcx.flog=%d;\n", (cfg->flog == stderr) ? 2 : 1);
+    } else if (strcmp(name, "lang") == 0) {
+        int len = mxGetNumberOfElements(item);
+        char langid[32] = {'\0'};
+
+        if (!mxIsChar(item) || len == 0) {
+            mexErrMsgTxt("the 'lang' field must be a non-empty string");
+        }
+
+        if (len > 5) {
+            mexErrMsgTxt("the 'lang' field is too long");
+        }
+
+        int status = mxGetString(item, langid, 32);
+
+        if (status != 0) {
+            mexWarnMsgTxt("not enough space. string is truncated.");
+        }
+
+        int idx = mcx_keylookup(langid, languagename);
+
+        if (idx == -1) {
+            mexErrMsgTxt(T_("Unsupported language"));
+        }
+
+        if (mcx_lang) {
+            cJSON_Delete(mcx_lang);
+        }
+
+        mcx_lang = cJSON_Parse(translations[idx]);
+        printf("mcx.lang='%s';\n", langid);
     } else {
         printf("WARNING: redundant field '%s'\n", name);
     }

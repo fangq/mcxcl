@@ -1118,7 +1118,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         MCX_FPRINTF(cfg->flog, "set kernel arguments complete : %d ms\n", GetTimeMillis() - tic);
         fflush(cfg->flog);
 
-        if (cfg->exportfield == NULL) {
+        if (cfg->exportfield == NULL && cfg->issave2pt) {
             if (cfg->seed == SEED_FROM_FILE && cfg->replaydet == -1) {
                 cfg->exportfield = (float*)calloc(sizeof(float) * dimxyz, cfg->maxgate * 2 * (1 + (cfg->outputtype == otRF || cfg->outputtype == otRFmus)) * cfg->detnum);
             } else {
@@ -1128,7 +1128,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
         /* a volume times its time gates that does not fit in memory gives NULL,
            which everything after this writes through */
-        if (cfg->exportfield == NULL) {
+        if (cfg->exportfield == NULL && cfg->issave2pt) {
             MCX_ERROR(-2, "not enough memory for the output: reduce Dim, the number of time gates, or the detectors replayed");
         }
 
@@ -1860,54 +1860,71 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         if (gmedia && gmedia[i])         {
             clReleaseMemObject(gmedia[i]);
         }
+
         if (gproperty && gproperty[i])   {
             clReleaseMemObject(gproperty[i]);
         }
+
         if (gparam && gparam[i])         {
             clReleaseMemObject(gparam[i]);
         }
+
         if (gfield && gfield[i])         {
             clReleaseMemObject(gfield[i]);
         }
+
         if (gseed && gseed[i] && cfg->seed != SEED_FROM_FILE) {
             clReleaseMemObject(gseed[i]);
         }
+
         if (gdetphoton && gdetphoton[i]) {
             clReleaseMemObject(gdetphoton[i]);
         }
+
         if (genergy && genergy[i])       {
             clReleaseMemObject(genergy[i]);
         }
+
         if (gdetected && gdetected[i])   {
             clReleaseMemObject(gdetected[i]);
         }
+
         if (gsrcpattern && gsrcpattern[i]) {
             clReleaseMemObject(gsrcpattern[i]);
         }
+
         if (gjumpdebug && gjumpdebug[i]) {
             clReleaseMemObject(gjumpdebug[i]);
         }
+
         if (gdebugdata && gdebugdata[i]) {
             clReleaseMemObject(gdebugdata[i]);
         }
+
         if (gdetpos && gdetpos[i])       {
             clReleaseMemObject(gdetpos[i]);
         }
+
         if (gseeddata && gseeddata[i])   {
             clReleaseMemObject(gseeddata[i]);
         }
+
         if (ginvcdf && ginvcdf[i])       {
             clReleaseMemObject(ginvcdf[i]);
         }
+
         if (gangleinvcdf && gangleinvcdf[i]) {
             clReleaseMemObject(gangleinvcdf[i]);
         }
+
         if (gsmatrix && gsmatrix[i])     {
             clReleaseMemObject(gsmatrix[i]);
         }
+
         if (mcxkernel && mcxkernel[i])   {
             clReleaseKernel(mcxkernel[i]);
         }
+
         if (waittoread && waittoread[i]) {
             clReleaseEvent(waittoread[i]);
         }

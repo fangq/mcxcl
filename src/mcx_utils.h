@@ -43,7 +43,7 @@
 
 #define MAX_FULL_PATH       2048
 #define MAX_PATH_LENGTH     1024
-#define MAX_SESSION_LENGTH  64
+#define MAX_SESSION_LENGTH  256
 #define MAX_DEVICE          256
 
 #define MCX_ASSERT(x)  mcx_assess((x),"assert error",__FILE__,__LINE__)
@@ -352,9 +352,9 @@ void mcx_python_flush(void);
 
 #if defined(MCX_CONTAINER) && (defined(MATLAB_MEX_FILE) || defined(OCTAVE_API_VERSION_NUMBER))
 #ifdef _OPENMP
-#define MCX_FPRINTF(fp,...) {if(omp_get_thread_num()==0) mexPrintf(__VA_ARGS__);}  /**< macro to print messages, calls mexPrint if inside MATLAB */
+#define MCX_FPRINTF(fp,...) {if(omp_get_thread_num()==0) {(fp==stderr) ? mexPrintf(__VA_ARGS__) : fprintf(fp,__VA_ARGS__);}}  /**< macro to print messages, calls mexPrint if inside MATLAB */
 #else
-#define MCX_FPRINTF(fp,...) mexPrintf(__VA_ARGS__) /**< macro to print messages, calls mexPrint in MATLAB */
+#define MCX_FPRINTF(fp,...) {(fp==stderr) ? mexPrintf(__VA_ARGS__) : fprintf(fp,__VA_ARGS__);} /**< macro to print messages, calls mexPrint in MATLAB */
 #endif
 #else
 #define MCX_FPRINTF(fp,...) fprintf(fp,__VA_ARGS__) /**< macro to print messages, calls fprintf in command line mode */
