@@ -695,7 +695,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         dimlen.w = fieldlen;
 
 #ifdef USE_FIXEDPOINT
-        /** one 64-bit integer per element and plane: Re, and Im for RF */
+        /** one 64-bit integer per element and plane (Re, and Im for RF), as a plane of low words and one of high words */
         fieldbytes = sizeof(cl_ulong) * fieldlen * ((isquadfield || cfg->outputtype == otRF) ? 2 : 1);
         {
             /** the most one voxel can receive in one run, times 2: energy, the launched weight; other
@@ -1065,22 +1065,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         }
 
 #ifdef USE_FIXEDPOINT
-        {
-            /** 64-bit integer atomics if every device has them, otherwise exact pairs of 32-bit atomics;
-                MCX_NO_INT64_ATOMIC=1 forces the pairs (for testing) */
-            int int64ok = (getenv("MCX_NO_INT64_ATOMIC") == NULL);
-
-            for (int d = 0; d < (int)workdev; d++) {
-                cl_device_id dev;
-                char ext[8192] = {'\0'};
-                clGetCommandQueueInfo(mcxqueue[d], CL_QUEUE_DEVICE, sizeof(dev), &dev, NULL);
-                clGetDeviceInfo(dev, CL_DEVICE_EXTENSIONS, sizeof(ext), ext, NULL);
-                int64ok &= (strstr(ext, "cl_khr_int64_base_atomics") != NULL);
-            }
-
-            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_FIXEDPOINT -DMCX_FIXEDSCALE=%.1ff%s", fixedscale,
-                     int64ok ? " -DMCX_INT64_ATOMIC" : "");
-        }
+        snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_FIXEDPOINT -DMCX_FIXEDSCALE=%.1ff -DMCX_HIOFFSET=%luul",
+                 fixedscale, (unsigned long)(fieldbytes / sizeof(cl_ulong)));
 #endif
         MCX_FPRINTF(cfg->flog, "building kernel with option: %s\n", opt);
         status = clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);
@@ -1381,16 +1367,17 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 #ifdef USE_FIXEDPOINT
 
                         if (!(param.debuglevel & MCX_DEBUG_RNG)) {
-                            /** convert the fixed-point Re (and Im) planes to the float layout merged below */
-                            cl_long* q = (cl_long*)malloc(fieldbytes);
+                            /** convert the fixed-point Re (and Im) sums, low words then high words, to the float layout merged below */
+                            cl_uint* q = (cl_uint*)malloc(fieldbytes);
+                            size_t nel = fieldbytes / sizeof(cl_ulong);
                             OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gfield[devid], CL_TRUE, 0, fieldbytes, q, 0, NULL, NULL)));
                             memset(rawfield, 0, sizeof(float) * fieldlen * rawfieldmul);
 
                             for (i = 0; i < fieldlen; i++) {
-                                rawfield[i] = (float)(q[i] / fixedscale);
+                                rawfield[i] = (float)((cl_long)(((cl_ulong)q[nel + i] << 32) | q[i]) / fixedscale);
 
-                                if (fieldbytes > sizeof(cl_long) * fieldlen) {
-                                    rawfield[i + (isquadfield ? 2 : 1) * fieldlen] = (float)(q[i + fieldlen] / fixedscale);
+                                if (nel > fieldlen) {
+                                    rawfield[i + (isquadfield ? 2 : 1) * fieldlen] = (float)((cl_long)(((cl_ulong)q[nel + i + fieldlen] << 32) | q[i + fieldlen]) / fixedscale);
                                 }
                             }
 

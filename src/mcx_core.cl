@@ -245,32 +245,27 @@ inline float atomicadd(volatile __global float* address, const float value) {
  * (set by the host); the imaginary plane of RF outputs starts at element dimlen.w. Integer sums are
  * exact and do not depend on the order of the additions, so they replace the float double-buffer
  * (MAX_ACCUM). A hashed dither makes the rounding unbiased, so deposits below one unit are not lost;
- * it uses no random numbers, so photon paths are unchanged. Without 64-bit atomics (MCX_INT64_ATOMIC),
- * the sum is a (low, high) pair of 32-bit words with an explicit carry, with the same memory layout.
+ * it uses no random numbers, so photon paths are unchanged. Each sum is a pair of 32-bit words with an
+ * explicit carry: the low words form one plane and the high words a second one, MCX_HIOFFSET words
+ * later, so a deposit touches 4 bytes per element, as the float double-buffer does, and needs only
+ * 32-bit atomics.
  */
-#ifdef MCX_INT64_ATOMIC
-    #pragma OPENCL EXTENSION cl_khr_int64_base_atomics : enable
-#endif
 inline void mcx_accum(__global float* field, size_t k, float v) {
     float x = v * MCX_FIXEDSCALE, n = floor(x);
     uint h = (as_uint(v) ^ (uint)k) * 0x9E3779B1u;
     h = (h ^ (h >> 15)) * 0x85EBCA77u;
     ulong q = (ulong)((long)n + (((h ^ (h >> 13)) * 2.3283064e-10f) < (x - n)));
-#ifdef MCX_INT64_ATOMIC
-    atom_add((volatile __global ulong*)field + k, q);
-#else
     uint lo = (uint)q, hi = (uint)(q >> 32);
-    uint old = atomic_add((volatile __global uint*)field + 2 * k, lo);
+    uint old = atomic_add((volatile __global uint*)field + k, lo);
 
     if (old + lo < old) {
         hi++;    /* carry out of the low word */
     }
 
     if (hi) {
-        atomic_add((volatile __global uint*)field + 2 * k + 1, hi);
+        atomic_add((volatile __global uint*)field + MCX_HIOFFSET + k, hi);
     }
 
-#endif
 }
 #endif
 
