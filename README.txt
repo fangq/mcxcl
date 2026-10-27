@@ -110,12 +110,14 @@ In addition, this release contains the following fixes and improvements
 * the released Linux binaries and mex files are built in a manylinux2014 container and
   run on glibc 2.17 or newer; Octave mex files for Windows and macOS are built against
   Octave 10 (`liboctmex`)
-* unit tests and coverage: host-side unit tests (`make unittest`, 560 checks) raise the
+* unit tests and coverage: host-side unit tests (`make unittest`, 570 checks) raise the
   line coverage of the host code to about 95%, and the 141 built-in example tests of MCX
   run with MCX-CL against golden values; the bugs these tests found were fixed
 * fuzzing: four rounds of JSON-aware mutation fuzzing of the input files and of the
   command-line options, run on AddressSanitizer builds of mcx, mcxcl and mmc; every
-  crash, hang and memory error they found was fixed
+  crash, hang and memory error they found was fixed; the fuzzer is now part of MCX-CL
+  (`test/fuzz/dfuzz.py`, seeded by MCX's built-in inputs, now in `test/builtin`), and six
+  more rounds of 300 cases on the GPU found the five bugs listed below
 * hardening: JSON arrays are length-checked before use; JData arrays must carry valid
   annotations and decode to their declared size; optical properties, time gates, SrcNum,
   the voxel size (`-u`), the roulette threshold (`-e`), device workloads (`-W`), media
@@ -124,7 +126,11 @@ In addition, this release contains the following fixes and improvements
 * fixes found by fuzzing: the step length is no longer divided by a zero effective
   scattering coefficient (mus=0, or g=1 once `--gscatter` is reached), which hung the
   kernel; `-e` of 1 or more no longer relaunches photons forever; RF forward output now
-  keeps its imaginary part in .jnii/.bnii files
+  keeps its imaginary part in .jnii/.bnii files; a number given for a string field no
+  longer crashes the reader; a source pattern smaller than Param1/Param2 is no longer read
+  past its end, and one with no non-zero pixel in its sampled area no longer hangs the
+  kernel; svmc labels beyond the media are rejected instead of reading past the property
+  table; a run that detects no photon no longer frees the detected-photon buffer
 * `Session.OutputType` in JSON inputs accepts the names mcxlabcl and pmcxcl use ("flux",
   ...); only the first letter used to be read, so "flux" gave fluence
 * `-r` now repeats or splits the photons as documented; a time step of 0 is treated as
@@ -180,6 +186,8 @@ lists all of them, with their commit hashes.
 * [7fe8bea] host unit tests and short GPU feature tests; [c9de165] host coverage about 95%
 * [55da8c8] four rounds of fuzzing of inputs and options: all crashes, hangs and memory errors
   fixed [70ef956, ef650f2]; input values now validated
+* [73a7aea] `test/fuzz/dfuzz.py` and the built-in inputs of MCX in `test/builtin`; six more rounds
+  of fuzzing found five bugs shared with MCX, fixed in [7c1fcba]
 
 '''Packaging'''
 * [a3aefe2] Linux releases built in manylinux2014 (glibc 2.17+); Octave 10 mex files for macOS/Windows
@@ -1412,9 +1420,12 @@ trajectory tests
 PMCXCL tests
     What it checks: the Python module
     How to run: `python3 -m unittest discover -s test` in `pmcxcl/`
+fuzzing
+    What it checks: mutated built-in inputs and options: crashes, hangs, sanitizer and OpenCL kernel errors
+    How to run: `test/fuzz/dfuzz.py`
 </pre>
 
-The continuous integration runs these on a CPU OpenCL device (POCL) with `-A 0`.
+The continuous integration runs all but the fuzzer on a CPU OpenCL device (POCL) with `-A 0`.
 
 == # Getting help ==
 

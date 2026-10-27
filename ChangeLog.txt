@@ -1,6 +1,8 @@
 Change Log
 
 == MCX-CL 3.0.0 (v2026, Juxtaposition), FangQ <q.fang at neu.edu> ==
+ 2026-10-27 [73a7aea] [test] add test/fuzz/dfuzz.py and the builtin inputs of mcx (test/builtin)
+ 2026-10-27 [7c1fcba] [bug] fix crashes, hangs and memory errors found by the new fuzzer
  2026-10-27 [701fdf1] [doc] README: fixed-point sums in split planes, with the measured speeds
  2026-10-27 [926b0de] [speed] USE_FIXEDPOINT: keep the low and high words in separate planes
  2026-10-27 [fb6c080] [doc] README: fixed-point output sums (make fixed)
