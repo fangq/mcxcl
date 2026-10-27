@@ -1,6 +1,11 @@
 Change Log
 
 == MCX-CL 3.0.0 (v2026, Juxtaposition), FangQ <q.fang at neu.edu> ==
+ 2026-10-27 [fb6c080] [doc] README: fixed-point output sums (make fixed)
+ 2026-10-27 [1d2af50]*[port] USE_FIXEDPOINT: accumulate the output as 64-bit fixed-point integers (make fixed)
+ 2026-10-26 [1080899] [doc] demo_validate_mcx_adjoint_mua_d: the Jacobians are in flux.jmua/flux.jd, not flux.data
+ 2026-10-26 [f577abe] [port] cfg.sdmap/Optode.SDMap: compute the adjoint Jacobian for listed source-detector channels, refs fangq/mcx#275
+ 2026-10-26 [39f7a91] [doc] rewrite the README for users: OpenCL runtimes per processor, device selection and kernel options, differences from MCX, OpenCL best practices, and the sections shared with MCX
  2026-10-25 [c06cdf0] [feat] mcxlabcl/pmcxcl: issave2pt, flog and lang as in mcxlab/pmcx
  2026-10-25 [369b4d8] [doc] rewrite the mcxlabcl help: document every cfg field the mex reads
  2026-10-25 [df06e86] [doc] update the author's title to Professor
