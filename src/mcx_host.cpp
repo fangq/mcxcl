@@ -1336,7 +1336,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                         cfg->his.detected += detected;
                         detected = MIN(detected, cfg->maxdetphoton);
 
-                        if (cfg->exportdetected) {
+                        /* realloc to 0 bytes, with no photon detected yet, would free the buffer */
+                        if (cfg->exportdetected && detected > 0) {
                             cfg->exportdetected = (float*)realloc(cfg->exportdetected, (cfg->detectedcount + detected) * hostdetreclen * sizeof(float));
 
                             if (cfg->issaveseed && cfg->seeddata) {
@@ -1840,7 +1841,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             fflush(cfg->flog);
         }
 
-        if (cfg->issavedet && cfg->parentid == mpStandalone && cfg->exportdetected) {
+        if (cfg->issavedet && cfg->parentid == mpStandalone && cfg->exportdetected && cfg->detectedcount > 0) {
             cfg->his.unitinmm = cfg->unitinmm;
             cfg->his.savedphoton = cfg->detectedcount;
             cfg->his.totalphoton = cfg->nphoton;
