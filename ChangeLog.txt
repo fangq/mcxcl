@@ -1,6 +1,8 @@
 Change Log
 
 == MCX-CL 3.0.0 (v2026, Juxtaposition), FangQ <q.fang at neu.edu> ==
+ 2026-10-27 [701fdf1] [doc] README: fixed-point sums in split planes, with the measured speeds
+ 2026-10-27 [926b0de] [speed] USE_FIXEDPOINT: keep the low and high words in separate planes
  2026-10-27 [fb6c080] [doc] README: fixed-point output sums (make fixed)
  2026-10-27 [1d2af50]*[port] USE_FIXEDPOINT: accumulate the output as 64-bit fixed-point integers (make fixed)
  2026-10-26 [1080899] [doc] demo_validate_mcx_adjoint_mua_d: the Jacobians are in flux.jmua/flux.jd, not flux.data
