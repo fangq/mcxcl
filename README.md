@@ -80,6 +80,13 @@ include
   with separate `srcid` records
 * per-thread random number seeds derived exactly as in MCX, so that MCX and
   MCX-CL trace the same photon paths for the same seed
+* exact output sums: `make fixed` accumulates the output as 64-bit fixed-point
+  integers instead of a float with a second float buffer (MCX v2026); the sums
+  do not depend on the order of the additions, so a run with `-A 0` is
+  bit-reproducible, and devices without 64-bit atomics use exact pairs of
+  32-bit atomics. Speed varies with the device: 1.13x on an RTX 4090, about
+  0.97x on a TITAN V and an A100 (0.6-0.9x where many photons deposit in the
+  same voxels), the same on a CPU
 
 In addition, this release contains the following fixes and improvements
 
@@ -161,6 +168,7 @@ lists all of them, with their commit hashes.
 * [e0b526a] 1x1x1 volumes
 * [0b17a15] detected photons and trajectories saved as `.jdt`/`.jdb`, with separate srcid records
 * [95b9dd1] per-thread RNG seeds derived exactly as in MCX: the same seed gives the same photon paths
+* [1d2af50] `make fixed`: exact, order-independent 64-bit fixed-point output sums, as in MCX
 * [2a14c42] pattern sources in wp/dcs/wptof/rfmus replay; [a2bc0a4] per-pattern RF imaginary parts
 * [4fa20b7] `--maxvoidstep` and `--trajstokes`; [c06cdf0] `issave2pt`, `flog` and `lang` in
   mcxlabcl/pmcxcl, as in mcxlab/pmcx
@@ -380,6 +388,7 @@ make                  # the mcxcl binary in ../bin
 make mex              # MCXLAB-CL for MATLAB: ../mcxlabcl/mcxcl.mex*
 make oct              # MCXLAB-CL for Octave: ../mcxlabcl/mcxcl.mex
 make unittest         # host unit tests
+make fixed            # exact 64-bit fixed-point output sums (-DUSE_FIXEDPOINT)
 cd ../pmcxcl && python3 -m pip install .   # PMCXCL
 ```
 
