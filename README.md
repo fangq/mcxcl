@@ -83,10 +83,11 @@ include
 * exact output sums: `make fixed` accumulates the output as 64-bit fixed-point
   integers instead of a float with a second float buffer (MCX v2026); the sums
   do not depend on the order of the additions, so a run with `-A 0` is
-  bit-reproducible, and devices without 64-bit atomics use exact pairs of
-  32-bit atomics. Speed varies with the device: 1.13x on an RTX 4090, about
-  0.97x on a TITAN V and an A100 (0.6-0.9x where many photons deposit in the
-  same voxels), the same on a CPU
+  bit-reproducible. Each sum is a pair of 32-bit words, low and high words in
+  separate planes, so only 32-bit atomics are needed and a deposit touches
+  4 bytes per element, as the float buffers do. The speed is about that of the
+  default build: 1.06x on an RTX 4090, 1.01x on an A100, 0.99x on a TITAN V and
+  0.97x on a CPU (POCL), from 0.89x to 1.44x over 13 built-in examples
 
 In addition, this release contains the following fixes and improvements
 
