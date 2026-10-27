@@ -1,0 +1,100 @@
+#include<inttypes.h>
+
+struct section
+{
+	const uint8_t* begin,index,end;
+	ra_section_t& operator>>(ra_object_t&
+};
+
+/*static int64_t ntohll(int64_t vs)
+{
+	uint64_t v=*(uint64_t*)&vs;
+#ifdef __LITTLE_ENDIAN__
+	v = ((v >> 8 ) & 0x00FF00FF00FF00FFULL) | ((v & 0xFF00FF00FF00FF00ULL) << 8 );
+	v = ((v >> 16) & 0x0000FFFF0000FFFFULL) | ((v & 0xFFFF0000FFFF0000ULL) << 16);
+	v = ((v >> 32)                        ) | ((v                        ) << 32);
+#endif 
+	return *(int64_t*)&v;
+}*/
+//not super fast,but portable
+static int64_t ntohll(int64_t vs)
+{
+	uint64_t vn=*(uint64_t*)&vs;
+	uint64_t vh=0;
+	for(int i=0;i<8;i++)
+	{
+		vh |= vn & 0xFF;
+		vn >>= 8;
+		vh <<= 8;
+	}
+	return *(int64_t*)&vh;
+}
+//maybe C api returns pointer to next byte, fills an array, doesn't increment the pointer if parsing fails....thats an interesting api.  
+//I'll have to play with it...
+
+int64_t read_integer(const uint8_t** stdex)//do something bad like throw an exception in C++...do nothing in C...this api sucks kinda
+{
+	int64_t result;
+	char dt=*((*stdex)++);
+	switch(dt)
+	{
+	case 'L':
+		result=*(const int64_t*)(*stdex);
+		*stdex+=8;
+		break;
+	case 'l':
+		result=*(const int32_t*)(*stdex);
+		*stdex+=4;
+		break;
+	case 'I':
+		result=*(const int16_t*)(*stdex);
+		*stdex+=2;
+		break;
+	case 'U':
+		result=*((*stdex)++);
+		break;
+	case 'i':
+		result=*(const int8_t*)(*(*stdex)++);
+		break;
+	default:
+		(*stdex)--;
+		return 0;
+	};
+	return ntohull(result);
+}
+
+int64_t read_integer(const uint8_t** 
+
+double read_float_ra(const uint8_t** stdex)
+{
+	char dt=*((*stdex)++);
+	switch(dt)
+	{
+	case 'D':
+		result=*(const int64_t*)(*stdex);
+		*stdex+=8;
+		break;
+	case 'd':
+		result=*(const int32_t*)(*stdex);
+		*stdex+=4;
+		break;
+	case 'I':
+		result=*(const int16_t*)(*stdex);
+		*stdex+=2;
+		break;
+	case 'U':
+		result=*((*stdex)++);
+		break;
+	case 'i':
+		result=*(const int8_t*)(*(*stdex)++);
+		break;
+	default:
+		(*stdex)--;
+		return 0;
+	};
+}
+
+
+
+
+

@@ -1,0 +1,1 @@
+/usr/bin/cc     CMakeFiles/ubjopt.dir/ubjopt.c.o  -o ubjopt -rdynamic ../libubj.a 

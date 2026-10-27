@@ -1,0 +1,22 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/users/fangq/space/git/Project/github/ubj/tools/ubjopt.c
+stdio.h
+-
+ubj.h
+-
+
+ubj.h
+inttypes.h
+-
+stdio.h
+-
+iostream
+-
+

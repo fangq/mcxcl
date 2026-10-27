@@ -1,0 +1,1 @@
+/usr/bin/cc     CMakeFiles/ubjdump.dir/ubjdump.c.o CMakeFiles/ubjdump.dir/__/ubjr.c.o CMakeFiles/ubjdump.dir/__/ubjrw.c.o CMakeFiles/ubjdump.dir/__/ubjw.c.o  -o ubjdump -rdynamic 

@@ -385,8 +385,8 @@ cl_platform_id mcx_list_gpu(Config* cfg, unsigned int* activedev, cl_device_id* 
                             }
 
                             MCX_FPRINTF(stdout, " Vendor name    :\t%s\n", VendorList[cuinfo.vendor]);
-                            MCX_FPRINTF(stdout, " Auto-thread    :\t%zu\n", cuinfo.autothread);
-                            MCX_FPRINTF(stdout, " Auto-block     :\t%zu\n", cuinfo.autoblock);
+                            MCX_FPRINTF(stdout, " Auto-thread    :\t%lu\n", (unsigned long)cuinfo.autothread);
+                            MCX_FPRINTF(stdout, " Auto-block     :\t%lu\n", (unsigned long)cuinfo.autoblock);
                         }
 
                         if (activedevlist != NULL) {
@@ -449,7 +449,9 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
     cl_uint tic, tic0, tic1, toc = 0, debuglen = MCX_DEBUG_REC_LEN + (cfg->istrajstokes << 2);
     size_t fieldlen, fieldbytes;
-    double fixedscale = 1.0;      /**< USE_FIXEDPOINT: integer units per unit of output */
+#ifdef USE_FIXEDPOINT
+    double fixedscale = 1.0;      /**< integer units per unit of output */
+#endif
     cl_uint4 cp0 = {{cfg->crop0.x, cfg->crop0.y, cfg->crop0.z, cfg->crop0.w}};
     cl_uint4 cp1 = {{cfg->crop1.x, cfg->crop1.y, cfg->crop1.z, cfg->crop1.w}};
     cl_uint2 cachebox = {{0, 0}};
@@ -1889,7 +1891,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 #ifndef MCX_CONTAINER
 
         if (cfg->issave2pt && cfg->parentid == mpStandalone) {
-            MCX_FPRINTF(cfg->flog, "%s ... %zu %d\t", T_("saving data to file"), fieldlen, cfg->maxgate);
+            MCX_FPRINTF(cfg->flog, "%s ... %lu %d\t", T_("saving data to file"), (unsigned long)fieldlen, cfg->maxgate);
 
             /* the adjoint modes save the Jacobians, whose dimensions mcx_savedata uses, rather
                than the forward fluence of each source/detector slot kept in exportfield */

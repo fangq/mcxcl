@@ -1,0 +1,7 @@
+import json
+
+strObj = '[["item4", "<!DOCTYPE html><html lang=\"en-US\"><head> <script type=\"text/javascript\">\nvar gform;gform||(document.", "no script tags", 200], ["item3", "<!DOCTYPE html><html lang=\"en-US\"><head> <script type=\"text/javascript\">\nvar gform;gform||(document.", "no script tags", 200], ["item2", "<!DOCTYPE html><html lang=\"en-US\"><head> <script type=\"text/javascript\">\nvar gform;gform||(document.", "no script tags", 200], ["item1", "<!DOCTYPE html><html lang=\"en-US\"><head> <script type=\"text/javascript\">\nvar gform;gform||(document.", "no script tags", 200]]'
+
+a=json.loads(strObj);
+
+print(a)

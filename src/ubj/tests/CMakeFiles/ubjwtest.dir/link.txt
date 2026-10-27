@@ -1,0 +1,1 @@
+/usr/bin/cc     CMakeFiles/ubjwtest.dir/ubjw_test.c.o  -o ubjwtest -rdynamic ../libubj.a 
