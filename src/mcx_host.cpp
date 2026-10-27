@@ -448,7 +448,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     cl_uint detected = 0, workdev;
 
     cl_uint tic, tic0, tic1, toc = 0, debuglen = MCX_DEBUG_REC_LEN + (cfg->istrajstokes << 2);
-    size_t fieldlen;
+    size_t fieldlen, fieldbytes;
+    double fixedscale = 1.0;      /**< USE_FIXEDPOINT: integer units per unit of output */
     cl_uint4 cp0 = {{cfg->crop0.x, cfg->crop0.y, cfg->crop0.z, cfg->crop0.w}};
     cl_uint4 cp1 = {{cfg->crop1.x, cfg->crop1.y, cfg->crop1.z, cfg->crop1.w}};
     cl_uint2 cachebox = {{0, 0}};
@@ -693,6 +694,43 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
         dimlen.w = fieldlen;
 
+#ifdef USE_FIXEDPOINT
+        /** one 64-bit integer per element and plane: Re, and Im for RF */
+        fieldbytes = sizeof(cl_ulong) * fieldlen * ((isquadfield || cfg->outputtype == otRF) ? 2 : 1);
+        {
+            /** the most one voxel can receive in one run, times 2: energy, the launched weight; other
+                outputs, the weight times the longest path (grid units), and per scattering event for the
+                replayed WP/DCS/RFmus outputs, in ns for the TOF outputs. In a forward run where every
+                labeled medium absorbs, a photon's weighted path is at most 1/mua_min (2/mua_min allows
+                for Russian roulette); replay and continuous media keep the longest path. See mcx_core.cu
+                in mcx */
+            double lmax = cfg->tend / R_C0 / cfg->unitinmm, lpath, k = 1.0, musmax = 0.0, muamin = 1e30, wmax = 1.0;
+            int patlen = (cfg->srctype == MCX_SRC_PATTERN3D) ? (int)(cfg->srcparam1.x * cfg->srcparam1.y * cfg->srcparam1.z * cfg->srcnum)
+                         : (int)(cfg->srcparam1.w * cfg->srcparam2.w * cfg->srcnum);
+
+            for (unsigned int m = 1; m < cfg->medianum; m++) {
+                musmax = MAX(musmax, (double)cfg->prop[m].mus);
+                muamin = MIN(muamin, (double)cfg->prop[m].mua);
+            }
+
+            lpath = (cfg->seed != SEED_FROM_FILE && muamin > 0.0 && (cfg->mediabyte <= 4 || cfg->mediabyte == MEDIA_2LABEL_SPLIT
+                     || cfg->mediabyte == MEDIA_2LABEL_MIX)) ? MIN(lmax, 2.0 / muamin) : lmax;
+
+            for (int m = 0; cfg->srcpattern && (cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) && m < patlen; m++) {
+                wmax = MAX(wmax, fabs(cfg->srcpattern[m]));
+            }
+
+            if (cfg->outputtype != otEnergy) {
+                k = lpath * ((cfg->outputtype == otWP || cfg->outputtype == otDCS || cfg->outputtype == otWPTOF || cfg->outputtype == otRFmus) ? MAX(1.0, lmax * musmax) : 1.0)
+                    * ((cfg->outputtype == otWLTOF || cfg->outputtype == otWPTOF) ? MAX(1.0, cfg->tend * 1e9) : 1.0);
+            }
+
+            fixedscale = exp2(floor(log2(4.611686018427388e18 / ((double)cfg->nphoton * wmax * MAX(k, 1.0) * 2.0))));
+        }
+#else
+        fieldbytes = sizeof(cl_float) * fieldlen * (isquadfield ? 4 : 2);
+#endif
+
         param.dimlen = dimlen;
         param.cachebox = cachebox;
 
@@ -796,10 +834,10 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                 OCL_TRY(((gseed[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(RandType) * gpu[i].autothread * RAND_BUF_LEN, Pseed, &status), status)));
             }
 
-            OCL_TRY(((gfield[i] = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, sizeof(cl_float) * fieldlen * (isquadfield ? 4 : 2), NULL, &status), status)));
+            OCL_TRY(((gfield[i] = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, fieldbytes, NULL, &status), status)));
             {
                 cl_float zero = 0.f;
-                OCL_TRY((clEnqueueFillBuffer(mcxqueue[i], gfield[i], &zero, sizeof(cl_float), 0, sizeof(cl_float) * fieldlen * (isquadfield ? 4 : 2), 0, NULL, NULL)));
+                OCL_TRY((clEnqueueFillBuffer(mcxqueue[i], gfield[i], &zero, sizeof(cl_float), 0, fieldbytes, 0, NULL, NULL)));
             }
 
             if (cfg->issavedet) {
@@ -1026,6 +1064,24 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             }
         }
 
+#ifdef USE_FIXEDPOINT
+        {
+            /** 64-bit integer atomics if every device has them, otherwise exact pairs of 32-bit atomics;
+                MCX_NO_INT64_ATOMIC=1 forces the pairs (for testing) */
+            int int64ok = (getenv("MCX_NO_INT64_ATOMIC") == NULL);
+
+            for (int d = 0; d < (int)workdev; d++) {
+                cl_device_id dev;
+                char ext[8192] = {'\0'};
+                clGetCommandQueueInfo(mcxqueue[d], CL_QUEUE_DEVICE, sizeof(dev), &dev, NULL);
+                clGetDeviceInfo(dev, CL_DEVICE_EXTENSIONS, sizeof(ext), ext, NULL);
+                int64ok &= (strstr(ext, "cl_khr_int64_base_atomics") != NULL);
+            }
+
+            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), " -DUSE_FIXEDPOINT -DMCX_FIXEDSCALE=%.1ff%s", fixedscale,
+                     int64ok ? " -DMCX_INT64_ATOMIC" : "");
+        }
+#endif
         MCX_FPRINTF(cfg->flog, "building kernel with option: %s\n", opt);
         status = clBuildProgram(mcxprogram, 0, NULL, opt, NULL, NULL);
 
@@ -1322,8 +1378,28 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                         int rawfieldmul = isquadfield ? 4 : 2;
                         float* rawfield = (float*)malloc(sizeof(float) * fieldlen * rawfieldmul);
 
-                        OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gfield[devid], CL_TRUE, 0, sizeof(cl_float) * fieldlen * rawfieldmul,
-                                                        rawfield, 0, NULL, NULL)));
+#ifdef USE_FIXEDPOINT
+
+                        if (!(param.debuglevel & MCX_DEBUG_RNG)) {
+                            /** convert the fixed-point Re (and Im) planes to the float layout merged below */
+                            cl_long* q = (cl_long*)malloc(fieldbytes);
+                            OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gfield[devid], CL_TRUE, 0, fieldbytes, q, 0, NULL, NULL)));
+                            memset(rawfield, 0, sizeof(float) * fieldlen * rawfieldmul);
+
+                            for (i = 0; i < fieldlen; i++) {
+                                rawfield[i] = (float)(q[i] / fixedscale);
+
+                                if (fieldbytes > sizeof(cl_long) * fieldlen) {
+                                    rawfield[i + (isquadfield ? 2 : 1) * fieldlen] = (float)(q[i + fieldlen] / fixedscale);
+                                }
+                            }
+
+                            free(q);
+                        } else
+#endif
+                            OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gfield[devid], CL_TRUE, 0, sizeof(cl_float) * fieldlen * rawfieldmul,
+                                                            rawfield, 0, NULL, NULL)));
+
                         MCX_FPRINTF(cfg->flog, "%s:\t%d ms\n", T_("transfer complete"), GetTimeMillis() - tic);
                         fflush(cfg->flog);
 
@@ -1392,8 +1468,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                     //initialize the next simulation
                     if (twindow1 < cfg->tend && iter < ABS(cfg->respin)) {
                         cl_float zero = 0.f;
-                        OCL_ASSERT((clEnqueueFillBuffer(mcxqueue[devid], gfield[devid], &zero, sizeof(cl_float), 0,
-                                                        sizeof(cl_float) * fieldlen * (isquadfield ? 4 : 2), 0, NULL, NULL)));
+                        OCL_ASSERT((clEnqueueFillBuffer(mcxqueue[devid], gfield[devid], &zero, sizeof(cl_float), 0, fieldbytes, 0, NULL, NULL)));
                         OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 1, sizeof(cl_mem), (void*)(gfield + devid))));
                     }
 

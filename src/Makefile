@@ -61,7 +61,7 @@ FILES = $(FILES_COMMON)
 CLSOURCE =
 
 # --- OpenCL backend (default, and when no goal specified) ---
-ifneq (,$(filter $(MAKECMDGOALS),all static mex oct intelcpu unittest))
+ifneq (,$(filter $(MAKECMDGOALS),all static mex oct intelcpu unittest fixed))
     USERCCFLAGS += -DUSE_OPENCL -DMCX_OPENCL -DMCX_EMBED_CL
     FILES += $(FILES_OCL)
     CLSOURCE = $(addsuffix $(CLHEADER), $(CLPROGRAM))
@@ -210,7 +210,9 @@ OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 # Build targets
 #################################################################
 
-all mex oct intelcpu static: $(OUTPUT_DIR)/$(BINARY)
+fixed:      USERCCFLAGS+=-DUSE_FIXEDPOINT
+
+all mex oct intelcpu static fixed: $(OUTPUT_DIR)/$(BINARY)
 
 makedirs:
 	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) -p $(OUTPUT_DIR); fi
