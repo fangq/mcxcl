@@ -474,7 +474,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
     int isrfforward = (cfg->omega > 0.f && cfg->seed != SEED_FROM_FILE);  /**< RF forward: complex photon weights */
     int isquadfield = (isrfforward || cfg->outputtype == otRFmus);         /**< 4-quarter field [Re, Re_db, Im, Im_db] */
-    size_t dimxyz = cfg->dim.x * cfg->dim.y * cfg->dim.z * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) ? cfg->srcnum : (cfg->srcid < 0) ? (cfg->extrasrclen + 1) : 1);
+    size_t dimxyz = cfg->dim.x * cfg->dim.y * cfg->dim.z * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) ? cfg->srcnum : mcx_fieldslots(cfg));
 
     cl_uint*  media = (cl_uint*)(cfg->vol);
     int usebytemedia = 0;      /**< upload the label volume as 1 byte/voxel (see MCX_MEDIA_BYTE) */
@@ -526,6 +526,42 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         cfg->polmedianum, (uint)cfg->istrajstokes,
         {{cfg->srciquv.x, cfg->srciquv.y, cfg->srciquv.z, cfg->srciquv.w}}, cfg->omega
     };
+
+    /**
+     * With cfg.sdmap, only the source and detector slots of its channels are simulated and stored:
+     * the device sees them as the slots 1..nsrcslot, the first as the primary source (gcfg->src) and
+     * the others as the extra sources, and only their detectors (the adjoint mode tells a detector
+     * slot from the source slots by the detector count), so the kernel itself is unchanged
+     */
+    unsigned int nsrcslot = 0, Nsrc = cfg->extrasrclen + 1 - cfg->detnum;
+    unsigned int* srcslots = mcx_getsrcslots(cfg, &nsrcslot);
+    ExtraSrc* slotsrc = NULL;
+    float4* slotdet = NULL;
+
+    if (srcslots) {
+        slotsrc = (ExtraSrc*)malloc(sizeof(ExtraSrc) * nsrcslot);
+        slotdet = (float4*)malloc(sizeof(float4) * nsrcslot);
+        param.detnum = 0;
+
+        for (unsigned int k = 0; k < nsrcslot; k++) {
+            if (srcslots[k] == 1) {
+                slotsrc[k].srcpos = cfg->srcpos;
+                slotsrc[k].srcdir = cfg->srcdir;
+                slotsrc[k].srcparam1 = cfg->srcparam1;
+                slotsrc[k].srcparam2 = cfg->srcparam2;
+            } else {
+                slotsrc[k] = cfg->srcdata[srcslots[k] - 2];
+            }
+
+            if (srcslots[k] > Nsrc) {
+                slotdet[param.detnum++] = cfg->detpos[srcslots[k] - Nsrc - 1];
+            }
+        }
+
+        memcpy(&param.src, slotsrc, sizeof(param.src));
+        param.extrasrclen = nsrcslot - 1;
+        MCX_FPRINTF(cfg->flog, "%s: %u of %u\n", T_("source and detector slots used by sdmap"), nsrcslot, cfg->extrasrclen + 1);
+    }
 
     platform = mcx_list_gpu(cfg, &workdev, devices, &gpu);
 
@@ -680,7 +716,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         dimlen.x = cfg->dim.x;
         dimlen.y = cfg->dim.x * cfg->dim.y;
         dimlen.z = cfg->dim.x * cfg->dim.y * cfg->dim.z;
-        dimlen.w = cfg->maxgate * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) ? cfg->srcnum : (cfg->srcid < 0) ? (cfg->extrasrclen + 1) : 1);
+        dimlen.w = cfg->maxgate * ((cfg->srctype == MCX_SRC_PATTERN || cfg->srctype == MCX_SRC_PATTERN3D) ? cfg->srcnum : mcx_fieldslots(cfg));
 
         /** Here we decide the total output buffer, field's length. it is Nx*Ny*Nz*Nt*Ns.
          * dimlen.z and dimlen.w are 32-bit cl_uint, so cast to size_t before multiplying
@@ -813,8 +849,8 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             if (cfg->srcdata) {
                 float4* medsrc = (float4*)malloc(cfg->extrasrclen * 4 * sizeof(float4) + cfg->medianum * sizeof(Medium) + cfg->detnum * sizeof(float4));
                 memcpy(medsrc, cfg->prop, cfg->medianum * sizeof(Medium));
-                memcpy(medsrc + cfg->medianum, cfg->srcdata, cfg->extrasrclen * 4 * sizeof(float4));
-                OCL_TRY(((gproperty[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->extrasrclen * 4 * sizeof(float4) + cfg->medianum * sizeof(Medium), medsrc, &status), status)));
+                memcpy(medsrc + cfg->medianum, slotsrc ? slotsrc + 1 : cfg->srcdata, param.extrasrclen * 4 * sizeof(float4));
+                OCL_TRY(((gproperty[i] = clCreateBuffer(mcxcontext, RO_MEM, param.extrasrclen * 4 * sizeof(float4) + cfg->medianum * sizeof(Medium), medsrc, &status), status)));
                 free(medsrc);
             } else {
                 OCL_TRY(((gproperty[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->medianum * sizeof(Medium), cfg->prop, &status), status)));
@@ -868,7 +904,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             }
 
             if (cfg->detnum > 0) {
-                OCL_TRY(((gdetpos[i] = clCreateBuffer(mcxcontext, RO_MEM, cfg->detnum * sizeof(float4), cfg->detpos, &status), status)));
+                OCL_TRY(((gdetpos[i] = clCreateBuffer(mcxcontext, RO_MEM, param.detnum * sizeof(float4), slotdet ? slotdet : cfg->detpos, &status), status)));
             }
 
             if (cfg->seed != SEED_FROM_FILE) {
@@ -1319,6 +1355,18 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                         OCL_ASSERT((clEnqueueReadBuffer(mcxqueue[devid], gdetphoton[devid], CL_TRUE, 0, sizeof(float)*cfg->maxdetphoton * hostdetreclen,
                                                         Pdet, 0, NULL, NULL)));
 
+                        /** the detector (bits 0-15) and source slot (bits 16-31) of a detected photon are those on the device */
+                        if (srcslots && SAVE_DETID(cfg->savedetflag)) {
+                            unsigned int nsrcused = nsrcslot - param.detnum;
+
+                            for (unsigned int p = 0; p < MIN(detected, (uint)cfg->maxdetphoton); p++) {
+                                int detid = (int)Pdet[p * hostdetreclen], k = detid >> 16, d = detid & 0xFFFF;
+                                d = (d >= 1 && d <= (int)param.detnum) ? (int)(srcslots[nsrcused + d - 1] - Nsrc) : d;
+                                k = (k >= 1 && k <= (int)nsrcslot) ? (int)srcslots[k - 1] : k;
+                                Pdet[p * hostdetreclen] = (float)(d | (k << 16));
+                            }
+                        }
+
                         if (cfg->issaveseed) {
                             seeddata = (RandType*)calloc(sizeof(RandType), cfg->maxdetphoton * RAND_BUF_LEN);
                             OCL_ASSERT(clEnqueueReadBuffer(mcxqueue[devid], gseeddata[devid], CL_TRUE, 0,
@@ -1613,7 +1661,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             }
 
             if (cfg->extrasrclen && cfg->srcid < 0) { // when multiple sources are simulated, the total photons are evenly divided
-                scale[0] *= (cfg->extrasrclen + 1);
+                scale[0] *= mcx_fieldslots(cfg);
             }
 
             cfg->normalizer = scale[0];
@@ -1661,6 +1709,22 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
             /* the 0-based (source, detector) pair of each Jacobian channel */
             unsigned int* hsdmap = mcx_getsdmap(cfg);
+
+            /** with cfg.sdmap, the field only stores the slots in srcslots: address the channels by their field slots */
+            if (srcslots) {
+                for (unsigned int c = 0; c < 2 * nch; c++) {
+                    unsigned int slot = ((c & 1) ? Ns : 0) + hsdmap[c] + 1, k = 0;
+
+                    while (k + 1 < nsrcslot && srcslots[k] != slot) {
+                        k++;
+                    }
+
+                    hsdmap[c] = k;
+                }
+
+                Ns = 0;
+            }
+
             cl_mem gsdmap = clCreateBuffer(mcxcontext, RO_MEM, sizeof(cl_uint) * 2 * (nch > 0 ? nch : 1), hsdmap, &status);
             OCL_ASSERT(status);
             free(hsdmap);
@@ -1852,6 +1916,12 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
             cfg->his.detected = cfg->detectedcount;
             mcx_savedetphoton(cfg->exportdetected, cfg->seeddata, cfg->detectedcount, 0, cfg);
+        }
+
+        /** the 6th value of a trajectory record is its slot on the device */
+        for (unsigned int r = 0; srcslots && cfg->exportdebugdata && r < cfg->debugdatalen; r++) {
+            float* rec = cfg->exportdebugdata + (size_t)r * debuglen + 5;
+            *rec = (*rec >= 1.f && *rec <= nsrcslot) ? srcslots[(int)(*rec) - 1] : *rec;
         }
 
         if ((cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY)) && cfg->parentid == mpStandalone && cfg->exportdebugdata) {
@@ -2049,6 +2119,9 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
     free(field);
     free(srcpw);
+    free(srcslots);
+    free(slotsrc);
+    free(slotdet);
     free(energytot);
     free(energyabs);
     free(Pseed);    /* NULL on the success path; non-NULL only if acquisition aborted mid buffer-loop */

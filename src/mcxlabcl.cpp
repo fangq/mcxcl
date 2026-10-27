@@ -336,7 +336,7 @@ static void mcxlab_main(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs
                 }
 
                 if (cfg.extrasrclen && cfg.srcid < 0) {
-                    fieldlen *= (cfg.extrasrclen + 1);
+                    fieldlen *= mcx_fieldslots(&cfg);  /* Ns+Nd, or only the slots cfg.sdmap uses */
                 }
 
                 cfg.exportfield = (float*)calloc(fieldlen, sizeof(float));
@@ -484,12 +484,12 @@ static void mcxlab_main(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs
                 }
 
                 if (cfg.extrasrclen && cfg.srcid < 0) {
-                    fielddim[5] *= (cfg.extrasrclen + 1);
+                    fielddim[5] *= mcx_fieldslots(&cfg);
                 }
 
                 /** adjoint forward fluence: reshape to [Nx, Ny, Nz, maxgate, Ns+Nd, (1 or 2)] (5D/6D) */
                 if (isadjoint) {
-                    int nsrcslots = cfg.extrasrclen + 1;  /**< total Ns+Nd source slots */
+                    int nsrcslots = mcx_fieldslots(&cfg);  /**< Ns+Nd source slots, or those cfg.sdmap uses */
                     fielddim[0] = cfg.dim.x;
                     fielddim[4] = nsrcslots;
                     fielddim[5] = (cfg.omega > 0.f) ? 2 : 1;
