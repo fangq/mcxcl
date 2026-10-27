@@ -261,7 +261,8 @@ unittest: makedirs $(CLSOURCE) $(ZMATLIB) $(OBJS)
 	$(AR) test_main$(OBJSUFFIX) test_utils$(OBJSUFFIX) $(filter-out mcxcl$(OBJSUFFIX),$(OBJS)) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/mcxcl_unittest$(EXESUFFIX) $(USERLINKOPT)
 	$(OUTPUT_DIR)/mcxcl_unittest$(EXESUFFIX)
 
-$(ZMATLIB):
+# rebuild the bundled zmat when its sources change, or a stale libzmat.a lingers
+$(ZMATLIB): zmat/zmatlib.c zmat/zmatlib.h
 	-$(MAKE) -C zmat lib AR=ar CPPOPT="-O3 $(DLLFLAG)" CCOPT="-O3 $(DLLFLAG)" USERLINKOPT=
 
 #################################################################
