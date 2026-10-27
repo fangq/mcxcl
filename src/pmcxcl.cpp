@@ -677,8 +677,11 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
 
         auto buffer_info = f_style_volume.request();
 
-        if ((buffer_info.shape.size() > 1 && buffer_info.shape.at(0) > 0 && buffer_info.shape.at(1) != 4) || (buffer_info.shape.size() == 1 && buffer_info.shape.at(0) != 4)) {
-            throw py::value_error("the 'detdir' field must have 4 columns (vx,vy,vz,focallength)");
+        /* [vx,vy,vz] or [vx,vy,vz,focallength] per detector; a missing focal length stays 0: no focusing */
+        int detdir_cols = (buffer_info.shape.size() == 1) ? buffer_info.shape.at(0) : ((buffer_info.shape.size() > 1) ? buffer_info.shape.at(1) : 0);
+
+        if ((buffer_info.shape.size() < 2 || buffer_info.shape.at(0) > 0) && (detdir_cols < 3 || detdir_cols > 4)) {
+            throw py::value_error("the 'detdir' field must have 3 or 4 columns (vx,vy,vz,focallength)");
         }
 
         unsigned int ndir = (buffer_info.shape.size() == 1) ? 1 : buffer_info.shape.at(0);
@@ -695,7 +698,7 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
         memset(mcx_config.detdir, 0, ndir * sizeof(float4));
         auto val = static_cast<float*>(buffer_info.ptr);
 
-        for (int j = 0; j < 4; j++)
+        for (int j = 0; j < detdir_cols; j++)
             for (unsigned int i = 0; i < ndir; i++) {
                 ((float*) (&mcx_config.detdir[i]))[j] = val[j * ndir + i];
             }
