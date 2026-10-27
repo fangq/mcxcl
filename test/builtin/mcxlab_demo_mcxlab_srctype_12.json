@@ -1,0 +1,98 @@
+{
+ "Session": {
+  "ID": "mcxlab_demo_mcxlab_srctype_12",
+  "DoMismatch": 1,
+  "DoAutoThread": 1,
+  "RNGSeed": 99999,
+  "Photons": 10000000
+ },
+ "Forward": {
+  "T0": 0,
+  "T1": 3e-10,
+  "Dt": 1e-11
+ },
+ "Optode": {
+  "Source": {
+   "Pos": [
+    17,
+    17,
+    61
+   ],
+   "Dir": [
+    0,
+    0,
+    -1
+   ],
+   "Param1": [
+    30,
+    0,
+    0,
+    11
+   ],
+   "Param2": [
+    0,
+    30,
+    0,
+    6
+   ],
+   "Type": "pattern",
+   "Pattern": {
+    "_ArrayType_": "single",
+    "_ArraySize_": [
+     11,
+     6
+    ],
+    "_ArrayZipType_": "zlib",
+    "_ArrayZipSize_": [
+     1,
+     66
+    ],
+    "_ArrayZipData_": "eJxjYMAHGuwRGFkMXQ02cVzqaS2O7lZ092MHAPcgCzI="
+   }
+  }
+ },
+ "Domain": {
+  "OriginType": 0,
+  "Media": [
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0.005,
+    "mus": 0.01,
+    "g": 0.8,
+    "n": 1.37
+   },
+   {
+    "mua": 0.01,
+    "mus": 1,
+    "g": 0.8,
+    "n": 1.37
+   }
+  ],
+  "MediaFormat": "byte",
+  "Dim": [
+   60,
+   60,
+   60
+  ],
+  "VolumeFile": ""
+ },
+ "Shapes": {
+  "_ArrayType_": "uint8",
+  "_ArraySize_": [
+   60,
+   60,
+   60
+  ],
+  "_ArrayZipType_": "zlib",
+  "_ArrayZipSize_": [
+   1,
+   216000
+  ],
+  "_ArrayZipData_": "eJzt17ENwDAAwzCk/x/dMR8YsUHuOkDnAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALzlu7TaJ1oAACCj8Re02y0AAJDR+Ava7RYAAMho/AXtdgsAAGQ0/oJ2uwUAADIaf0G73QIAABmNv6DdbgEAgIzGX9ButwAAQEbjL2i3WwAAIKPxF7TbLQAAkNH4C9rtFgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABe8wOVo1Eh"
+ }
+}

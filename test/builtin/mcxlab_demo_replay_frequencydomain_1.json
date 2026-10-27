@@ -1,0 +1,106 @@
+{
+ "Session": {
+  "ID": "mcxlab_demo_replay_frequencydomain_1",
+  "DoMismatch": 1,
+  "DoNormalize": 0,
+  "DoSpecular": 0,
+  "DoAutoThread": 1,
+  "MaxDetPhoton": 50000000,
+  "SaveDataMask": "DP",
+  "Photons": 30000000
+ },
+ "Forward": {
+  "T0": 0,
+  "T1": 1e-08,
+  "Dt": 1e-08
+ },
+ "Optode": {
+  "Source": {
+   "Pos": [
+    30,
+    30,
+    1
+   ],
+   "Dir": [
+    0,
+    0,
+    1
+   ]
+  },
+  "Detector": [
+   {
+    "Pos": [
+     45,
+     30,
+     1
+    ],
+    "R": 2
+   },
+   {
+    "Pos": [
+     60,
+     30,
+     1
+    ],
+    "R": 2
+   }
+  ]
+ },
+ "Domain": {
+  "OriginType": 0,
+  "LengthUnit": 1,
+  "Media": [
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0.015,
+    "mus": 16,
+    "g": 0.9,
+    "n": 1.4
+   },
+   {
+    "mua": 0.004,
+    "mus": 1.6,
+    "g": 0.9,
+    "n": 1.4
+   },
+   {
+    "mua": 0.048,
+    "mus": 5,
+    "g": 0.9,
+    "n": 1.4
+   },
+   {
+    "mua": 0.037,
+    "mus": 10,
+    "g": 0.9,
+    "n": 1.4
+   }
+  ],
+  "MediaFormat": "byte",
+  "Dim": [
+   90,
+   60,
+   60
+  ],
+  "VolumeFile": ""
+ },
+ "Shapes": {
+  "_ArrayType_": "uint8",
+  "_ArraySize_": [
+   90,
+   60,
+   60
+  ],
+  "_ArrayZipType_": "zlib",
+  "_ArrayZipSize_": [
+   1,
+   324000
+  ],
+  "_ArrayZipData_": "eJzty6ERADAIBLB7yv4zwwxViMQnSb3VH+K6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu67sk704GLJw=="
+ }
+}

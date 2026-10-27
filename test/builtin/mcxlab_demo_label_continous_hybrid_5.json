@@ -1,0 +1,101 @@
+{
+ "Session": {
+  "ID": "mcxlab_demo_label_continous_hybrid_5",
+  "DoMismatch": 1,
+  "DoAutoThread": 1,
+  "Photons": 100000000
+ },
+ "Forward": {
+  "T0": 0,
+  "T1": 5e-09,
+  "Dt": 5e-09
+ },
+ "Optode": {
+  "Source": {
+   "Pos": [
+    30,
+    30,
+    1
+   ],
+   "Dir": [
+    0,
+    0,
+    1
+   ]
+  }
+ },
+ "Domain": {
+  "OriginType": 0,
+  "Media": [
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0.05,
+    "mus": 1,
+    "g": 0,
+    "n": 1.37
+   },
+   {
+    "mua": 0.01,
+    "mus": 2,
+    "g": 0,
+    "n": 1.3
+   },
+   {
+    "mua": 0.01,
+    "mus": 2,
+    "g": 0,
+    "n": 1.35
+   },
+   {
+    "mua": 0.01,
+    "mus": 2,
+    "g": 0,
+    "n": 1.4
+   },
+   {
+    "mua": 0.01,
+    "mus": 2,
+    "g": 0,
+    "n": 1.45
+   },
+   {
+    "mua": 0.01,
+    "mus": 2,
+    "g": 0,
+    "n": 1.5
+   },
+   {
+    "mua": 0.01,
+    "mus": 2,
+    "g": 0,
+    "n": 1.55
+   }
+  ],
+  "MediaFormat": "byte",
+  "Dim": [
+   60,
+   60,
+   60
+  ],
+  "VolumeFile": ""
+ },
+ "Shapes": {
+  "_ArrayType_": "uint8",
+  "_ArraySize_": [
+   60,
+   60,
+   60
+  ],
+  "_ArrayZipType_": "zlib",
+  "_ArrayZipSize_": [
+   1,
+   216000
+  ],
+  "_ArrayZipData_": "eJzty0cNADAMBDClkz/j6ggEQGX/XdUZMWPFjhM32uq6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6rvv5fTCVENg="
+ }
+}

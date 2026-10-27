@@ -1,0 +1,268 @@
+{
+ "Session": {
+  "ID": "mcxlab_demo_diffuse_reflectance_validation_1",
+  "DoMismatch": 1,
+  "DoSaveExit": 1,
+  "DoAutoThread": 1,
+  "Photons": 100000000
+ },
+ "Forward": {
+  "T0": 0,
+  "T1": 5e-09,
+  "Dt": 5e-09
+ },
+ "Optode": {
+  "Source": {
+   "Pos": [
+    30,
+    30,
+    0
+   ],
+   "Dir": [
+    0,
+    0,
+    1
+   ]
+  },
+  "Detector": [
+   {
+    "Pos": [
+     30,
+     31,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     32,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     33,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     34,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     35,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     36,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     37,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     38,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     39,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     40,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     41,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     42,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     43,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     44,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     45,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     46,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     47,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     48,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     49,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     50,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     51,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     52,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     53,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     54,
+     0
+    ],
+    "R": 0.25
+   },
+   {
+    "Pos": [
+     30,
+     55,
+     0
+    ],
+    "R": 0.25
+   }
+  ]
+ },
+ "Domain": {
+  "OriginType": 1,
+  "Media": [
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0.01,
+    "mus": 10,
+    "g": 0.9,
+    "n": 1.4
+   }
+  ],
+  "MediaFormat": "byte",
+  "Dim": [
+   60,
+   60,
+   60
+  ],
+  "VolumeFile": ""
+ },
+ "Shapes": {
+  "_ArrayType_": "uint8",
+  "_ArraySize_": [
+   60,
+   60,
+   60
+  ],
+  "_ArrayZipType_": "zlib",
+  "_ArrayZipSize_": [
+   1,
+   216000
+  ],
+  "_ArrayZipData_": "eJztwTENAAAAw6DUv+l52A0UAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACPAXeFS+4="
+ }
+}

@@ -157,8 +157,8 @@ echo "test RF mus replay output is non-zero ... "
 temp=`"$MCX" --bench cube60 --json '{"Optode":{"Source":{"Frequency":1e8}}}' -E replaytest_detp.jdt -O s -s rfmusreplay -F nii $PARAM > /dev/null 2>&1 && python3 -c "import sys,struct;d=open('rfmusreplay.nii','rb').read()[352:];print(int(any(v!=0 for v in struct.unpack('%df'%(len(d)//4),d))))" 2>/dev/null`
 if [ "$temp" != "1" ]; then echo "fail to produce non-zero rfmus replay output"; fail=$((fail+1)); else echo "ok"; fi
 
-# the builtin inputs of mcx, next to this repository
-BUILTINDIR=${BUILTINDIR:-$TESTDIR/../../mcx/test/builtin}
+# the builtin inputs copied from mcx (test/builtin)
+BUILTINDIR=${BUILTINDIR:-$TESTDIR/builtin}
 
 # short runs of the less common host paths: each must finish and report the simulation;
 # runok "description" "output file that must exist, or -" mcx options...
@@ -196,7 +196,7 @@ runok "time gates in groups (-g)" gates.jnii --bench cube60 -n 1e5 -g 2 -s gates
 runok "two simultaneous patterns" pat2.jnii --bench cube60planar -n 1e5 -s pat2 --json '{"Optode":{"Source":{"Type":"pattern","Pos":[10,10,-10],"Param1":[40,0,0,2],"Param2":[0,40,0,2],"SrcNum":2,"Pattern":{"Nx":2,"Ny":2,"Data":[1,0,0,1,0,1,1,0]}}}}'
 runok "3-D pattern source" pat3d.jnii --bench cube60 -n 1e5 -s pat3d --json '{"Optode":{"Source":{"Type":"pattern3d","Pos":[20,20,20],"Param1":[2,2,2,0],"Pattern":{"Nx":2,"Ny":2,"Nz":2,"Data":[1,1,1,1,1,1,1,1]}}}}'
 runok "unnormalized output (-U 0) of an energy deposit" udep.jnii --bench cube60 -n 1e5 -U 0 -O e -s udep
-# these read the mcx builtin inputs, which a checkout of mcxcl alone lacks
+# these read the builtin inputs
 if [ -f "$BUILTINDIR/mcxlab_demo_continuous_mua_mus_1.json" ]; then
     runok "continuous media, wide-field source, no reflection" cont0.jnii -f "$BUILTINDIR/mcxlab_demo_continuous_mua_mus_1.json" -n 1e5 -b 0 -s cont0 --json '{"Optode":{"Source":{"Type":"disk","Param1":[5,0,0,0]}}}'
     runok "continuous media, wide-field source, with reflection" cont1.jnii -f "$BUILTINDIR/mcxlab_demo_continuous_mua_mus_1.json" -n 1e5 -b 1 -s cont1 --json '{"Optode":{"Source":{"Type":"disk","Param1":[5,0,0,0]}}}'
@@ -204,7 +204,7 @@ if [ -f "$BUILTINDIR/mcxlab_demo_continuous_mua_mus_1.json" ]; then
     runok "polarized light with reflection, pencil beam" pol2.jnii -f "$BUILTINDIR/mcxlab_demo_polarized_photon_1.json" -n 1e5 -b 1 -s pol2 --json '{"Optode":{"Source":{"Type":"pencil"}}}'
     runok "continuous media, pencil beam, no reflection" cont2.jnii -f "$BUILTINDIR/mcxlab_demo_continuous_mua_mus_1.json" -n 1e5 -b 0 -s cont2 --json '{"Optode":{"Source":{"Type":"pencil"}}}'
 else
-    echo "skip the continuous-media and polarized tests: no mcx builtin inputs in $BUILTINDIR"
+    echo "skip the continuous-media and polarized tests: no builtin inputs in $BUILTINDIR"
 fi
 runok "repeated runs accumulated (-r 2)" resp2.jnii --bench cube60 -n 1e5 -r 2 -s resp2
 runok "photons split over repeated runs (-r -2)" respm2.jnii --bench cube60 -n 1e5 -r -2 -s respm2

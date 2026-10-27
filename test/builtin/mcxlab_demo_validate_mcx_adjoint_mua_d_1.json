@@ -1,0 +1,79 @@
+{
+ "Session": {
+  "ID": "mcxlab_demo_validate_mcx_adjoint_mua_d_1",
+  "DoMismatch": 1,
+  "OutputType": "adjoint_mua_d",
+  "DoAutoThread": 1,
+  "Photons": 100000000
+ },
+ "Forward": {
+  "T0": 0,
+  "T1": 5e-09,
+  "Dt": 5e-09
+ },
+ "Optode": {
+  "Source": {
+   "Pos": [
+    20,
+    29.5,
+    0
+   ],
+   "Dir": [
+    0,
+    0,
+    1,
+    0
+   ],
+   "Type": "pencil",
+   "Frequency": 200000000
+  },
+  "Detector": [
+   {
+    "Pos": [
+     40,
+     30,
+     0
+    ],
+    "R": 1
+   }
+  ]
+ },
+ "Domain": {
+  "OriginType": 1,
+  "Media": [
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0.005,
+    "mus": 1,
+    "g": 0,
+    "n": 1.37
+   }
+  ],
+  "MediaFormat": "byte",
+  "Dim": [
+   60,
+   60,
+   30
+  ],
+  "VolumeFile": ""
+ },
+ "Shapes": {
+  "_ArrayType_": "uint8",
+  "_ArraySize_": [
+   60,
+   60,
+   30
+  ],
+  "_ArrayZipType_": "zlib",
+  "_ArrayZipSize_": [
+   1,
+   108000
+  ],
+  "_ArrayZipData_": "eJztwTENAAAAw6DUv+nZ2AEUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD8GhpcpfA="
+ }
+}

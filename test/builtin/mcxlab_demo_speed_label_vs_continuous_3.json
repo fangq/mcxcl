@@ -1,0 +1,82 @@
+{
+ "Session": {
+  "ID": "mcxlab_demo_speed_label_vs_continuous_3",
+  "DoMismatch": 1,
+  "DoAutoThread": 1,
+  "Photons": 10000000
+ },
+ "Forward": {
+  "T0": 0,
+  "T1": 5e-09,
+  "Dt": 5e-09
+ },
+ "Optode": {
+  "Source": {
+   "Pos": [
+    30,
+    30,
+    1
+   ],
+   "Dir": [
+    0,
+    0,
+    1
+   ]
+  },
+  "Detector": [
+   {
+    "Pos": [
+     30,
+     33,
+     1
+    ],
+    "R": 2
+   }
+  ]
+ },
+ "Domain": {
+  "OriginType": 0,
+  "Media": [
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0.05,
+    "mus": 1,
+    "g": 0,
+    "n": 1.37
+   },
+   {
+    "mua": 0.1,
+    "mus": 1,
+    "g": 0,
+    "n": 1.37
+   }
+  ],
+  "MediaFormat": "muamus_float",
+  "Dim": [
+   60,
+   60,
+   60
+  ],
+  "VolumeFile": ""
+ },
+ "Shapes": {
+  "_ArrayType_": "single",
+  "_ArraySize_": [
+   60,
+   60,
+   60,
+   2
+  ],
+  "_ArrayZipType_": "zlib",
+  "_ArrayZipSize_": [
+   1,
+   432000
+  ],
+  "_ArrayZipData_": "eJzt0TENgDAAAMEaIxhAFAJbTxVAWJjI56bbfvk1r2OM+1wP50ffevyX/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/rb1t+2/rb1t62/bf1t629bf9v629bftv629betv239betvW3/b+tvW37b+tvW3rb9t/W3rb1t/2/pbcAM0M9zz"
+ }
+}

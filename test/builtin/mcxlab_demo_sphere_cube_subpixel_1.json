@@ -1,0 +1,72 @@
+{
+ "Session": {
+  "ID": "mcxlab_demo_sphere_cube_subpixel_1",
+  "DoMismatch": 1,
+  "DoAutoThread": 1,
+  "RNGSeed": 1648335518,
+  "Photons": 10000000
+ },
+ "Forward": {
+  "T0": 0,
+  "T1": 5e-09,
+  "Dt": 5e-10
+ },
+ "Optode": {
+  "Source": {
+   "Pos": [
+    31,
+    31,
+    1
+   ],
+   "Dir": [
+    0,
+    0,
+    1
+   ]
+  }
+ },
+ "Domain": {
+  "OriginType": 0,
+  "Media": [
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0.002,
+    "mus": 1,
+    "g": 0.01,
+    "n": 1.37
+   },
+   {
+    "mua": 0.05,
+    "mus": 0.5,
+    "g": 0.01,
+    "n": 1.37
+   }
+  ],
+  "MediaFormat": "byte",
+  "Dim": [
+   60,
+   60,
+   60
+  ],
+  "VolumeFile": ""
+ },
+ "Shapes": {
+  "_ArrayType_": "uint8",
+  "_ArraySize_": [
+   60,
+   60,
+   60
+  ],
+  "_ArrayZipType_": "zlib",
+  "_ArrayZipSize_": [
+   1,
+   216000
+  ],
+  "_ArrayZipData_": "eJzt3LFu5DAQREGI///RTjbywoA1TWhIsSp/iS6ZBr13XQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAZxtj1MtRrYN2jHrc1XZ9qyv59wUAANbXs63GqMfaZ9q+DQsAAOeJXnHSZ6tnt8YY9Thox6jHXW3Xt2rcod40AQA4Tnw922Xaie2eO9S7JAAAfeIrNjyfN9ll4zftcu2eO9SWBAAgVr4Ig1N0zgn84B7s2ilB+5XeiLvaHb/ztnswSD95LQQAYCH1k3DOGfv+TfeVbrDLTmttyWJdKAEAWEl8EYanqD2o7W/twWJdKAEAWEhwEtbvyeQGnnd623TaGe2mv1ts/VtTAAAWMeMktAe1B7f2IAAA25pxEtqD2oNbexAAgH3Vz7rgngzO2Hmnt98Pav+O/5/6/SAAAPuKL8LwFLUHtf2tPVisCyUAAGspX3XBOTnnjH3/ljxth+74nbfddEH6yWshAAAvUT8n55zAD+7Bw7bkcW3f7/iC1BsfAAC7iq/Y8HzO/hOcIH1wa2ir8b3UpgMAgLvqV2x8PZfqOSe/HXonvpf27bKkTTddvQQAgNMEt3dw8ndtDW0lvp96pwMAgPeLXnHKe6Fnw7a1Xd/q8tYGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVP444XBk="
+ }
+}

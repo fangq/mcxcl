@@ -1,0 +1,109 @@
+{
+ "Session": {
+  "ID": "mcxlab_demo_polarized_photon_1",
+  "DoMismatch": 0,
+  "DoAutoThread": 1,
+  "MaxDetPhoton": 10000000,
+  "BCFlags": "cc_cc_001000",
+  "SaveDataMask": "IXVW",
+  "Photons": 10000000
+ },
+ "Forward": {
+  "T0": 0,
+  "T1": 5e-08,
+  "Dt": 5e-08
+ },
+ "Optode": {
+  "Source": {
+   "Pos": [
+    0,
+    0,
+    0
+   ],
+   "Dir": [
+    0,
+    0,
+    1
+   ],
+   "IQUV": [
+    1,
+    1,
+    0,
+    0
+   ],
+   "Param1": [
+    100,
+    0,
+    0
+   ],
+   "Param2": [
+    0,
+    100,
+    0
+   ],
+   "Type": "planar",
+   "WaveLength": 632.8
+  }
+ },
+ "Domain": {
+  "OriginType": 1,
+  "LengthUnit": 0.1,
+  "Media": [
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   }
+  ],
+  "MieScatter": [
+   {
+    "mua": 0.005,
+    "radius": 0.05,
+    "rho": 19.1142,
+    "nsph": 1.59,
+    "nmed": 1.33
+   },
+   {
+    "mua": 0.005,
+    "radius": 1,
+    "rho": 0.00111078,
+    "nsph": 1.59,
+    "nmed": 1.33
+   }
+  ],
+  "MediaFormat": "byte",
+  "Dim": [
+   100,
+   100,
+   12
+  ],
+  "VolumeFile": ""
+ },
+ "Shapes": {
+  "_ArrayType_": "uint8",
+  "_ArraySize_": [
+   100,
+   100,
+   12
+  ],
+  "_ArrayZipType_": "zlib",
+  "_ArrayZipSize_": [
+   1,
+   120000
+  ],
+  "_ArrayZipData_": "eJzt2ssKgCAQQFGc///o2oSPHigWJJyzGiFaXpowJQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD4h9iNzACfq/NznIo5Ih/K+e756p0Ab+no0ujctAtgQpGT615F5EPP/NAr6QJmtGvc6RtpqldVu/QKmKJXwCqadc0+CKzgulf+twN/5D4DsLg6P+6LAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABr2QCP/tb4"
+ }
+}

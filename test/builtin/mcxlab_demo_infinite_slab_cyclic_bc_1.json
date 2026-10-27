@@ -1,0 +1,80 @@
+{
+ "Session": {
+  "ID": "mcxlab_demo_infinite_slab_cyclic_bc_1",
+  "DoMismatch": 1,
+  "DoAutoThread": 1,
+  "BCFlags": "ccrccr",
+  "RNGSeed": 99999,
+  "Photons": 100000000
+ },
+ "Forward": {
+  "T0": 0,
+  "T1": 5e-09,
+  "Dt": 5e-09
+ },
+ "Optode": {
+  "Source": {
+   "Pos": [
+    0,
+    0,
+    0
+   ],
+   "Dir": [
+    0,
+    0,
+    1
+   ],
+   "Param1": [
+    60,
+    0,
+    0,
+    0
+   ],
+   "Param2": [
+    0,
+    60,
+    0,
+    0
+   ],
+   "Type": "planar"
+  }
+ },
+ "Domain": {
+  "OriginType": 1,
+  "Media": [
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0.005,
+    "mus": 2,
+    "g": 0.8,
+    "n": 1.37
+   }
+  ],
+  "MediaFormat": "byte",
+  "Dim": [
+   60,
+   60,
+   20
+  ],
+  "VolumeFile": ""
+ },
+ "Shapes": {
+  "_ArrayType_": "uint8",
+  "_ArraySize_": [
+   60,
+   60,
+   20
+  ],
+  "_ArrayZipType_": "zlib",
+  "_ArrayZipSize_": [
+   1,
+   72000
+  ],
+  "_ArrayZipData_": "eJztwTENAAAAw6DUv+n90wAUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8AZ75xlQ"
+ }
+}

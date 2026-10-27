@@ -1,0 +1,98 @@
+{
+ "Session": {
+  "ID": "mcxlab_demo_replay_all_jacobian_1",
+  "DoMismatch": 1,
+  "DoSaveVolume": 0,
+  "DoNormalize": 0,
+  "DoSpecular": 0,
+  "DoAutoThread": 1,
+  "SaveDataMask": "DP",
+  "Photons": 50000000
+ },
+ "Forward": {
+  "T0": 0,
+  "T1": 1e-08,
+  "Dt": 1e-08
+ },
+ "Optode": {
+  "Source": {
+   "Pos": [
+    30,
+    30,
+    1
+   ],
+   "Dir": [
+    0,
+    0,
+    1
+   ]
+  },
+  "Detector": [
+   {
+    "Pos": [
+     45,
+     30,
+     1
+    ],
+    "R": 2
+   }
+  ]
+ },
+ "Domain": {
+  "OriginType": 0,
+  "LengthUnit": 1,
+  "Media": [
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0.015,
+    "mus": 14,
+    "g": 0.9,
+    "n": 1.4
+   },
+   {
+    "mua": 0.004,
+    "mus": 1.6,
+    "g": 0.9,
+    "n": 1.4
+   },
+   {
+    "mua": 0.048,
+    "mus": 5,
+    "g": 0.9,
+    "n": 1.4
+   },
+   {
+    "mua": 0.037,
+    "mus": 10,
+    "g": 0.9,
+    "n": 1.4
+   }
+  ],
+  "MediaFormat": "byte",
+  "Dim": [
+   60,
+   60,
+   60
+  ],
+  "VolumeFile": ""
+ },
+ "Shapes": {
+  "_ArrayType_": "uint8",
+  "_ArraySize_": [
+   60,
+   60,
+   60
+  ],
+  "_ArrayZipType_": "zlib",
+  "_ArrayZipSize_": [
+   1,
+   216000
+  ],
+  "_ArrayZipData_": "eJztyzERADAIBLB7in/NoKEryZ4k9VZ/iOu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu6ruu67uE7p8VcxQ=="
+ }
+}

@@ -1,0 +1,72 @@
+{
+ "Session": {
+  "ID": "mcxlab_demo_mcxlab_2d_1",
+  "DoMismatch": 1,
+  "DoAutoThread": 1,
+  "Photons": 1000000
+ },
+ "Forward": {
+  "T0": 0,
+  "T1": 1e-08,
+  "Dt": 1e-08
+ },
+ "Optode": {
+  "Source": {
+   "Pos": [
+    0,
+    50,
+    0
+   ],
+   "Dir": [
+    0,
+    0,
+    1
+   ],
+   "Type": "pencil"
+  }
+ },
+ "Domain": {
+  "OriginType": 1,
+  "Media": [
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0.02,
+    "mus": 0.1,
+    "g": 0.9,
+    "n": 1.37
+   },
+   {
+    "mua": 0.02,
+    "mus": 10,
+    "g": 0.9,
+    "n": 6.850000000000001
+   }
+  ],
+  "MediaFormat": "byte",
+  "Dim": [
+   1,
+   100,
+   100
+  ],
+  "VolumeFile": ""
+ },
+ "Shapes": {
+  "_ArrayType_": "uint8",
+  "_ArraySize_": [
+   1,
+   100,
+   100
+  ],
+  "_ArrayZipType_": "zlib",
+  "_ArrayZipSize_": [
+   1,
+   10000
+  ],
+  "_ArrayZipData_": "eJztzTENAAAIA7AM/6KxwMEBSWugCQAAsKKmHA6Hw+FwOBwOh8PhcLw+AACAsxpxqi2i"
+ }
+}

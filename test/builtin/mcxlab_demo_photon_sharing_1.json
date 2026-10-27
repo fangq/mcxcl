@@ -1,0 +1,106 @@
+{
+ "Session": {
+  "ID": "mcxlab_demo_photon_sharing_1",
+  "DoMismatch": 1,
+  "DoSaveRef": 1,
+  "DoAutoThread": 1,
+  "SaveDataMask": "DPW",
+  "RNGSeed": 99999,
+  "Photons": 10000000
+ },
+ "Forward": {
+  "T0": 0,
+  "T1": 5e-09,
+  "Dt": 5e-09
+ },
+ "Optode": {
+  "Source": {
+   "Pos": [
+    0,
+    0,
+    0
+   ],
+   "Dir": [
+    0,
+    0,
+    1
+   ],
+   "Param1": [
+    60,
+    0,
+    0,
+    6
+   ],
+   "Param2": [
+    0,
+    60,
+    0,
+    11
+   ],
+   "Type": "pattern",
+   "SrcNum": 3,
+   "Pattern": {
+    "_ArrayType_": "single",
+    "_ArraySize_": [
+     3,
+     6,
+     11
+    ],
+    "_ArrayZipType_": "zlib",
+    "_ArrayZipSize_": [
+     1,
+     198
+    ],
+    "_ArrayZipData_": "eJxjYACBBnsIxgZwySGL49OProcYNYTMJce9xAJ85hKjDps8rdTC+LgwuQCfmfjihBw7iFFHC/fiBwCv8ihL"
+   }
+  },
+  "Detector": [
+   {
+    "Pos": [
+     25,
+     30,
+     0
+    ],
+    "R": 2
+   }
+  ]
+ },
+ "Domain": {
+  "OriginType": 1,
+  "Media": [
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0.005,
+    "mus": 1,
+    "g": 0.8,
+    "n": 1.37
+   }
+  ],
+  "MediaFormat": "byte",
+  "Dim": [
+   60,
+   60,
+   60
+  ],
+  "VolumeFile": ""
+ },
+ "Shapes": {
+  "_ArrayType_": "uint8",
+  "_ArraySize_": [
+   60,
+   60,
+   60
+  ],
+  "_ArrayZipType_": "zlib",
+  "_ArrayZipSize_": [
+   1,
+   216000
+  ],
+  "_ArrayZipData_": "eJztyzEBAAAMAiDtX9oOewc/6V1c13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Vd13Uf3wHX1T3e"
+ }
+}

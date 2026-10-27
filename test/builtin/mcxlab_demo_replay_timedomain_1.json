@@ -1,0 +1,91 @@
+{
+ "Session": {
+  "ID": "mcxlab_demo_replay_timedomain_1",
+  "DoMismatch": 1,
+  "DoAutoThread": 1,
+  "Photons": 100000000
+ },
+ "Forward": {
+  "T0": 0,
+  "T1": 5e-09,
+  "Dt": 2e-10
+ },
+ "Optode": {
+  "Source": {
+   "Pos": [
+    30,
+    30,
+    0
+   ],
+   "Dir": [
+    0,
+    0,
+    1
+   ]
+  },
+  "Detector": [
+   {
+    "Pos": [
+     30,
+     30,
+     20
+    ],
+    "R": 2
+   },
+   {
+    "Pos": [
+     30,
+     40,
+     20
+    ],
+    "R": 2
+   },
+   {
+    "Pos": [
+     30,
+     50,
+     20
+    ],
+    "R": 2
+   }
+  ]
+ },
+ "Domain": {
+  "OriginType": 1,
+  "Media": [
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0.005,
+    "mus": 1,
+    "g": 0,
+    "n": 1.37
+   }
+  ],
+  "MediaFormat": "byte",
+  "Dim": [
+   60,
+   60,
+   20
+  ],
+  "VolumeFile": ""
+ },
+ "Shapes": {
+  "_ArrayType_": "uint8",
+  "_ArraySize_": [
+   60,
+   60,
+   20
+  ],
+  "_ArrayZipType_": "zlib",
+  "_ArrayZipSize_": [
+   1,
+   72000
+  ],
+  "_ArrayZipData_": "eJztwTENAAAAw6DUv+n90wAUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA8AZ75xlQ"
+ }
+}

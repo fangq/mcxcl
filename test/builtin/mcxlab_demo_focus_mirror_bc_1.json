@@ -1,0 +1,93 @@
+{
+ "Session": {
+  "ID": "mcxlab_demo_focus_mirror_bc_1",
+  "DoMismatch": 1,
+  "DoAutoThread": 1,
+  "BCFlags": "mm____",
+  "Photons": 10000000
+ },
+ "Forward": {
+  "T0": 0,
+  "T1": 5e-09,
+  "Dt": 5e-09
+ },
+ "Optode": {
+  "Source": {
+   "Pos": [
+    -40,
+    -40,
+    0
+   ],
+   "Dir": [
+    0,
+    0,
+    1,
+    30
+   ],
+   "Param1": [
+    80,
+    0,
+    0,
+    100
+   ],
+   "Param2": [
+    0,
+    80,
+    0,
+    100
+   ],
+   "Type": "pattern",
+   "Pattern": {
+    "_ArrayType_": "single",
+    "_ArraySize_": [
+     100,
+     100
+    ],
+    "_ArrayZipSize_": [
+     1,
+     10000
+    ],
+    "_ArrayZipType_": "zlib",
+    "_ArrayZipData_": "eJzt0cEJwDAAA7Fu1tU6et/+Bw6CBF7g/DwAAAAAAAAAAAAAAAAAAAAAAAAAcNL33rFb1B39seqO/lh1R3+suqM/Vt3RH6vu6I9Vd/THqjv6Y9Ud/bHqjv5YdUd/rLqjP1bd0R+r7uiPVXf0x6o7+mPVHf2x6o7+WHVHf6y6oz9W3dEfq+7oj1V39MeqO/pj1R39seqO/lh1R3+suqM/Vt3RH6vu6I9Vd/THqjv6Y9Ud/bHqjv5YdUd/rLqjP1bd0R+r7uiPVXf0x6o7+mPVHf2x6o7+WHVHf6y6oz9W3dEfq+7oj1V39MeqO/pj1R3P7AfUokmm"
+   }
+  }
+ },
+ "Domain": {
+  "OriginType": 1,
+  "Media": [
+   {
+    "mua": 0,
+    "mus": 0,
+    "g": 1,
+    "n": 1
+   },
+   {
+    "mua": 0.005,
+    "mus": 0.1,
+    "g": 0,
+    "n": 1
+   }
+  ],
+  "MediaFormat": "byte",
+  "Dim": [
+   60,
+   60,
+   60
+  ],
+  "VolumeFile": ""
+ },
+ "Shapes": {
+  "_ArrayType_": "uint8",
+  "_ArraySize_": [
+   60,
+   60,
+   60
+  ],
+  "_ArrayZipType_": "zlib",
+  "_ArrayZipSize_": [
+   1,
+   216000
+  ],
+  "_ArrayZipData_": "eJztwTENAAAAw6DUv+l52A0UAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACPAXeFS+4="
+ }
+}
