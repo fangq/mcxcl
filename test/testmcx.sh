@@ -259,10 +259,11 @@ runok "unnormalized time-of-flight*nscat replay (-O B -U 0)" featrep5.mc2 --benc
 runok "RF adjoint mus' Jacobian" adjrfv.jnii --bench cube60 -n 1e5 -O v -s adjrfv --json "$DETRF"
 runok "RF dual adjoint mua/mus' Jacobians" adjrfq.jnii --bench cube60 -n 1e5 -O q -s adjrfq --json "$DETRF"
 runlog "save the trajectories of the source and detector slots of Optode.SDMap" 'saved trajectory positions: [1-9]' --bench cube60 -n 1e3 -O w -D M -d 0 -s adjtraj --json "$DETMAP"
-# 300 media with their partial paths saved (-w DP) need more shared memory than a block of 64 photons has
+# 300 media with their partial paths saved (-w DP) need more local memory than a GPU has for a block of
+# 64 photons, and the block is shrunk to fit; a CPU device (POCL) has enough, so only the run is checked
 MED=`printf '{"mua":0.005,"mus":1,"g":0.01,"n":1.37}%.0s,' $(seq 300)`
 printf '{"Session":{"ID":"manymed","Photons":1e4},"Forward":{"T0":0,"T1":5e-9,"Dt":5e-9},"Domain":{"Dim":[20,20,20],"Media":[{"mua":0,"mus":0,"g":1,"n":1},%s]},"Shapes":[{"Grid":{"Tag":300,"Size":[20,20,20]}}],"Optode":{"Source":{"Pos":[10,10,0],"Dir":[0,0,1]},"Detector":[{"Pos":[10,12,0],"R":3}]}}' "${MED%,}" > manymed.json
-runlog "reduce the block size when the per-photon data of 300 media exceed the shared memory" 'reduce block size to fit the shared memory: [0-9]+ -> [0-9]+' -f manymed.json -w DP -S 0
+runok "300 media with their partial paths saved, shrinking the block to fit the local memory" - -f manymed.json -w DP -S 0
 
 # photons launched from a source on the domain boundary end before the progress counter
 # counts them; the host must still stop polling once the kernel completes (a hang before)
