@@ -20,7 +20,7 @@ OUTPUT_DIR=../bin
 DOCDIR=../doc
 INCLUDEDIRS=-Izmat -Izmat/easylzma -Izmat/easylzma/lzma -Iubj
 
-CCOPT=-g -pedantic -Wall -Wno-overlength-strings -O3 -DUSE_OS_TIMER -DCL_SILENCE_DEPRECATION
+CCOPT=-g -pedantic -Wall -Wno-overlength-strings -O3 -DUSE_OS_TIMER
 CPPOPT:=$(CCOPT) -Wno-variadic-macros
 CCOPT+=-std=c99
 

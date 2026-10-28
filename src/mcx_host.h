@@ -36,7 +36,8 @@
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #define CL_USE_DEPRECATED_OPENCL_2_0_APIS
 #ifdef __APPLE__
-    #include <OpenCL/cl.h>
+    /* the Khronos headers: the OpenCL framework headers mark every function deprecated */
+    #include "khronos/cl.h"
 #else
     #include <CL/cl.h>
 #endif
