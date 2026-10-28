@@ -48,12 +48,14 @@ parity with CUDA-based MCX, and makes its ray-tracing results verifiable
 step-by-step against MCX. Notable features ported to MCX-CL in this release
 include
 
+* directly building adjoint Jacobians via `cfg.outputtype='adjoint'`, including
+  the adjoint_dcoeff/mus/musp and dual Jacobian outputs, saving both forward
+  and Jacobian in the adjoint mode
+* frequency-domain (FD/RF) forward simulations and adjoint-based FD-Jacobians
+  (complex-valued), and RF replay
 * split-voxel MC (SVMC) for hybrid voxel/surface domains (MCX v2021.2)
 * polarized light simulations (MCX v2023)
 * mua/mus/g/n 4-float media format (MCX v2024.2)
-* RF replay, RF forward and RF/CW adjoint Jacobians, including the
-  adjoint_dcoeff/mus/musp and dual Jacobian outputs, saving both forward
-  and Jacobian in the adjoint mode
 * wedge/fan line sources and slit sources with Gaussian broadening
 * international language support (`--lang`)
 * 1x1x1 volumes, and `.jdt`/`.jdb` detected photon and trajectory files
