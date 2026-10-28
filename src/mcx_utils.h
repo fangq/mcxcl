@@ -304,6 +304,7 @@ int  mcx_readarg(int argc, char* argv[], int id, void* output, const char* type)
 void mcx_printlog(Config* cfg, const char* str);
 int  mcx_remap(char* opt);
 void mcx_maskdet(Config* cfg);
+int  mcx_svmc_bgvoxel(int vol);
 void mcx_prepdomain(char* filename, Config* cfg);
 void mcx_createfluence(float** fluence, Config* cfg);
 void mcx_clearfluence(float** fluence);

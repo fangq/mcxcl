@@ -5071,6 +5071,21 @@ void  mcx_convertcol2row4d(unsigned int** vol, uint4* dim) {
     *vol = newvol;
 }
 
+/**
+ * @brief Check if a voxel contains background medium(0)
+ *
+ * This function check if a voxel contains background medium,
+ * under SVMC mode
+ *
+ * @param[in] vol: high 32 bit of the input volume under SVMC mdoe
+ */
+
+int mcx_svmc_bgvoxel(int vol) {
+    unsigned int lower;
+    lower = (unsigned int)(vol & LOWER_MASK) >> 24;
+    return !lower;
+}
+
 void  mcx_maskdet(Config* cfg) {
     uint d, dx, dy, dz, idx1d, zi, yi, c, count, isonecube;
     float x, y, z, ix, iy, iz, rx, ry, rz, d2, mind2, d2max;
@@ -5180,7 +5195,19 @@ void  mcx_maskdet(Config* cfg) {
                             if (!lower && upper) { /*a split voxel that contains background*/
                                 cfg->vol[((int)iz * cfg->dim.y * cfg->dim.x + (int)iy * cfg->dim.x + (int)ix)] |= DET_MASK; /*set the highest bit to 1*/
                                 count++;
-                            }
+                            } else if ((lower && !upper) || (lower && upper)) /*a split voxel that contains no background, check surrounding voxels*/
+                                if (mcx_svmc_bgvoxel(padvol[idx1d + 1]) || mcx_svmc_bgvoxel(padvol[idx1d - 1]) || mcx_svmc_bgvoxel(padvol[idx1d + dx]) ||
+                                        mcx_svmc_bgvoxel(padvol[idx1d - dx]) || mcx_svmc_bgvoxel(padvol[idx1d + dy * dx]) || mcx_svmc_bgvoxel(padvol[idx1d - dy * dx]) ||
+                                        mcx_svmc_bgvoxel(padvol[idx1d + dx + 1]) || mcx_svmc_bgvoxel(padvol[idx1d + dx - 1]) || mcx_svmc_bgvoxel(padvol[idx1d - dx + 1]) ||
+                                        mcx_svmc_bgvoxel(padvol[idx1d - dx - 1]) || mcx_svmc_bgvoxel(padvol[idx1d + dy * dx + 1]) || mcx_svmc_bgvoxel(padvol[idx1d + dy * dx - 1]) ||
+                                        mcx_svmc_bgvoxel(padvol[idx1d - dy * dx + 1]) || mcx_svmc_bgvoxel(padvol[idx1d - dy * dx - 1]) || mcx_svmc_bgvoxel(padvol[idx1d + dy * dx + dx]) ||
+                                        mcx_svmc_bgvoxel(padvol[idx1d + dy * dx - dx]) || mcx_svmc_bgvoxel(padvol[idx1d - dy * dx + dx]) || mcx_svmc_bgvoxel(padvol[idx1d - dy * dx - dx]) ||
+                                        mcx_svmc_bgvoxel(padvol[idx1d + dy * dx + dx + 1]) || mcx_svmc_bgvoxel(padvol[idx1d + dy * dx + dx - 1]) || mcx_svmc_bgvoxel(padvol[idx1d + dy * dx - dx + 1]) ||
+                                        mcx_svmc_bgvoxel(padvol[idx1d + dy * dx - dx - 1]) || mcx_svmc_bgvoxel(padvol[idx1d - dy * dx + dx + 1]) || mcx_svmc_bgvoxel(padvol[idx1d - dy * dx + dx - 1]) ||
+                                        mcx_svmc_bgvoxel(padvol[idx1d - dy * dx - dx + 1]) || mcx_svmc_bgvoxel(padvol[idx1d - dy * dx - dx - 1])) {
+                                    cfg->vol[((int)iz * cfg->dim.y * cfg->dim.x + (int)iy * cfg->dim.x + (int)ix)] |= DET_MASK; /*set the highest bit to 1*/
+                                    count++;
+                                }
                         }
                     } else {
                         if (padvol[idx1d]) /*looking for a voxel on the interface or bounding box*/
