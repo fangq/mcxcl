@@ -1161,6 +1161,29 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         for (i = 0; i < workdev; i++) {
             cl_int threadphoton, oddphoton, sharedbuf;
 
+            /**
+             * The per-thread photon data lives in local memory and grows with the number of media when
+             * the per-medium detected photon data is saved; with ~200 media it exceeded the per-block limit
+             * and the kernel launch failed with "out of resources". Halve the block size until it fits.
+             */
+            {
+                size_t fixedbuf = (param.nphaselen + param.nanglelen) * sizeof(float);
+                size_t threadbuf = cfg->issaveseed * (RAND_BUF_LEN * sizeof(RandType)) + sizeof(float) * (param.w0offset + cfg->srcnum + 2 * (cfg->outputtype == otRF || cfg->outputtype == otRFmus || MCX_IS_ADJOINT_TYPE(cfg->outputtype)));
+                size_t oldblock = gpu[i].autoblock;
+
+                while (gpu[i].autoblock > 1 && !(gpu[i].autoblock & 1) && fixedbuf + gpu[i].autoblock * threadbuf > gpu[i].sharedmem) {
+                    gpu[i].autoblock >>= 1;
+                }
+
+                if (fixedbuf + gpu[i].autoblock * threadbuf > gpu[i].sharedmem) {
+                    MCX_ERROR(-1, "the per-photon data does not fit in the device local memory, reduce the number of media, the saved detected photon data (-w) or the block size (-T)");
+                }
+
+                if (gpu[i].autoblock != oldblock) {
+                    MCX_FPRINTF(cfg->flog, "%s: %d -> %d\n", T_("reduce block size to fit the shared memory"), (int)oldblock, (int)gpu[i].autoblock);
+                }
+            }
+
             threadphoton = (int)(cfg->nphoton * cfg->workload[i] / (fullload * gpu[i].autothread * respinsplit));
             oddphoton = (int)(cfg->nphoton * cfg->workload[i] / (fullload * respinsplit) - threadphoton * gpu[i].autothread);
             sharedbuf = (param.nphaselen + param.nanglelen) * sizeof(float) + gpu[i].autoblock * (cfg->issaveseed * (RAND_BUF_LEN * sizeof(RandType)) + sizeof(float) * (param.w0offset + cfg->srcnum + 2 * (cfg->outputtype == otRF || cfg->outputtype == otRFmus || MCX_IS_ADJOINT_TYPE(cfg->outputtype))));
