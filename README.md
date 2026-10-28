@@ -91,6 +91,12 @@ include
 
 In addition, this release contains the following fixes and improvements
 
+* the long-standing OpenCL GPU memory leak on NVIDIA devices, first reported in 2020,
+  is finally fixed (#66, see also mmc#127): on NVIDIA's OpenCL runtime, every
+  simulation lost GPU memory, so repeated mcxlabcl/pmcxcl calls in one
+  MATLAB/Octave/Python session eventually ran out of GPU memory; leaked kernel-launch
+  events kept a reference to the OpenCL context, so the GPU buffers were never freed.
+  AMD, Intel and CPU (POCL) devices were not affected
 * 1.2-1.5x faster simulations on OpenCL devices, from dynamic per-block photon
   dispatch, 1-byte label volumes and `-cl-unsafe-math-optimizations`; `-A 0`
   keeps the static photon split and strict math for reproducible trajectories
@@ -107,9 +113,8 @@ In addition, this release contains the following fixes and improvements
 * pattern/pattern3d sources now work in wp/dcs/wptof/rfmus replay and carry
   per-pattern weights in the RF imaginary parts; fixed a segfault with
   multi-pattern pattern3d sources
-* fixed a GPU memory leak on NVIDIA devices (#66), forcing g=1 in continuous
-  media (#65), a macOS OpenCL runtime error (#61) and a double-free in
-  `mcx_clearfluence`
+* fixed forcing g=1 in continuous media (#65), a macOS OpenCL runtime error (#61)
+  and a double-free in `mcx_clearfluence`
 * zmat is upgraded to 1.0.0 (miniz 3.1.1, lz4 1.10.0)
 * new step-by-step trajectory tests (`test/testtraj.sh`) compare MCX-CL
   against the MCX golden trajectories, and run, together with `testmcx.sh`,
