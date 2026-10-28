@@ -6634,7 +6634,7 @@ int mcx_lookupindex(char* key, const char* index) {
 }
 
 void mcx_version(Config* cfg) {
-    const char ver[] = "$Rev::4fdc45$ " MCX_VERSION;
+    const char ver[] = "$Rev::      $ " MCX_VERSION;
     uint v = 0;
     sscanf(ver, "$Rev::%x", &v);
     MCX_FPRINTF(cfg->flog, "%s:\t%x\nVersion:\t%s\nMajor:\t\t%d\nMinor:\t\t%d\n", T_("MCX Revision"), v, MCX_VERSION, MCX_VERSION_MAJOR, MCX_VERSION_MINOR);
@@ -6781,7 +6781,7 @@ void mcx_printheader(Config* cfg) {
 =Please visit our free scientific data sharing portal at " S_CYAN "https://neurojson.io" S_BLUE "=\n\
 = and consider sharing your public datasets in standardized JSON/JData format=\n\
 ==============================================================================\n\
-$Rev::4fdc45$" S_CYAN MCX_VERSION S_BLUE "$Date::2018-03-29 00:35:53 -04$by $Author::Qianqian Fang$\n\
+$Rev::      $" S_CYAN MCX_VERSION S_BLUE "$Date::                       $by $Author::             $\n\
 ==============================================================================\n"S_RESET);
 }
 

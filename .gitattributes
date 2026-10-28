@@ -6,3 +6,6 @@
 *.cc filter=rcs-keywords
 *.m filter=rcs-keywords
 *.mm filter=rcs-keywords
+
+# third-party headers keep their own revision keywords
+src/mingw64/** -filter
