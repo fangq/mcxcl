@@ -81,8 +81,16 @@ jobs:
             make oct MEXLINKOPT="-static-libgcc -static-libstdc++ -Wl,-Bstatic -lc -lm -lstdc++ -pthread -Wl,-Bdynamic" EXTRALIB="-v -s"
             ldd ../mcxlabcl/mcxcl.mex
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            make oct CC=gcc-12 CXX=g++-12 LDFLAGS='-static-libgcc -static-libstdc++' EXTRALIB='-v'
+            # link the mex without a path to liboctmex: -loctmex finds this empty stub, which is
+            # dead-stripped, so the mex API resolves in the liboctmex that the running Octave (any
+            # 10+ version, wherever installed) has loaded (mkoctfile links with -undefined dynamic_lookup)
+            mkdir -p octstub && echo "" | clang -dynamiclib -x c - -o "$PWD/octstub/liboctmex.dylib" -install_name @rpath/liboctmex-stub.dylib
+            # the static runtime flags go through MEXLINKOPT: the oct rule sets LDFLAGS itself
+            make oct CC=gcc-12 CXX=g++-12 MEXLINKOPT="-static-libgcc -static-libstdc++ -L$PWD/octstub -Wl,-dead_strip_dylibs" EXTRALIB='-v'
             otool -L ../mcxlabcl/mcxcl.mex
+            if otool -L ../mcxlabcl/mcxcl.mex | tail -n +2 | grep -E "liboctmex|/opt/homebrew|/usr/local"; then
+                echo "the mex links a library of the build machine"; exit 1
+            fi
           else
             # use the gcc bundled with Octave, matching its MinGW headers; the rolling MSYS2 gcc
             # (first in PATH for the other builds) clashes with them. OpenCL headers are in src/mingw64
