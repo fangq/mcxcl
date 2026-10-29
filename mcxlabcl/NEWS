@@ -1,6 +1,7 @@
 Change Log
 
 == MCX-CL 3.0.0 (v2026, Juxtaposition), FangQ <q.fang at neu.edu> ==
+ 2026-10-29 [ee5dbda]*[bug] package the mex files without upx: a packed mex aborted MATLAB/Octave on any error it raised
  2026-10-29 [c5fd742] [feat] -l none prints nothing, not even the progress bar, as cfg.flog='none'
  2026-10-29 [826495d] [feat] cfg.flog='none' silences the log; 'NUL' and '/dev/null' stay accepted on every OS, refs fangq/mcx#280
  2026-10-29 [cbb5436]*[bug] cfg.flog: 'NUL' and '/dev/null' are the null device on every OS, refs fangq/mcx#280
