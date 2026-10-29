@@ -216,7 +216,7 @@ lists all of them, with their commit hashes.
 * [552d641] mcxlabcl accepts any numeric class (`gpuid=int32(1)` failed), logical volumes and column
   vectors; pmcxcl accepts `debuglevel='T'`
 * [bd6078a] `cfg.flog` also controls the echo of the cfg fields: 'none' silences everything
-* [cbb5436] `cfg.flog='none'` silences the log on every OS ('NUL' and '/dev/null' are accepted too; 'NUL' wrote a file on Linux, #280)
+* [cbb5436] `cfg.flog='none'` and `-l none` silence the log on every OS ('NUL' and '/dev/null' are accepted too; 'NUL' wrote a file on Linux, #280)
 
 **Testing and robustness**
 * [253b22f] step-by-step trajectory tests against MCX's golden data, run on a CPU (POCL) in CI
@@ -623,7 +623,7 @@ except for the device options; the most useful ones are below.
 | Option | Meaning |
 |---|---|
 | `-L`, `--listgpu` | list the OpenCL devices and exit |
-| `-l [1\|0]`, `--log` | 1 (or `-l` alone): write the messages to `session.log`; 0: print them without the banner |
+| `-l [1\|0\|none]`, `--log` | 1 (or `-l` alone): write the messages to `session.log`; 0: print them without the banner; none: print nothing, not even the progress bar |
 | `-G n` or `-G '0110'`, `--gpu` | use device n (from 1, as numbered by `-L`), or several devices given as a 0/1 mask |
 | `-W '50,30,20'`, `--workload` | relative share of photons for each selected device |
 | `-A 1/0`, `--autopilot` | choose the thread count, dispatch photons dynamically and use fast math (1, default), or use `-t`/`-T` with strict math (0) |
