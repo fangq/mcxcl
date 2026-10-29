@@ -147,7 +147,7 @@ jobs:
           git clone --depth 1 --filter=blob:none --sparse https://github.com/fangq/mcx.git ../mcxsrc
           git -C ../mcxsrc sparse-checkout set pmcx
           mkdir -p src/pybuild && cd src/pybuild
-          cmake .. -DBUILD_MEX=OFF && make -j4 _pmcxcl
+          cmake .. -DBUILD_PYTHON=ON -DBUILD_MEX=OFF && make -j4 _pmcxcl
           cd ../../pmcxcl
           PYTHONPATH=$PWD/../src/pybuild:$PWD:$PWD/../../mcxsrc/pmcx python3 -m unittest discover -s test -v
           cd ../mcxlabcl/test
