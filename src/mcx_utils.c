@@ -335,6 +335,7 @@ void mcx_initcfg(Config* cfg) {
     cfg->his.version = 1;
     cfg->his.unitinmm = 1.f;
     cfg->his.normalizer = 1.f;
+    cfg->normalizer = 1.f;   /** stat.normalizer of a run without normalization; it was left uninitialized */
     cfg->his.srcnum = 1;
     cfg->his.respin = 1;
 
