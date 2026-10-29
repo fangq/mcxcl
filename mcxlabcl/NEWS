@@ -1,6 +1,7 @@
 Change Log
 
 == MCX-CL 3.0.0 (v2026, Juxtaposition), FangQ <q.fang at neu.edu> ==
+ 2026-10-29 [cbb5436]*[bug] cfg.flog: 'NUL' and '/dev/null' are the null device on every OS, refs fangq/mcx#280
  2026-10-29 [162ebd4] [test] binding tests of every source type, launch angles, polarized runs, input types
  2026-10-29 [552d641]*[bug] mcxlabcl/pmcxcl: accept any numeric class and column vectors, debuglevel 'T', unknown commands
  2026-10-29 [45992bc] [bug] initialize the normalizer: stat.normalizer of a run without normalization was garbage
