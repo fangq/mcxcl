@@ -215,8 +215,8 @@ lists all of them, with their commit hashes.
 * [3ff79ff] mcxlabcl: an empty field of a cfg struct array keeps its default; it was read as 0
 * [552d641] mcxlabcl accepts any numeric class (`gpuid=int32(1)` failed), logical volumes and column
   vectors; pmcxcl accepts `debuglevel='T'`
-* [bd6078a] `cfg.flog` also controls the echo of the cfg fields: '/dev/null' or 'NUL' silences everything
-* [cbb5436] `cfg.flog='NUL'` and `'/dev/null'` silence the log on every OS; 'NUL' wrote a file on Linux (#280)
+* [bd6078a] `cfg.flog` also controls the echo of the cfg fields: 'none' silences everything
+* [cbb5436] `cfg.flog='none'` silences the log on every OS ('NUL' and '/dev/null' are accepted too; 'NUL' wrote a file on Linux, #280)
 
 **Testing and robustness**
 * [253b22f] step-by-step trajectory tests against MCX's golden data, run on a CPU (POCL) in CI
