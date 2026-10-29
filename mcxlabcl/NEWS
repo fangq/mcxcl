@@ -1,6 +1,105 @@
 Change Log
 
 == MCX-CL 3.0.0 (v2026, Juxtaposition), FangQ <q.fang at neu.edu> ==
+ 2026-10-28 [e6f1a09] [clean] the host RNG with uint64_t, not long long (C++98 -pedantic warnings)
+ 2026-10-28 [096219c] [test] suppress glibc's ld.so strncmp report in the valgrind check
+ 2026-10-28 [b0fa357] [test] forked unit-test children leave through _exit(), as in mmc
+ 2026-10-28 [5cba5e9] [bug] create the progress counter buffer read-write: the kernel writes it
+ 2026-10-28 [9cd62d1] [test] macOS: let the forked EXPECT_EXIT cases use OpenCL in the unit tests
+ 2026-10-28 [11e734f] [test] testbuiltin.sh runs where timeout is gtimeout or missing (macOS), as in mmc
+ 2026-10-28 [48e38ac] [feat] derive the per-thread seeds with xorshift128+ instead of the C library rand()
+ 2026-10-28 [f814f77] [feat] always use atomic accumulation, drop the non-atomic paths, as mcx 4e2fd41
+ 2026-10-28 [39aa57d] [clean] no LFLAGS for mkoctfile, deprecated by Octave; LDFLAGS has the same libraries
+ 2026-10-28 [d25f64d] [clean] fix the clang warnings of the macOS build
+ 2026-10-28 [3caf4bc] [clean] build with the Khronos OpenCL headers on macOS, no CL_SILENCE_DEPRECATION
+ 2026-10-28 [136ff3a] [clean] %lld for the long long array dimensions of Octave (-Wformat)
+ 2026-10-28 [5e7c01d] [ci] macOS Octave mex: no path to the build machine's liboctmex or libstdc++
+ 2026-10-28 [1378fe2] [test] check only that the 300-media run completes, as a CPU device needs no smaller block
+ 2026-10-28 [96c63d0] [clean] store the RCS keywords of mcx_utils.c unexpanded, as mcx and mmc do
+ 2026-10-28 [43e0e07] [test] the progress bar of a source on the domain boundary finishes
+ 2026-10-28 [155b45e] [test] feature tests shared with mcx: JData block index, detector masks, validation, host paths
+ 2026-10-28 [b83c23b] [port] shrink the block when the per-photon local memory exceeds the device limit
+ 2026-10-28 [76e48a9] [port] mask split voxels of two media next to background as detector voxels
+ 2026-10-27 [b770730] [doc] What's New: lead with adjoint Jacobians and FD/RF forward and Jacobians
+ 2026-10-27 [674ad6d] [doc] What's New: the long-standing OpenCL memory leak is fixed, refs #66
+ 2026-10-27 [ad829cf] [clean] fix gcc and clang warnings, including with gcc 5 on Ubuntu 16.04
+ 2026-10-27 [063a268] [build] rebuild the bundled zmat when its sources change
+ 2026-10-27 [979c455] [port] adjoint mode: only simulate and store the sources and detectors in cfg.sdmap
+ 2026-10-27 [4b9519b] [bug] mcxlabcl: raise errors in MATLAB instead of aborting it, refs fangq/mcx#278
+ 2026-10-27 [770cf11] [feat] pmcxcl: accept a 3-column cfg['detdir'], as mcxlabcl and cfg['srcdir']
+ 2026-10-27 [a4f2b0d] [feat] mcxlabcl: accept a 3-column cfg.detdir, as cfg.srcdir
+ 2026-10-27 [e637b5c] [doc] README and ChangeLog: test/fuzz/dfuzz.py, test/builtin and the bugs the fuzzer found
+ 2026-10-27 [73a7aea] [test] add test/fuzz/dfuzz.py and the builtin inputs of mcx (test/builtin)
+ 2026-10-27 [7c1fcba] [bug] fix crashes, hangs and memory errors found by the new fuzzer
+ 2026-10-27 [701fdf1] [doc] README: fixed-point sums in split planes, with the measured speeds
+ 2026-10-27 [926b0de] [speed] USE_FIXEDPOINT: keep the low and high words in separate planes
+ 2026-10-27 [fb6c080] [doc] README: fixed-point output sums (make fixed)
+ 2026-10-27 [1d2af50]*[port] USE_FIXEDPOINT: accumulate the output as 64-bit fixed-point integers (make fixed)
+ 2026-10-26 [1080899] [doc] demo_validate_mcx_adjoint_mua_d: the Jacobians are in flux.jmua/flux.jd, not flux.data
+ 2026-10-26 [f577abe] [port] cfg.sdmap/Optode.SDMap: compute the adjoint Jacobian for listed source-detector channels, refs fangq/mcx#275
+ 2026-10-26 [39f7a91] [doc] rewrite the README for users: OpenCL runtimes per processor, device selection and kernel options, differences from MCX, OpenCL best practices, and the sections shared with MCX
+ 2026-10-25 [c06cdf0] [feat] mcxlabcl/pmcxcl: issave2pt, flog and lang as in mcxlab/pmcx
+ 2026-10-25 [369b4d8] [doc] rewrite the mcxlabcl help: document every cfg field the mex reads
+ 2026-10-25 [df06e86] [doc] update the author's title to Professor
+ 2026-10-25 [87dd73e] [cjson] upgrade the bundled cJSON from 1.7.12+ (f790e17, 2020) to 1.7.19
+ 2026-10-25 [2964165]*[feat] save and use the JData block index (_ArrayZipOffsets_) of zlib/gzip data
+ 2026-10-25 [65dfa31]*[zmat] sync the bundled zmat to upstream 1.2.0 (d1a1e94): parallel zlib/gzip
+ 2026-10-25 [d9d469a] [ci] strip the binaries and mex files before compressing them with UPX (Linux/Windows)
+ 2026-10-25 [bb15c87] [doc] What's New: the fuzzing campaigns, unit-test coverage and input hardening
+ 2026-10-25 [04a7734] [bug] read Session.OutputType names, not just their first letter
+ 2026-10-25 [553026a] [ci] add the liboctmex SOVERSION symbol Octave 10+ requires to the Linux mex
+ 2026-10-25 [eba04a7] [doc] bring the README and doc/ up to date for v2026
+ 2026-10-25 [986bc2c] [clean] use https for mcx.space, neurojson.io and fanglab.org links
+ 2026-10-25 [614e647] [bug] save the imaginary part of RF forward output; keep unnormalized wltof/wptof in seconds
+ 2026-10-25 [ef650f2] [bug] fix hangs found by fuzzing round 4: zero effective mus, minenergy >= 1, tiny voxels
+ 2026-10-25 [2f495dc] [bug] let a caller-supplied volume buffer through the Shapes size check; skip mcx-input tests without mcx
+ 2026-10-25 [a3aefe2] [ci] build the Linux release in manylinux2014 so it runs on glibc 2.17+
+ 2026-10-25 [70ef956] [bug] reject invalid -u/-W/-K/-Z values and stray SrcNum found by fuzzing round 3
+ 2026-10-25 [55da8c8]*[bug] fix crashes and hangs found by fuzzing JSON inputs and command-line options
+ 2026-10-24 [c9de165] [test] raise host coverage to 95%: NeuroJSON downloads, JSON/inp branches, kernel build errors
+ 2026-10-24 [00d55fc] [bug] fix -r: repeat or split the photons as documented, stop double counting
+ 2026-10-24 [25ea487] [port] treat a time step of 0 as a single time gate, as mcx does
+ 2026-10-24 [57b272b] [bug] save the adjoint Jacobians, not the slot fields, from the mcxcl binary
+ 2026-10-24 [7fe8bea] [test] add host unit tests and short GPU feature tests
+ 2026-10-24 [326b891] [bug] fix bugs in mcx_utils, shapes and Mie found by the new unit tests
+ 2026-10-24 [7271a23] [port] update the ubj library to the mcx copy (BJData Draft 2)
+ 2026-10-23 [ef4ec6b] [port] make mcx2json and json2mcx round-trip all mcxlab settings
+ 2026-10-23 [e14dbef] [port] save Mie, phase function, boundary, RF and polarization settings in --dumpjson
+ 2026-10-23 [9ba3f89] [bug] do not export the static libstdc++ symbols of _pmcxcl on Linux
+ 2026-10-23 [ceb56c8] [clean] silence constant-operand warnings and NVIDIA's noinline note in kernel build logs
+ 2026-10-23 [5e139f0] [bug] build cl_ext_float_atomics kernels as OpenCL C 3.0, fix the build failure on Intel Arc
+ 2026-10-23 [0ea029c] [pmcxcl] export pmcx.svmc as pmcxcl.svmc when the installed pmcx has it
+ 2026-10-23 [3239bbc] [pmcxcl] accept 4-channel float and 4-D uint8 volumes, fix the adjoint flux shape, as pmcx does
+ 2026-10-23 [aca5a92] [port] make json/jdata inputs and --dumpjson outputs read back as the same simulation, from mcx 06fab97
+ 2026-10-23 [5e6ba6c] [bug] set energyabs at the end of every run, as mcx does
+ 2026-10-23 [19f8f55] [bug] skip the planar launch offset in OpenCL pattern3d builds, fix the doubled source extent
+ 2026-10-23 [03db872] [bug] do not write NO_LAUNCH into n_seed, it corrupted other threads' RNG seeds
+ 2026-10-23 [00fcf09]*[bug] track the split-voxel side and exits as mcx does, fix the svmc mismatch with mcx
+ 2026-10-23 [5acc84f]*[bug] end photons entering label 0 as mcx does, fix a hang with interior label-0 regions
+ 2026-10-22 [dda7a2f] [doc] update and polish the mcxcl READMEs for v2026
+ 2026-10-22 [5684aab] [doc] note that autopilot runs are not bit-reproducible, -A 0 is
+ 2026-10-22 [69f9c3c] [release] bump pmcxcl to 0.7.5 for the new host seeds and macOS wheels
+ 2026-10-22 [d4ce642] [ci] target macOS 10.15 (x86_64) and 11.0 (arm64), build every macOS wheel even if one fails
+ 2026-10-22 [7382824] [test] copy the trajectory goldens regenerated by mcx for the new host seeds
+ 2026-10-22 [0ad93bb]*[bug] draw uniform 32-bit host seeds for the GPU RNG, the old ones set 75% of the bits
+ 2026-10-22 [48d65ee] [doc] match the version in the pmcxcl README to 0.7.4
+ 2026-10-22 [0c0920c] [release] bump pmcxcl to 0.7.4
+ 2026-10-22 [7ed8900] [ci] decide PyPI uploads per file, not per version
+ 2026-10-22 [b429887] [pmcxcl] make pmcxcl.mcxlab run the simulation with pmcxcl, fix #60
+ 2026-10-22 [e60e2cb] [pmcxcl] report why _pmcxcl failed to import instead of claiming it is not compiled
+ 2026-10-22 [ee9125f] [ci] tag macOS wheels with the runner architecture instead of universal2, check them
+ 2026-10-22 [4fa20b7] [feat] accept --maxvoidstep and --trajstokes on the command line as mcx does
+ 2026-10-22 [a347ac9] [bug] write iquv to trajectory files only when the records contain it
+ 2026-10-22 [1f124f9] [bug] size trajectory buffers for the Stokes columns when istrajstokes is set
+ 2026-10-22 [826fd55] [bug] read Optode.Source.IQUV from JSON input, validate the initial Stokes vector
+ 2026-10-22 [b3af30b] [bug] tabulate the Mie Mueller matrix at 1000 angles as mcx does, not 181
+ 2026-10-21 [9b8b1ab] [ci] publish packages only when the run was started by the fangq account
+ 2026-10-21 [f59ad8a] [ci] upload the Linux wheels to PyPI from one x86_64 job, keep them as build artifacts
+ 2026-10-21 [5f796b6] [ci] decide PyPI uploads from the PyPI JSON API and never upload when the query fails
+ 2026-10-21 [7324e8c] [ci] build the Khronos OpenCL loader when ocl-icd is missing, build mcxlabcl with Octave's own gcc on Windows
+ 2026-10-21 [741933c] [ci] run the POCL CPU tests on Ubuntu 24.04 only, let each OS finish
+ 2026-10-21 [7b8f5f2] [bug] build the kernel without -cl-unsafe-math-optimizations when saving or replaying seeds
+ 2026-10-21 [b59b0d0] [release] keep the python module version at the published one until the release
  2026-10-21 [8b70c29] [bug] reject mixlabel volumes with a clear error instead of failing in the kernel
  2026-10-21 [e6a2ee1] [test] run testmcx.sh in a scratch folder instead of overwriting the files tracked in test/
  2026-10-21 [3451244] [bug] load asgn_float volumes, fix crash saving detected photons with labelplus/asgn_float
@@ -83,6 +182,17 @@ Change Log
 
 == MCX-CL 1.8.0 (Infinity), FangQ <q.fang at neu.edu> ==
 
+ 2025-10-06 [24e41f1] [release] update version to v2025.10, codename Infinity
+ 2025-10-01 [b2a507b] [feat] use USE_MCXCL>0 to set OpenCL device, negative to set CUDA device
+ 2025-10-01 [6e6d5bd] [pmcxcl] make optlevel=3 default, 30-100% speedup, bump pmcxcl 0.4.0
+ 2025-10-01 [a4e9f1b] [bug] fix failing multisrc example after fixing -o 4 warnings
+ 2025-10-01 [f967e86] [bug] fix hyperboloid and slit sources, add demo script
+ 2025-10-01 [8e61287] [clang] fix additional clang warnings
+ 2025-10-01 [a396631] [clang] fix all clang warnings on macos
+ 2025-10-01 [06d2d5e] [opencl] fix ocl compilation warnings
+ 2025-09-30 [17c9faa] [bug] fix multi-source replay bug, ported from fangq/mcx#250
+ 2025-09-29 [ff45ab3] [bug] add the missing gcfg constants for -o 4 optimization
+ 2025-09-26 [f4e0f0d] [doc] update documentation for v2025.9
  2025-09-26 [aa2e389] [memory] release event, did not fix memory leak
  2025-09-20 [c5cc650] [feat] port Russian Roulette, ring src, hyperboloid src from mcx to mcxcl
  2025-09-19 [a9dd9af] [ci] fix upload ci error
@@ -150,8 +260,17 @@ Change Log
  2024-03-13 [c455fba] [ci] use R2023b for macos-14
  2024-03-13 [858ef22] [ci] skip matlab mex build on macos-14 due to matlab-actions/setup-matlab#100
 
+
 == MCX-CL 1.2.0 (Genesis), FangQ <q.fang at neu.edu> ==
 
+ 2024-03-12 [1fc8286] [ci] building binaries on Apple M1 macos-14 runner
+ 2024-03-12 [bf89aff] [ci] update nightly build script
+ 2024-03-08 [4891c72] [ci] remove mcxlabcl gcc warnings
+ 2024-03-05 [80551a4] [bug] remove duplicated and overwritten cfg initialization
+ 2024-03-04 [84c64ec] [bug] fix cuda core count for Ada and Blackwell
+ 2024-03-01 [1e56f5b] [doc] update documentation for v2024.2
+ 2024-03-01 [d4fb874] [ci] bump pmcxcl to v0.1.6
+ 2024-03-01 [0d9f77f] [doc] update neurojson website url to https://neurojson.io
  2024-02-29 [580cb27] [format] reformat all MATLAB codes with miss_hit
  2024-02-29 [ce1d374] [bug] fixes to pass tests on Intel CPU, AMD GPU and pthread-AMD
  2024-02-29 [2f70174] [bug] free ginvcdf and gangleinvcdf buffers

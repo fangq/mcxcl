@@ -1,6 +1,34 @@
 Change Log
 
 == MCX-CL 3.0.0 (v2026, Juxtaposition), FangQ <q.fang at neu.edu> ==
+ 2026-10-28 [e6f1a09] [clean] the host RNG with uint64_t, not long long (C++98 -pedantic warnings)
+ 2026-10-28 [096219c] [test] suppress glibc's ld.so strncmp report in the valgrind check
+ 2026-10-28 [b0fa357] [test] forked unit-test children leave through _exit(), as in mmc
+ 2026-10-28 [5cba5e9] [bug] create the progress counter buffer read-write: the kernel writes it
+ 2026-10-28 [9cd62d1] [test] macOS: let the forked EXPECT_EXIT cases use OpenCL in the unit tests
+ 2026-10-28 [11e734f] [test] testbuiltin.sh runs where timeout is gtimeout or missing (macOS), as in mmc
+ 2026-10-28 [48e38ac] [feat] derive the per-thread seeds with xorshift128+ instead of the C library rand()
+ 2026-10-28 [f814f77] [feat] always use atomic accumulation, drop the non-atomic paths, as mcx 4e2fd41
+ 2026-10-28 [39aa57d] [clean] no LFLAGS for mkoctfile, deprecated by Octave; LDFLAGS has the same libraries
+ 2026-10-28 [d25f64d] [clean] fix the clang warnings of the macOS build
+ 2026-10-28 [3caf4bc] [clean] build with the Khronos OpenCL headers on macOS, no CL_SILENCE_DEPRECATION
+ 2026-10-28 [136ff3a] [clean] %lld for the long long array dimensions of Octave (-Wformat)
+ 2026-10-28 [5e7c01d] [ci] macOS Octave mex: no path to the build machine's liboctmex or libstdc++
+ 2026-10-28 [1378fe2] [test] check only that the 300-media run completes, as a CPU device needs no smaller block
+ 2026-10-28 [96c63d0] [clean] store the RCS keywords of mcx_utils.c unexpanded, as mcx and mmc do
+ 2026-10-28 [43e0e07] [test] the progress bar of a source on the domain boundary finishes
+ 2026-10-28 [155b45e] [test] feature tests shared with mcx: JData block index, detector masks, validation, host paths
+ 2026-10-28 [b83c23b] [port] shrink the block when the per-photon local memory exceeds the device limit
+ 2026-10-28 [76e48a9] [port] mask split voxels of two media next to background as detector voxels
+ 2026-10-27 [b770730] [doc] What's New: lead with adjoint Jacobians and FD/RF forward and Jacobians
+ 2026-10-27 [674ad6d] [doc] What's New: the long-standing OpenCL memory leak is fixed, refs #66
+ 2026-10-27 [ad829cf] [clean] fix gcc and clang warnings, including with gcc 5 on Ubuntu 16.04
+ 2026-10-27 [063a268] [build] rebuild the bundled zmat when its sources change
+ 2026-10-27 [979c455] [port] adjoint mode: only simulate and store the sources and detectors in cfg.sdmap
+ 2026-10-27 [4b9519b] [bug] mcxlabcl: raise errors in MATLAB instead of aborting it, refs fangq/mcx#278
+ 2026-10-27 [770cf11] [feat] pmcxcl: accept a 3-column cfg['detdir'], as mcxlabcl and cfg['srcdir']
+ 2026-10-27 [a4f2b0d] [feat] mcxlabcl: accept a 3-column cfg.detdir, as cfg.srcdir
+ 2026-10-27 [e637b5c] [doc] README and ChangeLog: test/fuzz/dfuzz.py, test/builtin and the bugs the fuzzer found
  2026-10-27 [73a7aea] [test] add test/fuzz/dfuzz.py and the builtin inputs of mcx (test/builtin)
  2026-10-27 [7c1fcba] [bug] fix crashes, hangs and memory errors found by the new fuzzer
  2026-10-27 [701fdf1] [doc] README: fixed-point sums in split planes, with the measured speeds

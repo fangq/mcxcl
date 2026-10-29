@@ -81,7 +81,7 @@ include
 * 1x1x1 volumes, and `.jdt`/`.jdb` detected photon and trajectory files
   with separate `srcid` records
 * per-thread random number seeds derived exactly as in MCX, so that MCX and
-  MCX-CL trace the same photon paths for the same seed
+  MCX-CL trace the same photon paths for the same seed, on every OS
 * exact output sums: `make fixed` accumulates the output as 64-bit fixed-point
   integers instead of a float with a second float buffer (MCX v2026); the sums
   do not depend on the order of the additions, so a run with `-A 0` is
@@ -127,8 +127,10 @@ In addition, this release contains the following fixes and improvements
   input, and Stokes trajectories (`--trajstokes 1`) are sized and saved correctly
 * `--maxvoidstep` and `--trajstokes` are accepted on the command line as in MCX
 * the host-generated RNG seeds had ~75% of their bits set on Linux and macOS, which
-  biased the first photon of each thread; seeds are now uniform (the random streams
-  for a given seed change, replay of saved seeds is unaffected)
+  biased the first photon of each thread; the per-thread seeds are now derived by the
+  xorshift128+ generator of the kernels instead of the C library `rand()`, which differs
+  between Linux, macOS and Windows, so a fixed seed simulates the same photons on every
+  OS (the random streams for a given seed change, replay of saved seeds is unaffected)
 * pmcxcl wheels are now built for Linux aarch64 (#67), and the macOS wheels are tagged
   with their actual architecture (`arm64` or `x86_64`) instead of `universal2`, which
   made pip install an x86_64 binary on Apple silicon running macOS 15+ (#60);
@@ -137,7 +139,7 @@ In addition, this release contains the following fixes and improvements
 * the released Linux binaries and mex files are built in a manylinux2014 container and
   run on glibc 2.17 or newer; Octave mex files for Windows and macOS are built against
   Octave 10 (`liboctmex`)
-* unit tests and coverage: host-side unit tests (`make unittest`, 570 checks) raise the
+* unit tests and coverage: host-side unit tests (`make unittest`, 609 checks) raise the
   line coverage of the host code to about 95%, and the 141 built-in example tests of MCX
   run with MCX-CL against golden values; the bugs these tests found were fixed
 * fuzzing: four rounds of JSON-aware mutation fuzzing of the input files and of the
@@ -199,7 +201,8 @@ lists all of them, with their commit hashes.
 * [d7ea87b] `-U 2` skips only the detected-weight normalization in replay; [b5d3b0a] double
   preprocessing with `-j`
 * [8c9c3f0] GPU memory leak on NVIDIA devices (#66)
-* [0ad93bb] host RNG seeds had ~75% of their bits set; now uniform
+* [0ad93bb, 48e38ac] host RNG seeds had ~75% of their bits set; now xorshift128+, uniform and
+  the same on every OS
 * [5acc84f] photons entering label 0 end as in MCX, fixing a hang with interior label-0 regions
 * [5e139f0] `cl_ext_float_atomics` kernels built as OpenCL C 3.0, fixing Intel Arc GPUs
 * [7b8f5f2] strict math is used when saving or replaying seeds
@@ -221,6 +224,8 @@ lists all of them, with their commit hashes.
 * pmcxcl wheels for Linux aarch64 (#67); [ee9125f] macOS wheels tagged with their real
   architecture (#60); [b429887] `pmcxcl.mcxlab` runs with pmcxcl
 * [65dfa31] bundled zmat updated to 1.2.0; [87dd73e] cJSON updated to 1.7.19
+* [3caf4bc] macOS builds use the Khronos OpenCL headers (src/khronos), free of the
+  deprecation warnings of Apple's OpenCL framework headers
 
 Introduction
 ------------
@@ -1044,7 +1049,8 @@ MCXLAB and returns the same outputs:
 Request only the outputs you need. `help mcxlabcl` documents every `cfg` field, its
 default and the outputs; the OpenCL-specific fields are `cfg.gpuid` (a device number,
 or a 0/1 string selecting several), `cfg.workload`, `cfg.optlevel`,
-`cfg.compileropt`, `cfg.kernelfile`, `cfg.isatomic` and `cfg.internalsrc`.
+`cfg.compileropt`, `cfg.kernelfile` and `cfg.internalsrc` (`cfg.isatomic` is still
+accepted but ignored: the output is always accumulated with atomic operations).
 
 | Output | Content |
 |---|---|
@@ -1166,6 +1172,13 @@ and are tested against each other step by step. The differences are:
 | MATLAB | `mcxlab` | `mcxlabcl`, or `mcxlab(cfg, 'opencl')` |
 | Python | `pmcx` | `pmcxcl` (utility functions from `pmcx`) |
 
+Known device issues in this release:
+
+* on the POCL CPU device, a pattern3d source run with the default dynamic photon
+  dispatch underestimates the absorbed energy at 1e6 photons or more; add `-A 0`
+  (static split) for such runs. GPUs are not affected.
+* on Apple silicon GPUs, about one in 20 to 60 runs may return an empty result
+  (a total simulated energy of 0); repeat the simulation if that happens.
 
 Performance and best practices
 ------------------------------
@@ -1258,6 +1271,9 @@ list is maintained at <https://mcx.space/#publications>.
 
 **Features**
 
+- [Hirvi2026] Pauliina Hirvi, Jaakko Olkkonen, Qianqian Fang, Ilkka Nissilä, "Computation
+  of frequency- and time-domain Jacobians in optical tomography with Monte Carlo
+  simulations," arXiv:2604.27558 (2026), preprint. <https://arxiv.org/abs/2604.27558>
 - [Yao2018] Ruoyang Yao, Xavier Intes, Qianqian Fang, "A direct approach to compute
   Jacobians for diffuse optical tomography using perturbation Monte Carlo-based
   photon 'replay'," Biomed. Opt. Express, 9(10), 4588-4603 (2018).
