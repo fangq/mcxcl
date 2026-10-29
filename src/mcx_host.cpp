@@ -216,6 +216,17 @@ void ocl_assess(int cuerr, const char* file, const int linenum) {
     }
 }
 
+/*
+   zero a device buffer by copying zeros from the host: on Apple GPUs, clEnqueueFillBuffer
+   returns CL_SUCCESS but often leaves the old contents of a reused allocation in place
+*/
+static cl_int mcx_zero_buffer(cl_command_queue queue, cl_mem buf, size_t bytes) {
+    void* zeros = calloc(bytes, 1);
+    cl_int status = (zeros) ? clEnqueueWriteBuffer(queue, buf, CL_TRUE, 0, bytes, zeros, 0, NULL, NULL) : CL_OUT_OF_HOST_MEMORY;
+    free(zeros);
+    return status;
+}
+
 /**
   obtain GPU core number per MP, this replaces
   ConvertSMVer2Cores() in libcudautils to avoid
@@ -877,10 +888,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
             }
 
             OCL_TRY(((gfield[i] = clCreateBuffer(mcxcontext, CL_MEM_READ_WRITE, fieldbytes, NULL, &status), status)));
-            {
-                cl_float zero = 0.f;
-                OCL_TRY((clEnqueueFillBuffer(mcxqueue[i], gfield[i], &zero, sizeof(cl_float), 0, fieldbytes, 0, NULL, NULL)));
-            }
+            OCL_TRY((mcx_zero_buffer(mcxqueue[i], gfield[i], fieldbytes)));
 
             if (cfg->issavedet) {
                 OCL_TRY(((gdetphoton[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(float) * cfg->maxdetphoton * hostdetreclen, Pdet, &status), status)));
@@ -1528,8 +1536,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
                     //initialize the next simulation
                     if (twindow1 < cfg->tend && iter < ABS(cfg->respin)) {
-                        cl_float zero = 0.f;
-                        OCL_ASSERT((clEnqueueFillBuffer(mcxqueue[devid], gfield[devid], &zero, sizeof(cl_float), 0, fieldbytes, 0, NULL, NULL)));
+                        OCL_ASSERT((mcx_zero_buffer(mcxqueue[devid], gfield[devid], fieldbytes)));
                         OCL_ASSERT((clSetKernelArg(mcxkernel[devid], 1, sizeof(cl_mem), (void*)(gfield + devid))));
                     }
 
