@@ -645,6 +645,9 @@ except for the device options; the most useful ones are below.
 <pre>
 `-L`, `--listgpu`
     Meaning: list the OpenCL devices and exit
+`-l [1|0]`, `--log`
+    Meaning: 1 (or `-l` alone): write the messages to `session.log`; 0: print them
+        without the banner
 `-G n` or `-G '0110'`, `--gpu`
     Meaning: use device n (from 1, as numbered by `-L`), or several devices given as a 0/1
         mask

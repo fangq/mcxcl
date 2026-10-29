@@ -614,6 +614,7 @@ except for the device options; the most useful ones are below.
 | Option | Meaning |
 |---|---|
 | `-L`, `--listgpu` | list the OpenCL devices and exit |
+| `-l [1\|0]`, `--log` | 1 (or `-l` alone): write the messages to `session.log`; 0: print them without the banner |
 | `-G n` or `-G '0110'`, `--gpu` | use device n (from 1, as numbered by `-L`), or several devices given as a 0/1 mask |
 | `-W '50,30,20'`, `--workload` | relative share of photons for each selected device |
 | `-A 1/0`, `--autopilot` | choose the thread count, dispatch photons dynamically and use fast math (1, default), or use `-t`/`-T` with strict math (0) |

@@ -5915,7 +5915,7 @@ int mcx_remap(char* opt) {
 void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
     int i = 1, isinteractive = 1, showkernel = 0, len;
     char filename[MAX_PATH_LENGTH] = {0}, *jsoninput = NULL;
-    int issavelog = -1;
+    char issavelog = -1;  /* -l: 1 the log in <session>.log, 0 no banner; a bare -l is 1 */
     char logfile[MAX_PATH_LENGTH] = {0};
     float np = 0.f;
 
@@ -6061,7 +6061,7 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
                     break;
 
                 case 'l':
-                    i = mcx_readarg(argc, argv, i, &issavelog, "int");
+                    i = mcx_readarg(argc, argv, i, &issavelog, "char");
                     break;
 
                 case 'L':
@@ -6980,7 +6980,8 @@ where possible parameters include (the first value in [*|*] is the default)\n\
  -y [zh_CN,..] (--lang)        select language, followed by nothing to print\n\
                                a list of supported languages\n\
  -v            (--version)     print MCX revision number\n\
- -l            (--log)         print messages to a log file instead\n\
+ -l [1|0]      (--log)         1 or no value: messages to <session>.log;\n\
+                               0: print them on the screen without the banner\n\
  -i            (--interactive) interactive mode\n\
 \n"S_BOLD S_CYAN"\
 == Debug options ==\n"S_RESET"\
