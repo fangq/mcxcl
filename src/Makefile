@@ -255,11 +255,13 @@ $(OUTPUT_DIR)/$(BINARY): makedirs $(CLSOURCE) $(ZMATLIB) $(OBJS)
 	$(AR) $(OBJS) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/$(BINARY) $(USERLINKOPT)
 
 ##  Host unit tests (test/unit), linked with the same objects as mcxcl except its main() ##
+# the EXPECT_EXIT cases run OpenCL in a fork()ed child, which macOS kills unless
+# its Objective-C runtime (under the OpenCL framework) allows that; ignored elsewhere
 unittest: makedirs $(CLSOURCE) $(ZMATLIB) $(OBJS)
 	$(CC) $(INCLUDEDIRS) $(CCOPT) $(USERCCFLAGS) -I. -c -o test_utils$(OBJSUFFIX) ../test/unit/test_utils.c
 	$(CC) $(INCLUDEDIRS) $(CCOPT) $(USERCCFLAGS) -I. -c -o test_main$(OBJSUFFIX) ../test/unit/test_main.c
 	$(AR) test_main$(OBJSUFFIX) test_utils$(OBJSUFFIX) $(filter-out mcxcl$(OBJSUFFIX),$(OBJS)) $(LINKOPT) $(OUTPUTFLAG) $(OUTPUT_DIR)/mcxcl_unittest$(EXESUFFIX) $(USERLINKOPT)
-	$(OUTPUT_DIR)/mcxcl_unittest$(EXESUFFIX)
+	OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES $(OUTPUT_DIR)/mcxcl_unittest$(EXESUFFIX)
 
 # rebuild the bundled zmat when its sources change, or a stale libzmat.a lingers
 $(ZMATLIB): zmat/zmatlib.c zmat/zmatlib.h
