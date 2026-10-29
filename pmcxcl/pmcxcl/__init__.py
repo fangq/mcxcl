@@ -14,18 +14,34 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-"""PMCXCL - Python bindings for Monte Carlo eXtreme (OpenCL) photon transport simulator
+"""PMCXCL - Python bindings of MCX-CL, the OpenCL edition of Monte Carlo eXtreme.
 
-Example usage:
+MCX-CL runs on NVIDIA, AMD, Intel and Apple GPUs, and on CPUs through an OpenCL runtime
+such as POCL.
 
-# To list available GPUs
-import pmcxcl
-pmcxcl.gpuinfo()
+Simulator (compiled module ``_pmcxcl``)
 
-# To run a simulation
-res = pmcxcl.run(nphoton=1000000, vol=np.ones([60, 60, 60], dtype='uint8'),
-               tstart=0, tend=5e-9, tstep=5e-9, srcpos=[30,30,0],
-               srcdir=[0,0,1], prop=np.array([[0, 0, 1, 1], [0.005, 1, 0.01, 1.37]]))
+* ``run(cfg)`` or ``run(**cfg)``: run a simulation; see ``help(pmcxcl.run)`` for the
+  ``cfg`` keys and the outputs
+* ``gpuinfo()``: list the OpenCL devices
+* ``version()``: the MCX-CL version string
+
+Utilities
+
+When pmcx is installed (``pip install pmcx``), its pure-Python utilities are re-exported:
+:func:`mcxlab` (which runs pmcxcl), ``mcxcreate``, ``detweight``, ``meanpath``,
+``meanscat``, ``dettpsf``, ``dettime``, ``detphoton``, ``getdistance``, ``rfreplay``,
+``rfmusreplay``, the diffusion solutions, ``svmc``, the file I/O functions and the
+plotting functions; ``bench`` holds the built-in benchmarks. See the pmcx documentation.
+
+Examples
+--------
+>>> import numpy as np
+>>> import pmcxcl
+>>> pmcxcl.gpuinfo()
+>>> res = pmcxcl.run(nphoton=1000000, vol=np.ones([60, 60, 60], dtype="uint8"),
+...                  tstart=0, tend=5e-9, tstep=5e-9, srcpos=[30, 30, 0],
+...                  srcdir=[0, 0, 1], prop=np.array([[0, 0, 1, 1], [0.005, 1, 0.01, 1.37]]))
 """
 
 try:
@@ -80,7 +96,9 @@ else:
     mcxlab.__doc__ += "\n" + (_pmcx_mcxlab.__doc__ or "")
 
     try:
-        from pmcx import svmc  # newer than pmcx 0.7.3; with an older pmcx, only pmcxcl.svmc is missing
+        from pmcx import (
+            svmc,
+        )  # newer than pmcx 0.7.3; with an older pmcx, only pmcxcl.svmc is missing
     except ImportError:  # pragma: no cover
         pass
 
