@@ -6763,6 +6763,10 @@ float mcx_half2float(unsigned short h) {
 }
 
 void mcx_printheader(Config* cfg) {
+    if (cfg->printnum < 0) {  /* flog=0 (mcxlab, pmcx): the log without the banner */
+        return;
+    }
+
     if (strcmp(T_("_MCX_BANNER_"), "_MCX_BANNER_")) {
         MCX_FPRINTF(cfg->flog, "%s", T_("_MCX_BANNER_"));
         return;

@@ -1690,7 +1690,7 @@ void mcx_set_field(const mxArray* root, const mxArray* item, int idx, Config* cf
             double* val = mxGetPr(item);
 
             if (len > 0 && val[0] <= 2) {
-                cfg->flog = ((int)val[0] == 2 ? stderr : stdout);
+                cfg->flog = ((int)val[0] == 2 ? stderr : ((int)val[0] == 1 ? stdout : (cfg->printnum = -1, stdout)));
             }
         }
 
