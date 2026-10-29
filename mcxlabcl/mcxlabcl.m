@@ -317,7 +317,8 @@ function varargout = mcxlabcl(varargin)
 %      cfg.optlevel:   OpenCL kernel optimization level, 0 (none) to 3 [3]
 %      cfg.compileropt: extra OpenCL JIT compiler options, e.g. '-DMCX_GPU_DEBUG'
 %      cfg.kernelfile: an OpenCL kernel file to run instead of the built-in one
-%      cfg.isatomic:   [1]: accumulate the fluence with atomic operations; 0: not
+%      cfg.isatomic:   deprecated and ignored: the fluence is always accumulated
+%                      with atomic operations
 %      cfg.internalsrc: 1: the source is inside the domain, skip the search for
 %                      the entry point [0]
 %

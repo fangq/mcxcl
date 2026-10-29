@@ -219,7 +219,6 @@ typedef struct MCXConfig {
     char issaveseed;             /**<1 save the seed for a detected photon, 0 do not save*/
     char istrajstokes;           /**<1 to save Stokes vector for trajectory data only */
     char issaveexit;             /**<1 save the exit position and dir of a detected photon, 0 do not save*/
-    char isatomic;               /**<1 use atomic operations, 0 no atomic*/
     char issaveref;              /**<1 save diffuse reflectance at the boundary voxels, 0 do not save*/
     char isdumpjson;             /**<1 to save json */
     int  zipid;                  /**<data zip method "zlib","gzip","base64","lzip","lzma","lz4","lz4hc"*/

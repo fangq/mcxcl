@@ -190,7 +190,6 @@ inline __device__ float4 isgreater_f4(float4 a, float4 b) {
  * OpenCL: uses PTX inline asm for NVIDIA, extensions or CAS fallback for others.
  *==========================================================================*/
 
-#ifdef USE_ATOMIC
 
 #ifdef __NVCC__
 
@@ -237,7 +236,6 @@ inline float atomicadd(volatile __global float* address, const float value) {
 #endif
 
 #endif /* __NVCC__ vs OpenCL */
-#endif /* USE_ATOMIC */
 
 #ifdef USE_FIXEDPOINT
 /**
@@ -1650,7 +1648,7 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
 #if !defined(MCX_SRC_PATTERN) && !defined(MCX_SRC_PATTERN3D)
 #if defined(USE_FIXEDPOINT)
                 mcx_accum(field, *idx1d + tshift * gcfg->dimlen.z, -p[0].w);
-#elif defined(USE_ATOMIC)
+#else
                 float oldval = atomicadd(field + *idx1d + tshift * gcfg->dimlen.z, -p[0].w);
 
                 if (FABS(oldval) > MAX_ACCUM) {
@@ -1658,8 +1656,6 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
                     atomicadd(field + *idx1d + tshift * gcfg->dimlen.z + gcfg->dimlen.w, ((oldval > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
                 }
 
-#else
-                field[*idx1d + tshift * gcfg->dimlen.z] += -p[0].w;
 #endif
 #else
 
@@ -1667,7 +1663,7 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
                     if (FABS(ppath[GPU_PARAM(gcfg, w0offset) + i]) > 0.f) {
 #if defined(USE_FIXEDPOINT)
                         mcx_accum(field, (*idx1d + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i, -((GPU_PARAM(gcfg, srcnum) == 1) ? p[0].w : p[0].w * ppath[GPU_PARAM(gcfg, w0offset) + i]));
-#elif defined(USE_ATOMIC)
+#else
                         float oldval = atomicadd(field + (*idx1d + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i, -((GPU_PARAM(gcfg, srcnum) == 1) ? p[0].w : p[0].w * ppath[GPU_PARAM(gcfg, w0offset) + i]));
 
                         if (FABS(oldval) > MAX_ACCUM) {
@@ -1675,8 +1671,6 @@ __device__ int launchnewphoton(float4* p, float4* v, Stokes* s, float4* f, short
                             atomicadd(field + (*idx1d + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i + gcfg->dimlen.w, ((oldval > 0.f) ? MAX_ACCUM : -MAX_ACCUM));
                         }
 
-#else
-                        field[(*idx1d + tshift * gcfg->dimlen.z) * GPU_PARAM(gcfg, srcnum) + i] += -((GPU_PARAM(gcfg, srcnum) == 1) ? p[0].w : p[0].w * ppath[GPU_PARAM(gcfg, w0offset) + i]);
 #endif
                     }
                 }
@@ -2770,13 +2764,6 @@ __kernel void mcx_main_loop(
                             mcx_accum(field, fieldid + gcfg->dimlen.w, sphi * wsrc);
                         }
 
-#elif !defined(USE_ATOMIC)
-                        field[fieldid] += tmp0 * wsrc;
-
-                        if (GPU_PARAM(gcfg, outputtype) == otRFmus) {
-                            field[fieldid + gcfg->dimlen.w * 2] += sphi * wsrc;
-                        }
-
 #else
                         float oldval = atomicadd(field + fieldid, tmp0 * wsrc);
 
@@ -3084,16 +3071,6 @@ __kernel void mcx_main_loop(
 
 #endif
                     }
-#elif !defined(USE_ATOMIC)
-                    field[idx1dold + tshift * gcfg->dimlen.z] += weight;
-
-                    if ((GPU_PARAM(gcfg, omega) > 0.f) & (GPU_PARAM(gcfg, seed) != SEED_FROM_FILE)) {
-                        field[idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w * 2] += weight_im;
-                    } else if ((GPU_PARAM(gcfg, outputtype) == otRF) & (GPU_PARAM(gcfg, omega) > 0.f)) {
-                        float rf_imag = -replayweight[(idx * gcfg->threadphoton + min(idx, gcfg->oddphoton - 1) + (int)f.w - 1)] * pathlen * ppath[GPU_PARAM(gcfg, w0offset) + GPU_PARAM(gcfg, srcnum) + 1];
-                        field[idx1dold + tshift * gcfg->dimlen.z + gcfg->dimlen.w] += rf_imag;
-                    }
-
 #else
 #if !defined(MCX_SRC_PATTERN) && !defined(MCX_SRC_PATTERN3D)
                     float oldval = atomicadd(field + idx1dold + tshift * gcfg->dimlen.z, weight);

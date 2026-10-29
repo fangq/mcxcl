@@ -659,8 +659,6 @@ except for the device options; the most useful ones are below.
     Meaning: run your own copy of the OpenCL kernel instead of the built-in one
 `--showkernel 1`
     Meaning: print the built-in (or `-k`) kernel source
-`--atomic 1/0`
-    Meaning: accumulate the output with atomic operations (1, default)
 `--internalsrc 1`
     Meaning: the source is inside the domain: skip the search for the entry point
 `-I`, `--printgpu`
@@ -1373,9 +1371,6 @@ kernel
 `-k` option
     MCX: `--voidtime`
     MCX-CL: `--kernel` (use `--voidtime` for the void timer)
-`--atomic`
-    MCX: ignored (always atomic)
-    MCX-CL: selects atomic (1) or non-atomic (0) accumulation
 2D disk sources, Lambertian launch in 2D
     MCX: supported
     MCX-CL: not yet (Lambertian launch is 3D only)

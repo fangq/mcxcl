@@ -617,7 +617,6 @@ except for the device options; the most useful ones are below.
 | `-J '-D...'`, `--compileropt` | extra OpenCL compiler options, e.g. `-DMCX_GPU_DEBUG` (print each step) or `-cl-nv-verbose` (register counts on NVIDIA) |
 | `-k file.cl`, `--kernel` | run your own copy of the OpenCL kernel instead of the built-in one |
 | `--showkernel 1` | print the built-in (or `-k`) kernel source |
-| `--atomic 1/0` | accumulate the output with atomic operations (1, default) |
 | `--internalsrc 1` | the source is inside the domain: skip the search for the entry point |
 | `-I`, `--printgpu` | print the device information, then run |
 
@@ -1163,7 +1162,6 @@ and are tested against each other step by step. The differences are:
 | hardware | NVIDIA GPUs (CUDA), AMD GPUs (HIP) | any OpenCL device: NVIDIA, AMD, Intel GPUs, Apple silicon, CPUs |
 | kernel | compiled ahead of time | compiled for your device at startup (`-o`, `-J`, `-k`) |
 | `-k` option | `--voidtime` | `--kernel` (use `--voidtime` for the void timer) |
-| `--atomic` | ignored (always atomic) | selects atomic (1) or non-atomic (0) accumulation |
 | 2D disk sources, Lambertian launch in 2D | supported | not yet (Lambertian launch is 3D only) |
 | MATLAB | `mcxlab` | `mcxlabcl`, or `mcxlab(cfg, 'opencl')` |
 | Python | `pmcx` | `pmcxcl` (utility functions from `pmcx`) |

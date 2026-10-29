@@ -313,7 +313,6 @@ void mcx_initcfg(Config* cfg) {
     cfg->istrajstokes = 0;
     cfg->issaveexit = 0;
     cfg->issaveref = 0;
-    cfg->isatomic = 1;
 
     cfg->replay.seed = NULL;
     cfg->replay.weight = NULL;
@@ -6392,7 +6391,12 @@ void mcx_parsecmd(int argc, char* argv[], Config* cfg) {
                     } else if (strcmp(argv[i] + 2, "root") == 0) {
                         i = mcx_readstrarg(argc, argv, i, cfg->rootpath, sizeof(cfg->rootpath));
                     } else if (strcmp(argv[i] + 2, "atomic") == 0) {
-                        i = mcx_readarg(argc, argv, i, &(cfg->isatomic), "char");
+                        char isatomic = 1;
+                        i = mcx_readarg(argc, argv, i, &isatomic, "char");
+
+                        if (!isatomic) {
+                            MCX_FPRINTF(cfg->flog, S_RED "WARNING: --atomic 0 is deprecated and ignored; non-atomic accumulation raced and lost part of the deposited energy, at no speed benefit\n" S_RESET);
+                        }
                     } else if (strcmp(argv[i] + 2, "voidtime") == 0) {
                         i = mcx_readarg(argc, argv, i, &(cfg->voidtime), "char");
                     } else if (strcmp(argv[i] + 2, "maxjumpdebug") == 0) {
@@ -6985,7 +6989,8 @@ where possible parameters include (the first value in [*|*] is the default)\n\
       combine multiple items by using a string, or add selected numbers together\n\
 \n"S_BOLD S_CYAN"\
 == Additional options ==\n"S_RESET"\
- --atomic       [1|0]          1: use atomic operations; 0: do not use atomics\n\
+ --atomic       [1|0]          deprecated and ignored; atomic accumulation is\n\
+                               always used, non-atomic mode raced and lost data\n\
  --voidtime     [1|0]          when src is outside, 1 enables timer inside void\n\
  --showkernel   [1|0]          1:display the default or loaded (-k) MCXCL kernel\n\
  --root         [''|string]    full path to the folder storing the input files\n\

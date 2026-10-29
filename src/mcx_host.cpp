@@ -1008,10 +1008,6 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
 
         snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", cfg->compileropt);
 
-        if (cfg->isatomic) {
-            snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DUSE_ATOMIC");
-        }
-
         if (cfg->issavedet) {
             snprintf(opt + strlen(opt), MAX_JIT_OPT_LEN - strlen(opt), "%s ", "-DMCX_SAVE_DETECTORS");
         }
