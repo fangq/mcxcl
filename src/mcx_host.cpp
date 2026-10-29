@@ -488,6 +488,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
     GPUInfo* gpu = NULL;
     RandType* seeddata = NULL;
     RandType* Pseed = NULL;
+    MCXHostRNG hostrng;     /* fills Pseed with the per-thread seeds */
 
     /**
      *                              |----------------------------------------------->  hostdetreclen  <--------------------------------------|
@@ -773,9 +774,9 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
         param.cachebox = cachebox;
 
         if (cfg->seed > 0) {
-            srand(cfg->seed);
+            mcx_hostrng_seed(&hostrng, cfg->seed);
         } else {
-            srand(time(0));
+            mcx_hostrng_seed(&hostrng, time(0));
         }
 
         if (cfg->debuglevel & (MCX_DEBUG_MOVE | MCX_DEBUG_MOVE_ONLY) && cfg->exportdebugdata == NULL) {
@@ -869,7 +870,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                 cl_uint* iseed = (cl_uint*)Pseed;
 
                 for (j = 0; j < gpu[i].autothread * RAND_SEED_LEN; j++) {
-                    iseed[j] = mcx_rand_uint32(); /* same 32-bit seed words as mcx */
+                    iseed[j] = mcx_rand_uint32(&hostrng); /* same 32-bit seed words as mcx */
                 }
 
                 OCL_TRY(((gseed[i] = clCreateBuffer(mcxcontext, RW_MEM, sizeof(RandType) * gpu[i].autothread * RAND_BUF_LEN, Pseed, &status), status)));
@@ -1537,7 +1538,7 @@ void mcx_run_simulation(Config* cfg, float* fluence, float* totalenergy) {
                         cl_uint* iseed = (cl_uint*)Pseed;
 
                         for (j = 0; j < gpu[devid].autothread * RAND_SEED_LEN; j++) {
-                            iseed[j] = mcx_rand_uint32();
+                            iseed[j] = mcx_rand_uint32(&hostrng);
                         }
 
                         OCL_ASSERT((clEnqueueWriteBuffer(mcxqueue[devid], gseed[devid], CL_TRUE, 0, sizeof(RandType)*gpu[devid].autothread * RAND_BUF_LEN,
