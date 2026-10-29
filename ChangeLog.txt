@@ -1,6 +1,20 @@
 Change Log
 
 == MCX-CL 3.0.0 (v2026, Juxtaposition), FangQ <q.fang at neu.edu> ==
+ 2026-10-29 [162ebd4] [test] binding tests of every source type, launch angles, polarized runs, input types
+ 2026-10-29 [552d641]*[bug] mcxlabcl/pmcxcl: accept any numeric class and column vectors, debuglevel 'T', unknown commands
+ 2026-10-29 [45992bc] [bug] initialize the normalizer: stat.normalizer of a run without normalization was garbage
+ 2026-10-29 [27effdc]*[test] unit tests of the pmcxcl and mcxlabcl interfaces, with short end-to-end checks
+ 2026-10-29 [3ff79ff]*[bug] mcxlabcl: an empty cfg field keeps its default, instead of being read as 0
+ 2026-10-29 [68b84f8]*[bug] per-voxel media: scale mua/mus by unitinmm once, whatever the field order
+ 2026-10-29 [de50fb2] [doc] pmcxcl: NumPy-style package docstrings, and a full help of run()
+ 2026-10-29 [bd6078a]*[feat] mcxlabcl/pmcxcl: cfg.flog also controls the echo of the cfg fields, so it can silence everything
+ 2026-10-29 [d212f22] [bug] a bare -l writes the log to <session>.log, as in mcx; document -l 0 and cfg.flog
+ 2026-10-29 [f74782f] [clean] regenerate the embedded kernel mcx_core.clh from the current mcx_core.cl
+ 2026-10-29 [f32dbc5] [bug] cfg.flog=0 (and -l 0) hides the banner; pmcxcl prints the flog=2 log to sys.stdout
+ 2026-10-28 [7c043b7] [clean] one space between the fields of the $Rev line of the help banner
+ 2026-10-28 [1b488d4] [doc] example/README.txt: an index of all examples
+ 2026-10-28 [3628d60] [doc] v2026 docs: the final What's New items, known device issues, ChangeLog and NEWS
  2026-10-28 [e6f1a09] [clean] the host RNG with uint64_t, not long long (C++98 -pedantic warnings)
  2026-10-28 [096219c] [test] suppress glibc's ld.so strncmp report in the valgrind check
  2026-10-28 [b0fa357] [test] forked unit-test children leave through _exit(), as in mmc

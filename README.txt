@@ -190,6 +190,12 @@ lists all of them, with their commit hashes.
 * [614e647] RF forward output keeps its imaginary part in `.jnii`/`.bnii` files
 * [04a7734] `Session.OutputType` names read in full, not just their first letter
 * [e14dbef, ef4ec6b, aca5a92] `--dumpjson`, mcx2json and json2mcx round-trip all settings
+* [68b84f8] per-voxel media scaled mua/mus by `unitinmm` twice when `cfg.unitinmm` was set before
+  `cfg.vol`, and labelplus scaled mus/g instead of mua/mus
+* [3ff79ff] mcxlabcl: an empty field of a cfg struct array keeps its default; it was read as 0
+* [552d641] mcxlabcl accepts any numeric class (`gpuid=int32(1)` failed), logical volumes and column
+  vectors; pmcxcl accepts `debuglevel='T'`
+* [bd6078a] `cfg.flog` also controls the echo of the cfg fields: '/dev/null' or 'NUL' silences everything
 
 '''Testing and robustness'''
 * [253b22f] step-by-step trajectory tests against MCX's golden data, run on a CPU (POCL) in CI
@@ -198,6 +204,8 @@ lists all of them, with their commit hashes.
   fixed [70ef956, ef650f2]; input values now validated
 * [73a7aea] `test/fuzz/dfuzz.py` and the built-in inputs of MCX in `test/builtin`; six more rounds
   of fuzzing found five bugs shared with MCX, fixed in [7c1fcba]
+* [27effdc, 162ebd4] unit tests of the mcxlabcl and pmcxcl interfaces: input types, every output and
+  source type, and short absorbed-fraction checks against references shared with MCX
 
 '''Packaging'''
 * [a3aefe2] Linux releases built in manylinux2014 (glibc 2.17+); Octave 10 mex files for macOS/Windows
