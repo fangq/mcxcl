@@ -198,6 +198,7 @@ lists all of them, with their commit hashes.
 * [bd6078a] `cfg.flog` also controls the echo of the cfg fields: 'none' silences everything
 * [cbb5436] `cfg.flog='none'` and `-l none` silence the log on every OS ('NUL' and '/dev/null' are accepted too; 'NUL' wrote a file on Linux, #280)
 * [ee5dbda] the mex files are no longer UPX-packed: a packed mex aborted MATLAB/Octave whenever it raised an error
+* [1346c53] the device can be picked by name: `-G 4070` or `cfg.gpuid='4070'` uses the first device whose name contains 4070 (ignoring case), `-G titan:2` the 2nd one
 * [6f2f2bf] on Apple Silicon GPUs, every simulation after the first in a MATLAB/Octave/Python session could start from the previous output; the output buffer is now cleared by a write
 
 '''Testing and robustness'''
