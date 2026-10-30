@@ -626,7 +626,7 @@ except for the device options; the most useful ones are below.
 |---|---|
 | `-L`, `--listgpu` | list the OpenCL devices and exit |
 | `-l [1\|0\|none]`, `--log` | 1 (or `-l` alone): write the messages to `session.log`; 0: print them without the banner; none: print nothing, not even the progress bar |
-| `-G n` or `-G '0110'`, `--gpu` | use device n (from 1, as numbered by `-L`), or several devices given as a 0/1 mask |
+| `-G n`, `-G '0110'` or `-G 'name:N'`, `--gpu` | use device n (from 1, as numbered by `-L`), or several devices given as a 0/1 mask, or by name: `-G 'name:N'` is the N-th device whose name contains `name` (ignoring case), `-G name` the first, e.g. `-G 4070`, `-G radeon:2` |
 | `-W '50,30,20'`, `--workload` | relative share of photons for each selected device |
 | `-A 1/0`, `--autopilot` | choose the thread count, dispatch photons dynamically and use fast math (1, default), or use `-t`/`-T` with strict math (0) |
 | `-t num`, `--thread` / `-T num`, `--blocksize` | total threads and threads per work group when `-A 0` |

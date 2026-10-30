@@ -659,9 +659,11 @@ except for the device options; the most useful ones are below.
 `-l [1|0|none]`, `--log`
     Meaning: 1 (or `-l` alone): write the messages to `session.log`; 0: print them
         without the banner; none: print nothing, not even the progress bar
-`-G n` or `-G '0110'`, `--gpu`
+`-G n`, `-G '0110'` or `-G 'name:N'`, `--gpu`
     Meaning: use device n (from 1, as numbered by `-L`), or several devices given as a 0/1
-        mask
+        mask,
+        or by name: `-G 'name:N'` is the N-th device whose name contains `name` (ignoring
+        case), `-G name` the first, e.g. `-G 4070`, `-G radeon:2`
 `-W '50,30,20'`, `--workload`
     Meaning: relative share of photons for each selected device
 `-A 1/0`, `--autopilot`

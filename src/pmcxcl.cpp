@@ -1199,10 +1199,13 @@ void parse_config(const py::dict& user_cfg, Config& mcx_config) {
             strncpy(mcx_config.deviceid, gpu_id_string_value.c_str(), MAX_DEVICE);
         }
 
-        for (int i = 0; i < MAX_DEVICE; i++)
-            if (mcx_config.deviceid[i] == '0') {
-                mcx_config.deviceid[i] = '\0';
-            }
+        /* a 0/1 mask: '\0' marks the unused devices; a device name pattern ("4070") stays as is */
+        if (!mcx_isdevicename(mcx_config.deviceid)) {
+            for (int i = 0; i < MAX_DEVICE; i++)
+                if (mcx_config.deviceid[i] == '0') {
+                    mcx_config.deviceid[i] = '\0';
+                }
+        }
     }
 
     if (user_cfg.contains("workload")) {
@@ -1296,8 +1299,13 @@ py::dict pmcxcl_interface(const py::dict& user_cfg) {
 
         parse_config(user_cfg, mcx_config);
 
+        int bydevname = mcx_isdevicename(mcx_config.deviceid);
+
         try {
             mcx_list_gpu(&mcx_config, &active_dev,  devices, &gpu_info);
+        } catch (const char* err) {
+            /* a device name that selects no device (gpuid='name:N') is not an OpenCL problem */
+            throw py::runtime_error(bydevname ? std::string(err) : std::string("OpenCL is not supported or not fully installed on your system"));
         } catch (...) {
             throw py::runtime_error(std::string("OpenCL is not supported or not fully installed on your system"));
         }
@@ -2038,7 +2046,9 @@ static const char* pmcxcl_run_doc_lines[] = {
     "\n",
     "    gpuid : int or str\n",
     "        The OpenCL device to use, from 1 [1]; a string of 0s and 1s selects\n",
-    "        several, e.g. '1101'. pmcxcl.gpuinfo() lists them.\n",
+    "        several, e.g. '1101'; any other string picks a device by its name:\n",
+    "        'name:N' is the N-th device whose name contains 'name', ignoring case,\n",
+    "        and 'name' the first, e.g. '4070' or 'radeon:2'. pmcxcl.gpuinfo() lists them.\n",
     "    workload : array_like\n",
     "        The relative share of photons for each selected device.\n",
     "    autopilot : int\n",

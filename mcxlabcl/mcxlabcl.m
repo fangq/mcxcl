@@ -310,7 +310,10 @@ function varargout = mcxlabcl(varargin)
 % == Device ==
 %      cfg.gpuid:      which OpenCL device to use, from 1 ('mcxcl -L' or
 %                      mcxlabcl('gpuinfo') lists them) [1]; a string of 0s and 1s
-%                      selects several, e.g. '1101' uses the 1st, 2nd and 4th.
+%                      selects several, e.g. '1101' uses the 1st, 2nd and 4th;
+%                      any other string picks a device by its name: 'name:N' is
+%                      the N-th device whose name contains 'name', ignoring case,
+%                      and 'name' the first, e.g. '4070' or 'radeon:2'
 %                      Example: <mcx_gpu_benchmarks.m>
 %      cfg.workload:   the relative share of photons for each selected device,
 %                      e.g. [50 20 30]
