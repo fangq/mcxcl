@@ -74,7 +74,6 @@ class CMakeBuild(build_ext):
                     pass
 
         else:
-
             # Single config generators are handled "normally"
             single_config = any(
                 x in cmake_generator for x in {"MinGW Makefiles", "Ninja"}
@@ -127,7 +126,7 @@ class CMakeBuild(build_ext):
 setup(
     name="pmcxcl",
     packages=["pmcxcl"],
-    version="0.7.5",
+    version="0.8.0",
     requires=["numpy"],
     license="GPLv3+",
     author="Matin Raayai Ardakani, Qianqian Fang",
