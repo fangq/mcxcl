@@ -25,6 +25,9 @@ find_package(OpenCL REQUIRED)
 add_subdirectory(zmat)
 
 option(BUILD_MEX "Build mex" ON)
+# exact 64-bit fixed-point output sums (order-independent); OFF builds the float sums of the
+# releases before v2026, as "make floatsum" does
+option(USE_FIXEDPOINT "Accumulate the output as 64-bit fixed-point integers" ON)
 
 if(BUILD_PYTHON)
     add_subdirectory(pybind11)
@@ -37,6 +40,9 @@ if(BUILD_MEX)
 endif()
 
 set(CMAKE_CXX_FLAGS "-DMCX_EMBED_CL -DMCX_OPENCL -DUSE_OPENCL -DUSE_OS_TIMER -D_hypot=hypot")
+if(USE_FIXEDPOINT)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_FIXEDPOINT")
+endif()
 set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS}")
 
 if( ${CMAKE_COMPILER_IS_GNUCXX} )

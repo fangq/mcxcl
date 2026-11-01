@@ -82,14 +82,15 @@ include
   with separate `srcid` records
 * per-thread random number seeds derived exactly as in MCX, so that MCX and
   MCX-CL trace the same photon paths for the same seed, on every OS
-* exact output sums: `make fixed` accumulates the output as 64-bit fixed-point
-  integers instead of a float with a second float buffer (MCX v2026); the sums
+* exact output sums, now the default: the output is accumulated as 64-bit
+  fixed-point integers instead of a float with a second float buffer (MCX v2026); the sums
   do not depend on the order of the additions, so a run with `-A 0` is
   bit-reproducible. Each sum is a pair of 32-bit words, low and high words in
   separate planes, so only 32-bit atomics are needed and a deposit touches
   4 bytes per element, as the float buffers do. The speed is about that of the
-  default build: 1.06x on an RTX 4090, 1.01x on an A100, 0.99x on a TITAN V and
-  0.97x on a CPU (POCL), from 0.89x to 1.44x over 13 built-in examples
+  float sums: 1.06x on an RTX 4090, 1.01x on an A100, 0.99x on a TITAN V and
+  0.97x on a CPU (POCL), from 0.89x to 1.44x over 13 built-in examples. `make floatsum`
+  (or `cmake -DUSE_FIXEDPOINT=OFF`) builds the float sums of the releases before v2026
 
 In addition, this release contains the following fixes and improvements
 
@@ -421,7 +422,7 @@ make                  # the mcxcl binary in ../bin
 make mex              # MCXLAB-CL for MATLAB: ../mcxlabcl/mcxcl.mex*
 make oct              # MCXLAB-CL for Octave: ../mcxlabcl/mcxcl.mex
 make unittest         # host unit tests
-make fixed            # exact 64-bit fixed-point output sums (-DUSE_FIXEDPOINT)
+make floatsum         # float output sums, as before v2026 (default: 64-bit fixed point)
 cd ../pmcxcl && python3 -m pip install .   # PMCXCL
 ```
 

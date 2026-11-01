@@ -57,11 +57,14 @@ CLPROGRAM=mcx_core
 #################################################################
 
 USERCCFLAGS ?=
+# the output is accumulated as exact 64-bit fixed-point integers, whose sums do not depend on the
+# order of the additions; "make floatsum" builds the float sums of the releases before v2026
+ACCUMOPT ?= -DUSE_FIXEDPOINT
 FILES = $(FILES_COMMON)
 CLSOURCE =
 
 # --- OpenCL backend (default, and when no goal specified) ---
-ifneq (,$(filter $(MAKECMDGOALS),all static mex oct intelcpu unittest fixed))
+ifneq (,$(filter $(MAKECMDGOALS),all static mex oct intelcpu unittest fixed floatsum))
     USERCCFLAGS += -DUSE_OPENCL -DMCX_OPENCL -DMCX_EMBED_CL
     FILES += $(FILES_OCL)
     CLSOURCE = $(addsuffix $(CLHEADER), $(CLPROGRAM))
@@ -72,6 +75,10 @@ ifeq ($(MAKECMDGOALS),)
     FILES += $(FILES_OCL)
     CLSOURCE = $(addsuffix $(CLHEADER), $(CLPROGRAM))
 endif
+
+# after the += above: override (which also keeps it when USERCCFLAGS is given on the command
+# line) makes make ignore any later plain assignment to USERCCFLAGS
+override USERCCFLAGS += $(ACCUMOPT)
 
 #################################################################
 # Platform detection and library paths
@@ -210,9 +217,9 @@ OBJS      := $(addsuffix $(OBJSUFFIX), $(FILES))
 # Build targets
 #################################################################
 
-fixed:      USERCCFLAGS+=-DUSE_FIXEDPOINT
+floatsum:   ACCUMOPT=
 
-all mex oct intelcpu static fixed: $(OUTPUT_DIR)/$(BINARY)
+all mex oct intelcpu static fixed floatsum: $(OUTPUT_DIR)/$(BINARY)
 
 makedirs:
 	@if test ! -d $(OUTPUT_DIR); then $(MKDIR) -p $(OUTPUT_DIR); fi
