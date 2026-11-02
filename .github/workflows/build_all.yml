@@ -205,6 +205,12 @@ jobs:
             strip --strip-unneeded mcxlabcl/mcxcl.mex* || true
           fi
           mv mcxlabcl/mcxcl.mex mcxlabcl/octave/${{ env.OCTAVE_ARCH }}
+          # the helper functions of mcx's utils/ (newer than mcxcl's copy) as mcxlabcl's private folder:
+          # mcxlabcl.m calls mcxdetphoton and others, so the package works without utils/ on the path
+          rm -rf mcxlabcl/private mcxsrc
+          git clone -q --depth 1 --filter=blob:none --sparse https://github.com/fangq/mcx.git mcxsrc
+          git -C mcxsrc sparse-checkout set utils
+          cp -a mcxsrc/utils mcxlabcl/private && rm -rf mcxsrc
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             cp "$PWD/octave/octave-10.3.0-w64/mingw64/bin/libwinpthread-1.dll" mcxlabcl/octave/${{ env.OCTAVE_ARCH }}
             rm -rf "$PWD/octave/"
